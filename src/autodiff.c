@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <float.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -1835,7 +1836,7 @@ static boat_tensor_t* compute_forward_log_softmax(boat_tensor_t* a) {
                 }
 
                 // Compute log_softmax
-                float log_exp_sum = logf(exp_sum);
+                float log_exp_sum = logf(fmaxf(exp_sum, FLT_MIN));
                 for (size_t i = 0; i < last_dim; i++) {
                     out_ptr[row_offset + i] = a_ptr[row_offset + i] - row_max - log_exp_sum;
                 }
@@ -1865,7 +1866,7 @@ static boat_tensor_t* compute_forward_log_softmax(boat_tensor_t* a) {
                 }
 
                 // Compute log_softmax
-                double log_exp_sum = log(exp_sum);
+                double log_exp_sum = log(fmax(exp_sum, DBL_MIN));
                 for (size_t i = 0; i < last_dim; i++) {
                     out_ptr[row_offset + i] = a_ptr[row_offset + i] - row_max - log_exp_sum;
                 }

@@ -27,6 +27,7 @@ struct boat_tensor_t {
 
 // Helper functions
 static size_t calculate_nelements(const int64_t* shape, size_t ndim) {
+    if (!shape) return 0;
     size_t nelements = 1;
     for (size_t i = 0; i < ndim; i++) {
         nelements *= shape[i];
