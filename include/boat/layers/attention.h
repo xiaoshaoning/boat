@@ -1,6 +1,6 @@
 // attention.h - Attention mechanisms for transformer models
-// Copyright (c) 2026 Boat Framework Authors
-// Distributed under the MIT License
+// Copyright (c) 2026 Shaoning, Xiao 萧少宁
+// Licensed under the Apache License, Version 2.0
 
 #ifndef BOAT_ATTENTION_H
 #define BOAT_ATTENTION_H

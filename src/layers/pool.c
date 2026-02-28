@@ -1,6 +1,6 @@
 // pool.c - Pooling layer implementation
-// Copyright (c) 2026 Boat Framework Authors
-// Distributed under the MIT License
+// Copyright (c) 2026 Shaoning, Xiao 萧少宁
+// Licensed under the Apache License, Version 2.0
 
 #define _USE_MATH_DEFINES  // For INFINITY on Windows
 #include <math.h>

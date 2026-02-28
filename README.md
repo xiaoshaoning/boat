@@ -529,7 +529,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 

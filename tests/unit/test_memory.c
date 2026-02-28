@@ -1,6 +1,6 @@
 // test_memory.c - Memory management unit tests
-// Copyright (c) 2026 Boat Framework Authors
-// Distributed under the MIT License
+// Copyright (c) 2026 Shaoning, Xiao 萧少宁
+// Licensed under the Apache License, Version 2.0
 
 #include <boat/memory.h>
 #include <stdio.h>

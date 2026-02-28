@@ -1,6 +1,6 @@
 // dense.c - Dense (fully connected) layer implementation
-// Copyright (c) 2026 Boat Framework Authors
-// Distributed under the MIT License
+// Copyright (c) 2026 Shaoning, Xiao 萧少宁
+// Licensed under the Apache License, Version 2.0
 
 #include <boat/layers.h>
 #include <boat/ops.h>
