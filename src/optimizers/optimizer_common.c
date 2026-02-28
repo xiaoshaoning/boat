@@ -1,6 +1,6 @@
 // optimizer_common.c - Common optimizer functions and utilities
-// Copyright (c) 2026 Shaoning, Xiao 萧少宁
-// Licensed under the Apache License, Version 2.0
+// Copyright (c) 2026 Boat Framework Authors
+// Distributed under the MIT License
 
 #include <stdlib.h>
 
@@ -114,7 +114,7 @@ static boat_optimizer_type_t get_optimizer_type(boat_optimizer_t* optimizer) {
 }
 
 // Generic optimizer functions
-void boat_optimizer_add_parameter(boat_optimizer_t* optimizer,
+BOAT_API void boat_optimizer_add_parameter(boat_optimizer_t* optimizer,
                                   boat_tensor_t* param,
                                   boat_tensor_t* grad) {
     if (!optimizer) return;
@@ -136,7 +136,7 @@ void boat_optimizer_add_parameter(boat_optimizer_t* optimizer,
     }
 }
 
-void boat_optimizer_step(boat_optimizer_t* optimizer) {
+BOAT_API void boat_optimizer_step(boat_optimizer_t* optimizer) {
     if (!optimizer) return;
 
     switch (get_optimizer_type(optimizer)) {
@@ -156,7 +156,7 @@ void boat_optimizer_step(boat_optimizer_t* optimizer) {
     }
 }
 
-void boat_optimizer_zero_grad(boat_optimizer_t* optimizer) {
+BOAT_API void boat_optimizer_zero_grad(boat_optimizer_t* optimizer) {
     if (!optimizer) return;
 
     switch (get_optimizer_type(optimizer)) {
@@ -176,7 +176,7 @@ void boat_optimizer_zero_grad(boat_optimizer_t* optimizer) {
     }
 }
 
-void boat_optimizer_free(boat_optimizer_t* optimizer) {
+BOAT_API void boat_optimizer_free(boat_optimizer_t* optimizer) {
     if (!optimizer) return;
 
     switch (get_optimizer_type(optimizer)) {

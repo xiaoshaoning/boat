@@ -1,6 +1,6 @@
 // gru.c - GRU layer implementation
-// Copyright (c) 2026 Shaoning, Xiao 萧少宁
-// Licensed under the Apache License, Version 2.0
+// Copyright (c) 2026 Boat Framework Authors
+// Distributed under the MIT License
 
 #include <boat/layers.h>
 #include <boat/tensor.h>
@@ -27,7 +27,7 @@ struct boat_gru_layer_t {
 };
 
 // Create GRU layer
-boat_gru_layer_t* boat_gru_layer_create(size_t input_size, size_t hidden_size,
+BOAT_API boat_gru_layer_t* BOAT_CALL boat_gru_layer_create(size_t input_size, size_t hidden_size,
                                         size_t num_layers, bool bidirectional,
                                         float dropout) {
     boat_gru_layer_t* layer = (boat_gru_layer_t*)boat_malloc(sizeof(boat_gru_layer_t), BOAT_DEVICE_CPU);
@@ -52,7 +52,7 @@ boat_gru_layer_t* boat_gru_layer_create(size_t input_size, size_t hidden_size,
 }
 
 // Free GRU layer
-void boat_gru_layer_free(boat_gru_layer_t* layer) {
+BOAT_API void BOAT_CALL boat_gru_layer_free(boat_gru_layer_t* layer) {
     if (!layer) return;
 
     if (layer->weight_ih) boat_tensor_unref(layer->weight_ih);
@@ -65,7 +65,7 @@ void boat_gru_layer_free(boat_gru_layer_t* layer) {
 }
 
 // Forward pass (placeholder)
-boat_tensor_t* boat_gru_layer_forward(boat_gru_layer_t* layer, const boat_tensor_t* input) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_forward(boat_gru_layer_t* layer, const boat_tensor_t* input) {
     (void)layer;
     (void)input;
     // TODO: Implement GRU forward pass
@@ -73,7 +73,7 @@ boat_tensor_t* boat_gru_layer_forward(boat_gru_layer_t* layer, const boat_tensor
 }
 
 // Backward pass (placeholder)
-boat_tensor_t* boat_gru_layer_backward(boat_gru_layer_t* layer, const boat_tensor_t* grad_output) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_backward(boat_gru_layer_t* layer, const boat_tensor_t* grad_output) {
     (void)layer;
     (void)grad_output;
     // TODO: Implement GRU backward pass
@@ -81,32 +81,32 @@ boat_tensor_t* boat_gru_layer_backward(boat_gru_layer_t* layer, const boat_tenso
 }
 
 // Update parameters (placeholder)
-void boat_gru_layer_update(boat_gru_layer_t* layer, float learning_rate) {
+BOAT_API void BOAT_CALL boat_gru_layer_update(boat_gru_layer_t* layer, float learning_rate) {
     (void)layer;
     (void)learning_rate;
     // TODO: Implement parameter update
 }
 
 // Parameter setters for model loading
-void boat_gru_layer_set_weight_ih(boat_gru_layer_t* layer, boat_tensor_t* weight) {
+BOAT_API void BOAT_CALL boat_gru_layer_set_weight_ih(boat_gru_layer_t* layer, boat_tensor_t* weight) {
     if (layer->weight_ih) boat_tensor_unref(layer->weight_ih);
     layer->weight_ih = weight;
     if (weight) boat_tensor_ref(weight);
 }
 
-void boat_gru_layer_set_weight_hh(boat_gru_layer_t* layer, boat_tensor_t* weight) {
+BOAT_API void BOAT_CALL boat_gru_layer_set_weight_hh(boat_gru_layer_t* layer, boat_tensor_t* weight) {
     if (layer->weight_hh) boat_tensor_unref(layer->weight_hh);
     layer->weight_hh = weight;
     if (weight) boat_tensor_ref(weight);
 }
 
-void boat_gru_layer_set_bias_ih(boat_gru_layer_t* layer, boat_tensor_t* bias) {
+BOAT_API void BOAT_CALL boat_gru_layer_set_bias_ih(boat_gru_layer_t* layer, boat_tensor_t* bias) {
     if (layer->bias_ih) boat_tensor_unref(layer->bias_ih);
     layer->bias_ih = bias;
     if (bias) boat_tensor_ref(bias);
 }
 
-void boat_gru_layer_set_bias_hh(boat_gru_layer_t* layer, boat_tensor_t* bias) {
+BOAT_API void BOAT_CALL boat_gru_layer_set_bias_hh(boat_gru_layer_t* layer, boat_tensor_t* bias) {
     if (layer->bias_hh) boat_tensor_unref(layer->bias_hh);
     layer->bias_hh = bias;
     if (bias) boat_tensor_ref(bias);

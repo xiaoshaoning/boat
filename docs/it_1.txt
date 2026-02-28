@@ -1,0 +1,101 @@
+Boat Deep Learning Framework - Initial Project Structure
+
+Overview:
+A lightweight, high-performance deep learning framework written in C with eventual CUDA support.
+Designed for inference, training, and fine-tuning of neural networks with support for common model formats.
+
+Key Features:
+1. Pure C implementation with minimal dependencies
+2. Automatic differentiation with computational graph
+3. Support for multiple data types including low-bit networks (1-bit, 2-bit, 4-bit, 8-bit)
+4. Graph-based model processing
+5. CUDA support planned for future
+
+Data Types Supported:
+- Standard floating point: FP64 (double), FP32 (float), FP16 (half)
+- Custom floating point: FP8, FP4
+- Integer types: INT64, INT32, UINT8
+- Low-bit quantization: BITS2 (2-bit), BITS1 (1-bit binary networks)
+- Boolean: BOOL
+
+Project Structure Created:
+boat/
+├── include/boat/
+│   ├── tensor.h     # Tensor operations (all data types)
+│   ├── autodiff.h   # Automatic differentiation
+│   ├── graph.h      # Computational graph structure
+│   └── boat.h       # Main header file
+├── src/core/tensor.c # Basic tensor implementation
+├── CMakeLists.txt    # CMake build configuration
+├── Makefile          # Make build configuration
+├── CLAUDE.md         # Detailed project documentation
+├── README.md         # Project introduction
+├── LICENSE           # MIT License
+└── docs/             # Documentation directory
+
+Core Components Implemented:
+
+1. Tensor System (tensor.h):
+   - Support for all data types including low-bit networks
+   - Reference counting for memory management
+   - Device support (CPU/GPU)
+   - Shape manipulation operations
+
+2. Automatic Differentiation (autodiff.h):
+   - Variable abstraction with gradient tracking
+   - Arithmetic operations with gradient computation
+   - Activation functions with gradients
+   - Backward pass implementation
+
+3. Computational Graph (graph.h):
+   - Directed acyclic graph structure
+   - Node types: Variable, Operation, Constant, Placeholder, Output
+   - Edge directions: Forward (data), Backward (gradient)
+   - Graph traversal algorithms: DFS, BFS, topological sort
+
+4. Build Systems:
+   - CMake with configurable options (CUDA, ONNX, tests, examples)
+   - Makefile for simple builds
+   - Cross-platform support (Linux, macOS, Windows)
+
+Code Style:
+- File names: snake_case.c, snake_case.h
+- Function names: snake_case()
+- Type names: snake_type_t
+- Constants: SNAKE_CASE
+- Comments: English only, no Chinese characters
+- Indentation: 4 spaces, no tabs
+- Line length: 100 characters maximum
+
+Development Roadmap:
+Phase 1: Core CPU Implementation (Current)
+- Tensor operations, automatic differentiation, computational graph
+- Basic neural network layers, optimization algorithms, loss functions
+- Unit tests and documentation
+
+Phase 2: Model Format Support
+- ONNX, PyTorch, TensorFlow model loading
+
+Phase 3: GPU Acceleration
+- CUDA backend for tensor operations
+
+Phase 4: Advanced Features
+- Advanced quantization, distributed training, hardware acceleration
+
+Next Steps:
+1. Implement remaining core components:
+   - Memory management (src/core/memory.c)
+   - Arithmetic operations (src/ops/arithmetic.c)
+   - Graph node implementation (src/graph/node.c)
+
+2. Add test framework:
+   mkdir build && cd build
+   cmake -DBOAT_WITH_TESTS=ON ..
+   make
+
+3. Extend low-bit network support:
+   - Implement FP8/FP4 conversion functions
+   - Add bit packing/unpacking functions
+   - Implement forward/backward propagation for low-bit networks
+
+The framework is designed with modular architecture for easy extension and follows consistent naming conventions throughout.

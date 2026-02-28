@@ -29,6 +29,39 @@ Thumbs.db
 attention_*.txt
 scaled_attention_called.txt
 
+# Test output files
+*_output.txt
+*output.txt
+benchmark_output.txt
+convergence_test_output.txt
+debug_test_conv.txt
+training_history.csv
+
+# Backup files
+*.backup
+*backup*
+
+# Model checkpoint files
+*.boat
+
+# Temporary data files
+*.bin
+nul
+stderr.txt
+stdout.txt
+
+# Example output files
+examples/mnist/*.txt
+examples/mnist/*.boat
+examples/mnist/*.csv
+
+# Iteration backup files
+*.it*
+
+# Data files (large binary files)
+examples/mnist/data/*.bin
+examples/mnist/data/MNIST/
+
 # Coverage reports
 coverage/
 *.gcov

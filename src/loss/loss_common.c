@@ -1,6 +1,6 @@
 // loss_common.c - Common loss function infrastructure and dispatch
-// Copyright (c) 2026 Shaoning, Xiao 萧少宁
-// Licensed under the Apache License, Version 2.0
+// Copyright (c) 2026 Boat Framework Authors
+// Distributed under the MIT License
 
 #include <boat/loss.h>
 #include <boat/tensor.h>

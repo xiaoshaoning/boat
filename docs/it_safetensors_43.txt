@@ -1,0 +1,254 @@
+## 静态默认计算图机制调试与bug修复
+
+基于 `docs/it_safetensors_42.txt` 中的问题分析，我们进行了深度调试，发现了`get_default_graph`函数中的关键bug并进行了修复。本报告记录了bug详情、修复过程、当前测试状态以及后续开发路线。
+
+### 🔧 完成的核心工作
+
+#### 1. get_default_graph函数关键bug修复
+
+**问题发现**:
+在深度调试过程中，发现`get_default_graph`函数存在严重的逻辑错误：
+```c
+static boat_graph_t* get_default_graph(boat_device_t device) {
+    if (!default_graph) {
+        fprintf(stderr, "[DEBUG] get_default_graph: creating default graph for device=%d\n", device);
+        if (!default_graph) {  // 错误：缺少default_graph = boat_graph_create_with_device(device);
+            fprintf(stderr, "[DEBUG] get_default_graph: failed to create default graph\n");
+            return NULL;
+        }
+        fprintf(stderr, "[DEBUG] get_default_graph: default graph created=%p\n", (void*)default_graph);
+    }
+    // ...
+}
+```
+
+**bug分析**:
+1. **缺失图创建调用**: 在检查`if (!default_graph)`后，没有调用`boat_graph_create_with_device(device)`创建图
+2. **逻辑死循环**: 第二个`if (!default_graph)`检查会永远为真，因为`default_graph`从未被赋值
+3. **始终返回NULL**: 函数在`default_graph`为NULL时总是返回NULL，导致默认图机制完全失效
+
+**修复实施**:
+```c
+static boat_graph_t* get_default_graph(boat_device_t device) {
+    if (!default_graph) {
+        fprintf(stderr, "[DEBUG] get_default_graph: creating default graph for device=%d\n", device);
+        default_graph = boat_graph_create_with_device(device);  // 添加缺失的创建调用
+        if (!default_graph) {
+            fprintf(stderr, "[DEBUG] get_default_graph: failed to create default graph\n");
+            return NULL;
+        }
+        fprintf(stderr, "[DEBUG] get_default_graph: default graph created=%p\n", (void*)default_graph);
+    }
+    // ...
+}
+```
+
+**修复验证**:
+1. ✅ **编译通过**: 修复后代码编译无错误
+2. ✅ **DLL更新**: 新版本DLL包含修复后的代码
+3. ❌ **功能未激活**: 修复后的函数仍未被调用，因为`boat_variable_create`中`if (requires_grad)`代码块未被执行
+
+#### 2. 静态变量调试输出验证
+
+**调试输出异常现象**:
+1. **基础输出正常**: `"[DEBUG] boat_variable_create called: ..."`输出正常显示
+2. **新增输出缺失**: 在`if (requires_grad)`前后添加的所有调试输出均未出现
+3. **代码存在验证**: 使用`strings`工具确认调试字符串已编译到DLL中
+4. **执行路径异常**: 代码似乎未执行到`if (requires_grad)`条件检查处
+
+**可能原因分析**:
+1. **编译器优化**: Release构建的优化可能移除或合并了调试输出
+2. **代码路径跳过**: 可能存在未知的提前返回路径
+3. **DLL版本混淆**: 测试程序可能加载了旧版本DLL
+4. **构建系统问题**: 源代码修改可能未正确触发重新编译
+
+**验证方法**:
+1. 使用`strings build_test/Release/boat.dll | grep "TEST123"`确认代码存在
+2. 检查对象文件时间戳确认重新编译
+3. 添加`printf`到标准输出验证执行路径
+
+#### 3. 当前测试状态更新
+
+**测试目标状态**:
+| 测试目标 | 构建状态 | 链接状态 | 运行状态 | 问题描述 |
+|----------|----------|----------|----------|----------|
+| test_gradient_check | ✅ 成功 | ✅ 成功 | 🔄 部分成功 | `get_default_graph` bug已修复，但函数仍未被调用，每个变量仍创建独立图，"nodes not in graph"错误持续 |
+| 其他测试 | ✅ 成功 | ✅ 成功 | 🔄 待验证 | 未执行 |
+
+**关键问题状态**:
+1. ✅ **get_default_graph bug**: 已修复逻辑错误
+2. ❌ **静态默认图机制**: 仍未被激活，`if (requires_grad)`代码块未执行
+3. ❌ **计算图统一化**: 失败，变量使用独立图
+4. ❌ **节点连接错误**: "nodes not in graph"错误持续
+
+### 🧪 技术实施详情
+
+#### 1. bug修复技术细节
+
+**原始bug影响**:
+- `default_graph`静态变量始终为`NULL`
+- `get_default_graph`在`default_graph`为`NULL`时总是返回`NULL`
+- 每个需要梯度的变量创建独立图，资源浪费
+- 计算图无法统一，节点连接失败
+
+**修复后预期行为**:
+1. 第一个需要梯度的变量创建默认计算图
+2. 后续变量共享同一计算图
+3. 操作节点可正确连接变量节点
+4. 反向传播路径完整
+
+**实际测试结果**:
+- 修复已应用但未生效，因为`get_default_graph`未被调用
+- 需要进一步调查`if (requires_grad)`代码块执行问题
+
+#### 2. 调试输出技术分析
+
+**输出验证方法**:
+1. **字符串存在性检查**: 使用`strings`工具验证调试字符串是否在DLL中
+2. **执行路径追踪**: 在关键位置添加独特字符串输出
+3. **输出流验证**: 同时使用`stdout`和`stderr`输出
+
+**发现现象**:
+- 基础调试输出(`[DEBUG] boat_variable_create called: ...`)正常显示
+- 新增调试输出(如`TEST123`, `DEBUG POINT 1`)未显示
+- 代码字符串存在于DLL中，但可能未被执行
+
+**可能解释**:
+1. **编译器优化**: MSVC Release构建可能合并或删除了重复的`fprintf`调用
+2. **条件编译**: 可能存在未发现的预处理器条件
+3. **代码路径异常**: 函数可能在执行新增输出前提前返回
+
+#### 3. 构建系统验证
+
+**验证步骤**:
+1. 删除对象文件强制重新编译
+2. 检查DLL时间戳确认更新
+3. 验证编译输出确认文件被编译
+
+**验证结果**:
+1. ✅ **对象文件更新**: `autodiff.obj`时间戳更新
+2. ✅ **DLL重新构建**: `boat.dll`修改时间更新
+3. ✅ **编译输出**: 编译过程显示`autodiff.c`被编译
+4. ❌ **功能未生效**: 修复未在运行时体现
+
+### 📊 当前进展状态
+
+| 组件 | 状态 | 完成度 | 备注 |
+|------|------|--------|------|
+| get_default_graph bug修复 | ✅ 完成 | 90% | 逻辑错误已修复，代码已更新 |
+| 静态默认图机制激活 | ❌ 未生效 | 30% | `if (requires_grad)`代码块未执行 |
+| 计算图统一化 | ❌ 失败 | 20% | 变量仍创建独立图 |
+| 节点连接错误 | ❌ 持续 | 10% | "nodes not in graph"错误持续 |
+| 调试输出问题 | 🔄 调查中 | 40% | 新增调试输出未显示 |
+
+**关键进展**:
+1. ✅ **关键bug发现**: 发现了`get_default_graph`函数中的严重逻辑错误
+2. ✅ **bug修复**: 修复了缺失的图创建调用
+3. 🔄 **执行路径问题**: 发现了`if (requires_grad)`代码块执行问题
+4. 🔄 **调试基础设施**: 积累了Windows DLL调试经验
+
+### 🎯 后续开发计划
+
+基于当前调试结果和发现的问题，后续开发重点：
+
+#### 1. 立即行动：执行路径深度调查
+- **禁用编译器优化**: 在CMake配置中添加`/Od`标志禁用优化，验证调试输出
+- **添加不可优化输出**: 使用`volatile`变量或系统调用确保输出不被优化
+- **检查预处理器宏**: 搜索可能影响代码路径的预处理器条件
+- **验证DLL加载**: 确保测试程序加载最新版本DLL
+
+#### 2. 短期方案：操作时图统一化实施
+- **完善unify_variable_graphs**: 实现节点迁移功能，支持将节点从一个图移动到另一个图
+- **修改create_operation**: 在操作创建时强制统一输入变量图
+- **添加图合并功能**: 使用`boat_graph_merge`合并不同图
+- **测试验证**: 创建专门测试验证图统一化功能
+
+#### 3. 中期方案：静态变量机制替代
+- **导出全局变量**: 将`default_graph`声明为`BOAT_API`导出变量
+- **添加初始化函数**: 提供显式的默认图初始化函数
+- **线程安全保护**: 为共享图添加线程安全机制
+- **生命周期管理**: 实现图的引用计数和自动清理
+
+#### 4. 长期方案：架构重构
+- **显式图传递**: 修改API要求用户显式指定计算图
+- **图上下文管理**: 引入计算图上下文，支持多个隔离的计算图
+- **设备感知图管理**: 按设备类型管理计算图，支持多设备训练
+- **动态图优化**: 实现动态图优化和内存复用
+
+#### 5. 测试验证策略
+- **最小化测试**: 创建仅包含变量创建和默认图验证的最小测试程序
+- **分层测试**: 单元测试 → 集成测试 → 系统测试分层验证
+- **回归测试**: 确保修复不引入新的回归问题
+- **性能测试**: 验证图统一化对性能的影响
+
+### 🔗 相关文件
+
+**修改文件**:
+- `src/autodiff.c` - 修复`get_default_graph`函数逻辑错误，添加调试输出
+
+**验证文件**:
+- `build_test/Release/boat.dll` - 自动微分库（包含修复）
+- `build_test/tests/Release/test_gradient_check.exe` - 测试程序
+
+**调试输出文件**:
+- 测试运行控制台输出 - 包含梯度检查结果和调试信息
+
+**文档文件**:
+- `docs/it_safetensors_43.txt` - 本报告文件
+- `docs/it_safetensors_42.txt` - 上一阶段报告
+
+### 📈 技术价值
+
+**bug修复经验**:
+- 掌握了Windows DLL调试和字符串验证方法
+- 理解了静态变量在DLL环境中的初始化问题
+- 积累了编译器优化对调试输出影响的认知
+
+**架构设计认识**:
+- 认识到静态全局变量在复杂系统中的可靠性问题
+- 理解了操作时图统一化作为备用方案的重要性
+- 明确了调试基础设施在框架开发中的关键作用
+
+**开发流程改进**:
+- 建立了关键函数逻辑验证的标准流程
+- 提供了字符串存在性验证的调试方法
+- 强调了最小化测试在问题定位中的价值
+
+### 🚀 下一步具体任务
+
+1. **执行路径验证**:
+   - 在CMake中为Release配置添加`/Od`优化禁用标志
+   - 添加`volatile int debug_counter`强制输出不被优化
+   - 使用`OutputDebugStringA` Windows API输出调试信息
+   - 创建最小测试程序验证`if (requires_grad)`代码块执行
+
+2. **操作时图统一化实施**:
+   - 实现`boat_graph_migrate_node()`节点迁移函数
+   - 修改`unify_variable_graphs()`支持节点迁移
+   - 在`create_operation()`中强制图统一
+   - 创建测试验证图统一化功能
+
+3. **静态变量机制激活**:
+   - 将`default_graph`改为`BOAT_API`导出变量
+   - 添加`boat_autodiff_init_default_graph()`初始化函数
+   - 在DLL入口点初始化默认图
+   - 验证多变量共享默认图功能
+
+4. **测试验证完善**:
+   - 创建`test_default_graph.c`最小测试程序
+   - 验证默认图创建和共享机制
+   - 测试节点连接和反向传播功能
+   - 确保与现有测试的兼容性
+
+**实施路线**: 执行路径验证 → 操作时图统一化 → 静态变量激活 → 测试验证
+
+**交付目标**: 解决`if (requires_grad)`代码块执行问题，激活默认图机制，实现计算图统一化，消除"nodes not in graph"错误，建立稳定可靠的自动微分测试环境。
+
+---
+
+**阶段总结**: 发现了`get_default_graph`函数中的关键bug并修复，但静态默认图机制仍未被激活，`if (requires_grad)`代码块未执行。新增调试输出未显示，可能受编译器优化影响。当前静态默认图机制失败，每个变量创建独立图，"nodes not in graph"错误持续。需要深度调查执行路径问题，实施操作时图统一化备用方案。
+
+**实现日期**: 2026-02-23
+**测试环境**: Windows, Visual Studio 2026, CMake 3.10+
+**构建配置**: BOAT_WITH_TESTS=ON, BOAT_WITH_OPTIMIZERS=ON, BOAT_WITH_LOSS=ON
+**框架状态**: Phase 1 功能测试部分通过，静态默认图机制调试中，计算图统一化待实施

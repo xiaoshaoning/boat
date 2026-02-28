@@ -1,6 +1,6 @@
 // mse.c - Mean Squared Error loss function
-// Copyright (c) 2026 Shaoning, Xiao 萧少宁
-// Licensed under the Apache License, Version 2.0
+// Copyright (c) 2026 Boat Framework Authors
+// Distributed under the MIT License
 
 #include <boat/loss.h>
 #include <boat/tensor.h>
@@ -82,7 +82,7 @@ float mse_loss_compute(boat_loss_t* loss_ptr, const void* predictions_ptr, const
 
     // Update accumulated stats
     loss->sum += sum_squared_error;
-    loss->count += (int)num_elements;
+    loss->count += num_elements;
 
     return mse;
 }

@@ -1,6 +1,6 @@
 // conv.c - Convolutional layer implementation
-// Copyright (c) 2026 Shaoning, Xiao 萧少宁
-// Licensed under the Apache License, Version 2.0
+// Copyright (c) 2026 Boat Framework Authors
+// Distributed under the MIT License
 
 #include <boat/layers.h>
 #include <boat/ops.h>
@@ -9,6 +9,17 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+
+// Debug output control
+#ifndef BOAT_DEBUG
+#define BOAT_DEBUG 0
+#endif
+
+#if BOAT_DEBUG
+#define BOAT_DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
+#else
+#define BOAT_DEBUG_PRINT(...) ((void)0)
+#endif
 
 // Convolutional layer structure
 struct boat_conv_layer_t {
@@ -84,7 +95,10 @@ static boat_tensor_t* compute_input_gradient(const boat_conv_layer_t* layer,
                                 if (iw < 0 || iw >= width) continue;
 
                                 // Compute indices
-                                size_t weight_idx = ((oc * layer->in_channels + ic) * layer->kernel_size + kh) * layer->kernel_size + kw;
+                                // For input gradient, we need to rotate weights 180 degrees
+                                size_t kh_flipped = layer->kernel_size - 1 - kh;
+                                size_t kw_flipped = layer->kernel_size - 1 - kw;
+                                size_t weight_idx = ((oc * layer->in_channels + ic) * layer->kernel_size + kh_flipped) * layer->kernel_size + kw_flipped;
                                 size_t grad_output_idx = ((b * out_channels + oc) * height_out + oh) * width_out + ow;
                                 size_t grad_input_idx = ((b * in_channels + ic) * height + ih) * width + iw;
 
@@ -223,8 +237,10 @@ static boat_tensor_t* compute_bias_gradient(const boat_conv_layer_t* layer,
 
 BOAT_API boat_conv_layer_t* BOAT_CALL boat_conv_layer_create(size_t in_channels, size_t out_channels,
                                            size_t kernel_size, size_t stride, size_t padding) {
+    BOAT_DEBUG_PRINT("DEBUG conv_create called: in=%zu, out=%zu, k=%zu\n", in_channels, out_channels, kernel_size);
     boat_conv_layer_t* layer = (boat_conv_layer_t*)boat_malloc(sizeof(boat_conv_layer_t), BOAT_DEVICE_CPU);
     if (!layer) {
+        BOAT_DEBUG_PRINT("DEBUG conv_create: malloc failed\n");
         return NULL;
     }
 
@@ -265,9 +281,34 @@ BOAT_API boat_conv_layer_t* BOAT_CALL boat_conv_layer_create(size_t in_channels,
     size_t bias_elements = boat_tensor_nelements(layer->bias);
     memset(bias_data, 0, bias_elements * sizeof(float));
 
-    // Initialize gradient accumulators to NULL
-    layer->grad_weight = NULL;
-    layer->grad_bias = NULL;
+    // Create gradient accumulators with same shape as parameters
+    layer->grad_weight = boat_tensor_create(weight_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    BOAT_DEBUG_PRINT("DEBUG conv create: grad_weight tensor created at %p\n", layer->grad_weight);
+    if (!layer->grad_weight) {
+        boat_tensor_free(layer->weight);
+        boat_tensor_free(layer->bias);
+        boat_free(layer);
+        return NULL;
+    }
+    // Initialize gradient weight with zeros
+    float* grad_weight_data = (float*)boat_tensor_data(layer->grad_weight);
+    size_t grad_weight_elements = boat_tensor_nelements(layer->grad_weight);
+    memset(grad_weight_data, 0, grad_weight_elements * sizeof(float));
+
+    layer->grad_bias = boat_tensor_create(bias_shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    BOAT_DEBUG_PRINT("DEBUG conv create: grad_bias tensor created at %p\n", layer->grad_bias);
+    if (!layer->grad_bias) {
+        boat_tensor_free(layer->weight);
+        boat_tensor_free(layer->bias);
+        boat_tensor_free(layer->grad_weight);
+        boat_free(layer);
+        return NULL;
+    }
+    // Initialize gradient bias with zeros
+    float* grad_bias_data = (float*)boat_tensor_data(layer->grad_bias);
+    size_t grad_bias_elements = boat_tensor_nelements(layer->grad_bias);
+    memset(grad_bias_data, 0, grad_bias_elements * sizeof(float));
+
     layer->cache_input = NULL;
     memset(layer->cache_input_shape, 0, sizeof(layer->cache_input_shape));
     memset(layer->cache_output_shape, 0, sizeof(layer->cache_output_shape));
@@ -576,6 +617,7 @@ BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_bias(boat_co
 }
 
 BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_grad_weight(boat_conv_layer_t* layer) {
+    BOAT_DEBUG_PRINT("DEBUG get_grad_weight: layer=%p, grad_weight=%p\n", layer, layer ? layer->grad_weight : NULL);
     return layer ? layer->grad_weight : NULL;
 }
 

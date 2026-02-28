@@ -1,0 +1,91 @@
+# 迭代1：完成MNIST autodiff示例重写
+
+## 概述
+本次迭代完成了MNIST自动微分示例的重写，创建了一个完整的基于Boat自动微分API的卷积神经网络训练示例。
+
+## 完成的工作
+
+### 1. 重写了 `mnist_autodiff.c`
+- 使用Boat的自动微分API (`boat_var_conv`, `boat_var_pool`, `boat_var_dense`, `boat_var_relu`, `boat_var_softmax`等)
+- 实现了完整的CNN架构：Conv2D → ReLU → MaxPool → Conv2D → ReLU → MaxPool → Flatten → Dense → ReLU → Dense
+- 添加了交叉熵损失函数（使用`boat_var_log_softmax`和one-hot编码）
+- 实现了训练循环、批量处理和准确率计算
+- 集成了Adam优化器
+
+### 2. 更新了构建配置
+- 在 `examples/mnist/CMakeLists.txt` 中添加了 `mnist_autodiff` 目标
+- 创建了 `examples/CMakeLists.txt` 以启用示例构建
+- 重新配置CMake启用 `BOAT_WITH_EXAMPLES=ON`
+
+### 3. 修复了框架编译问题
+- 在 `src/layers/pool.c` 中添加了 `#define _USE_MATH_DEFINES` 和 `#include <math.h>` 以解决Windows上`INFINITY`未定义的问题
+- 修复了 `mnist_autodiff.c` 中的API调用：
+  - `boat_tensor_create()` 添加了 `BOAT_DEVICE_CPU` 参数
+  - `boat_tensor_slice()` 添加了 `NULL` 步长参数
+  - 添加了Windows平台的文件访问兼容性代码
+
+## 变更文件列表
+
+### 新增文件
+- `examples/mnist/it_1.txt` - 本迭代文档
+- `examples/CMakeLists.txt` - 示例构建配置
+
+### 修改文件
+- `examples/mnist/mnist_autodiff.c` - 完整的autodiff实现
+- `examples/mnist/CMakeLists.txt` - 更新构建配置，添加mnist_autodiff目标
+- `src/layers/pool.c` - 修复INFINITY定义问题
+
+## 当前状态
+
+### 编译状态
+- Boat库编译成功
+- mnist_autodiff.c编译成功，但遇到链接错误：
+
+```
+无法解析的外部符号: boat_tensor_slice, boat_pool_layer_create, boat_pool_layer_free
+```
+
+### 问题分析
+这些链接错误表明：
+1. **函数导出不匹配** - 可能是`BOAT_API`/`BOAT_CALL`声明与定义不一致
+2. **库构建不完整** - pool层函数可能未正确链接到boat库中
+
+## 建议的后续步骤
+
+### 1. 修复框架链接问题（高优先级）
+检查以下文件的函数导出声明：
+- `include/boat/tensor.h` - 确保`boat_tensor_slice`使用`BOAT_API`
+- `include/boat/layers.h` - 确保pool层函数使用`BOAT_API BOAT_CALL`
+- `src/layers/pool.c` - 确保函数定义与声明匹配
+
+### 2. 测试autodiff示例（中优先级）
+一旦链接问题解决，可以：
+```bash
+# 准备数据
+cd examples/mnist
+python mnist_data.py
+
+# 运行autodiff版本
+cd ../../build
+./examples/mnist/Debug/mnist_autodiff.exe
+```
+
+### 3. 简化示例（备用方案）
+如果pool层问题无法快速解决，可以考虑：
+- 使用stride=2的卷积层替代pooling层
+- 创建更简单的全连接网络示例
+
+## 代码亮点
+
+新的 `mnist_autodiff.c` 展示了Boat自动微分API的关键用法：
+- **变量创建**: `boat_variable_create(tensor, requires_grad)`
+- **前向传播**: `boat_var_conv()`, `boat_var_relu()`, `boat_var_pool()`, `boat_var_dense()`
+- **损失计算**: 自定义交叉熵损失函数
+- **反向传播**: `boat_variable_backward_full()`
+- **优化器**: `boat_optimizer_step()`, `boat_optimizer_zero_grad()`
+
+## 时间戳
+- 完成时间: 2026-02-25
+
+## 备注
+本次迭代完成了autodiff示例的核心实现，为后续的测试和优化奠定了基础。链接问题是框架层面的技术债务，需要在后续迭代中解决。

@@ -1,12 +1,23 @@
 // arithmetic.c - Arithmetic operations for deep learning framework
-// Copyright (c) 2026 Shaoning, Xiao 萧少宁
-// Licensed under the Apache License, Version 2.0
+// Copyright (c) 2026 Boat Framework Authors
+// Distributed under the MIT License
 
 #include <boat/ops.h>
 #include <boat/memory.h>
 #include <string.h>
 #include <math.h>
 #include <float.h>
+#include <stdio.h>
+
+#ifndef BOAT_DEBUG
+#define BOAT_DEBUG 0
+#endif
+
+#if BOAT_DEBUG
+#define BOAT_DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
+#else
+#define BOAT_DEBUG_PRINT(...) ((void)0)
+#endif
 
 // Helper functions
 static size_t broadcast_index(const boat_tensor_t* tensor, size_t output_idx,
@@ -99,26 +110,70 @@ static boat_tensor_t* create_broadcasted_output(const boat_tensor_t* a,
     size_t out_ndim;
 
     if (!validate_shapes_for_broadcasting(a, b, out_shape, &out_ndim)) {
+#if BOAT_DEBUG
+        fprintf(stderr, "DEBUG create_broadcasted_output: validate_shapes_for_broadcasting failed\n");
+        // Debug shape info
+        size_t a_ndim = boat_tensor_ndim(a);
+        size_t b_ndim = boat_tensor_ndim(b);
+        const int64_t* a_shape = boat_tensor_shape(a);
+        const int64_t* b_shape = boat_tensor_shape(b);
+        fprintf(stderr, "  a shape: [");
+        for (size_t i = 0; i < a_ndim; i++) {
+            fprintf(stderr, "%ld", a_shape[i]);
+            if (i < a_ndim - 1) fprintf(stderr, ", ");
+        }
+        fprintf(stderr, "]\n");
+        fprintf(stderr, "  b shape: [");
+        for (size_t i = 0; i < b_ndim; i++) {
+            fprintf(stderr, "%ld", b_shape[i]);
+            if (i < b_ndim - 1) fprintf(stderr, ", ");
+        }
+        fprintf(stderr, "]\n");
+#endif
         return NULL;
     }
 
     boat_device_t device = boat_tensor_device(a);
+    boat_device_t b_device = boat_tensor_device(b);
+    if (device != b_device) {
+#if BOAT_DEBUG
+        fprintf(stderr, "DEBUG create_broadcasted_output: device mismatch: a=%d, b=%d\n", device, b_device);
+#endif
+        return NULL;
+    }
+
+#if BOAT_DEBUG
+    fprintf(stderr, "DEBUG create_broadcasted_output: creating tensor shape=[");
+    for (size_t i = 0; i < out_ndim; i++) {
+        fprintf(stderr, "%ld", out_shape[i]);
+        if (i < out_ndim - 1) fprintf(stderr, ", ");
+    }
+    fprintf(stderr, "], dtype=%d, device=%d\n", dtype, device);
+#endif
     return boat_tensor_create(out_shape, out_ndim, dtype, device);
 }
 
 // Generic element-wise operation macro with broadcasting support
 #define DEFINE_ELEMENTWISE_OP(op_name, op) \
 boat_tensor_t* boat_##op_name(const boat_tensor_t* a, const boat_tensor_t* b) { \
-    if (!a || !b) return NULL; \
+    BOAT_DEBUG_PRINT("DEBUG boat_%s: called, a=%p, b=%p\n", #op_name, (void*)a, (void*)b); \
+    if (!a || !b) { \
+        BOAT_DEBUG_PRINT("DEBUG boat_%s: null input\n", #op_name); \
+        return NULL; \
+    } \
     \
     boat_dtype_t dtype = boat_tensor_dtype(a); \
     if (dtype != boat_tensor_dtype(b)) { \
+        BOAT_DEBUG_PRINT("DEBUG boat_%s: dtype mismatch: a=%d, b=%d\n", #op_name, dtype, boat_tensor_dtype(b)); \
         /* TODO: Type promotion */ \
         return NULL; \
     } \
     \
     boat_tensor_t* out = create_broadcasted_output(a, b, dtype); \
-    if (!out) return NULL; \
+    if (!out) { \
+        BOAT_DEBUG_PRINT("DEBUG boat_%s: create_broadcasted_output failed\n", #op_name); \
+        return NULL; \
+    } \
     \
     size_t nelements = boat_tensor_nelements(out); \
     void* a_data = boat_tensor_data(a); \
@@ -128,6 +183,13 @@ boat_tensor_t* boat_##op_name(const boat_tensor_t* a, const boat_tensor_t* b) { 
     /* Get output shape for broadcasting */ \
     const int64_t* out_shape = boat_tensor_shape(out); \
     size_t out_ndim = boat_tensor_ndim(out); \
+    \
+    BOAT_DEBUG_PRINT("DEBUG boat_%s: computing %zu elements, shape=[", #op_name, nelements); \
+    for (size_t i = 0; i < out_ndim; i++) { \
+        BOAT_DEBUG_PRINT("%ld", out_shape[i]); \
+        if (i < out_ndim - 1) BOAT_DEBUG_PRINT(", "); \
+    } \
+    BOAT_DEBUG_PRINT("], dtype=%d\n", dtype); \
     \
     switch (dtype) { \
         case BOAT_DTYPE_FLOAT32: { \
@@ -198,6 +260,7 @@ boat_tensor_t* boat_##op_name(const boat_tensor_t* a, const boat_tensor_t* b) { 
         } \
         case BOAT_DTYPE_FLOAT16: { \
             /* TODO: Implement half-precision floating point */ \
+            BOAT_DEBUG_PRINT("DEBUG boat_%s: float16 not supported\n", #op_name); \
             boat_tensor_free(out); \
             return NULL; \
         } \
@@ -206,10 +269,12 @@ boat_tensor_t* boat_##op_name(const boat_tensor_t* a, const boat_tensor_t* b) { 
         case BOAT_DTYPE_BITS2:   /* Fall through */ \
         case BOAT_DTYPE_BITS1:   /* Fall through */ \
         default: \
+            BOAT_DEBUG_PRINT("DEBUG boat_%s: unsupported dtype=%d\n", #op_name, dtype); \
             boat_tensor_free(out); \
             return NULL; \
     } \
     \
+    BOAT_DEBUG_PRINT("DEBUG boat_%s: success, out=%p\n", #op_name, (void*)out); \
     return out; \
 }
 

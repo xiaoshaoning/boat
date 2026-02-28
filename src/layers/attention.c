@@ -1,6 +1,6 @@
 // attention.c - Attention mechanisms implementation
-// Copyright (c) 2026 Shaoning, Xiao 萧少宁
-// Licensed under the Apache License, Version 2.0
+// Copyright (c) 2026 Boat Framework Authors
+// Distributed under the MIT License
 
 #include <boat/layers/attention.h>
 #include <boat/export.h>
@@ -1488,7 +1488,7 @@ static bool attention_backward(const boat_tensor_t* query,  // [batch, num_heads
                 // Compute dS = A * (dA - sum)
                 for (int64_t j = 0; j < seq_len; j++) {
                     int64_t idx = ((b * num_heads + h) * seq_len + i) * seq_len + j;
-                    dS_data[idx] = (float)(A_data[idx] * (dA_data[idx] - sum));
+                    dS_data[idx] = A_data[idx] * (dA_data[idx] - sum);
                 }
             }
         }

@@ -1,6 +1,6 @@
 // batchnorm.c - Batch normalization layer implementation (BatchNorm2d)
-// Copyright (c) 2026 Shaoning, Xiao 萧少宁
-// Licensed under the Apache License, Version 2.0
+// Copyright (c) 2026 Boat Framework Authors
+// Distributed under the MIT License
 
 #include <boat/layers.h>
 #include <boat/ops.h>
@@ -27,7 +27,7 @@ struct boat_batchnorm2d_layer_t {
     boat_tensor_t* running_var;
 };
 
-boat_batchnorm2d_layer_t* boat_batchnorm2d_layer_create(size_t num_features, float eps, float momentum, bool affine) {
+BOAT_API boat_batchnorm2d_layer_t* BOAT_CALL boat_batchnorm2d_layer_create(size_t num_features, float eps, float momentum, bool affine) {
     boat_batchnorm2d_layer_t* layer = (boat_batchnorm2d_layer_t*)boat_malloc(sizeof(boat_batchnorm2d_layer_t), BOAT_DEVICE_CPU);
     if (!layer) {
         return NULL;
@@ -103,7 +103,7 @@ boat_batchnorm2d_layer_t* boat_batchnorm2d_layer_create(size_t num_features, flo
     return layer;
 }
 
-void boat_batchnorm2d_layer_free(boat_batchnorm2d_layer_t* layer) {
+BOAT_API void BOAT_CALL boat_batchnorm2d_layer_free(boat_batchnorm2d_layer_t* layer) {
     if (!layer) {
         return;
     }
@@ -115,7 +115,7 @@ void boat_batchnorm2d_layer_free(boat_batchnorm2d_layer_t* layer) {
     boat_free(layer);
 }
 
-boat_tensor_t* boat_batchnorm2d_layer_forward(boat_batchnorm2d_layer_t* layer, const boat_tensor_t* input) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_forward(boat_batchnorm2d_layer_t* layer, const boat_tensor_t* input) {
     if (!layer || !input) {
         return NULL;
     }
@@ -156,21 +156,21 @@ boat_tensor_t* boat_batchnorm2d_layer_forward(boat_batchnorm2d_layer_t* layer, c
     return output;
 }
 
-boat_tensor_t* boat_batchnorm2d_layer_backward(boat_batchnorm2d_layer_t* layer, const boat_tensor_t* grad_output) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_backward(boat_batchnorm2d_layer_t* layer, const boat_tensor_t* grad_output) {
     (void)layer;
     (void)grad_output;
     // TODO: Implement backward pass
     return NULL;
 }
 
-void boat_batchnorm2d_layer_update(boat_batchnorm2d_layer_t* layer, float learning_rate) {
+BOAT_API void BOAT_CALL boat_batchnorm2d_layer_update(boat_batchnorm2d_layer_t* layer, float learning_rate) {
     (void)layer;
     (void)learning_rate;
     // TODO: Implement weight update (though BatchNorm typically uses running stats, not gradient descent)
 }
 
 // Parameter access functions
-void boat_batchnorm2d_layer_set_weight(boat_batchnorm2d_layer_t* layer, boat_tensor_t* weight) {
+BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_weight(boat_batchnorm2d_layer_t* layer, boat_tensor_t* weight) {
     if (!layer || !weight) {
         return;
     }
@@ -191,7 +191,7 @@ void boat_batchnorm2d_layer_set_weight(boat_batchnorm2d_layer_t* layer, boat_ten
     boat_tensor_ref(weight);
 }
 
-void boat_batchnorm2d_layer_set_bias(boat_batchnorm2d_layer_t* layer, boat_tensor_t* bias) {
+BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_bias(boat_batchnorm2d_layer_t* layer, boat_tensor_t* bias) {
     if (!layer || !bias) {
         return;
     }
@@ -212,7 +212,7 @@ void boat_batchnorm2d_layer_set_bias(boat_batchnorm2d_layer_t* layer, boat_tenso
     boat_tensor_ref(bias);
 }
 
-void boat_batchnorm2d_layer_set_running_mean(boat_batchnorm2d_layer_t* layer, boat_tensor_t* running_mean) {
+BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_running_mean(boat_batchnorm2d_layer_t* layer, boat_tensor_t* running_mean) {
     if (!layer || !running_mean) {
         return;
     }
@@ -229,7 +229,7 @@ void boat_batchnorm2d_layer_set_running_mean(boat_batchnorm2d_layer_t* layer, bo
     boat_tensor_ref(running_mean);
 }
 
-void boat_batchnorm2d_layer_set_running_var(boat_batchnorm2d_layer_t* layer, boat_tensor_t* running_var) {
+BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_running_var(boat_batchnorm2d_layer_t* layer, boat_tensor_t* running_var) {
     if (!layer || !running_var) {
         return;
     }
