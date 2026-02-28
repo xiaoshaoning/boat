@@ -1,6 +1,6 @@
 // cross_entropy.c - Cross Entropy loss function
-// Copyright (c) 2026 Shaoning, Xiao 萧少宁
-// Licensed under the Apache License, Version 2.0
+// Copyright (c) 2026 Boat Framework Authors
+// Distributed under the MIT License
 
 #include <boat/loss.h>
 #include <boat/tensor.h>
@@ -98,7 +98,7 @@ float cross_entropy_loss_compute(boat_loss_t* loss_ptr, const void* predictions_
 
     // Update accumulated stats
     loss->sum += sum_loss;
-    loss->count += (int)num_elements;
+    loss->count += num_elements;
 
     return cross_entropy;
 }

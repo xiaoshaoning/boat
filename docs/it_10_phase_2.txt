@@ -1,0 +1,451 @@
+Boat Deep Learning Framework - Iteration 10 Phase 2 Implementation Plan
+================================================================================
+
+Date: 2026-02-22
+Version: Phase 2 Planning Document
+
+Overview
+--------
+Phase 2 of Iteration 10 focuses on completing the PyTorch model loading integration using the actual LibTorch C++ API. This phase will replace the custom binary format implementation with full support for standard PyTorch model files (.pt/.pth) and enable loading of real PyTorch models into the Boat framework.
+
+Based on the available LibTorch installation at `D:/codes/boat/external/libtorch-shared-with-deps-latest/libtorch/`, this document outlines the technical assessment and implementation plan for integrating LibTorch into the Boat framework.
+
+LibTorch Installation Assessment
+--------------------------------
+
+### 1. LibTorch Version Confirmation
+- **Path**: `D:/codes/boat/external/libtorch-shared-with-deps-latest/libtorch/`
+- **Platform**: Linux shared libraries (.so files), likely for WSL/Cygwin environment
+- **Completeness**: Full installation includes:
+  - `include/` - Complete header files for ATen, c10, caffe2, etc.
+  - `lib/` - Shared libraries (libtorch.so, libtorch_cpu.so, libc10.so, etc.)
+  - `share/cmake/Torch/` - CMake configuration files (TorchConfig.cmake)
+- **Build Information**:
+  - `build-hash` and `build-version` files present
+  - Latest shared-with-deps version (includes all dependencies)
+
+### 2. Current Project Status
+- **Primary Language**: C language implementation
+- **PyTorch Support**: Currently uses custom binary format (BPAT magic)
+- **CMake Configuration**: Already includes `BOAT_WITH_PYTORCH` option and `find_package(Torch)`
+- **API Interface**: C language API defined in `include/boat/format/pytorch.h`
+- **Phase 1 Completion**: Basic infrastructure implemented (memory pools, attention layers, norm layers)
+
+### 3. Technical Challenges
+1. **Language Barrier**: LibTorch is a C++ library, Boat framework is primarily C
+2. **ABI Compatibility**: Need to ensure proper C/C++ mixed compilation
+3. **Memory Management**: Bridging between LibTorch's and Boat's memory systems
+4. **Error Handling**: Unified error propagation across language boundaries
+5. **Data Type Mapping**: Converting between PyTorch and Boat tensor types
+6. **Model Structure Conversion**: Transforming PyTorch model graphs to Boat computational graphs
+
+Implementation Options
+----------------------
+
+### Option 1: C++ Wrapper Approach (Recommended)
+```cmake
+# CMakeLists.txt updates
+if(BOAT_WITH_PYTORCH)
+    list(APPEND BOAT_SOURCES src/format/pytorch.cpp)  # Change to .cpp
+    set(Torch_DIR "${CMAKE_SOURCE_DIR}/external/libtorch-shared-with-deps-latest/libtorch/share/cmake/Torch")
+    find_package(Torch REQUIRED)
+    target_link_libraries(boat PUBLIC Torch::Torch)
+endif()
+```
+
+**Advantages**:
+- Direct access to LibTorch C++ API, full functionality
+- Maintains existing C interface for compatibility
+- Simple CMake configuration
+- Optimal performance with minimal data copying
+
+**Disadvantages**:
+- Requires C++ compilation for part of the project
+- Need to handle C++ exceptions in C code
+
+### Option 2: Pure C Interface
+- Keep existing `pytorch.c` as C file
+- Create separate C++ module that exports C-compatible functions
+- Use `extern "C"` wrappers for all LibTorch interactions
+
+**Advantages**:
+- Clear separation between C and C++ code
+- No C++ compilation in main library
+
+**Disadvantages**:
+- More complex build configuration
+- Additional function call overhead
+- Duplicate code for interface wrapping
+
+### Option 3: Hybrid Compilation
+```cmake
+# Separate C++ module
+add_library(boat_pytorch STATIC src/format/pytorch.cpp)
+target_link_libraries(boat_pytorch PUBLIC Torch::Torch)
+target_link_libraries(boat PRIVATE boat_pytorch)
+```
+
+**Advantages**:
+- Isolates C++ dependencies
+- Can be conditionally linked
+
+**Disadvantages**:
+- More complex project structure
+- Additional linking requirements
+
+Detailed Implementation Plan
+----------------------------
+
+### Step 1: CMake Configuration Updates
+```cmake
+# Add LibTorch path configuration option
+option(BOAT_PYTORCH_PATH "Path to LibTorch installation" "")
+if(BOAT_PYTORCH_PATH)
+    set(Torch_DIR "${BOAT_PYTORCH_PATH}/share/cmake/Torch")
+else()
+    # Default to our downloaded LibTorch
+    set(Torch_DIR "${CMAKE_SOURCE_DIR}/external/libtorch-shared-with-deps-latest/libtorch/share/cmake/Torch")
+endif()
+
+if(BOAT_WITH_PYTORCH)
+    # Change source file to C++
+    list(APPEND BOAT_SOURCES src/format/pytorch.cpp)
+
+    # Find and link LibTorch
+    find_package(Torch REQUIRED)
+    target_link_libraries(boat PUBLIC Torch::Torch)
+
+    # Enable C++ compilation for this file
+    set_source_files_properties(src/format/pytorch.cpp PROPERTIES LANGUAGE CXX)
+
+    # Add C++ standard requirements
+    set(CMAKE_CXX_STANDARD 14)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+endif()
+```
+
+### Step 2: Implement Real PyTorch Loader (C++)
+```cpp
+// pytorch.cpp - LibTorch C++ API implementation
+#include <torch/script.h>
+#include <torch/torch.h>
+#include <vector>
+#include <string>
+#include <exception>
+
+#include "boat/format/pytorch.h"
+#include "boat/model.h"
+#include "boat/tensor.h"
+#include "boat/memory.h"
+
+// Data type mapping helper
+static boat_dtype_t torch_dtype_to_boat(torch::Dtype dtype) {
+    switch (dtype) {
+        case torch::kFloat32: return BOAT_DTYPE_FLOAT32;
+        case torch::kFloat64: return BOAT_DTYPE_FLOAT64;
+        case torch::kFloat16: return BOAT_DTYPE_FLOAT16;
+        case torch::kInt32:   return BOAT_DTYPE_INT32;
+        case torch::kInt64:   return BOAT_DTYPE_INT64;
+        case torch::kInt8:    return BOAT_DTYPE_INT8;
+        case torch::kUInt8:   return BOAT_DTYPE_UINT8;
+        case torch::kBool:    return BOAT_DTYPE_BOOL;
+        default:              return BOAT_DTYPE_FLOAT32;
+    }
+}
+
+// Shape conversion helper
+static void torch_shape_to_boat(const torch::Tensor& tensor,
+                                int64_t** shape_ptr,
+                                size_t* ndim_ptr) {
+    auto sizes = tensor.sizes();
+    *ndim_ptr = sizes.size();
+    *shape_ptr = (int64_t*)boat_malloc(sizeof(int64_t) * (*ndim_ptr), BOAT_DEVICE_CPU);
+
+    for (size_t i = 0; i < *ndim_ptr; i++) {
+        (*shape_ptr)[i] = sizes[i];
+    }
+}
+
+extern "C" {
+    boat_model_t* boat_pytorch_load(const char* filename) {
+        try {
+            // Load PyTorch model using LibTorch
+            torch::jit::script::Module module;
+            try {
+                module = torch::jit::load(filename);
+            } catch (const c10::Error& e) {
+                fprintf(stderr, "Failed to load PyTorch model %s: %s\n",
+                        filename, e.what());
+                return NULL;
+            }
+
+            // Create Boat model
+            boat_model_t* model = boat_model_create();
+            if (!model) {
+                fprintf(stderr, "Failed to create Boat model\n");
+                return NULL;
+            }
+
+            // Extract model parameters
+            auto params = module.named_parameters();
+            for (const auto& param : params) {
+                torch::Tensor torch_tensor = param.value();
+
+                // Skip non-contiguous tensors (need to make contiguous first)
+                if (!torch_tensor.is_contiguous()) {
+                    torch_tensor = torch_tensor.contiguous();
+                }
+
+                // Convert shape
+                int64_t* shape = NULL;
+                size_t ndim = 0;
+                torch_shape_to_boat(torch_tensor, &shape, &ndim);
+
+                // Convert data type
+                boat_dtype_t dtype = torch_dtype_to_boat(torch_tensor.dtype());
+
+                // Get tensor data
+                void* data = torch_tensor.data_ptr();
+                size_t nbytes = torch_tensor.nbytes();
+
+                // Create Boat tensor
+                boat_tensor_t* boat_tensor = boat_tensor_create(shape, ndim, dtype, BOAT_DEVICE_CPU);
+                if (!boat_tensor) {
+                    boat_free(shape);
+                    boat_model_free(model);
+                    return NULL;
+                }
+
+                // Copy data (could be optimized to zero-copy in some cases)
+                void* boat_data = boat_tensor_data(boat_tensor);
+                memcpy(boat_data, data, nbytes);
+
+                // TODO: Add tensor to model with appropriate name mapping
+                // For now, store in model user data or parameter list
+
+                // Clean up
+                boat_free(shape);
+                boat_tensor_free(boat_tensor);
+            }
+
+            // Extract model buffers (non-parameter tensors)
+            auto buffers = module.named_buffers();
+            for (const auto& buffer : buffers) {
+                // Similar processing as parameters
+                // These might include running mean/variance for batch norm, etc.
+            }
+
+            // TODO: Extract model architecture/graph structure
+            // This is more complex and requires parsing the TorchScript graph
+
+            return model;
+
+        } catch (const std::exception& e) {
+            fprintf(stderr, "PyTorch loading error: %s\n", e.what());
+            return NULL;
+        }
+    }
+
+    // Other PyTorch API functions with similar implementation...
+}
+```
+
+### Step 3: Data Type Mapping Table
+| PyTorch Type (`torch::Dtype`) | Boat Type (`boat_dtype_t`) | Description |
+|-------------------------------|----------------------------|-------------|
+| `torch::kFloat32`             | `BOAT_DTYPE_FLOAT32`       | 32-bit floating point |
+| `torch::kFloat64`             | `BOAT_DTYPE_FLOAT64`       | 64-bit floating point |
+| `torch::kFloat16`             | `BOAT_DTYPE_FLOAT16`       | 16-bit floating point |
+| `torch::kBFloat16`            | `BOAT_DTYPE_BFLOAT16`      | Brain floating point (future) |
+| `torch::kInt32`               | `BOAT_DTYPE_INT32`         | 32-bit signed integer |
+| `torch::kInt64`               | `BOAT_DTYPE_INT64`         | 64-bit signed integer |
+| `torch::kInt8`                | `BOAT_DTYPE_INT8`          | 8-bit signed integer (future) |
+| `torch::kUInt8`               | `BOAT_DTYPE_UINT8`         | 8-bit unsigned integer |
+| `torch::kBool`                | `BOAT_DTYPE_BOOL`          | Boolean |
+
+### Step 4: Model Structure Conversion Strategy
+1. **Parameter Extraction**: Direct mapping of PyTorch parameters to Boat tensors
+2. **Layer Mapping**: Identify common PyTorch layers and map to Boat layers:
+   - `torch.nn.Linear` → `boat_dense_layer_t`
+   - `torch.nn.Conv2d` → `boat_conv_layer_t`
+   - `torch.nn.LayerNorm` → `boat_layernorm_t`
+   - `torch.nn.MultiheadAttention` → `boat_attention_t`
+3. **Graph Parsing**: For TorchScript models, parse the computation graph
+4. **Sequential Models**: Detect `torch.nn.Sequential` and create corresponding Boat sequential model
+
+### Step 5: Error Handling Framework
+```cpp
+// Unified error handling
+class PyTorchLoaderError : public std::exception {
+private:
+    std::string message_;
+    boat_error_t boat_error_;
+
+public:
+    PyTorchLoaderError(const std::string& msg, boat_error_t err = BOAT_ERROR_UNKNOWN)
+        : message_(msg), boat_error_(err) {}
+
+    const char* what() const noexcept override { return message_.c_str(); }
+    boat_error_t boat_error() const { return boat_error_; }
+};
+
+// Error translation function
+static boat_error_t translate_exception(const std::exception& e) {
+    if (dynamic_cast<const c10::Error*>(&e)) {
+        return BOAT_ERROR_FORMAT;
+    } else if (dynamic_cast<const std::bad_alloc*>(&e)) {
+        return BOAT_ERROR_OUT_OF_MEMORY;
+    } else {
+        return BOAT_ERROR_UNKNOWN;
+    }
+}
+```
+
+### Step 6: Build and Test Scripts
+```bash
+#!/bin/bash
+# build_with_pytorch.sh
+
+# Configure with local LibTorch
+cd build
+cmake .. -DBOAT_WITH_PYTORCH=ON \
+         -DBOAT_WITH_TESTS=ON \
+         -DBOAT_PYTORCH_PATH="$(pwd)/../external/libtorch-shared-with-deps-latest/libtorch"
+
+# Build
+make -j$(nproc)
+
+# Run tests
+./test_pytorch_loader
+```
+
+```bash
+#!/bin/bash
+# test_pytorch_model.sh
+
+# Test with a simple PyTorch model
+python3 -c "
+import torch
+import torch.nn as nn
+
+# Create simple model
+model = nn.Sequential(
+    nn.Linear(10, 20),
+    nn.ReLU(),
+    nn.Linear(20, 5),
+    nn.Softmax(dim=1)
+)
+
+# Save model
+torch.save(model.state_dict(), 'test_model.pth')
+torch.jit.script(model).save('test_model_scripted.pt')
+
+print('Test models created: test_model.pth, test_model_scripted.pt')
+"
+
+# Test loading with Boat
+./test_pytorch_loader test_model.pth
+./test_pytorch_loader test_model_scripted.pt
+```
+
+Expected Outcomes
+-----------------
+
+### Functional Features
+1. **True PyTorch Support**: Load standard `.pt`/`.pth` files (both state dict and scripted models)
+2. **Model Conversion**: Convert PyTorch models to Boat model structures
+3. **Tensor Conversion**: Automatic data type and shape conversion
+4. **Error Handling**: Comprehensive exception catching and error reporting
+5. **Memory Management**: Efficient data transfer between LibTorch and Boat memory systems
+
+### Performance Considerations
+- **Loading Speed**: Target < 2x PyTorch native loading time
+- **Memory Usage**: Minimize duplicate storage of model weights
+- **Zero-Copy Opportunities**: Explore memory mapping for large tensors
+- **Lazy Loading**: Implement progressive loading for very large models
+
+### Compatibility Goals
+- **PyTorch Versions**: Support PyTorch 1.9+ (compatible with provided LibTorch)
+- **Model Formats**: State dicts (.pth) and TorchScript (.pt) models
+- **Layer Types**: Common nn.Module layers (Linear, Conv, Norm, Attention, etc.)
+- **Platforms**: Windows/Linux/macOS with appropriate LibTorch builds
+
+### Testing Strategy
+1. **Unit Tests**:
+   - Load synthetic PyTorch models
+   - Verify tensor data integrity
+   - Test error conditions (invalid files, unsupported types)
+2. **Integration Tests**:
+   - End-to-end loading and inference
+   - Compare results with PyTorch native execution
+   - Memory usage profiling
+3. **Performance Tests**:
+   - Loading time benchmarks vs PyTorch
+   - Memory overhead measurements
+   - Scalability with model size
+
+Risk Assessment and Mitigation
+------------------------------
+
+### High Risk Areas
+1. **C/C++ Interoperability**: Mixed language compilation issues
+   - *Mitigation*: Use well-defined C interfaces, thorough testing
+
+2. **LibTorch API Stability**: Version compatibility issues
+   - *Mitigation*: Pin to specific LibTorch version, API compatibility layer
+
+3. **Memory Management**: Leaks between different allocators
+   - *Mitigation*: Rigorous memory testing, valgrind/asan checks
+
+4. **Performance Overhead**: Excessive data copying
+   - *Mitigation*: Profile and optimize hot paths, consider zero-copy approaches
+
+### Medium Risk Areas
+1. **Model Graph Conversion**: Complex TorchScript graph parsing
+   - *Mitigation*: Start with simple models, gradual complexity increase
+
+2. **Error Propagation**: Exceptions crossing language boundaries
+   - *Mitigation*: Comprehensive error translation and testing
+
+### Low Risk Areas
+1. **Data Type Mapping**: Straightforward conversion table
+2. **Basic Parameter Loading**: Simple tensor data extraction
+
+Timeline and Milestones
+-----------------------
+
+### Week 1: Infrastructure Setup
+- Update CMake configuration for LibTorch integration
+- Implement basic C++ wrapper with error handling
+- Create minimal test case with synthetic model
+
+### Week 2: Core Functionality
+- Implement parameter and buffer extraction
+- Complete data type and shape conversion
+- Add basic model structure detection
+
+### Week 3: Advanced Features
+- Implement TorchScript graph parsing (basic)
+- Add layer type mapping
+- Optimize memory usage and performance
+
+### Week 4: Testing and Refinement
+- Comprehensive test suite
+- Performance benchmarking
+- Documentation and examples
+- Bug fixes and optimization
+
+Conclusion
+----------
+Phase 2 implementation will transform the Boat framework from using a custom binary format to supporting real PyTorch models through LibTorch integration. The recommended C++ wrapper approach provides the best balance of functionality, performance, and maintainability.
+
+With the available LibTorch installation at `D:/codes/boat/external/libtorch-shared-with-deps-latest/libtorch/`, the implementation is feasible and will significantly enhance the framework's usability for real-world deep learning tasks.
+
+Success criteria for Phase 2:
+1. Load standard PyTorch model files successfully
+2. Convert common layer types to Boat equivalents
+3. Maintain numerical accuracy within tolerance
+4. Achieve acceptable performance metrics
+5. Provide clear error messages and debugging support
+
+This implementation will establish Boat as a viable alternative for PyTorch model inference and create a foundation for future training and fine-tuning capabilities.

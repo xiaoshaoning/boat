@@ -1,5 +1,5 @@
 // graph_private.h - Private definitions for graph implementation
-// Copyright (c) 2026 Shaoning, Xiao 萧少宁
+// Copyright (c) 2026 Boat Framework Authors
 
 #ifndef BOAT_GRAPH_PRIVATE_H
 #define BOAT_GRAPH_PRIVATE_H

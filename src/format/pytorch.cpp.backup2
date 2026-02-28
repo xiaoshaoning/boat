@@ -1,0 +1,213 @@
+// pytorch.cpp - PyTorch model format loader using LibTorch C++ API
+// Copyright (c) 2026 Boat Framework Authors
+// Distributed under the MIT License
+
+#include <torch/script.h>
+#include <torch/torch.h>
+#include <vector>
+#include <string>
+#include <exception>
+#include <unordered_map>
+
+#include "boat/format/pytorch.h"
+#include "boat/model.h"
+#include "boat/tensor.h"
+#include "boat/memory.h"
+#include "boat.h"
+
+// Structure to hold model parameters loaded from PyTorch
+typedef struct {
+    std::unordered_map<std::string, boat_tensor_t*> parameters;
+    std::unordered_map<std::string, boat_tensor_t*> buffers;
+} pytorch_model_data_t;
+
+// Free function for model user data
+static void free_pytorch_model_data(void* data) {
+    pytorch_model_data_t* model_data = static_cast<pytorch_model_data_t*>(data);
+    if (!model_data) return;
+
+    for (auto& pair : model_data->parameters) {
+        boat_tensor_free(pair.second);
+    }
+    for (auto& pair : model_data->buffers) {
+        boat_tensor_free(pair.second);
+    }
+    delete model_data;
+}
+
+// Data type mapping helper
+static boat_dtype_t torch_dtype_to_boat(torch::Dtype dtype) {
+    switch (dtype) {
+        case torch::kFloat32: return BOAT_DTYPE_FLOAT32;
+        case torch::kFloat64: return BOAT_DTYPE_FLOAT64;
+        case torch::kFloat16: return BOAT_DTYPE_FLOAT16;
+        case torch::kBFloat16:
+            // BFLOAT16 not yet supported in Boat, fall back to FLOAT32
+            return BOAT_DTYPE_FLOAT32;
+        case torch::kInt32:   return BOAT_DTYPE_INT32;
+        case torch::kInt64:   return BOAT_DTYPE_INT64;
+        case torch::kInt8:
+            // INT8 not yet supported in Boat, fall back to INT32
+            return BOAT_DTYPE_INT32;
+        case torch::kUInt8:   return BOAT_DTYPE_UINT8;
+        case torch::kBool:    return BOAT_DTYPE_BOOL;
+        default:              return BOAT_DTYPE_FLOAT32;
+    }
+}
+
+// Shape conversion helper
+static void torch_shape_to_boat(const torch::Tensor& tensor,
+                                int64_t** shape_ptr,
+                                size_t* ndim_ptr) {
+    auto sizes = tensor.sizes();
+    *ndim_ptr = sizes.size();
+    *shape_ptr = (int64_t*)boat_malloc(sizeof(int64_t) * (*ndim_ptr), BOAT_DEVICE_CPU);
+
+    for (size_t i = 0; i < *ndim_ptr; i++) {
+        (*shape_ptr)[i] = sizes[i];
+    }
+}
+
+// Error translation function (simplified)
+static boat_error_t translate_exception(const std::exception& e) {
+    (void)e; // Unused for now
+    // In a more complete implementation, we would examine e.what() or use typeid
+    return BOAT_ERROR_UNKNOWN;
+}
+
+extern "C" {
+    boat_model_t* boat_pytorch_load(const char* filename) {
+        if (!filename) {
+            return NULL;
+        }
+
+        try {
+            // Load PyTorch model using LibTorch
+            torch::jit::script::Module module;
+            try {
+                module = torch::jit::load(filename);
+            } catch (const c10::Error& e) {
+                fprintf(stderr, "Failed to load PyTorch model %s: %s\n",
+                        filename, e.what());
+                return NULL;
+            }
+
+            // Create Boat model
+            boat_model_t* model = boat_model_create();
+            if (!model) {
+                fprintf(stderr, "Failed to create Boat model\n");
+                return NULL;
+            }
+
+            // Extract model parameters
+            auto params = module.named_parameters();
+            for (const auto& param : params) {
+                torch::Tensor torch_tensor = param.value();
+
+                // Skip non-contiguous tensors (need to make contiguous first)
+                if (!torch_tensor.is_contiguous()) {
+                    torch_tensor = torch_tensor.contiguous();
+                }
+
+                // Convert shape
+                int64_t* shape = NULL;
+                size_t ndim = 0;
+                torch_shape_to_boat(torch_tensor, &shape, &ndim);
+
+                // Convert data type
+                boat_dtype_t dtype = torch_dtype_to_boat(torch_tensor.dtype());
+
+                // Get tensor data
+                void* data = torch_tensor.data_ptr();
+                size_t nbytes = torch_tensor.nbytes();
+
+                // Create Boat tensor
+                boat_tensor_t* boat_tensor = boat_tensor_create(shape, ndim, dtype, BOAT_DEVICE_CPU);
+                if (!boat_tensor) {
+                    boat_free(shape);
+                    boat_model_free(model);
+                    return NULL;
+                }
+
+                // Copy data (could be optimized to zero-copy in some cases)
+                void* boat_data = boat_tensor_data(boat_tensor);
+                memcpy(boat_data, data, nbytes);
+
+                // TODO: Add tensor to model with appropriate name mapping
+                // For now, store in model user data or parameter list
+                // We need a way to store parameters in the model
+                // This is a temporary placeholder
+
+                // Clean up
+                boat_free(shape);
+                boat_tensor_free(boat_tensor);
+            }
+
+            // Extract model buffers (non-parameter tensors)
+            auto buffers = module.named_buffers();
+            for (const auto& buffer : buffers) {
+                // Similar processing as parameters
+                // These might include running mean/variance for batch norm, etc.
+                // TODO: Implement buffer extraction
+            }
+
+            // TODO: Extract model architecture/graph structure
+            // This is more complex and requires parsing the TorchScript graph
+            // For now, return a basic model with parameters
+
+            return model;
+
+        } catch (const std::exception& e) {
+            fprintf(stderr, "PyTorch loading error: %s\n", e.what());
+            return NULL;
+        }
+    }
+
+    // Save model to PyTorch format
+    bool boat_pytorch_save(const boat_model_t* model, const char* filename) {
+        (void)model;
+        (void)filename;
+        fprintf(stderr, "PyTorch model saving not implemented yet\n");
+        return false;
+    }
+
+    // Load PyTorch model from memory buffer
+    boat_model_t* boat_pytorch_load_from_memory(const void* data, size_t size) {
+        (void)data;
+        (void)size;
+        fprintf(stderr, "PyTorch model loading from memory not implemented yet\n");
+        return NULL;
+    }
+
+    // Save model to memory buffer in PyTorch format
+    bool boat_pytorch_save_to_memory(const boat_model_t* model, void** data, size_t* size) {
+        (void)model;
+        (void)data;
+        (void)size;
+        fprintf(stderr, "PyTorch model saving to memory not implemented yet\n");
+        return false;
+    }
+
+    // Check if file is a valid PyTorch model
+    bool boat_pytorch_check(const char* filename) {
+        if (!filename) {
+            return false;
+        }
+
+        try {
+            // Try to load the model to check if it's valid
+            torch::jit::script::Module module = torch::jit::load(filename);
+            return true;
+        } catch (const std::exception& e) {
+            // File is not a valid PyTorch model
+            return false;
+        }
+    }
+
+    // Convert PyTorch model to Boat model with specific device
+    boat_model_t* boat_pytorch_convert(const char* filename, boat_device_t device) {
+        // For now, just load and ignore device conversion
+        (void)device;
+        return boat_pytorch_load(filename);
+    }
+}

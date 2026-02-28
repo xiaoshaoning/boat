@@ -1,6 +1,6 @@
 // export.h - Platform-specific export macros for Boat framework
-// Copyright (c) 2026 Shaoning, Xiao 萧少宁
-// Licensed under the Apache License, Version 2.0
+// Copyright (c) 2026 Boat Framework Authors
+// Distributed under the MIT License
 
 #ifndef BOAT_EXPORT_H
 #define BOAT_EXPORT_H
@@ -25,7 +25,10 @@
 #endif
 
 // Compiler-specific export/import macros
-#if BOAT_WINDOWS
+#ifdef BOAT_STATIC_BUILD
+    // Static library build - no export/import needed
+    #define BOAT_API
+#elif BOAT_WINDOWS
     // Windows DLL export/import
     #ifdef BOAT_BUILDING_DLL
         #define BOAT_API __declspec(dllexport)
@@ -61,6 +64,11 @@
     #define BOAT_DEPRECATED __declspec(deprecated)
 #else
     #define BOAT_DEPRECATED
+#endif
+
+// Debug output control
+#ifndef BOAT_DEBUG
+#define BOAT_DEBUG 0
 #endif
 
 #endif // BOAT_EXPORT_H

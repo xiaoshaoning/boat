@@ -1,6 +1,6 @@
 // linear.c - Linear algebra operations for deep learning framework
-// Copyright (c) 2026 Shaoning, Xiao 萧少宁
-// Licensed under the Apache License, Version 2.0
+// Copyright (c) 2026 Boat Framework Authors
+// Distributed under the MIT License
 
 #include <boat/ops.h>
 #include <boat/memory.h>
@@ -292,13 +292,13 @@ boat_tensor_t* boat_transpose(const boat_tensor_t* a, int dim0, int dim1) {
 
             // Input strides (row-major)
             in_stride[ndim-1] = 1;
-            for (size_t i = ndim-1; i-- > 0;) {
+            for (int i = ndim-2; i >= 0; i--) {
                 in_stride[i] = in_stride[i+1] * shape[i+1];
             }
 
             // Output strides (row-major with swapped shape)
             out_stride[ndim-1] = 1;
-            for (size_t i = ndim-1; i-- > 0;) {
+            for (int i = ndim-2; i >= 0; i--) {
                 out_stride[i] = out_stride[i+1] * out_shape_ptr[i+1];
             }
 
@@ -313,7 +313,7 @@ boat_tensor_t* boat_transpose(const boat_tensor_t* a, int dim0, int dim1) {
                     boat_tensor_unref(out);
                     return NULL;
                 }
-                for (size_t i = ndim; i-- > 0;) {
+                for (int i = ndim-1; i >= 0; i--) {
                     coords[i] = temp % (size_t)shape[i];
                     temp /= (size_t)shape[i];
                 }
@@ -352,13 +352,13 @@ boat_tensor_t* boat_transpose(const boat_tensor_t* a, int dim0, int dim1) {
 
             // Input strides (row-major)
             in_stride[ndim-1] = 1;
-            for (size_t i = ndim-1; i-- > 0;) {
+            for (int i = ndim-2; i >= 0; i--) {
                 in_stride[i] = in_stride[i+1] * shape[i+1];
             }
 
             // Output strides (row-major with swapped shape)
             out_stride[ndim-1] = 1;
-            for (size_t i = ndim-1; i-- > 0;) {
+            for (int i = ndim-2; i >= 0; i--) {
                 out_stride[i] = out_stride[i+1] * out_shape_ptr[i+1];
             }
 
@@ -373,7 +373,7 @@ boat_tensor_t* boat_transpose(const boat_tensor_t* a, int dim0, int dim1) {
                     boat_tensor_unref(out);
                     return NULL;
                 }
-                for (size_t i = ndim; i-- > 0;) {
+                for (int i = ndim-1; i >= 0; i--) {
                     coords[i] = temp % (size_t)shape[i];
                     temp /= (size_t)shape[i];
                 }

@@ -1,7 +1,8 @@
 // autodiff.c - Automatic differentiation implementation
-// Copyright (c) 2026 Shaoning, Xiao 萧少宁
-// Licensed under the Apache License, Version 2.0
+// Copyright (c) 2026 Boat Framework Authors
+// Distributed under the MIT License
 
+#define BOAT_BUILDING_DLL
 #include <boat/autodiff.h>
 #include <boat/graph.h>
 #include <boat/memory.h>
@@ -44,6 +45,9 @@ typedef enum {
     BOAT_OP_SOFTMAX,
     BOAT_OP_LOG_SOFTMAX,
     BOAT_OP_CONV,
+    BOAT_OP_POOL,
+    BOAT_OP_FLATTEN,
+    BOAT_OP_DENSE,
     BOAT_OP_ATTENTION
 } boat_op_type_t;
 
@@ -87,11 +91,18 @@ static boat_tensor_t* compute_forward_sigmoid(boat_tensor_t* a);
 static boat_tensor_t* compute_forward_tanh(boat_tensor_t* a);
 static boat_tensor_t* compute_forward_matmul(boat_tensor_t* a, boat_tensor_t* b);
 static boat_tensor_t* compute_forward_sum(boat_tensor_t* a, int64_t* dims, size_t n_dims, bool keepdim);
+static boat_tensor_t* compute_forward_sum_single(boat_tensor_t* a);
 static boat_tensor_t* compute_forward_mean(boat_tensor_t* a, int64_t* dims, size_t n_dims, bool keepdim);
 static boat_tensor_t* compute_forward_softmax(boat_tensor_t* a);
 static boat_tensor_t* compute_forward_log_softmax(boat_tensor_t* a);
 static boat_tensor_t* compute_forward_conv(boat_tensor_t* input, void* layer_ptr);
 static void compute_backward_conv(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
+static boat_tensor_t* compute_forward_pool(boat_tensor_t* input, void* layer_ptr);
+static void compute_backward_pool(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
+static boat_tensor_t* compute_forward_flatten(boat_tensor_t* input);
+static void compute_backward_flatten(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
+static boat_tensor_t* compute_forward_dense(boat_tensor_t* input, void* layer_ptr);
+static void compute_backward_dense(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
 static boat_variable_t* create_attention_operation(boat_variable_t* query, boat_variable_t* key, boat_variable_t* value, struct boat_attention_t* attention, const boat_tensor_t* attention_mask);
 static void compute_backward_attention(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
 static void compute_backward_add(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
@@ -112,19 +123,21 @@ static boat_op_node_data_t* create_op_node_data(boat_op_type_t op_type,
                                                 size_t num_inputs,
                                                 boat_variable_t* output);
 static void free_op_node_data(void* data);
+static void free_variable_data(void* data);
 static boat_variable_t* create_operation(boat_op_type_t op_type,
                                          boat_variable_t** inputs,
                                          size_t num_inputs,
                                          boat_tensor_t* (*forward_fn)(boat_tensor_t*, boat_tensor_t*),
                                          boat_tensor_t* (*forward_single_fn)(boat_tensor_t*));
 static boat_variable_t* create_conv_operation(boat_variable_t* input, struct boat_conv_layer_t* layer);
+static boat_variable_t* create_pool_operation(boat_variable_t* input, struct boat_pool_layer_t* layer);
+static boat_variable_t* create_dense_operation(boat_variable_t* input, struct boat_dense_layer_t* layer);
 
 // Variable creation and destruction
-boat_variable_t* boat_variable_create(boat_tensor_t* tensor, bool requires_grad) {
+BOAT_API boat_variable_t* boat_variable_create(boat_tensor_t* tensor, bool requires_grad) {
 
 #ifdef _WIN32
     char debug_buffer[256];
-    (void)debug_buffer; // Unused, suppress warning
 #endif
     if (!tensor) {
         return NULL;
@@ -136,6 +149,7 @@ boat_variable_t* boat_variable_create(boat_tensor_t* tensor, bool requires_grad)
     }
 
     var->data = tensor;
+    boat_tensor_ref(tensor);  // Take ownership of the tensor reference
     var->grad = NULL;
     var->requires_grad = requires_grad;
     var->node = NULL;
@@ -179,7 +193,7 @@ boat_variable_t* boat_variable_create(boat_tensor_t* tensor, bool requires_grad)
 
     // Create a variable node in the graph if gradient is required
     if (requires_grad) {
-        var->node = boat_graph_add_node(var->graph, var, BOAT_NODE_TYPE_VARIABLE, NULL);
+        var->node = boat_graph_add_node(var->graph, var, BOAT_NODE_TYPE_VARIABLE, free_variable_data);
         if (!var->node) {
             // Don't free graph, it's owned by context
             boat_free(var);
@@ -200,7 +214,7 @@ boat_variable_t* boat_variable_create_with_shape(const int64_t* shape, size_t nd
     return boat_variable_create(tensor, requires_grad);
 }
 
-void boat_variable_free(boat_variable_t* variable) {
+BOAT_API void boat_variable_free(boat_variable_t* variable) {
     if (!variable) return;
 
     // Free gradient tensor if exists
@@ -218,11 +232,11 @@ void boat_variable_free(boat_variable_t* variable) {
 }
 
 // Variable properties
-boat_tensor_t* boat_variable_data(const boat_variable_t* variable) {
+BOAT_API boat_tensor_t* boat_variable_data(const boat_variable_t* variable) {
     return variable ? variable->data : NULL;
 }
 
-boat_tensor_t* boat_variable_grad(const boat_variable_t* variable) {
+BOAT_API boat_tensor_t* boat_variable_grad(const boat_variable_t* variable) {
     return variable ? variable->grad : NULL;
 }
 
@@ -233,6 +247,37 @@ bool boat_variable_requires_grad(const boat_variable_t* variable) {
 void boat_variable_set_requires_grad(boat_variable_t* variable, bool requires_grad) {
     if (!variable) return;
     variable->requires_grad = requires_grad;
+}
+
+// Variable data reset/reuse
+BOAT_API bool boat_variable_reset_data(boat_variable_t* variable, boat_tensor_t* new_tensor) {
+    if (!variable || !new_tensor) {
+        return false;
+    }
+
+    // Check if variable is part of a computation graph
+    // If it has a node, we cannot safely reset data as it would break the graph
+    if (variable->node != NULL) {
+        fprintf(stderr, "Warning: Cannot reset data for variable with computation graph node\n");
+        return false;
+    }
+
+    // Free old data tensor
+    if (variable->data) {
+        boat_tensor_unref(variable->data);
+    }
+
+    // Set new data tensor and increment its reference count
+    variable->data = new_tensor;
+    boat_tensor_ref(new_tensor);
+
+    // Also reset gradient if it exists
+    if (variable->grad) {
+        boat_tensor_unref(variable->grad);
+        variable->grad = NULL;
+    }
+
+    return true;
 }
 
 // Gradient operations
@@ -367,21 +412,48 @@ void boat_variable_backward(boat_variable_t* variable, boat_tensor_t* grad_outpu
         case BOAT_OP_CONV:
             compute_backward_conv(op_data, local_grad);
             break;
+        case BOAT_OP_DENSE:
+            compute_backward_dense(op_data, local_grad);
+            break;
+        case BOAT_OP_POOL:
+            compute_backward_pool(op_data, local_grad);
+            break;
+        case BOAT_OP_FLATTEN:
+            compute_backward_flatten(op_data, local_grad);
+            break;
         case BOAT_OP_ATTENTION:
             compute_backward_attention(op_data, local_grad);
             break;
     }
 
     // Recursively backward to input variables (chain rule)
-    // For simplicity, we don't implement full graph traversal here
-    // Users should call backward on each variable in reverse order
+    for (size_t i = 0; i < op_data->num_inputs; i++) {
+        boat_variable_t* input_var = op_data->inputs[i];
+        if (input_var && input_var->requires_grad) {
+            // Get gradient for this input (should have been computed by compute_backward_*)
+            boat_tensor_t* input_grad = input_var->grad;
+            if (input_grad) {
+                // Only propagate to non-leaf variables (those with producers)
+                // Leaf variables already have gradients accumulated by compute_backward_*
+                if (input_var->producer_node) {
+                    // Increase refcount since we're passing it to backward
+                    boat_tensor_ref(input_grad);
+                    boat_variable_backward(input_var, input_grad);
+                    // backward doesn't consume the tensor, so unref
+                    boat_tensor_unref(input_grad);
+                }
+                // For leaf variables, gradient is already stored in input_var->grad
+                // No need to call backward further
+            }
+        }
+    }
 
     if (local_grad_allocated) {
         boat_tensor_unref(local_grad);
     }
 }
 
-void boat_variable_backward_full(boat_variable_t* variable) {
+BOAT_API void boat_variable_backward_full(boat_variable_t* variable) {
     if (!variable || !variable->requires_grad) return;
 
     // For now, just call backward with NULL gradient (scalar loss)
@@ -390,42 +462,42 @@ void boat_variable_backward_full(boat_variable_t* variable) {
 }
 
 // Arithmetic operations with gradient tracking
-boat_variable_t* boat_var_add(boat_variable_t* a, boat_variable_t* b) {
+BOAT_API boat_variable_t* boat_var_add(boat_variable_t* a, boat_variable_t* b) {
     if (!a || !b) return NULL;
 
     boat_variable_t* inputs[] = {a, b};
     return create_operation(BOAT_OP_ADD, inputs, 2, compute_forward_add, NULL);
 }
 
-boat_variable_t* boat_var_sub(boat_variable_t* a, boat_variable_t* b) {
+BOAT_API boat_variable_t* boat_var_sub(boat_variable_t* a, boat_variable_t* b) {
     if (!a || !b) return NULL;
 
     boat_variable_t* inputs[] = {a, b};
     return create_operation(BOAT_OP_SUB, inputs, 2, compute_forward_sub, NULL);
 }
 
-boat_variable_t* boat_var_mul(boat_variable_t* a, boat_variable_t* b) {
+BOAT_API boat_variable_t* boat_var_mul(boat_variable_t* a, boat_variable_t* b) {
     if (!a || !b) return NULL;
 
     boat_variable_t* inputs[] = {a, b};
     return create_operation(BOAT_OP_MUL, inputs, 2, compute_forward_mul, NULL);
 }
 
-boat_variable_t* boat_var_div(boat_variable_t* a, boat_variable_t* b) {
+BOAT_API boat_variable_t* boat_var_div(boat_variable_t* a, boat_variable_t* b) {
     if (!a || !b) return NULL;
 
     boat_variable_t* inputs[] = {a, b};
     return create_operation(BOAT_OP_DIV, inputs, 2, compute_forward_div, NULL);
 }
 
-boat_variable_t* boat_var_matmul(boat_variable_t* a, boat_variable_t* b) {
+BOAT_API boat_variable_t* boat_var_matmul(boat_variable_t* a, boat_variable_t* b) {
     if (!a || !b) return NULL;
 
     boat_variable_t* inputs[] = {a, b};
     return create_operation(BOAT_OP_MATMUL, inputs, 2, compute_forward_matmul, NULL);
 }
 
-boat_variable_t* boat_var_dot(boat_variable_t* a, boat_variable_t* b) {
+BOAT_API boat_variable_t* boat_var_dot(boat_variable_t* a, boat_variable_t* b) {
     if (!a || !b) return NULL;
 
     boat_variable_t* inputs[] = {a, b};
@@ -433,7 +505,7 @@ boat_variable_t* boat_var_dot(boat_variable_t* a, boat_variable_t* b) {
 }
 
 // Activation functions with gradient tracking
-boat_variable_t* boat_var_relu(boat_variable_t* a) {
+BOAT_API boat_variable_t* boat_var_relu(boat_variable_t* a) {
     if (!a) return NULL;
 
     boat_variable_t* inputs[] = {a};
@@ -461,7 +533,13 @@ boat_variable_t* boat_var_softmax(boat_variable_t* a, int axis) {
     return create_operation(BOAT_OP_SOFTMAX, inputs, 1, NULL, compute_forward_softmax);
 }
 
-boat_variable_t* boat_var_log_softmax(boat_variable_t* a, int axis) {
+BOAT_API boat_variable_t* boat_var_flatten(boat_variable_t* a) {
+    if (!a) return NULL;
+    boat_variable_t* inputs[] = {a};
+    return create_operation(BOAT_OP_FLATTEN, inputs, 1, NULL, compute_forward_flatten);
+}
+
+BOAT_API boat_variable_t* boat_var_log_softmax(boat_variable_t* a, int axis) {
     if (!a) return NULL;
     (void)axis; // TODO: support axis parameter
     boat_variable_t* inputs[] = {a};
@@ -469,9 +547,21 @@ boat_variable_t* boat_var_log_softmax(boat_variable_t* a, int axis) {
 }
 
 // Convolution operation with gradient tracking
-boat_variable_t* boat_var_conv(boat_variable_t* input, struct boat_conv_layer_t* layer) {
+BOAT_API boat_variable_t* boat_var_conv(boat_variable_t* input, struct boat_conv_layer_t* layer) {
     if (!input || !layer) return NULL;
     return create_conv_operation(input, layer);
+}
+
+// Pooling operation with gradient tracking
+BOAT_API boat_variable_t* boat_var_pool(boat_variable_t* input, struct boat_pool_layer_t* layer) {
+    if (!input || !layer) return NULL;
+    return create_pool_operation(input, layer);
+}
+
+// Dense operation with gradient tracking
+BOAT_API boat_variable_t* boat_var_dense(boat_variable_t* input, struct boat_dense_layer_t* layer) {
+    if (!input || !layer) return NULL;
+    return create_dense_operation(input, layer);
 }
 
 // Attention operation with gradient tracking
@@ -481,9 +571,19 @@ boat_variable_t* boat_var_attention(boat_variable_t* query, boat_variable_t* key
 }
 
 // Reduction operations with gradient tracking
-boat_variable_t* boat_var_sum(boat_variable_t* a, int64_t* dims, size_t n_dims, bool keepdim) {
-    (void)a; (void)dims; (void)n_dims; (void)keepdim;
-    return NULL;
+BOAT_API boat_variable_t* boat_var_sum(boat_variable_t* a, int64_t* dims, size_t n_dims, bool keepdim) {
+    if (!a) return NULL;
+
+    // For now, only support full reduction (dims == NULL, n_dims == 0)
+    // TODO: Support reduction along specific dimensions
+    if (dims != NULL || n_dims != 0 || keepdim) {
+        // Not yet implemented
+        fprintf(stderr, "ERROR: boat_var_sum only supports full reduction (dims=NULL, n_dims=0, keepdim=false) for now\n");
+        return NULL;
+    }
+
+    boat_variable_t* inputs[] = {a};
+    return create_operation(BOAT_OP_SUM, inputs, 1, NULL, compute_forward_sum_single);
 }
 
 boat_variable_t* boat_var_mean(boat_variable_t* a, int64_t* dims, size_t n_dims, bool keepdim) {
@@ -554,7 +654,72 @@ void boat_autodiff_set_grad_checkpointing(bool enabled) {
 }
 
 void boat_autodiff_clear_computation_graph() {
-    // TODO: implement graph clearing
+    // Get current autodiff context
+    boat_autodiff_context_t* ctx = boat_autodiff_get_current_context();
+    if (!ctx) return;
+
+    // Get graph from context
+    boat_graph_t* graph = boat_autodiff_context_get_graph(ctx);
+    if (!graph) return;
+
+    // Get node count
+    size_t node_count = boat_graph_node_count(graph);
+    if (node_count == 0) return;
+
+    // Collect nodes to remove
+    boat_node_t** nodes_to_remove = boat_malloc(sizeof(boat_node_t*) * node_count, BOAT_DEVICE_CPU);
+    if (!nodes_to_remove) return;
+
+    size_t remove_count = 0;
+
+    // Iterate through all nodes
+    for (size_t i = 0; i < node_count; i++) {
+        boat_node_t* node = boat_graph_get_node_at_index(graph, i);
+        if (!node) continue;
+
+        boat_node_type_t node_type = boat_node_type(node);
+
+        // Remove all operation nodes
+        if (node_type == BOAT_NODE_TYPE_OPERATION) {
+            nodes_to_remove[remove_count++] = node;
+        }
+        // Also remove variable nodes that require gradient (temporary variables)
+        else if (node_type == BOAT_NODE_TYPE_VARIABLE) {
+            void* node_data = boat_node_data(node);
+            if (node_data) {
+                boat_variable_t* var = (boat_variable_t*)node_data;
+                // Remove variable nodes for temporary variables:
+                // Variables with producer nodes (non-leaf, intermediate results)
+                // Leaf variables (no producer) should be kept for next batch
+                if (var->producer_node) {
+                    nodes_to_remove[remove_count++] = node;
+                }
+            }
+        }
+    }
+
+    // Remove nodes and update variable references
+    for (size_t i = 0; i < remove_count; i++) {
+        boat_node_t* node = nodes_to_remove[i];
+        boat_node_type_t node_type = boat_node_type(node);
+
+        // For variable nodes, update the variable structure before removing the node
+        if (node_type == BOAT_NODE_TYPE_VARIABLE) {
+            void* node_data = boat_node_data(node);
+            if (node_data) {
+                boat_variable_t* var = (boat_variable_t*)node_data;
+                // Clear the node reference in the variable structure
+                var->node = NULL;
+            }
+        }
+
+        boat_graph_remove_node(graph, node);
+    }
+
+    boat_free(nodes_to_remove);
+
+    // Clear gradients as well
+    boat_computation_graph_clear_gradients(graph);
 }
 
 // Utility functions
@@ -610,6 +775,12 @@ static void free_op_node_data(void* data) {
         boat_free(op_data->extra_data);
     }
     boat_free(op_data);
+}
+
+static void free_variable_data(void* data) {
+    if (!data) return;
+    boat_variable_t* var = (boat_variable_t*)data;
+    boat_variable_free(var);
 }
 
 // Forward computation functions
@@ -758,42 +929,13 @@ static boat_tensor_t* compute_forward_sum(boat_tensor_t* a, int64_t* dims, size_
     // For now, implement simple total sum
     (void)dims; (void)n_dims; (void)keepdim;
 
-    boat_tensor_t* out = boat_tensor_create_like(a);
-    if (!out) return NULL;
+    // Use boat_sum operation which already implements full reduction
+    return boat_sum(a, NULL, 0, false);
+}
 
-    size_t nelements = boat_tensor_nelements(a);
-    void* a_data = boat_tensor_data(a);
-    void* out_data = boat_tensor_data(out);
-    boat_dtype_t dtype = boat_tensor_dtype(a);
-
-    // Simple total sum (all elements)
-    switch (dtype) {
-        case BOAT_DTYPE_FLOAT32: {
-            float* a_ptr = (float*)a_data;
-            float sum = 0.0f;
-            for (size_t i = 0; i < nelements; i++) {
-                sum += a_ptr[i];
-            }
-            float* out_ptr = (float*)out_data;
-            out_ptr[0] = sum;
-            break;
-        }
-        case BOAT_DTYPE_FLOAT64: {
-            double* a_ptr = (double*)a_data;
-            double sum = 0.0;
-            for (size_t i = 0; i < nelements; i++) {
-                sum += a_ptr[i];
-            }
-            double* out_ptr = (double*)out_data;
-            out_ptr[0] = sum;
-            break;
-        }
-        default:
-            boat_tensor_free(out);
-            return NULL;
-    }
-
-    return out;
+static boat_tensor_t* compute_forward_sum_single(boat_tensor_t* a) {
+    // Wrapper for create_operation compatibility
+    return compute_forward_sum(a, NULL, 0, false);
 }
 
 static boat_tensor_t* compute_forward_mean(boat_tensor_t* a, int64_t* dims, size_t n_dims, bool keepdim) {
@@ -2071,6 +2213,138 @@ static boat_variable_t* create_conv_operation(boat_variable_t* input, struct boa
     return output_var;
 }
 
+static boat_variable_t* create_pool_operation(boat_variable_t* input, struct boat_pool_layer_t* layer) {
+    if (!input || !layer) return NULL;
+
+    // Check if input requires gradient
+    bool requires_grad = input->requires_grad;
+
+    // Perform forward computation using layer
+    boat_tensor_t* output_tensor = boat_pool_layer_forward(layer, input->data);
+    if (!output_tensor) {
+        return NULL;
+    }
+
+    // Create output variable
+    boat_variable_t* output_var = boat_variable_create(output_tensor, requires_grad);
+    if (!output_var) {
+        boat_tensor_unref(output_tensor);
+        return NULL;
+    }
+
+    // If gradient is required, create operation node and connect to graph
+    if (requires_grad) {
+        // Create operation node data with layer pointer in extra_data
+        boat_op_node_data_t* op_data = create_op_node_data(BOAT_OP_POOL, &input, 1, output_var);
+        if (!op_data) {
+            boat_variable_free(output_var);
+            return NULL;
+        }
+        // Store layer pointer in extra_data
+        op_data->extra_data = layer;
+
+        // Unify variable graphs (only one input)
+        boat_graph_t* graph = NULL;
+        if (!unify_variable_graphs(&input, 1, &graph)) {
+            free_op_node_data(op_data);
+            boat_variable_free(output_var);
+            return NULL;
+        }
+
+        boat_node_t* op_node = boat_graph_add_node(graph, op_data, BOAT_NODE_TYPE_OPERATION, free_op_node_data);
+        if (!op_node) {
+            if (graph != input->graph) {
+                boat_graph_free(graph);
+            }
+            free_op_node_data(op_data);
+            boat_variable_free(output_var);
+            return NULL;
+        }
+        output_var->producer_node = op_node;
+
+        // Connect input node to operation node
+        if (input->node) {
+            boat_graph_add_edge(graph, input->node, op_node, BOAT_EDGE_DIRECTION_FORWARD);
+        }
+
+        // Connect operation node to output node
+        if (output_var->node) {
+            boat_graph_add_edge(graph, op_node, output_var->node, BOAT_EDGE_DIRECTION_FORWARD);
+        }
+
+        // Set output variable's graph
+        output_var->graph = graph;
+    }
+
+    return output_var;
+}
+
+static boat_variable_t* create_dense_operation(boat_variable_t* input, struct boat_dense_layer_t* layer) {
+    if (!input || !layer) return NULL;
+
+    // Check if input requires gradient
+    bool requires_grad = input->requires_grad;
+
+    // Perform forward computation using layer
+    boat_tensor_t* output_tensor = boat_dense_layer_forward(layer, input->data);
+    if (!output_tensor) {
+        return NULL;
+    }
+
+    // Create output variable
+    boat_variable_t* output_var = boat_variable_create(output_tensor, requires_grad);
+    if (!output_var) {
+        boat_tensor_unref(output_tensor);
+        return NULL;
+    }
+
+    // If gradient is required, create operation node and connect to graph
+    if (requires_grad) {
+        // Create operation node data with layer pointer in extra_data
+        boat_op_node_data_t* op_data = create_op_node_data(BOAT_OP_DENSE, &input, 1, output_var);
+        if (!op_data) {
+            boat_variable_free(output_var);
+            return NULL;
+        }
+        // Store layer pointer in extra_data
+        op_data->extra_data = layer;
+
+        // Unify variable graphs (only one input)
+        boat_graph_t* graph = NULL;
+        if (!unify_variable_graphs(&input, 1, &graph)) {
+            free_op_node_data(op_data);
+            boat_variable_free(output_var);
+            return NULL;
+        }
+
+        boat_node_t* op_node = boat_graph_add_node(graph, op_data, BOAT_NODE_TYPE_OPERATION, free_op_node_data);
+        if (!op_node) {
+            if (graph != input->graph) {
+                boat_graph_free(graph);
+            }
+            free_op_node_data(op_data);
+            boat_variable_free(output_var);
+            return NULL;
+        }
+        output_var->producer_node = op_node;
+
+        // Connect input node to operation node
+        if (input->node) {
+            boat_graph_add_edge(graph, input->node, op_node, BOAT_EDGE_DIRECTION_FORWARD);
+        }
+
+        // Connect operation node to output node
+        if (output_var->node) {
+            boat_graph_add_edge(graph, op_node, output_var->node, BOAT_EDGE_DIRECTION_FORWARD);
+        }
+
+        // Set output variable's graph
+        output_var->graph = graph;
+    }
+
+    return output_var;
+}
+
 static void compute_backward_conv(boat_op_node_data_t* op_data, boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 1 || !grad_output) {
         return;
@@ -2254,4 +2528,144 @@ static void compute_backward_attention(boat_op_node_data_t* op_data, boat_tensor
     boat_tensor_unref(grad_query);
     boat_tensor_unref(grad_key);
     boat_tensor_unref(grad_value);
+}
+
+// Flatten operation forward pass
+static boat_tensor_t* compute_forward_flatten(boat_tensor_t* input) {
+    if (!input) return NULL;
+
+    // Get input shape
+    const int64_t* shape = boat_tensor_shape(input);
+    size_t ndim = boat_tensor_ndim(input);
+
+    if (ndim < 2) {
+        fprintf(stderr, "Error: Flatten expects at least 2D input tensor\n");
+        return NULL;
+    }
+
+    // Calculate flattened shape: [batch, product of remaining dimensions]
+    int64_t batch = shape[0];
+    int64_t features = 1;
+    for (size_t i = 1; i < ndim; i++) {
+        features *= shape[i];
+    }
+
+    int64_t new_shape[] = {batch, features};
+    return boat_tensor_reshape(input, new_shape, 2);
+}
+
+// Flatten operation backward pass
+static void compute_backward_flatten(boat_op_node_data_t* op_data, boat_tensor_t* grad_output) {
+    if (!op_data || op_data->num_inputs != 1 || !grad_output) {
+        return;
+    }
+
+    boat_variable_t* input = op_data->inputs[0];
+    if (!input || !input->requires_grad) {
+        return;
+    }
+
+    // Gradient w.r.t input is just reshaping grad_output back to input shape
+    boat_tensor_t* grad_input = boat_tensor_reshape(grad_output,
+                                                    boat_tensor_shape(input->data),
+                                                    boat_tensor_ndim(input->data));
+    if (!grad_input) {
+        return;
+    }
+
+    // Accumulate gradient
+    if (!input->grad) {
+        input->grad = boat_tensor_create_like(input->data);
+        if (!input->grad) {
+            boat_tensor_unref(grad_input);
+            return;
+        }
+    }
+
+    // Add gradient
+    boat_add_(input->grad, grad_input);
+    boat_tensor_unref(grad_input);
+}
+
+// Pooling operation forward pass
+static boat_tensor_t* compute_forward_pool(boat_tensor_t* input, void* layer_ptr) {
+    if (!input || !layer_ptr) return NULL;
+    boat_pool_layer_t* layer = (boat_pool_layer_t*)layer_ptr;
+    return boat_pool_layer_forward(layer, input);
+}
+
+// Pooling operation backward pass
+static void compute_backward_pool(boat_op_node_data_t* op_data, boat_tensor_t* grad_output) {
+    if (!op_data || op_data->num_inputs != 1 || !grad_output) {
+        return;
+    }
+
+    boat_variable_t* input = op_data->inputs[0];
+    boat_pool_layer_t* layer = (boat_pool_layer_t*)op_data->extra_data;
+    if (!input || !layer) {
+        return;
+    }
+
+    // Call layer backward function to compute gradient with respect to input
+    boat_tensor_t* grad_input = boat_pool_layer_backward(layer, grad_output);
+    if (!grad_input) {
+        return;
+    }
+
+    // If input requires gradient, accumulate gradient
+    if (input->requires_grad) {
+        if (!input->grad) {
+            input->grad = boat_tensor_create_like(input->data);
+            if (!input->grad) {
+                boat_tensor_unref(grad_input);
+                return;
+            }
+        }
+        // Add gradient
+        boat_add_(input->grad, grad_input);
+    }
+
+    boat_tensor_unref(grad_input);
+}
+
+// Dense operation forward pass
+static boat_tensor_t* compute_forward_dense(boat_tensor_t* input, void* layer_ptr) {
+    if (!input || !layer_ptr) return NULL;
+    boat_dense_layer_t* layer = (boat_dense_layer_t*)layer_ptr;
+    return boat_dense_layer_forward(layer, input);
+}
+
+// Dense operation backward pass
+static void compute_backward_dense(boat_op_node_data_t* op_data, boat_tensor_t* grad_output) {
+    if (!op_data || op_data->num_inputs != 1 || !grad_output) {
+        return;
+    }
+
+    boat_variable_t* input = op_data->inputs[0];
+    boat_dense_layer_t* layer = (boat_dense_layer_t*)op_data->extra_data;
+    if (!input || !layer) {
+        return;
+    }
+
+    // Call layer backward function to compute gradient with respect to input
+    // This will also compute gradients for weight and bias and store them in layer
+    boat_tensor_t* grad_input = boat_dense_layer_backward(layer, grad_output);
+    if (!grad_input) {
+        return;
+    }
+
+    // If input requires gradient, accumulate gradient
+    if (input->requires_grad) {
+        if (!input->grad) {
+            input->grad = boat_tensor_create_like(input->data);
+            if (!input->grad) {
+                boat_tensor_unref(grad_input);
+                return;
+            }
+        }
+        // Add gradient
+        boat_add_(input->grad, grad_input);
+    }
+
+    boat_tensor_unref(grad_input);
 }

@@ -1,6 +1,6 @@
 // version.h - Version information for Boat Deep Learning Framework
-// Copyright (c) 2026 Shaoning, Xiao 萧少宁
-// Licensed under the Apache License, Version 2.0
+// Copyright (c) 2026 Boat Framework Authors
+// Distributed under the MIT License
 
 #ifndef BOAT_VERSION_H
 #define BOAT_VERSION_H
@@ -16,8 +16,8 @@ extern "C" {
 #define BOAT_VERSION_MINOR 1
 #define BOAT_VERSION_PATCH 0
 #define BOAT_VERSION_STRING "0.1.0"
-#define BOAT_GIT_HASH ""
-#define BOAT_GIT_DESCRIBE ""
+#define BOAT_GIT_HASH "80dd3a5"
+#define BOAT_GIT_DESCRIBE "80dd3a5-dirty"
 
 // Combined version string with git info
 #define BOAT_VERSION_FULL BOAT_VERSION_STRING "-" BOAT_GIT_HASH

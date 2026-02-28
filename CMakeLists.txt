@@ -2,8 +2,6 @@
 cmake_minimum_required(VERSION 3.10)
 project(boat VERSION 0.1.0 LANGUAGES C)
 
-add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-
 # Git version information
 find_package(Git QUIET)
 if(GIT_FOUND)
@@ -42,7 +40,7 @@ configure_file(
 )
 
 # Options
-option(BOAT_BUILD_SHARED "Build shared library (DLL on Windows)" ON)
+option(BOAT_BUILD_SHARED "Build shared library (DLL on Windows)" OFF)
 option(BOAT_WITH_CUDA "Enable CUDA support" OFF)
 option(BOAT_WITH_TESTS "Build tests" OFF)
 option(BOAT_WITH_EXAMPLES "Build examples" OFF)
@@ -50,6 +48,7 @@ option(BOAT_WITH_ONNX "Enable ONNX support" OFF)
 option(BOAT_WITH_PYTORCH "Enable PyTorch support" OFF)
 option(BOAT_WITH_TENSORFLOW "Enable TensorFlow support" OFF)
 option(BOAT_WITH_HUGGINGFACE "Enable Hugging Face Transformers support" OFF)
+option(BOAT_DEBUG "Enable debug output (0=disabled, 1=enabled)" 0)
 
 # PyTorch path configuration
 option(BOAT_PYTORCH_PATH "Path to LibTorch installation" "")
@@ -302,14 +301,23 @@ if(BOAT_BUILD_SHARED)
 
     # Export all symbols on Windows
     if(WIN32)
-        # set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+        set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS OFF)
     endif()
 else()
     add_library(boat STATIC ${BOAT_SOURCES})
     message(STATUS "Building static library")
+    # Define static build macro to control export macros
+    target_compile_definitions(boat PUBLIC BOAT_STATIC_BUILD)
 endif()
 
 add_library(boat::boat ALIAS boat)
+
+# Add debug definition if enabled
+if(BOAT_DEBUG)
+    target_compile_definitions(boat PRIVATE BOAT_DEBUG=1)
+else()
+    target_compile_definitions(boat PRIVATE BOAT_DEBUG=0)
+endif()
 
 # Set library properties
 set_target_properties(boat PROPERTIES

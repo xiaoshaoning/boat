@@ -1,6 +1,6 @@
 // norm.c - Normalization layers implementation
-// Copyright (c) 2026 Shaoning, Xiao 萧少宁
-// Licensed under the Apache License, Version 2.0
+// Copyright (c) 2026 Boat Framework Authors
+// Distributed under the MIT License
 
 #include <boat/layers/norm.h>
 #include <boat/ops.h>

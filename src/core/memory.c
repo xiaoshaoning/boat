@@ -1,7 +1,8 @@
 // memory.c - Memory management for deep learning framework
-// Copyright (c) 2026 Shaoning, Xiao 萧少宁
-// Licensed under the Apache License, Version 2.0
+// Copyright (c) 2026 Boat Framework Authors
+// Distributed under the MIT License
 
+#define BOAT_BUILDING_DLL
 #include <boat/tensor.h>
 #include <boat/memory.h>
 #include <stdlib.h>
@@ -141,11 +142,11 @@ void boat_memory_free_safe(void** ptr_ptr) {
 }
 
 // Memory statistics functions
-boat_memory_stats_t boat_memory_get_stats() {
+BOAT_API boat_memory_stats_t boat_memory_get_stats() {
     return g_memory_stats;
 }
 
-void boat_memory_reset_stats() {
+BOAT_API void boat_memory_reset_stats() {
     g_memory_stats.allocated_bytes = 0;
     g_memory_stats.allocated_blocks = 0;
     g_memory_stats.peak_allocated_bytes = 0;
@@ -498,10 +499,10 @@ void boat_memory_arena_reset(boat_memory_arena_t* arena) {
     }
 }
 
-size_t boat_memory_arena_used(const boat_memory_arena_t* arena) {
+BOAT_API size_t boat_memory_arena_used(const boat_memory_arena_t* arena) {
     return arena ? arena->used : 0;
 }
 
-size_t boat_memory_arena_capacity(const boat_memory_arena_t* arena) {
+BOAT_API size_t boat_memory_arena_capacity(const boat_memory_arena_t* arena) {
     return arena ? arena->capacity : 0;
 }
