@@ -126,7 +126,7 @@ static benchmark_result_t run_benchmark(const benchmark_config_t* config) {
     }
 
     // Create input tensors (query, key, value are same for self-attention)
-    int64_t q_shape[] = {(int64_t)config->batch_size, (int64_t)config->seq_len, (int64_t)config->hidden_size};
+    const int64_t q_shape[] = {(int64_t)config->batch_size, (int64_t)config->seq_len, (int64_t)config->hidden_size};
     boat_tensor_t* query = create_random_tensor(q_shape, 3, BOAT_DTYPE_FLOAT32);
     boat_tensor_t* key = create_random_tensor(q_shape, 3, BOAT_DTYPE_FLOAT32);
     boat_tensor_t* value = create_random_tensor(q_shape, 3, BOAT_DTYPE_FLOAT32);
