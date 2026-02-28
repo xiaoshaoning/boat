@@ -30,7 +30,7 @@ boat/
 ├── Makefile          # Make build configuration
 ├── CLAUDE.md         # Detailed project documentation
 ├── README.md         # Project introduction
-├── LICENSE           # MIT License
+├── LICENSE           # Apache License 2.0
 └── docs/             # Documentation directory
 
 Core Components Implemented:

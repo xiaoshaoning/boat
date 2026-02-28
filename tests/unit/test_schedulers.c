@@ -1,6 +1,6 @@
 // test_schedulers.c - Learning rate scheduler unit tests
-// Copyright (c) 2026 Boat Framework Authors
-// Distributed under the MIT License
+// Copyright (c) 2026 Shaoning, Xiao 萧少宁
+// Licensed under the Apache License, Version 2.0
 
 #include <boat/schedulers.h>
 #include <boat/optimizers.h>

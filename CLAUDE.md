@@ -485,14 +485,14 @@ make install
 ### Coding Standards
 
 - Use `clang-format` with provided `.clang-format` file
-- Write descriptive commit messages
+- Write descriptive commit messages in English only
 - Add documentation for public APIs
 - Include unit tests for new features
 - Ensure no memory leaks (use Valgrind or AddressSanitizer)
 
 ## License
 
-[MIT License](LICENSE)
+[Apache License 2.0](LICENSE)
 
 ## Acknowledgments
 

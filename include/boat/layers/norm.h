@@ -1,6 +1,6 @@
 // norm.h - Normalization layers for neural networks
-// Copyright (c) 2026 Boat Framework Authors
-// Distributed under the MIT License
+// Copyright (c) 2026 Shaoning, Xiao 萧少宁
+// Licensed under the Apache License, Version 2.0
 
 #ifndef BOAT_NORM_H
 #define BOAT_NORM_H

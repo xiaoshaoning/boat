@@ -1,6 +1,6 @@
 // adagrad.c - Adagrad optimizer implementation
-// Copyright (c) 2026 Boat Framework Authors
-// Distributed under the MIT License
+// Copyright (c) 2026 Shaoning, Xiao 萧少宁
+// Licensed under the Apache License, Version 2.0
 
 #include <stddef.h>
 #include <boat/optimizers.h>
