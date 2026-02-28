@@ -2265,7 +2265,7 @@ static stability_stats_t compute_stability_stats(const float* losses, const floa
     stats.loss_smoothness = diff_count > 0 ? total_diff / diff_count : 0.0f;
 
     // Compute validation improvement
-    if (current_epoch >= 1 && val_losses) {
+    if (val_losses) {
         float current_val = val_losses[current_epoch];
         float prev_val = val_losses[current_epoch - 1];
         stats.val_improvement = prev_val > 0 ? (prev_val - current_val) / prev_val : 0.0f;
@@ -2349,7 +2349,7 @@ static resource_prediction_t predict_resources(const double* epoch_times, int cu
     pred.time_remaining = pred.avg_epoch_time * epochs_remaining;
 
     // Predict memory usage (simple linear projection)
-    if (mem_stats && current_epoch >= 1) {
+    if (mem_stats) {
         // Use current allocated memory as baseline
         double peak_mem = mem_stats->peak_allocated_bytes / (1024.0 * 1024.0);
         pred.projected_mem_peak = peak_mem * 1.1; // Conservative estimate
@@ -2726,19 +2726,12 @@ int main(int argc, char* argv[]) {
     boat_memory_reset_stats();
     float best_val_accuracy = 0.0f;
     int best_epoch = -1;
-    const int warmup_epochs = 0; // Number of epochs for learning rate warm-up (disabled for quick test)
+    // Note: warm-up is disabled (set warmup_epochs > 0 if needed in the future)
     for (int epoch = 0; epoch < epochs; epoch++) {
-        // Apply learning rate warm-up
+        // Apply learning rate warm-up (disabled when warmup_epochs = 0)
         float current_lr = boat_optimizer_get_learning_rate(model->optimizer);
-        if (epoch < warmup_epochs) {
-            // Linear warm-up: from 0.1 * base_lr to base_lr over warmup_epochs
-            float base_lr = 0.001f; // Initial learning rate used in model creation
-            float warmup_lr = base_lr * (epoch + 1) / warmup_epochs;
-            boat_optimizer_set_learning_rate(model->optimizer, warmup_lr);
-            current_lr = warmup_lr;
-            printf("             warm-up: learning rate set to %.6f (epoch %d/%d)\n",
-                   current_lr, epoch + 1, warmup_epochs);
-        }
+        // Note: warmup_epochs is 0, so warm-up is disabled
+        // If warm-up is needed in the future, set warmup_epochs > 0
         learning_rates[epoch] = current_lr;
 
         float epoch_loss = 0.0f;

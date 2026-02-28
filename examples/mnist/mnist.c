@@ -349,7 +349,6 @@ int main(int argc, char* argv[]) {
 
     // Training loop
     for (int epoch = 0; epoch < epochs; epoch++) {
-        float epoch_loss = 0.0f;
         int epoch_correct = 0;
         int epoch_total = 0;
 
@@ -373,12 +372,12 @@ int main(int argc, char* argv[]) {
                 if (i >= start_idx + 4) continue;  // Process first 4 samples in each batch
 
                 // Fill test_input with current sample data
-                float* test_data = (float*)boat_tensor_data(test_input);
-                const float* train_data = (const float*)boat_tensor_const_data(train_images);
+                float* test_data_local = (float*)boat_tensor_data(test_input);
+                const float* train_data_local = (const float*)boat_tensor_const_data(train_images);
                 size_t sample_size = 28 * 28;
                 size_t offset = i * sample_size;
                 for (size_t k = 0; k < sample_size; k++) {
-                    test_data[k] = train_data[offset + k];
+                    test_data_local[k] = train_data_local[offset + k];
                 }
 
                 // Forward pass
@@ -463,12 +462,12 @@ int main(int argc, char* argv[]) {
     int test_correct = 0;
     for (size_t i = 0; i < test_samples; i++) {
         // Fill test_input with current test sample data
-        float* test_data = (float*)boat_tensor_data(test_input);
+        float* test_data_local = (float*)boat_tensor_data(test_input);
         const float* test_images_data = (const float*)boat_tensor_const_data(test_images);
         size_t sample_size = 28 * 28;
         size_t offset = i * sample_size;
         for (size_t k = 0; k < sample_size; k++) {
-            test_data[k] = test_images_data[offset + k];
+            test_data_local[k] = test_images_data[offset + k];
         }
 
         // Process one sample at a time (simplified)

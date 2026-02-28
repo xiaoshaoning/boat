@@ -140,8 +140,6 @@ static benchmark_result_t run_training(
     boat_variable_t* x_var = boat_variable_create(x_data, false); // No gradient needed for input
     boat_variable_t* y_true_var = boat_variable_create(y_data, false); // No gradient needed for target
 
-    int batch_size = boat_tensor_shape(x_data)[0];
-
     // Training loop
     for (int step = 0; step < max_steps; step++) {
         // Zero gradients before forward pass
@@ -178,7 +176,7 @@ static benchmark_result_t run_training(
         boat_tensor_t* loss_sum = boat_sum(diff_squared, NULL, 0, false); // Sum all elements
         float loss = 0.0f;
         if (loss_sum) {
-            float* loss_data = (float*)boat_tensor_data(loss_sum);
+            const float* loss_data = (const float*)boat_tensor_const_data(loss_sum);
             loss = loss_data[0] / n_elements;
             boat_tensor_unref(loss_sum);
         }
