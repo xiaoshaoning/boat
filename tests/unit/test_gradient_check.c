@@ -64,16 +64,16 @@ static bool check_gradient_agreement(float analytical, float numerical,
                                      float rel_tol, float abs_tol) {
     float diff = fabsf(analytical - numerical);
     if (diff <= abs_tol) {
-        return true;  // 差异小于绝对容差，梯度匹配
+        return true;  // Difference less than absolute tolerance, gradients match
     }
     float sum = fabsf(analytical) + fabsf(numerical);
     if (sum > 0.0f) {
         float rel_err = diff / sum;
         if (rel_err <= rel_tol) {
-            return true;  // 相对误差小于容差，梯度匹配
+            return true;  // Relative error less than tolerance, gradients match
         }
     }
-    return false;  // 梯度不匹配
+    return false;  // Gradients do not match
 }
 
 // Test gradient for a simple addition operation

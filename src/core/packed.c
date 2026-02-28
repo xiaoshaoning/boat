@@ -118,11 +118,9 @@ void boat_pack_float4(const float* src, uint8_t* dst, size_t n) {
     for (size_t i = 0; i < n; i += 2) {
         uint8_t byte = 0;
 
-        if (i < n) {
             boat_float4_t f4 = boat_float4_from_float(src[i]);
             byte |= (f4.sign << 7);
             byte |= (f4.exponent << 4);
-        }
 
         if (i + 1 < n) {
             boat_float4_t f4 = boat_float4_from_float(src[i + 1]);
@@ -138,12 +136,10 @@ void boat_unpack_float4(const uint8_t* src, float* dst, size_t n) {
     for (size_t i = 0; i < n; i += 2) {
         uint8_t byte = src[i / 2];
 
-        if (i < n) {
             boat_float4_t f4;
             f4.sign = (byte >> 7) & 1;
             f4.exponent = (byte >> 4) & 0x07;
             dst[i] = boat_float4_to_float(f4);
-        }
 
         if (i + 1 < n) {
             boat_float4_t f4;

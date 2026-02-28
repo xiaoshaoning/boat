@@ -49,6 +49,18 @@ static void generate_linear_data(
     float* W_true = (float*)malloc(input_dim * output_dim * sizeof(float));
     float* b_true = (float*)malloc(output_dim * sizeof(float));
 
+    // Check for allocation failure
+    if (!W_true || !b_true) {
+        printf("Failed to allocate true parameters\n");
+        if (W_true) free(W_true);
+        if (b_true) free(b_true);
+        boat_tensor_unref(*x_out);
+        boat_tensor_unref(*y_out);
+        *x_out = NULL;
+        *y_out = NULL;
+        return;
+    }
+
     srand(42); // Fixed seed for reproducibility
 
     for (int i = 0; i < input_dim * output_dim; i++) {

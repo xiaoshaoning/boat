@@ -6,6 +6,7 @@
 #include <boat/memory.h>
 #include <string.h>
 #include <math.h>
+#include <float.h>
 #include <stdlib.h>
 
 // Helper function to compute stride for a given dimension
@@ -193,7 +194,7 @@ boat_tensor_t* boat_log_softmax(const boat_tensor_t* a, int axis) {
                     }
 
                     // Compute log_softmax: x - max - log(sum(exp(x - max)))
-                    float log_exp_sum = logf(exp_sum);
+                    float log_exp_sum = logf(fmaxf(exp_sum, FLT_MIN));
                     for (size_t k = 0; k < axis_size; k++) {
                         size_t idx = base_idx + k * inner_stride;
                         out_ptr[idx] = a_ptr[idx] - max_val - log_exp_sum;
@@ -225,7 +226,7 @@ boat_tensor_t* boat_log_softmax(const boat_tensor_t* a, int axis) {
                         exp_sum += exp_val;
                     }
 
-                    double log_exp_sum = log(exp_sum);
+                    double log_exp_sum = log(fmax(exp_sum, DBL_MIN));
                     for (size_t k = 0; k < axis_size; k++) {
                         size_t idx = base_idx + k * inner_stride;
                         out_ptr[idx] = a_ptr[idx] - max_val - log_exp_sum;
@@ -244,33 +245,25 @@ boat_tensor_t* boat_log_softmax(const boat_tensor_t* a, int axis) {
 
 // Other activation functions (placeholders for now)
 BOAT_API boat_tensor_t* boat_relu(const boat_tensor_t* a) {
-    // 紧急修复：简单的ReLU实现
-    // 写入日志文件确认函数被调用
-    FILE* debug_log = fopen("boat_relu_debug.log", "a");
-    if (debug_log) {
-        fprintf(debug_log, "boat_relu called at %p with input %p\n",
-                (void*)boat_relu, (void*)a);
-        fclose(debug_log);
-    }
 
     if (!a) {
         return NULL;
     }
 
-    // 创建输出张量
+    // Create output tensor
     boat_tensor_t* out = boat_tensor_create_like(a);
     if (!out) {
         return NULL;
     }
 
-    // 获取张量信息
+    // Get tensor information
     boat_dtype_t dtype = boat_tensor_dtype(a);
     size_t total_elements = boat_tensor_nelements(a);
     void* a_data = boat_tensor_data(a);
     void* out_data = boat_tensor_data(out);
 
 
-    // 只实现FP32版本（MNIST使用FP32）
+    // Only implement FP32 version (MNIST uses FP32)
     if (dtype == BOAT_DTYPE_FLOAT32 && total_elements > 0) {
         float* a_ptr = (float*)a_data;
         float* out_ptr = (float*)out_data;
@@ -280,7 +273,7 @@ BOAT_API boat_tensor_t* boat_relu(const boat_tensor_t* a) {
         return out;
     }
 
-    // 对于其他数据类型，暂时返回原张量副本
+    // For other data types, temporarily return a copy of the tensor
     if (total_elements > 0 && a_data && out_data) {
         size_t bytes = boat_tensor_nbytes(a);
         memcpy(out_data, a_data, bytes);
