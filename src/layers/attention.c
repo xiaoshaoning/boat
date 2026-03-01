@@ -147,8 +147,6 @@ BOAT_API boat_attention_t* BOAT_CALL boat_attention_create(const boat_attention_
     }
 
     // Create weight matrices
-    size_t head_size = attention->config.head_size;
-    size_t num_heads = attention->config.num_heads;
     size_t hidden_size = attention->config.hidden_size;
 
     attention->weight_q = create_linear_weights(hidden_size, hidden_size, config->use_bias);

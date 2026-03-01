@@ -1422,6 +1422,8 @@ char* boat_graph_to_dot(const boat_graph_t* graph) {
     // Close graph
     pos += snprintf(dot + pos, buffer_size - pos, "}\n");
 
+    (void)pos; // Suppress unused variable warning
+
     return dot;
 }
 

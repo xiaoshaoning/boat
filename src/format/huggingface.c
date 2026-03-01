@@ -794,7 +794,7 @@ static bool load_safetensors(const void* data, size_t size, const hf_config_t* c
 
         // Calculate data pointer
         size_t data_offset = header_size + start;
-        size_t data_size = end - start;
+        // size_t data_size = end - start; // Unused variable
         const void* tensor_data = file_data + data_offset;
 
         // Create boat tensor

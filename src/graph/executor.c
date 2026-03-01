@@ -42,7 +42,7 @@ void boat_computation_graph_forward(const boat_graph_t* graph) {
 
     // Execute nodes in topological order
     for (size_t i = 0; i < sorted_count; i++) {
-        boat_node_t* node = sorted_nodes[i];
+        const boat_node_t* node = sorted_nodes[i];
         boat_node_type_t node_type = boat_node_type(node);
 
         // Handle different node types
@@ -56,7 +56,7 @@ void boat_computation_graph_forward(const boat_graph_t* graph) {
             // Count incoming edges with forward direction
             size_t num_inputs = 0;
             for (size_t j = 0; j < graph->edge_count; j++) {
-                struct boat_edge_t* edge = graph->edges[j];
+                const struct boat_edge_t* edge = graph->edges[j];
                 if (!edge) continue;
                 if (boat_edge_target(edge) == node &&
                     boat_edge_direction(edge) == BOAT_EDGE_DIRECTION_FORWARD) {
@@ -77,11 +77,11 @@ void boat_computation_graph_forward(const boat_graph_t* graph) {
             // Fill input array
             size_t input_idx = 0;
             for (size_t j = 0; j < graph->edge_count; j++) {
-                struct boat_edge_t* edge = graph->edges[j];
+                const struct boat_edge_t* edge = graph->edges[j];
                 if (!edge) continue;
                 if (boat_edge_target(edge) == node &&
                     boat_edge_direction(edge) == BOAT_EDGE_DIRECTION_FORWARD) {
-                    boat_node_t* source_node = boat_edge_source(edge);
+                    const boat_node_t* source_node = boat_edge_source(edge);
                     struct boat_computation_node_data* source_data = boat_node_data(source_node);
                     if (source_data && source_data->output) {
                         inputs[input_idx++] = source_data->output;
@@ -128,7 +128,7 @@ void boat_computation_graph_backward(const boat_graph_t* graph) {
 
     // Execute backward pass in reverse order
     for (size_t i = sorted_count; i > 0; i--) {
-        boat_node_t* node = sorted_nodes[i - 1];
+        const boat_node_t* node = sorted_nodes[i - 1];
         boat_node_type_t node_type = boat_node_type(node);
 
         if (node_type == BOAT_NODE_TYPE_OPERATION) {
@@ -143,11 +143,11 @@ void boat_computation_graph_backward(const boat_graph_t* graph) {
 
             // Find outgoing edges with forward direction
             for (size_t j = 0; j < graph->edge_count; j++) {
-                struct boat_edge_t* edge = graph->edges[j];
+                const struct boat_edge_t* edge = graph->edges[j];
                 if (!edge) continue;
                 if (boat_edge_source(edge) == node &&
                     boat_edge_direction(edge) == BOAT_EDGE_DIRECTION_FORWARD) {
-                    boat_node_t* target_node = boat_edge_target(edge);
+                    const boat_node_t* target_node = boat_edge_target(edge);
                     struct boat_computation_node_data* target_data = boat_node_data(target_node);
                     if (target_data && target_data->gradient) {
                         // Use the first gradient we find
@@ -169,7 +169,7 @@ void boat_computation_graph_backward(const boat_graph_t* graph) {
             // Collect inputs from predecessor nodes
             size_t num_inputs = 0;
             for (size_t j = 0; j < graph->edge_count; j++) {
-                struct boat_edge_t* edge = graph->edges[j];
+                const struct boat_edge_t* edge = graph->edges[j];
                 if (!edge) continue;
                 if (boat_edge_target(edge) == node &&
                     boat_edge_direction(edge) == BOAT_EDGE_DIRECTION_FORWARD) {
@@ -195,11 +195,11 @@ void boat_computation_graph_backward(const boat_graph_t* graph) {
             // Fill input array and initialize input gradients to NULL
             size_t input_idx = 0;
             for (size_t j = 0; j < graph->edge_count; j++) {
-                struct boat_edge_t* edge = graph->edges[j];
+                const struct boat_edge_t* edge = graph->edges[j];
                 if (!edge) continue;
                 if (boat_edge_target(edge) == node &&
                     boat_edge_direction(edge) == BOAT_EDGE_DIRECTION_FORWARD) {
-                    boat_node_t* source_node = boat_edge_source(edge);
+                    const boat_node_t* source_node = boat_edge_source(edge);
                     struct boat_computation_node_data* source_data = boat_node_data(source_node);
                     if (source_data && source_data->output) {
                         inputs[input_idx] = source_data->output;
@@ -224,11 +224,11 @@ void boat_computation_graph_backward(const boat_graph_t* graph) {
             // Distribute computed gradients back to input nodes
             input_idx = 0;
             for (size_t j = 0; j < graph->edge_count; j++) {
-                struct boat_edge_t* edge = graph->edges[j];
+                const struct boat_edge_t* edge = graph->edges[j];
                 if (!edge) continue;
                 if (boat_edge_target(edge) == node &&
                     boat_edge_direction(edge) == BOAT_EDGE_DIRECTION_FORWARD) {
-                    boat_node_t* source_node = boat_edge_source(edge);
+                    const boat_node_t* source_node = boat_edge_source(edge);
                     struct boat_computation_node_data* source_data = boat_node_data(source_node);
                     if (source_data && input_idx < num_inputs) {
                         // If this input node expects gradient (e.g., is a variable),
@@ -262,7 +262,7 @@ void boat_computation_graph_clear_gradients(const boat_graph_t* graph) {
 
     size_t node_count = boat_graph_node_count(graph);
     for (size_t i = 0; i < node_count; i++) {
-        boat_node_t* node = boat_graph_get_node_at_index(graph, i);
+        const boat_node_t* node = boat_graph_get_node_at_index(graph, i);
         boat_node_type_t node_type = boat_node_type(node);
 
         if (node_type == BOAT_NODE_TYPE_VARIABLE || node_type == BOAT_NODE_TYPE_OPERATION) {
