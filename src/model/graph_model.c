@@ -21,7 +21,7 @@ typedef struct {
 } boat_graph_model_private_t;
 
 // Graph model creation
-boat_model_t* boat_graph_model_create(boat_graph_t* graph, boat_node_t* input_node, boat_node_t* output_node) {
+boat_model_t* boat_graph_model_create(const boat_graph_t* graph, const boat_node_t* input_node, const boat_node_t* output_node) {
     if (!graph || !input_node || !output_node) {
         return NULL;
     }
@@ -53,7 +53,7 @@ boat_model_t* boat_graph_model_create(boat_graph_t* graph, boat_node_t* input_no
 }
 
 // Add parameter to graph model
-void boat_graph_model_add_parameter(boat_model_t* model, boat_tensor_t* parameter) {
+void boat_graph_model_add_parameter(const boat_model_t* model, boat_tensor_t* parameter) {
     if (!model || !parameter) {
         return;
     }

@@ -21,34 +21,34 @@ typedef struct boat_attention_layer_t boat_attention_layer_t;
 
 // Dense layer functions
 BOAT_API boat_dense_layer_t* BOAT_CALL boat_dense_layer_create(size_t input_features, size_t output_features, bool use_bias);
-BOAT_API void BOAT_CALL boat_dense_layer_free(boat_dense_layer_t* layer);
-BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_forward(boat_dense_layer_t* layer, const boat_tensor_t* input);
-BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_backward(boat_dense_layer_t* layer, const boat_tensor_t* grad_output);
-BOAT_API void BOAT_CALL boat_dense_layer_update(boat_dense_layer_t* layer, float learning_rate);
+BOAT_API void BOAT_CALL boat_dense_layer_free(const boat_dense_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_forward(const boat_dense_layer_t* layer, const boat_tensor_t* input);
+BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_backward(const boat_dense_layer_t* layer, const boat_tensor_t* grad_output);
+BOAT_API void BOAT_CALL boat_dense_layer_update(const boat_dense_layer_t* layer, float learning_rate);
 
 // Parameter access for model loading
-BOAT_API void BOAT_CALL boat_dense_layer_set_weight(boat_dense_layer_t* layer, boat_tensor_t* weight);
-BOAT_API void BOAT_CALL boat_dense_layer_set_bias(boat_dense_layer_t* layer, boat_tensor_t* bias);
-BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_get_weight(boat_dense_layer_t* layer);
-BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_get_bias(boat_dense_layer_t* layer);
-BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_get_grad_weight(boat_dense_layer_t* layer);
-BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_get_grad_bias(boat_dense_layer_t* layer);
+BOAT_API void BOAT_CALL boat_dense_layer_set_weight(const boat_dense_layer_t* layer, boat_tensor_t* weight);
+BOAT_API void BOAT_CALL boat_dense_layer_set_bias(const boat_dense_layer_t* layer, boat_tensor_t* bias);
+BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_get_weight(const boat_dense_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_get_bias(const boat_dense_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_get_grad_weight(const boat_dense_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_get_grad_bias(const boat_dense_layer_t* layer);
 
 // Convolutional layer functions
 BOAT_API boat_conv_layer_t* BOAT_CALL boat_conv_layer_create(size_t in_channels, size_t out_channels,
                                            size_t kernel_size, size_t stride, size_t padding);
-BOAT_API void BOAT_CALL boat_conv_layer_free(boat_conv_layer_t* layer);
-BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* layer, const boat_tensor_t* input);
-BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* layer, const boat_tensor_t* grad_output);
-BOAT_API void BOAT_CALL boat_conv_layer_update(boat_conv_layer_t* layer, float learning_rate);
+BOAT_API void BOAT_CALL boat_conv_layer_free(const boat_conv_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(const boat_conv_layer_t* layer, const boat_tensor_t* input);
+BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(const boat_conv_layer_t* layer, const boat_tensor_t* grad_output);
+BOAT_API void BOAT_CALL boat_conv_layer_update(const boat_conv_layer_t* layer, float learning_rate);
 
 // Parameter access for model loading
-BOAT_API void BOAT_CALL boat_conv_layer_set_weight(boat_conv_layer_t* layer, boat_tensor_t* weight);
-BOAT_API void BOAT_CALL boat_conv_layer_set_bias(boat_conv_layer_t* layer, boat_tensor_t* bias);
-BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_weight(boat_conv_layer_t* layer);
-BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_bias(boat_conv_layer_t* layer);
-BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_grad_weight(boat_conv_layer_t* layer);
-BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_grad_bias(boat_conv_layer_t* layer);
+BOAT_API void BOAT_CALL boat_conv_layer_set_weight(const boat_conv_layer_t* layer, boat_tensor_t* weight);
+BOAT_API void BOAT_CALL boat_conv_layer_set_bias(const boat_conv_layer_t* layer, boat_tensor_t* bias);
+BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_weight(const boat_conv_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_bias(const boat_conv_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_grad_weight(const boat_conv_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_grad_bias(const boat_conv_layer_t* layer);
 
 // Batch normalization layer functions (BatchNorm2d)
 typedef struct boat_batchnorm2d_layer_t boat_batchnorm2d_layer_t;
@@ -66,10 +66,10 @@ BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_running_var(boat_batchnorm2d_
 
 // Pooling layer functions (MaxPool2d)
 BOAT_API boat_pool_layer_t* BOAT_CALL boat_pool_layer_create(size_t pool_size, size_t stride, size_t padding);
-BOAT_API void BOAT_CALL boat_pool_layer_free(boat_pool_layer_t* layer);
-BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_forward(boat_pool_layer_t* layer, const boat_tensor_t* input);
-BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_backward(boat_pool_layer_t* layer, const boat_tensor_t* grad_output);
-BOAT_API void BOAT_CALL boat_pool_layer_update(boat_pool_layer_t* layer, float learning_rate);
+BOAT_API void BOAT_CALL boat_pool_layer_free(const boat_pool_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_forward(const boat_pool_layer_t* layer, const boat_tensor_t* input);
+BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_backward(const boat_pool_layer_t* layer, const boat_tensor_t* grad_output);
+BOAT_API void BOAT_CALL boat_pool_layer_update(const boat_pool_layer_t* layer, float learning_rate);
 
 // Normalization layer functions (simplified interface)
 BOAT_API boat_norm_layer_t* BOAT_CALL boat_norm_layer_create(size_t normalized_shape, float eps, bool elementwise_affine);

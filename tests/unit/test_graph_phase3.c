@@ -17,7 +17,7 @@ static boat_graph_t* create_optimization_test_graph(boat_device_t device) {
 }
 
 // Helper function to add operation node with dummy data
-static boat_node_t* add_operation_node(boat_graph_t* graph, const char* op_name) {
+static boat_node_t* add_operation_node(const boat_graph_t* graph, const char* op_name) {
     // Create dummy operation data
     char* data = strdup(op_name);
     assert(data != NULL);
@@ -28,7 +28,7 @@ static boat_node_t* add_operation_node(boat_graph_t* graph, const char* op_name)
 }
 
 // Helper function to add constant node
-static boat_node_t* add_constant_node(boat_graph_t* graph, float value) {
+static boat_node_t* add_constant_node(const boat_graph_t* graph, float value) {
     // Create dummy constant data
     float* data = malloc(sizeof(float));
     assert(data != NULL);
@@ -40,7 +40,7 @@ static boat_node_t* add_constant_node(boat_graph_t* graph, float value) {
 }
 
 // Helper function to add variable node
-static boat_node_t* add_variable_node(boat_graph_t* graph, const char* name) {
+static boat_node_t* add_variable_node(const boat_graph_t* graph, const char* name) {
     // Create dummy variable data
     char* data = strdup(name);
     assert(data != NULL);

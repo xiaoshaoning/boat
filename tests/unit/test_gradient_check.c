@@ -17,7 +17,7 @@ static float compute_numerical_gradient_element(
     size_t idx,
     float epsilon,
     boat_variable_t* (*forward_func)(boat_variable_t*, boat_variable_t*),
-    boat_variable_t* a,
+    const boat_variable_t* a,
     boat_variable_t* b
 ) {
     // Save original value

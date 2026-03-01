@@ -98,7 +98,7 @@ static void generate_linear_data(
 
 // Simple linear model: y = xW + b
 static boat_variable_t* linear_model(
-    boat_variable_t* x,
+    const boat_variable_t* x,
     boat_variable_t* W,
     boat_variable_t* b
 ) {
@@ -121,7 +121,7 @@ static benchmark_result_t run_training(
     boat_optimizer_t* optimizer,
     boat_scheduler_t* scheduler,
     boat_variable_t* W,
-    boat_variable_t* b,
+    const boat_variable_t* b,
     boat_tensor_t* x_data,
     boat_tensor_t* y_data,
     int max_steps,

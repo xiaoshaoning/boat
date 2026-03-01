@@ -17,7 +17,7 @@ static bool use_double_precision_numerical = false;  // Use double precision for
 #include <string.h>
 
 // Helper function to compute numerical gradient using finite differences
-static float compute_numerical_gradient_element(boat_conv_layer_t* layer,
+static float compute_numerical_gradient_element(const boat_conv_layer_t* layer,
                                                 boat_tensor_t* input,
                                                 boat_tensor_t* param,
                                                 size_t idx,
@@ -93,7 +93,7 @@ static float compute_absolute_error(float analytical, float numerical) {
 }
 
 // Helper function to compute numerical gradient using double precision
-static double compute_numerical_gradient_element_fp64(boat_conv_layer_t* layer,
+static double compute_numerical_gradient_element_fp64(const boat_conv_layer_t* layer,
                                                      boat_tensor_t* input,
                                                      boat_tensor_t* param,
                                                      size_t idx,
@@ -137,7 +137,7 @@ static double compute_numerical_gradient_element_fp64(boat_conv_layer_t* layer,
 }
 
 // Test gradient for a specific parameter tensor
-static bool test_parameter_gradient(boat_conv_layer_t* layer,
+static bool test_parameter_gradient(const boat_conv_layer_t* layer,
                                     boat_tensor_t* input,
                                     boat_tensor_t* param,
                                     boat_tensor_t* grad,
