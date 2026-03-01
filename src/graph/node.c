@@ -13,7 +13,7 @@ struct boat_node_t {
     size_t id;                    // Unique node identifier
     void* data;                   // User data associated with node
     boat_node_type_t type;        // Node type
-    void (*free_fn)(void*);       // Function to free user data
+    void (*free_fn)(const void*); // Function to free user data
     size_t ref_count;             // Reference count
 };
 
@@ -21,7 +21,7 @@ struct boat_node_t {
 
 // Node creation and destruction
 static boat_node_t* boat_node_create(void* data, boat_node_type_t type,
-                                     void (*free_fn)(void*)) {
+                                     void (*free_fn)(const void*)) {
     boat_node_t* node = boat_malloc(sizeof(boat_node_t), BOAT_DEVICE_CPU);
     if (!node) {
         return NULL;

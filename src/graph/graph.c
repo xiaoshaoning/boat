@@ -194,8 +194,8 @@ void boat_graph_remove_edge(const boat_graph_t* graph, const boat_edge_t* edge) 
     // Find source and target node indices
     size_t from_index = SIZE_MAX;
     size_t to_index = SIZE_MAX;
-    boat_node_t* from = boat_edge_source(edge);
-    boat_node_t* to = boat_edge_target(edge);
+    const boat_node_t* from = boat_edge_source(edge);
+    const boat_node_t* to = boat_edge_target(edge);
     for (size_t i = 0; i < graph->node_count; i++) {
         if (graph->nodes[i] == from) from_index = i;
         if (graph->nodes[i] == to) to_index = i;
