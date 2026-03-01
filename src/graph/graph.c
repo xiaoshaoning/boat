@@ -303,8 +303,8 @@ void boat_graph_dfs(const boat_graph_t* graph, const boat_node_t* start,
         if (graph->outgoing[current_index]) {
             size_t edge_count = boat_edge_list_count(graph->outgoing[current_index]);
             for (size_t i = 0; i < edge_count; i++) {
-                struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[current_index], i);
-                boat_node_t* neighbor = boat_edge_target(edge);
+                const struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[current_index], i);
+                const boat_node_t* neighbor = boat_edge_target(edge);
                 // Find neighbor index
                 for (size_t j = 0; j < graph->node_count; j++) {
                     if (graph->nodes[j] == neighbor && !visited[j]) {
@@ -353,8 +353,8 @@ void boat_graph_bfs(const boat_graph_t* graph, const boat_node_t* start,
         if (graph->outgoing[current_index]) {
             size_t edge_count = boat_edge_list_count(graph->outgoing[current_index]);
             for (size_t i = 0; i < edge_count; i++) {
-                struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[current_index], i);
-                boat_node_t* neighbor = boat_edge_target(edge);
+                const struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[current_index], i);
+                const boat_node_t* neighbor = boat_edge_target(edge);
                 for (size_t j = 0; j < graph->node_count; j++) {
                     if (graph->nodes[j] == neighbor && !visited[j]) {
                         visited[j] = true;
@@ -409,7 +409,7 @@ void boat_graph_topological_sort(const boat_graph_t* graph, boat_node_t** sorted
             size_t edge_count = boat_edge_list_count(graph->outgoing[current]);
             for (size_t i = 0; i < edge_count; i++) {
                 struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[current], i);
-                boat_node_t* neighbor = boat_edge_target(edge);
+                const boat_node_t* neighbor = boat_edge_target(edge);
                 // Find neighbor index
                 for (size_t j = 0; j < n; j++) {
                     if (graph->nodes[j] == neighbor) {
@@ -439,7 +439,7 @@ static bool dfs_cycle(const boat_graph_t* graph, bool* visited, bool* rec_stack,
             size_t edge_count = boat_edge_list_count(graph->outgoing[v]);
             for (size_t i = 0; i < edge_count; i++) {
                 struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[v], i);
-                boat_node_t* neighbor = boat_edge_target(edge);
+                const boat_node_t* neighbor = boat_edge_target(edge);
                 size_t neighbor_idx = SIZE_MAX;
                 for (size_t j = 0; j < n; j++) {
                     if (graph->nodes[j] == neighbor) {
@@ -513,7 +513,7 @@ bool boat_graph_is_connected(const boat_graph_t* graph) {
             size_t edge_count = boat_edge_list_count(graph->outgoing[current]);
             for (size_t i = 0; i < edge_count; i++) {
                 struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[current], i);
-                boat_node_t* neighbor = boat_edge_target(edge);
+                const boat_node_t* neighbor = boat_edge_target(edge);
                 for (size_t j = 0; j < graph->node_count; j++) {
                     if (graph->nodes[j] == neighbor && !visited[j]) {
                         visited[j] = true;
@@ -584,7 +584,7 @@ bool boat_graph_has_path(const boat_graph_t* graph, const boat_node_t* from, con
             size_t edge_count = boat_edge_list_count(graph->outgoing[current]);
             for (size_t i = 0; i < edge_count; i++) {
                 struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[current], i);
-                boat_node_t* neighbor = boat_edge_target(edge);
+                const boat_node_t* neighbor = boat_edge_target(edge);
                 for (size_t j = 0; j < graph->node_count; j++) {
                     if (graph->nodes[j] == neighbor && !visited[j]) {
                         visited[j] = true;
@@ -632,7 +632,7 @@ boat_graph_t* boat_graph_copy(const boat_graph_t* graph) {
 
     // Copy all nodes
     for (size_t i = 0; i < graph->node_count; i++) {
-        boat_node_t* orig_node = graph->nodes[i];
+        const boat_node_t* orig_node = graph->nodes[i];
         if (!orig_node) continue;
 
         // Create a new node in the copy graph with the same data
@@ -659,13 +659,13 @@ boat_graph_t* boat_graph_copy(const boat_graph_t* graph) {
 
     // Copy all edges
     for (size_t i = 0; i < graph->edge_count; i++) {
-        struct boat_edge_t* orig_edge = graph->edges[i];
+        const struct boat_edge_t* orig_edge = graph->edges[i];
         if (!orig_edge) continue;
 
         // Find source and target indices in original graph
         size_t from_idx = SIZE_MAX, to_idx = SIZE_MAX;
-        boat_node_t* edge_from = boat_edge_source(orig_edge);
-        boat_node_t* edge_to = boat_edge_target(orig_edge);
+        const boat_node_t* edge_from = boat_edge_source(orig_edge);
+        const boat_node_t* edge_to = boat_edge_target(orig_edge);
         for (size_t j = 0; j < graph->node_count; j++) {
             if (graph->nodes[j] == edge_from) from_idx = j;
             if (graph->nodes[j] == edge_to) to_idx = j;
@@ -770,7 +770,7 @@ boat_graph_t* boat_graph_subgraph(const boat_graph_t* graph, boat_node_t** nodes
 
     // First pass: identify which nodes are in the subgraph
     for (size_t i = 0; i < node_count; i++) {
-        boat_node_t* node = nodes[i];
+        const boat_node_t* node = nodes[i];
         if (!node) continue;
 
         // Find this node in the original graph
@@ -790,7 +790,7 @@ boat_graph_t* boat_graph_subgraph(const boat_graph_t* graph, boat_node_t** nodes
     for (size_t i = 0; i < graph->node_count; i++) {
         if (!node_in_subgraph[i]) continue;
 
-        boat_node_t* orig_node = graph->nodes[i];
+        const boat_node_t* orig_node = graph->nodes[i];
         // Create a new node in subgraph with the same data (shallow copy)
         // Note: NULL free_fn because original graph owns the data
         boat_node_t* copy_node = boat_graph_add_node(subgraph, boat_node_data(orig_node),
@@ -812,13 +812,13 @@ boat_graph_t* boat_graph_subgraph(const boat_graph_t* graph, boat_node_t** nodes
 
     // Third pass: copy edges between nodes in subgraph
     for (size_t i = 0; i < graph->edge_count; i++) {
-        struct boat_edge_t* orig_edge = graph->edges[i];
+        const struct boat_edge_t* orig_edge = graph->edges[i];
         if (!orig_edge) continue;
 
         // Find source and target indices
         size_t from_idx = SIZE_MAX, to_idx = SIZE_MAX;
-        boat_node_t* edge_from = boat_edge_source(orig_edge);
-        boat_node_t* edge_to = boat_edge_target(orig_edge);
+        const boat_node_t* edge_from = boat_edge_source(orig_edge);
+        const boat_node_t* edge_to = boat_edge_target(orig_edge);
         for (size_t j = 0; j < graph->node_count; j++) {
             if (graph->nodes[j] == edge_from) from_idx = j;
             if (graph->nodes[j] == edge_to) to_idx = j;
@@ -943,7 +943,7 @@ void boat_graph_merge(const boat_graph_t* dest, const boat_graph_t* src) {
 
     // First, copy all nodes from src to dest
     for (size_t i = 0; i < src->node_count; i++) {
-        boat_node_t* src_node = src->nodes[i];
+        const boat_node_t* src_node = src->nodes[i];
         if (!src_node) continue;
 
         // Check if a node with same ID already exists in dest
@@ -988,13 +988,13 @@ void boat_graph_merge(const boat_graph_t* dest, const boat_graph_t* src) {
 
     // Next, copy edges from src to dest
     for (size_t i = 0; i < src->edge_count; i++) {
-        struct boat_edge_t* src_edge = src->edges[i];
+        const struct boat_edge_t* src_edge = src->edges[i];
         if (!src_edge) continue;
 
         // Find source and target indices in src
         size_t src_from_idx = SIZE_MAX, src_to_idx = SIZE_MAX;
-        boat_node_t* edge_from = boat_edge_source(src_edge);
-        boat_node_t* edge_to = boat_edge_target(src_edge);
+        const boat_node_t* edge_from = boat_edge_source(src_edge);
+        const boat_node_t* edge_to = boat_edge_target(src_edge);
         for (size_t j = 0; j < src->node_count; j++) {
             if (src->nodes[j] == edge_from) src_from_idx = j;
             if (src->nodes[j] == edge_to) src_to_idx = j;
@@ -1008,8 +1008,8 @@ void boat_graph_merge(const boat_graph_t* dest, const boat_graph_t* src) {
         size_t dest_to_idx = node_index_map[src_to_idx];
         if (dest_from_idx == SIZE_MAX || dest_to_idx == SIZE_MAX) continue;
 
-        boat_node_t* dest_from = dest->nodes[dest_from_idx];
-        boat_node_t* dest_to = dest->nodes[dest_to_idx];
+        const boat_node_t* dest_from = dest->nodes[dest_from_idx];
+        const boat_node_t* dest_to = dest->nodes[dest_to_idx];
 
         // Check if edge already exists in dest
         bool edge_exists = false;
