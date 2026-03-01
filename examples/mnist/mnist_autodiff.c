@@ -1176,8 +1176,6 @@ typedef struct {
     float loss_stddev;        // Standard deviation of loss
     float loss_smoothness;    // Smoothness metric (lower = smoother)
     float val_improvement;    // Validation improvement ratio
-    int patience_counter;     // Early stopping patience counter
-    bool should_stop;         // Whether training should stop early
 } stability_stats_t;
 
 // Provide hyperparameter tuning recommendations based on monitoring data
@@ -1380,7 +1378,6 @@ static inline bool rl_agent_is_action_available(int action, int stage) {
     // Disable extreme learning rate changes (halving and doubling) and batch size doubling
     int lr_action = decode_lr_action(action);
     int bs_action = decode_bs_action(action);
-    int mom_action = decode_mom_action(action);
 
     switch (stage) {
         case RL_EARLY_STAGE:
@@ -2321,7 +2318,6 @@ static void early_stopping_update(early_stopping_t* monitor, float val_loss, int
 typedef struct {
     double avg_epoch_time;      // Average epoch time in seconds
     double time_remaining;      // Estimated time remaining in seconds
-    double mem_growth_rate;     // Memory growth rate per epoch (MB)
     double projected_mem_peak;  // Projected peak memory usage (MB)
 } resource_prediction_t;
 
@@ -2741,9 +2737,8 @@ int main(int argc, char* argv[]) {
         clock_t start_time = clock();
 
         // Simple batch iteration (non-randomized for simplicity)
-        bool is_last_batch = false;
         for (size_t batch = 0; batch < num_batches; batch++) {
-            is_last_batch = (batch == num_batches - 1);
+            bool is_last_batch = (batch == num_batches - 1);
             size_t start_idx = batch * batch_size;
             size_t end_idx = start_idx + batch_size;
 
@@ -2937,8 +2932,8 @@ int main(int argc, char* argv[]) {
 
         // Resource usage prediction (display every 5 epochs)
         if (epoch % 5 == 0 && epoch > 0) {
-            boat_memory_stats_t current_mem_stats = boat_memory_get_stats();
-            resource_prediction_t resource_pred = predict_resources(epoch_times, epoch, epochs, &current_mem_stats, 5);
+            boat_memory_stats_t local_mem_stats = boat_memory_get_stats();
+            resource_prediction_t resource_pred = predict_resources(epoch_times, epoch, epochs, &local_mem_stats, 5);
             printf("             resource prediction: %.1f s/epoch, %.1f s remaining, projected peak memory: %.2f MB\n",
                    resource_pred.avg_epoch_time, resource_pred.time_remaining, resource_pred.projected_mem_peak);
         }

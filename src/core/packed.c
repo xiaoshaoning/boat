@@ -86,8 +86,7 @@ boat_float4_t boat_float4_from_float(float f) {
 
     // Normalize to range [1, 2) * 2^exp
     int exp;
-    float normalized = frexpf(f, &exp); // normalized in [0.5, 1)
-    normalized *= 2.0f; // now in [1, 2)
+    (void)frexpf(f, &exp); // get exponent, normalized value unused
     exp -= 1;
 
     // Convert to 3-bit exponent with bias 3
@@ -123,9 +122,9 @@ void boat_pack_float4(const float* src, uint8_t* dst, size_t n) {
             byte |= (f4.exponent << 4);
 
         if (i + 1 < n) {
-            boat_float4_t f4 = boat_float4_from_float(src[i + 1]);
-            byte |= (f4.sign << 3);
-            byte |= (f4.exponent);
+            boat_float4_t f4_2 = boat_float4_from_float(src[i + 1]);
+            byte |= (f4_2.sign << 3);
+            byte |= (f4_2.exponent);
         }
 
         dst[i / 2] = byte;
@@ -142,10 +141,10 @@ void boat_unpack_float4(const uint8_t* src, float* dst, size_t n) {
             dst[i] = boat_float4_to_float(f4);
 
         if (i + 1 < n) {
-            boat_float4_t f4;
-            f4.sign = (byte >> 3) & 1;
-            f4.exponent = byte & 0x07;
-            dst[i + 1] = boat_float4_to_float(f4);
+            boat_float4_t f4_2;
+            f4_2.sign = (byte >> 3) & 1;
+            f4_2.exponent = byte & 0x07;
+            dst[i + 1] = boat_float4_to_float(f4_2);
         }
     }
 }
@@ -168,8 +167,7 @@ boat_float8_t boat_float8_from_float(float f) {
 
     // Normalize to range [1, 2) * 2^exp
     int exp;
-    float normalized = frexpf(f, &exp); // normalized in [0.5, 1)
-    normalized *= 2.0f; // now in [1, 2)
+    (void)frexpf(f, &exp); // get exponent, normalized value unused
     exp -= 1;
 
     // Convert to 4-bit exponent with bias 7

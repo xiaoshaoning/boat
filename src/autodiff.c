@@ -138,7 +138,7 @@ static boat_variable_t* create_dense_operation(boat_variable_t* input, struct bo
 BOAT_API boat_variable_t* boat_variable_create(boat_tensor_t* tensor, bool requires_grad) {
 
 #ifdef _WIN32
-    char debug_buffer[256];
+    // Debug buffer removed as unused
 #endif
     if (!tensor) {
         return NULL;
@@ -1581,7 +1581,6 @@ static void compute_backward_mean(boat_op_node_data_t* op_data, boat_tensor_t* g
         }
 
         // Multiply ones by grad_output / n
-        float scale = 1.0f / nelements;
         if (dtype == BOAT_DTYPE_FLOAT64) {
             double scale_d = 1.0 / nelements;
             boat_tensor_t* scaled = boat_mul_scalar(ones, scale_d);
@@ -1599,6 +1598,7 @@ static void compute_backward_mean(boat_op_node_data_t* op_data, boat_tensor_t* g
                 boat_tensor_unref(grad);
             }
         } else {
+            float scale = 1.0f / nelements;
             boat_tensor_t* scaled = boat_mul_scalar(ones, scale);
             boat_tensor_unref(ones);
             if (!scaled) return;
