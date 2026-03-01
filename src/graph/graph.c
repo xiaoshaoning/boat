@@ -408,7 +408,7 @@ void boat_graph_topological_sort(const boat_graph_t* graph, boat_node_t** sorted
         if (graph->outgoing[current]) {
             size_t edge_count = boat_edge_list_count(graph->outgoing[current]);
             for (size_t i = 0; i < edge_count; i++) {
-                struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[current], i);
+                const struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[current], i);
                 const boat_node_t* neighbor = boat_edge_target(edge);
                 // Find neighbor index
                 for (size_t j = 0; j < n; j++) {
@@ -438,7 +438,7 @@ static bool dfs_cycle(const boat_graph_t* graph, bool* visited, bool* rec_stack,
         if (graph->outgoing[v]) {
             size_t edge_count = boat_edge_list_count(graph->outgoing[v]);
             for (size_t i = 0; i < edge_count; i++) {
-                struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[v], i);
+                const struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[v], i);
                 const boat_node_t* neighbor = boat_edge_target(edge);
                 size_t neighbor_idx = SIZE_MAX;
                 for (size_t j = 0; j < n; j++) {
@@ -512,7 +512,7 @@ bool boat_graph_is_connected(const boat_graph_t* graph) {
         if (graph->outgoing[current]) {
             size_t edge_count = boat_edge_list_count(graph->outgoing[current]);
             for (size_t i = 0; i < edge_count; i++) {
-                struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[current], i);
+                const struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[current], i);
                 const boat_node_t* neighbor = boat_edge_target(edge);
                 for (size_t j = 0; j < graph->node_count; j++) {
                     if (graph->nodes[j] == neighbor && !visited[j]) {
@@ -527,8 +527,8 @@ bool boat_graph_is_connected(const boat_graph_t* graph) {
         if (graph->incoming[current]) {
             size_t edge_count = boat_edge_list_count(graph->incoming[current]);
             for (size_t i = 0; i < edge_count; i++) {
-                struct boat_edge_t* edge = boat_edge_list_get(graph->incoming[current], i);
-                boat_node_t* neighbor = boat_edge_source(edge);
+                const struct boat_edge_t* edge = boat_edge_list_get(graph->incoming[current], i);
+                const boat_node_t* neighbor = boat_edge_source(edge);
                 for (size_t j = 0; j < graph->node_count; j++) {
                     if (graph->nodes[j] == neighbor && !visited[j]) {
                         visited[j] = true;
@@ -583,7 +583,7 @@ bool boat_graph_has_path(const boat_graph_t* graph, const boat_node_t* from, con
         if (graph->outgoing[current]) {
             size_t edge_count = boat_edge_list_count(graph->outgoing[current]);
             for (size_t i = 0; i < edge_count; i++) {
-                struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[current], i);
+                const struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[current], i);
                 const boat_node_t* neighbor = boat_edge_target(edge);
                 for (size_t j = 0; j < graph->node_count; j++) {
                     if (graph->nodes[j] == neighbor && !visited[j]) {
@@ -962,7 +962,7 @@ void boat_graph_merge(const boat_graph_t* dest, const boat_graph_t* src) {
         }
 
         // Create a copy of the node in dest graph (shallow copy)
-        boat_node_t* copy_node = boat_graph_add_node(dest, boat_node_data(src_node),
+        const boat_node_t* copy_node = boat_graph_add_node(dest, boat_node_data(src_node),
                                                      boat_node_type(src_node), NULL);
         if (!copy_node) {
             // Cleanup: nodes added to dest are owned by dest and will be freed with it
@@ -1016,7 +1016,7 @@ void boat_graph_merge(const boat_graph_t* dest, const boat_graph_t* src) {
         if (dest->outgoing[dest_from_idx]) {
             size_t edge_count = boat_edge_list_count(dest->outgoing[dest_from_idx]);
             for (size_t j = 0; j < edge_count; j++) {
-                struct boat_edge_t* existing_edge = boat_edge_list_get(dest->outgoing[dest_from_idx], j);
+                const struct boat_edge_t* existing_edge = boat_edge_list_get(dest->outgoing[dest_from_idx], j);
                 if (existing_edge &&
                     boat_edge_source(existing_edge) == dest_from &&
                     boat_edge_target(existing_edge) == dest_to &&
@@ -1144,7 +1144,7 @@ void boat_graph_validate(const boat_graph_t* graph) {
             if (graph->outgoing[i]) {
                 size_t edge_count = boat_edge_list_count(graph->outgoing[i]);
                 for (size_t j = 0; j < edge_count; j++) {
-                    struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[i], j);
+                    const struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[i], j);
                     if (!edge) {
                         fprintf(stderr, "Graph validation error: NULL edge in outgoing list of node %zu\n", i);
                         continue;
@@ -1165,7 +1165,7 @@ void boat_graph_validate(const boat_graph_t* graph) {
             if (graph->incoming[i]) {
                 size_t edge_count = boat_edge_list_count(graph->incoming[i]);
                 for (size_t j = 0; j < edge_count; j++) {
-                    struct boat_edge_t* edge = boat_edge_list_get(graph->incoming[i], j);
+                    const struct boat_edge_t* edge = boat_edge_list_get(graph->incoming[i], j);
                     if (!edge) {
                         fprintf(stderr, "Graph validation error: NULL edge in incoming list of node %zu\n", i);
                         continue;
@@ -1339,7 +1339,7 @@ void boat_graph_print(const boat_graph_t* graph) {
             if (edge_count > 0) {
                 printf("-> {");
                 for (size_t j = 0; j < edge_count; j++) {
-                    struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[i], j);
+                    const struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[i], j);
                     printf(" %zu", boat_graph_node_id(boat_edge_target(edge)));
                     if (j < edge_count - 1) printf(",");
                 }

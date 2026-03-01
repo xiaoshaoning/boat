@@ -62,10 +62,10 @@ static void free_pytorch_model_data(void* data) {
     pytorch_model_data_t* model_data = static_cast<pytorch_model_data_t*>(data);
     if (!model_data) return;
 
-    for (auto& pair : model_data->parameters) {
+    for (const auto& pair : model_data->parameters) {
         boat_tensor_free(pair.second);
     }
-    for (auto& pair : model_data->buffers) {
+    for (const auto& pair : model_data->buffers) {
         boat_tensor_free(pair.second);
     }
     delete model_data;
@@ -224,7 +224,7 @@ static boat_model_t* convert_pytorch_module_to_boat_model(const torch::jit::Modu
             // First try to get weight tensor to determine affine and num_features
             auto weight_it = model_data->parameters.find(weight_key);
             if (weight_it != model_data->parameters.end()) {
-                boat_tensor_t* weight_tensor = weight_it->second;
+                const boat_tensor_t* weight_tensor = weight_it->second;
                 const int64_t* weight_shape = boat_tensor_shape(weight_tensor);
                 num_features = weight_shape[0];
                 affine = true;
@@ -232,7 +232,7 @@ static boat_model_t* convert_pytorch_module_to_boat_model(const torch::jit::Modu
                 // Try running_mean to get num_features
                 auto running_mean_it = model_data->buffers.find(running_mean_key);
                 if (running_mean_it != model_data->buffers.end()) {
-                    boat_tensor_t* running_mean_tensor = running_mean_it->second;
+                    const boat_tensor_t* running_mean_tensor = running_mean_it->second;
                     const int64_t* running_mean_shape = boat_tensor_shape(running_mean_tensor);
                     num_features = running_mean_shape[0];
                 } else {
