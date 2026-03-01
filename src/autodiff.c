@@ -340,7 +340,7 @@ void boat_variable_backward(const boat_variable_t* variable, boat_tensor_t* grad
     }
 
     // Get producer operation node
-    boat_node_t* producer = variable->producer_node;
+    const boat_node_t* producer = variable->producer_node;
     if (producer) {
     }
     if (!producer) {
@@ -656,11 +656,11 @@ void boat_autodiff_set_grad_checkpointing(bool enabled) {
 
 void boat_autodiff_clear_computation_graph() {
     // Get current autodiff context
-    boat_autodiff_context_t* ctx = boat_autodiff_get_current_context();
+    const boat_autodiff_context_t* ctx = boat_autodiff_get_current_context();
     if (!ctx) return;
 
     // Get graph from context
-    boat_graph_t* graph = boat_autodiff_context_get_graph(ctx);
+    const boat_graph_t* graph = boat_autodiff_context_get_graph(ctx);
     if (!graph) return;
 
     // Get node count
@@ -688,7 +688,7 @@ void boat_autodiff_clear_computation_graph() {
         else if (node_type == BOAT_NODE_TYPE_VARIABLE) {
             void* node_data = boat_node_data(node);
             if (node_data) {
-                boat_variable_t* var = (boat_variable_t*)node_data;
+                const boat_variable_t* var = (const boat_variable_t*)node_data;
                 // Remove variable nodes for temporary variables:
                 // Variables with producer nodes (non-leaf, intermediate results)
                 // Leaf variables (no producer) should be kept for next batch
@@ -701,7 +701,7 @@ void boat_autodiff_clear_computation_graph() {
 
     // Remove nodes and update variable references
     for (size_t i = 0; i < remove_count; i++) {
-        boat_node_t* node = nodes_to_remove[i];
+        const boat_node_t* node = nodes_to_remove[i];
         boat_node_type_t node_type = boat_node_type(node);
 
         // For variable nodes, update the variable structure before removing the node
@@ -2551,7 +2551,7 @@ static boat_tensor_t* compute_forward_flatten(boat_tensor_t* input) {
         features *= shape[i];
     }
 
-    int64_t new_shape[] = {batch, features};
+    const int64_t new_shape[] = {batch, features};
     return boat_tensor_reshape(input, new_shape, 2);
 }
 

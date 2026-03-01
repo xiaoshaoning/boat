@@ -87,7 +87,7 @@ struct boat_attention_t {
 
 // Helper function to create linear projection weights
 static boat_tensor_t* create_linear_weights(size_t in_features, size_t out_features, bool use_bias) {
-    int64_t weight_shape[] = { (int64_t)in_features, (int64_t)out_features };
+    const int64_t weight_shape[] = { (int64_t)in_features, (int64_t)out_features };
     boat_tensor_t* weights = boat_tensor_create(weight_shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
 
     if (!weights) {
@@ -108,7 +108,7 @@ static boat_tensor_t* create_linear_weights(size_t in_features, size_t out_featu
 
 // Helper function to create bias vector
 static boat_tensor_t* create_bias_vector(size_t features) {
-    int64_t bias_shape[] = { (int64_t)features };
+    const int64_t bias_shape[] = { (int64_t)features };
     boat_tensor_t* bias = boat_tensor_create(bias_shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
 
     if (!bias) {
@@ -265,7 +265,7 @@ static boat_tensor_t* linear_projection(const boat_tensor_t* input,
         int64_t seq_len = input_shape[1];
         int64_t hidden = input_shape[2];
 
-        int64_t reshaped_shape[] = {batch * seq_len, hidden};
+        const int64_t reshaped_shape[] = {batch * seq_len, hidden};
         input_reshaped = boat_tensor_reshape(input, reshaped_shape, 2);
         if (!input_reshaped) {
             return NULL;
@@ -309,7 +309,7 @@ static boat_tensor_t* linear_projection(const boat_tensor_t* input,
     return projected;
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_attention_forward(const boat_attention_t* attention,
+BOAT_API boat_tensor_t* BOAT_CALL boat_attention_forward(boat_attention_t* attention,
                                        const boat_tensor_t* query,
                                        const boat_tensor_t* key,
                                        const boat_tensor_t* value,

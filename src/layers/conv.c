@@ -134,8 +134,8 @@ static boat_tensor_t* compute_weight_gradient(const boat_conv_layer_t* layer,
     int64_t width_out = output_shape[3];
 
     // Create gradient weight tensor with same shape as weights
-    int64_t weight_shape[] = { (int64_t)layer->out_channels, (int64_t)layer->in_channels,
-                               (int64_t)layer->kernel_size, (int64_t)layer->kernel_size };
+    const int64_t weight_shape[] = { (int64_t)layer->out_channels, (int64_t)layer->in_channels,
+                                     (int64_t)layer->kernel_size, (int64_t)layer->kernel_size };
     boat_tensor_t* grad_weight = boat_tensor_create(weight_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!grad_weight) {
         return NULL;
