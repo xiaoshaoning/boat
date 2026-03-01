@@ -1181,7 +1181,7 @@ boat_model_t* boat_huggingface_load_from_memory(const char* config_json, const v
     }
 
     // Parse model configuration
-    hf_config_t* config = parse_config(config_json);
+    const hf_config_t* config = parse_config(config_json);
     if (!config) {
         fprintf(stderr, "Failed to parse model configuration\n");
         return NULL;
@@ -1292,7 +1292,7 @@ static char* get_base_layer_name(const char* tensor_name) {
     // Remove common suffixes
     char* suffixes[] = {".weight", ".bias", ".gamma", ".beta", ".running_mean", ".running_var", ".num_batches_tracked"};
     for (size_t i = 0; i < sizeof(suffixes)/sizeof(suffixes[0]); i++) {
-        char* suffix = suffixes[i];
+        const char* suffix = suffixes[i];
         size_t suffix_len = strlen(suffix);
         size_t base_len = strlen(base);
         if (base_len >= suffix_len && strcmp(base + base_len - suffix_len, suffix) == 0) {
