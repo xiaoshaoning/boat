@@ -45,7 +45,7 @@ BOAT_API boat_graph_t* boat_graph_copy(const boat_graph_t* graph);
 
 // Node operations
 BOAT_API boat_node_t* boat_graph_add_node(const boat_graph_t* graph, void* data, boat_node_type_t type,
-                                 void (*free_fn)(void*));
+                                 void (*free_fn)(const void*));
 BOAT_API void boat_graph_remove_node(const boat_graph_t* graph, const boat_node_t* node);
 BOAT_API boat_node_t* boat_graph_get_node(const boat_graph_t* graph, size_t id);
 BOAT_API size_t boat_graph_node_id(const boat_node_t* node);

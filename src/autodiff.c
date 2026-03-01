@@ -123,8 +123,8 @@ static boat_op_node_data_t* create_op_node_data(boat_op_type_t op_type,
                                                 boat_variable_t** inputs,
                                                 size_t num_inputs,
                                                 const boat_variable_t* output);
-static void free_op_node_data(void* data);
-static void free_variable_data(void* data);
+static void free_op_node_data(const void* data);
+static void free_variable_data(const void* data);
 static boat_variable_t* create_operation(boat_op_type_t op_type,
                                          boat_variable_t** inputs,
                                          size_t num_inputs,
@@ -229,7 +229,7 @@ BOAT_API void boat_variable_free(const boat_variable_t* variable) {
     }
 
 
-    boat_free(variable);
+    boat_free((void*)variable);
 }
 
 // Variable properties
@@ -245,13 +245,13 @@ bool boat_variable_requires_grad(const boat_variable_t* variable) {
     return variable ? variable->requires_grad : false;
 }
 
-void boat_variable_set_requires_grad(const boat_variable_t* variable, bool requires_grad) {
+void boat_variable_set_requires_grad(boat_variable_t* variable, bool requires_grad) {
     if (!variable) return;
     variable->requires_grad = requires_grad;
 }
 
 // Variable data reset/reuse
-BOAT_API bool boat_variable_reset_data(const boat_variable_t* variable, boat_tensor_t* new_tensor) {
+BOAT_API bool boat_variable_reset_data(boat_variable_t* variable, boat_tensor_t* new_tensor) {
     if (!variable || !new_tensor) {
         return false;
     }
@@ -282,7 +282,7 @@ BOAT_API bool boat_variable_reset_data(const boat_variable_t* variable, boat_ten
 }
 
 // Gradient operations
-void boat_variable_zero_grad(const boat_variable_t* variable) {
+void boat_variable_zero_grad(boat_variable_t* variable) {
     if (!variable) return;
 
     if (variable->grad) {
@@ -291,12 +291,12 @@ void boat_variable_zero_grad(const boat_variable_t* variable) {
     }
 }
 
-void boat_variable_retain_grad(const boat_variable_t* variable, bool retain) {
+void boat_variable_retain_grad(boat_variable_t* variable, bool retain) {
     if (!variable) return;
     // TODO: implement gradient retention
 }
 
-void boat_variable_backward(const boat_variable_t* variable, boat_tensor_t* grad_output) {
+void boat_variable_backward(boat_variable_t* variable, boat_tensor_t* grad_output) {
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
     if (variable) {
@@ -765,7 +765,7 @@ static boat_op_node_data_t* create_op_node_data(boat_op_type_t op_type,
     return op_data;
 }
 
-static void free_op_node_data(void* data) {
+static void free_op_node_data(const void* data) {
     if (!data) return;
 
     boat_op_node_data_t* op_data = (boat_op_node_data_t*)data;
@@ -778,7 +778,7 @@ static void free_op_node_data(void* data) {
     boat_free(op_data);
 }
 
-static void free_variable_data(void* data) {
+static void free_variable_data(const void* data) {
     if (!data) return;
     const boat_variable_t* var = (const boat_variable_t*)data;
     boat_variable_free(var);
@@ -924,7 +924,7 @@ static boat_tensor_t* compute_forward_matmul(const boat_tensor_t* a, const boat_
     return boat_matmul(a, b);
 }
 
-static boat_tensor_t* compute_forward_sum(boat_tensor_t* a, int64_t* dims, size_t n_dims, bool keepdim) {
+static boat_tensor_t* compute_forward_sum(const boat_tensor_t* a, const int64_t* dims, size_t n_dims, bool keepdim) {
     // Sum reduction
     // TODO: Implement proper sum with dimension support
     // For now, implement simple total sum
@@ -934,12 +934,12 @@ static boat_tensor_t* compute_forward_sum(boat_tensor_t* a, int64_t* dims, size_
     return boat_sum(a, NULL, 0, false);
 }
 
-static boat_tensor_t* compute_forward_sum_single(boat_tensor_t* a) {
+static boat_tensor_t* compute_forward_sum_single(const boat_tensor_t* a) {
     // Wrapper for create_operation compatibility
     return compute_forward_sum(a, NULL, 0, false);
 }
 
-static boat_tensor_t* compute_forward_mean(boat_tensor_t* a, int64_t* dims, size_t n_dims, bool keepdim) {
+static boat_tensor_t* compute_forward_mean(const boat_tensor_t* a, const int64_t* dims, size_t n_dims, bool keepdim) {
     // Mean reduction
     // TODO: Implement proper mean with dimension support
     // For now, implement simple total mean
@@ -989,7 +989,7 @@ static boat_tensor_t* compute_forward_mean(boat_tensor_t* a, int64_t* dims, size
 }
 
 // Convolution forward computation
-static boat_tensor_t* compute_forward_conv(boat_tensor_t* input, void* layer_ptr) {
+static boat_tensor_t* compute_forward_conv(const boat_tensor_t* input, const void* layer_ptr) {
     if (!input || !layer_ptr) {
         return NULL;
     }
@@ -999,7 +999,7 @@ static boat_tensor_t* compute_forward_conv(boat_tensor_t* input, void* layer_ptr
 }
 
 // Backward computation functions
-static void compute_backward_add(boat_op_node_data_t* op_data, boat_tensor_t* grad_output) {
+static void compute_backward_add(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 2 || !grad_output) return;
 
 
@@ -1063,7 +1063,7 @@ static void compute_backward_add(boat_op_node_data_t* op_data, boat_tensor_t* gr
     }
 }
 
-static void compute_backward_sub(boat_op_node_data_t* op_data, boat_tensor_t* grad_output) {
+static void compute_backward_sub(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 2 || !grad_output) return;
 
     // Gradient for subtraction: ∂L/∂a = ∂L/∂c, ∂L/∂b = -∂L/∂c
@@ -1112,7 +1112,7 @@ static void compute_backward_sub(boat_op_node_data_t* op_data, boat_tensor_t* gr
     }
 }
 
-static void compute_backward_mul(boat_op_node_data_t* op_data, boat_tensor_t* grad_output) {
+static void compute_backward_mul(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 2 || !grad_output) return;
 
     // Gradient for multiplication: ∂L/∂a = ∂L/∂c * b, ∂L/∂b = ∂L/∂c * a
@@ -1148,7 +1148,7 @@ static void compute_backward_mul(boat_op_node_data_t* op_data, boat_tensor_t* gr
     }
 }
 
-static void compute_backward_div(boat_op_node_data_t* op_data, boat_tensor_t* grad_output) {
+static void compute_backward_div(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 2 || !grad_output) return;
 
     // Gradient for division: ∂L/∂a = ∂L/∂c / b, ∂L/∂b = -∂L/∂c * a / b²
@@ -1202,7 +1202,7 @@ static void compute_backward_div(boat_op_node_data_t* op_data, boat_tensor_t* gr
     }
 }
 
-static void compute_backward_dot(boat_op_node_data_t* op_data, boat_tensor_t* grad_output) {
+static void compute_backward_dot(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 2 || !grad_output) return;
 
     // Gradient for dot product: ∂L/∂a = ∂L/∂c * b, ∂L/∂b = ∂L/∂c * a
@@ -1241,7 +1241,7 @@ static void compute_backward_dot(boat_op_node_data_t* op_data, boat_tensor_t* gr
     }
 }
 
-static void compute_backward_relu(boat_op_node_data_t* op_data, boat_tensor_t* grad_output) {
+static void compute_backward_relu(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 1 || !grad_output) return;
 
     // Gradient for ReLU: ∂L/∂a = ∂L/∂c * (a > 0 ? 1 : 0)
@@ -1295,13 +1295,13 @@ static void compute_backward_relu(boat_op_node_data_t* op_data, boat_tensor_t* g
     }
 }
 
-static void compute_backward_sigmoid(boat_op_node_data_t* op_data, boat_tensor_t* grad_output) {
+static void compute_backward_sigmoid(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 1 || !grad_output) return;
 
     // Gradient for sigmoid: ∂L/∂a = ∂L/∂c * sigmoid(a) * (1 - sigmoid(a))
     // where c = sigmoid(a), and sigmoid(a) is stored in output->data
     boat_variable_t* a = op_data->inputs[0];
-    boat_variable_t* c = op_data->output;  // c = sigmoid(a)
+    const boat_variable_t* c = op_data->output;  // c = sigmoid(a)
 
     if (a->requires_grad) {
         // Compute gradient contribution: grad_output * c * (1 - c)
@@ -1312,7 +1312,7 @@ static void compute_backward_sigmoid(boat_op_node_data_t* op_data, boat_tensor_t
         boat_tensor_t* one_minus_c = boat_tensor_create_like(c_data);
         if (!one_minus_c) return;
 
-        void* c_ptr = boat_tensor_data(c_data);
+        const void* c_ptr = boat_tensor_data(c_data);
         void* omc_ptr = boat_tensor_data(one_minus_c);
         size_t nelements = boat_tensor_nelements(c_data);
         boat_dtype_t dtype = boat_tensor_dtype(c_data);
@@ -1358,13 +1358,13 @@ static void compute_backward_sigmoid(boat_op_node_data_t* op_data, boat_tensor_t
     }
 }
 
-static void compute_backward_tanh(boat_op_node_data_t* op_data, boat_tensor_t* grad_output) {
+static void compute_backward_tanh(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 1 || !grad_output) return;
 
     // Gradient for tanh: ∂L/∂a = ∂L/∂c * (1 - tanh²(a))
     // where c = tanh(a), and c is stored in output->data
     boat_variable_t* a = op_data->inputs[0];
-    boat_variable_t* c = op_data->output;  // c = tanh(a)
+    const boat_variable_t* c = op_data->output;  // c = tanh(a)
 
     if (a->requires_grad) {
         // Compute gradient contribution: grad_output * (1 - c²)
@@ -1374,7 +1374,7 @@ static void compute_backward_tanh(boat_op_node_data_t* op_data, boat_tensor_t* g
         boat_tensor_t* c_squared = boat_tensor_create_like(c_data);
         if (!c_squared) return;
 
-        void* c_ptr = boat_tensor_data(c_data);
+        const void* c_ptr = boat_tensor_data(c_data);
         void* csq_ptr = boat_tensor_data(c_squared);
         size_t nelements = boat_tensor_nelements(c_data);
         boat_dtype_t dtype = boat_tensor_dtype(c_data);

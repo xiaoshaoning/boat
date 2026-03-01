@@ -31,15 +31,15 @@ BOAT_API void boat_variable_free(const boat_variable_t* variable);
 BOAT_API boat_tensor_t* boat_variable_data(const boat_variable_t* variable);
 BOAT_API boat_tensor_t* boat_variable_grad(const boat_variable_t* variable);
 BOAT_API bool boat_variable_requires_grad(const boat_variable_t* variable);
-BOAT_API void boat_variable_set_requires_grad(const boat_variable_t* variable, bool requires_grad);
+BOAT_API void boat_variable_set_requires_grad(boat_variable_t* variable, bool requires_grad);
 
 // Variable data reset/reuse (for performance optimization)
-BOAT_API bool boat_variable_reset_data(const boat_variable_t* variable, boat_tensor_t* new_tensor);
+BOAT_API bool boat_variable_reset_data(boat_variable_t* variable, boat_tensor_t* new_tensor);
 
 // Gradient operations
-BOAT_API void boat_variable_zero_grad(const boat_variable_t* variable);
-BOAT_API void boat_variable_retain_grad(const boat_variable_t* variable, bool retain);
-BOAT_API void boat_variable_backward(const boat_variable_t* variable, boat_tensor_t* grad_output);
+BOAT_API void boat_variable_zero_grad(boat_variable_t* variable);
+BOAT_API void boat_variable_retain_grad(boat_variable_t* variable, bool retain);
+BOAT_API void boat_variable_backward(boat_variable_t* variable, boat_tensor_t* grad_output);
 BOAT_API void boat_variable_backward_full(const boat_variable_t* variable);
 
 // Arithmetic operations with gradient tracking
