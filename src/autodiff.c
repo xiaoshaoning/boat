@@ -97,28 +97,28 @@ static boat_tensor_t* compute_forward_mean(boat_tensor_t* a, int64_t* dims, size
 static boat_tensor_t* compute_forward_softmax(const boat_tensor_t* a);
 static boat_tensor_t* compute_forward_log_softmax(const boat_tensor_t* a);
 static boat_tensor_t* compute_forward_conv(boat_tensor_t* input, void* layer_ptr);
-static void compute_backward_conv(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
-static boat_tensor_t* compute_forward_pool(boat_tensor_t* input, void* layer_ptr);
-static void compute_backward_pool(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
+static void compute_backward_conv(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
+static boat_tensor_t* compute_forward_pool(const boat_tensor_t* input, void* layer_ptr);
+static void compute_backward_pool(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
 static boat_tensor_t* compute_forward_flatten(const boat_tensor_t* input);
-static void compute_backward_flatten(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
-static boat_tensor_t* compute_forward_dense(boat_tensor_t* input, void* layer_ptr);
-static void compute_backward_dense(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
+static void compute_backward_flatten(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
+static boat_tensor_t* compute_forward_dense(const boat_tensor_t* input, const void* layer_ptr);
+static void compute_backward_dense(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
 static boat_variable_t* create_attention_operation(const boat_variable_t* query, const boat_variable_t* key, const boat_variable_t* value, const struct boat_attention_t* attention, const boat_tensor_t* attention_mask);
-static void compute_backward_attention(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
-static void compute_backward_add(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
-static void compute_backward_sub(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
-static void compute_backward_mul(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
-static void compute_backward_div(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
-static void compute_backward_dot(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
-static void compute_backward_relu(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
-static void compute_backward_sigmoid(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
-static void compute_backward_tanh(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
-static void compute_backward_matmul(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
-static void compute_backward_sum(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
-static void compute_backward_mean(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
-static void compute_backward_softmax(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
-static void compute_backward_log_softmax(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
+static void compute_backward_attention(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
+static void compute_backward_add(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
+static void compute_backward_sub(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
+static void compute_backward_mul(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
+static void compute_backward_div(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
+static void compute_backward_dot(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
+static void compute_backward_relu(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
+static void compute_backward_sigmoid(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
+static void compute_backward_tanh(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
+static void compute_backward_matmul(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
+static void compute_backward_sum(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
+static void compute_backward_mean(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
+static void compute_backward_softmax(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
+static void compute_backward_log_softmax(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
 static boat_op_node_data_t* create_op_node_data(boat_op_type_t op_type,
                                                 boat_variable_t** inputs,
                                                 size_t num_inputs,
@@ -291,7 +291,7 @@ void boat_variable_zero_grad(boat_variable_t* variable) {
     }
 }
 
-void boat_variable_retain_grad(boat_variable_t* variable, bool retain) {
+void boat_variable_retain_grad(const boat_variable_t* variable, bool retain) {
     if (!variable) return;
     // TODO: implement gradient retention
 }
@@ -1451,7 +1451,7 @@ static void compute_backward_tanh(boat_op_node_data_t* op_data, const boat_tenso
     }
 }
 
-static void compute_backward_matmul(boat_op_node_data_t* op_data, boat_tensor_t* grad_output) {
+static void compute_backward_matmul(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 2 || !grad_output) return;
 
     boat_variable_t* a = op_data->inputs[0];
@@ -1495,7 +1495,7 @@ static void compute_backward_matmul(boat_op_node_data_t* op_data, boat_tensor_t*
     }
 }
 
-static void compute_backward_sum(boat_op_node_data_t* op_data, boat_tensor_t* grad_output) {
+static void compute_backward_sum(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 1 || !grad_output) return;
 
     // Gradient for sum: ∂L/∂a = ∂L/∂c * 1 (broadcasted to original shape)
@@ -1546,7 +1546,7 @@ static void compute_backward_sum(boat_op_node_data_t* op_data, boat_tensor_t* gr
     }
 }
 
-static void compute_backward_mean(boat_op_node_data_t* op_data, boat_tensor_t* grad_output) {
+static void compute_backward_mean(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 1 || !grad_output) return;
 
     // Gradient for mean: ∂L/∂a = ∂L/∂c * (1 / n) (broadcasted to original shape)
@@ -1882,13 +1882,13 @@ static boat_tensor_t* compute_forward_log_softmax(const boat_tensor_t* a) {
     return out;
 }
 
-static void compute_backward_softmax(boat_op_node_data_t* op_data, boat_tensor_t* grad_output) {
+static void compute_backward_softmax(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 1 || !grad_output || !op_data->output) return;
 
     // Gradient for softmax: ∂L/∂x_i = y_i * (∂L/∂y_i - sum(y_j * ∂L/∂y_j))
     // where y = softmax(x)
     boat_variable_t* a = op_data->inputs[0];
-    boat_variable_t* y_var = op_data->output;
+    const boat_variable_t* y_var = op_data->output;
 
     if (!a->requires_grad) return;
 
@@ -1896,8 +1896,8 @@ static void compute_backward_softmax(boat_op_node_data_t* op_data, boat_tensor_t
     size_t nelements = boat_tensor_nelements(y);
     if (nelements == 0) return;
 
-    void* y_data = boat_tensor_data(y);
-    void* grad_output_data = boat_tensor_data(grad_output);
+    const void* y_data = boat_tensor_data(y);
+    const void* grad_output_data = boat_tensor_data(grad_output);
     boat_dtype_t dtype = boat_tensor_dtype(y);
 
     // Get shape information for last dimension
@@ -1972,25 +1972,25 @@ static void compute_backward_softmax(boat_op_node_data_t* op_data, boat_tensor_t
     }
 }
 
-static void compute_backward_log_softmax(boat_op_node_data_t* op_data, boat_tensor_t* grad_output) {
+static void compute_backward_log_softmax(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 1 || !grad_output || !op_data->output) return;
 
     // Gradient for log_softmax: ∂L/∂x_i = ∂L/∂y_i - exp(y_i) * sum(∂L/∂y_j)
     // where y = log_softmax(x), and exp(y) = softmax(x)
     // Actually simpler: ∂L/∂x_i = ∂L/∂y_i - softmax(x_i) * sum(∂L/∂y_j)
     boat_variable_t* a = op_data->inputs[0];
-    boat_variable_t* y_var = op_data->output;
+    const boat_variable_t* y_var = op_data->output;
 
     if (!a->requires_grad) return;
 
     // Need softmax(x) = exp(y) for gradient computation
     // Since we don't store softmax separately, compute it from log_softmax output
-    boat_tensor_t* y = y_var->data;
+    const boat_tensor_t* y = y_var->data;
     size_t nelements = boat_tensor_nelements(y);
     if (nelements == 0) return;
 
-    void* y_data = boat_tensor_data(y);
-    void* grad_output_data = boat_tensor_data(grad_output);
+    const void* y_data = boat_tensor_data(y);
+    const void* grad_output_data = boat_tensor_data(grad_output);
     boat_dtype_t dtype = boat_tensor_dtype(y);
 
     // Get shape information for last dimension
@@ -2346,13 +2346,13 @@ static boat_variable_t* create_dense_operation(const boat_variable_t* input, con
     return output_var;
 }
 
-static void compute_backward_conv(boat_op_node_data_t* op_data, boat_tensor_t* grad_output) {
+static void compute_backward_conv(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 1 || !grad_output) {
         return;
     }
     
     boat_variable_t* input = op_data->inputs[0];
-    boat_conv_layer_t* layer = (boat_conv_layer_t*)op_data->extra_data;
+    const boat_conv_layer_t* layer = (const boat_conv_layer_t*)op_data->extra_data;
     if (!input || !layer) {
         return;
     }
@@ -2455,7 +2455,7 @@ static boat_variable_t* create_attention_operation(const boat_variable_t* query,
     return output_var;
 }
 
-static void compute_backward_attention(boat_op_node_data_t* op_data, boat_tensor_t* grad_output) {
+static void compute_backward_attention(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 3 || !grad_output) {
         return;
     }
@@ -2556,7 +2556,7 @@ static boat_tensor_t* compute_forward_flatten(const boat_tensor_t* input) {
 }
 
 // Flatten operation backward pass
-static void compute_backward_flatten(boat_op_node_data_t* op_data, boat_tensor_t* grad_output) {
+static void compute_backward_flatten(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 1 || !grad_output) {
         return;
     }
@@ -2589,14 +2589,14 @@ static void compute_backward_flatten(boat_op_node_data_t* op_data, boat_tensor_t
 }
 
 // Pooling operation forward pass
-static boat_tensor_t* compute_forward_pool(boat_tensor_t* input, void* layer_ptr) {
+static boat_tensor_t* compute_forward_pool(const boat_tensor_t* input, void* layer_ptr) {
     if (!input || !layer_ptr) return NULL;
     boat_pool_layer_t* layer = (boat_pool_layer_t*)layer_ptr;
     return boat_pool_layer_forward(layer, input);
 }
 
 // Pooling operation backward pass
-static void compute_backward_pool(boat_op_node_data_t* op_data, boat_tensor_t* grad_output) {
+static void compute_backward_pool(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 1 || !grad_output) {
         return;
     }
@@ -2630,20 +2630,20 @@ static void compute_backward_pool(boat_op_node_data_t* op_data, boat_tensor_t* g
 }
 
 // Dense operation forward pass
-static boat_tensor_t* compute_forward_dense(boat_tensor_t* input, void* layer_ptr) {
+static boat_tensor_t* compute_forward_dense(const boat_tensor_t* input, const void* layer_ptr) {
     if (!input || !layer_ptr) return NULL;
-    boat_dense_layer_t* layer = (boat_dense_layer_t*)layer_ptr;
+    const boat_dense_layer_t* layer = (const boat_dense_layer_t*)layer_ptr;
     return boat_dense_layer_forward(layer, input);
 }
 
 // Dense operation backward pass
-static void compute_backward_dense(boat_op_node_data_t* op_data, boat_tensor_t* grad_output) {
+static void compute_backward_dense(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 1 || !grad_output) {
         return;
     }
 
     boat_variable_t* input = op_data->inputs[0];
-    boat_dense_layer_t* layer = (boat_dense_layer_t*)op_data->extra_data;
+    const boat_dense_layer_t* layer = (const boat_dense_layer_t*)op_data->extra_data;
     if (!input || !layer) {
         return;
     }

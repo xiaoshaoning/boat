@@ -38,7 +38,7 @@ BOAT_API bool boat_variable_reset_data(boat_variable_t* variable, boat_tensor_t*
 
 // Gradient operations
 BOAT_API void boat_variable_zero_grad(boat_variable_t* variable);
-BOAT_API void boat_variable_retain_grad(boat_variable_t* variable, bool retain);
+BOAT_API void boat_variable_retain_grad(const boat_variable_t* variable, bool retain);
 BOAT_API void boat_variable_backward(boat_variable_t* variable, boat_tensor_t* grad_output);
 BOAT_API void boat_variable_backward_full(const boat_variable_t* variable);
 
