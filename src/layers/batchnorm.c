@@ -115,7 +115,7 @@ BOAT_API void BOAT_CALL boat_batchnorm2d_layer_free(boat_batchnorm2d_layer_t* la
     boat_free(layer);
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_forward(boat_batchnorm2d_layer_t* layer, const boat_tensor_t* input) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_forward(const boat_batchnorm2d_layer_t* layer, const boat_tensor_t* input) {
     if (!layer || !input) {
         return NULL;
     }

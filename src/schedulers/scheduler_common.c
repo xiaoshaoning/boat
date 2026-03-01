@@ -138,7 +138,7 @@ BOAT_API void boat_scheduler_free(boat_scheduler_t* scheduler) {
 }
 
 // Convenience function to update optimizer learning rate
-BOAT_API void boat_scheduler_update_optimizer(boat_scheduler_t* scheduler,
+BOAT_API void boat_scheduler_update_optimizer(const boat_scheduler_t* scheduler,
                                               boat_optimizer_t* optimizer) {
     if (!scheduler || !optimizer) return;
 

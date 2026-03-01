@@ -42,7 +42,7 @@ BOAT_API void BOAT_CALL boat_relu_layer_free(boat_relu_layer_t* layer) {
     boat_free(layer);
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_relu_layer_forward(boat_relu_layer_t* layer, const boat_tensor_t* input) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_relu_layer_forward(const boat_relu_layer_t* layer, const boat_tensor_t* input) {
     BOAT_DEBUG_PRINT("DEBUG relu_layer_forward: ENTER, layer=%p, input=%p\n", (void*)layer, (void*)input);
     if (!layer || !input) {
         BOAT_DEBUG_PRINT("DEBUG relu_layer_forward: NULL input or layer\n");

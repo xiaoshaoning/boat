@@ -214,7 +214,7 @@ void* boat_memory_allocate_aligned(size_t size, size_t alignment,
     return (void*)aligned_addr;
 }
 
-void boat_memory_free_aligned(void* aligned_ptr) {
+void boat_memory_free_aligned(const void* aligned_ptr) {
     if (!aligned_ptr) {
         return;
     }

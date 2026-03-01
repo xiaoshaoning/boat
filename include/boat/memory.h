@@ -42,7 +42,7 @@ BOAT_API void boat_memory_free_device(void* ptr, boat_device_t device);
 BOAT_API void* boat_memory_allocate_aligned(size_t size, size_t alignment,
                                             boat_device_t device,
                                             const char* file, int line);
-BOAT_API void boat_memory_free_aligned(void* aligned_ptr);
+BOAT_API void boat_memory_free_aligned(const void* aligned_ptr);
 
 // Memory operations
 BOAT_API void boat_memory_copy(void* dest, const void* src, size_t size,

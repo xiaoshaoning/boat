@@ -54,7 +54,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_grad_bias(const boat_conv_
 typedef struct boat_batchnorm2d_layer_t boat_batchnorm2d_layer_t;
 BOAT_API boat_batchnorm2d_layer_t* BOAT_CALL boat_batchnorm2d_layer_create(size_t num_features, float eps, float momentum, bool affine);
 BOAT_API void BOAT_CALL boat_batchnorm2d_layer_free(boat_batchnorm2d_layer_t* layer);
-BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_forward(boat_batchnorm2d_layer_t* layer, const boat_tensor_t* input);
+BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_forward(const boat_batchnorm2d_layer_t* layer, const boat_tensor_t* input);
 BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_backward(boat_batchnorm2d_layer_t* layer, const boat_tensor_t* grad_output);
 BOAT_API void BOAT_CALL boat_batchnorm2d_layer_update(boat_batchnorm2d_layer_t* layer, float learning_rate);
 
@@ -95,14 +95,14 @@ BOAT_API void BOAT_CALL boat_attention_layer_update(boat_attention_layer_t* laye
 typedef struct boat_relu_layer_t boat_relu_layer_t;
 BOAT_API boat_relu_layer_t* BOAT_CALL boat_relu_layer_create();
 BOAT_API void BOAT_CALL boat_relu_layer_free(boat_relu_layer_t* layer);
-BOAT_API boat_tensor_t* BOAT_CALL boat_relu_layer_forward(boat_relu_layer_t* layer, const boat_tensor_t* input);
+BOAT_API boat_tensor_t* BOAT_CALL boat_relu_layer_forward(const boat_relu_layer_t* layer, const boat_tensor_t* input);
 BOAT_API boat_tensor_t* BOAT_CALL boat_relu_layer_backward(boat_relu_layer_t* layer, const boat_tensor_t* grad_output);
 BOAT_API void BOAT_CALL boat_relu_layer_update(boat_relu_layer_t* layer, float learning_rate);
 
 typedef struct boat_softmax_layer_t boat_softmax_layer_t;
 BOAT_API boat_softmax_layer_t* BOAT_CALL boat_softmax_layer_create(int axis);
 BOAT_API void BOAT_CALL boat_softmax_layer_free(boat_softmax_layer_t* layer);
-BOAT_API boat_tensor_t* BOAT_CALL boat_softmax_layer_forward(boat_softmax_layer_t* layer, const boat_tensor_t* input);
+BOAT_API boat_tensor_t* BOAT_CALL boat_softmax_layer_forward(const boat_softmax_layer_t* layer, const boat_tensor_t* input);
 BOAT_API boat_tensor_t* BOAT_CALL boat_softmax_layer_backward(boat_softmax_layer_t* layer, const boat_tensor_t* grad_output);
 BOAT_API void BOAT_CALL boat_softmax_layer_update(boat_softmax_layer_t* layer, float learning_rate);
 
@@ -128,7 +128,7 @@ BOAT_API void BOAT_CALL boat_gru_layer_update(boat_gru_layer_t* layer, float lea
 BOAT_API boat_flatten_layer_t* BOAT_CALL boat_flatten_layer_create();
 BOAT_API void BOAT_CALL boat_flatten_layer_free(boat_flatten_layer_t* layer);
 BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_forward(boat_flatten_layer_t* layer, const boat_tensor_t* input);
-BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_backward(boat_flatten_layer_t* layer, const boat_tensor_t* grad_output);
+BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_backward(const boat_flatten_layer_t* layer, const boat_tensor_t* grad_output);
 BOAT_API void BOAT_CALL boat_flatten_layer_update(boat_flatten_layer_t* layer, float learning_rate);
 
 #ifdef __cplusplus

@@ -73,7 +73,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_forward(boat_flatten_layer_
     return boat_tensor_reshape(input, output_shape, 2);
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_backward(boat_flatten_layer_t* layer, const boat_tensor_t* grad_output) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_backward(const boat_flatten_layer_t* layer, const boat_tensor_t* grad_output) {
     if (!layer || !grad_output) {
         return NULL;
     }
