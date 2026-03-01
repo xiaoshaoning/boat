@@ -360,7 +360,7 @@ boat_tensor_t* boat_mod(const boat_tensor_t* a, const boat_tensor_t* b) {
 
 // In-place operations
 #define DEFINE_INPLACE_OP(op_name, op) \
-void boat_##op_name##_(boat_tensor_t* a, const boat_tensor_t* b) { \
+void boat_##op_name##_(boat_tensor_t* const a, const boat_tensor_t* b) { \
     if (!a || !b) return; \
     \
     boat_dtype_t dtype = boat_tensor_dtype(a); \
@@ -522,7 +522,7 @@ boat_tensor_t* boat_pow_scalar(const boat_tensor_t* a, double scalar) {
 
 // In-place scalar operations
 #define DEFINE_INPLACE_SCALAR_OP(op_name, op) \
-void boat_##op_name##_scalar_(boat_tensor_t* a, double scalar) { \
+void boat_##op_name##_scalar_(boat_tensor_t* const a, double scalar) { \
     if (!a) return; \
     \
     boat_dtype_t dtype = boat_tensor_dtype(a); \
