@@ -36,18 +36,18 @@ struct boat_layer_ops_t {
 // Model creation and management
 BOAT_API boat_model_t* boat_model_create();
 BOAT_API boat_model_t* boat_model_create_with_graph(const boat_graph_t* graph);
-BOAT_API void boat_model_free(const boat_model_t* model);
+BOAT_API void boat_model_free(boat_model_t* model);
 
 // Graph access
 BOAT_API boat_graph_t* boat_model_graph(const boat_model_t* model);
-BOAT_API void boat_model_set_graph(const boat_model_t* model, const boat_graph_t* graph);
+BOAT_API void boat_model_set_graph(boat_model_t* model, boat_graph_t* graph);
 
 // User data management
 BOAT_API void* boat_model_get_user_data(const boat_model_t* model);
-BOAT_API void boat_model_set_user_data(const boat_model_t* model, void* user_data, void (*free_fn)(void*));
+BOAT_API void boat_model_set_user_data(boat_model_t* model, void* user_data, void (*free_fn)(void*));
 
 // Layer management
-BOAT_API void boat_model_add_layer(const boat_model_t* model, const boat_layer_t* layer);
+BOAT_API void boat_model_add_layer(boat_model_t* model, boat_layer_t* layer);
 BOAT_API size_t boat_model_layer_count(const boat_model_t* model);
 
 // Model operations
@@ -62,7 +62,7 @@ BOAT_API bool boat_model_save(const boat_model_t* model, const char* filename);
 // Sequential model (simplified API)
 typedef boat_model_t boat_sequential_model_t;
 BOAT_API boat_sequential_model_t* boat_sequential_create();
-BOAT_API void boat_sequential_add(boat_sequential_model_t* model, const boat_layer_t* layer);
+BOAT_API void boat_sequential_add(boat_sequential_model_t* model, boat_layer_t* layer);
 
 #ifdef __cplusplus
 }

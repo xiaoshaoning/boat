@@ -83,7 +83,7 @@ boat_model_t* boat_model_create_with_graph(const boat_graph_t* graph) {
     return model;
 }
 
-void boat_model_free(const boat_model_t* model) {
+void boat_model_free(boat_model_t* model) {
     if (!model) {
         return;
     }
@@ -130,7 +130,7 @@ boat_graph_t* boat_model_graph(const boat_model_t* model) {
     return model ? model->graph : NULL;
 }
 
-void boat_model_set_graph(const boat_model_t* model, const boat_graph_t* graph) {
+void boat_model_set_graph(boat_model_t* model, boat_graph_t* graph) {
     if (!model || !graph) {
         return;
     }
@@ -383,7 +383,7 @@ void* boat_model_get_user_data(const boat_model_t* model) {
     return model ? model->user_data : NULL;
 }
 
-void boat_model_set_user_data(const boat_model_t* model, void* user_data, void (*free_fn)(void*)) {
+void boat_model_set_user_data(boat_model_t* model, void* user_data, void (*free_fn)(void*)) {
     if (!model) {
         return;
     }
@@ -403,7 +403,7 @@ size_t boat_model_layer_count(const boat_model_t* model) {
 }
 
 // Add layer to model
-void boat_model_add_layer(const boat_model_t* model, const boat_layer_t* layer) {
+void boat_model_add_layer(boat_model_t* model, boat_layer_t* layer) {
     if (!model || !layer) {
         return;
     }

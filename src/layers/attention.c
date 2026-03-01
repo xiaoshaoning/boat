@@ -203,7 +203,7 @@ BOAT_API boat_attention_t* BOAT_CALL boat_attention_create(const boat_attention_
     return attention;
 }
 
-BOAT_API void BOAT_CALL boat_attention_free(const boat_attention_t* attention) {
+BOAT_API void BOAT_CALL boat_attention_free(boat_attention_t* attention) {
     if (!attention) {
         return;
     }
@@ -471,7 +471,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_attention_forward(const boat_attention_t*
     return final_output;
 }
 
-BOAT_API bool BOAT_CALL boat_attention_backward(const boat_attention_t* attention,
+BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* attention,
                                         const boat_tensor_t* grad_output,
                                         boat_tensor_t** grad_query,
                                         boat_tensor_t** grad_key,
@@ -737,7 +737,7 @@ BOAT_API bool BOAT_CALL boat_attention_backward(const boat_attention_t* attentio
     return true;
 }
 
-BOAT_API void BOAT_CALL boat_attention_update(const boat_attention_t* attention, float learning_rate) {
+BOAT_API void BOAT_CALL boat_attention_update(boat_attention_t* attention, float learning_rate) {
     if (!attention) {
         return;
     }
@@ -820,13 +820,13 @@ BOAT_API void BOAT_CALL boat_attention_update(const boat_attention_t* attention,
 
 }
 
-BOAT_NOINLINE BOAT_API void BOAT_CALL boat_attention_set_dropout(const boat_attention_t* attention, float dropout_prob) {
+BOAT_NOINLINE BOAT_API void BOAT_CALL boat_attention_set_dropout(boat_attention_t* attention, float dropout_prob) {
     if (attention) {
         attention->config.dropout_prob = dropout_prob;
     }
 }
 
-BOAT_NOINLINE BOAT_API void BOAT_CALL boat_attention_set_causal(const boat_attention_t* attention, bool causal) {
+BOAT_NOINLINE BOAT_API void BOAT_CALL boat_attention_set_causal(boat_attention_t* attention, bool causal) {
     if (attention) {
         attention->config.causal_mask = causal;
     }
