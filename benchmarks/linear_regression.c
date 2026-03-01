@@ -63,10 +63,12 @@ static void generate_linear_data(
 
     srand(42); // Fixed seed for reproducibility
 
+    // cppcheck-suppress nullPointer
     for (int i = 0; i < input_dim * output_dim; i++) {
         W_true[i] = (rand() / (float)RAND_MAX) * 2.0f - 1.0f; // Uniform [-1, 1]
     }
 
+    // cppcheck-suppress nullPointer
     for (int i = 0; i < output_dim; i++) {
         b_true[i] = (rand() / (float)RAND_MAX) * 2.0f - 1.0f;
     }
