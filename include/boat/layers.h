@@ -66,10 +66,10 @@ BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_running_var(boat_batchnorm2d_
 
 // Pooling layer functions (MaxPool2d)
 BOAT_API boat_pool_layer_t* BOAT_CALL boat_pool_layer_create(size_t pool_size, size_t stride, size_t padding);
-BOAT_API void BOAT_CALL boat_pool_layer_free(const boat_pool_layer_t* layer);
-BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_forward(const boat_pool_layer_t* layer, const boat_tensor_t* input);
-BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_backward(const boat_pool_layer_t* layer, const boat_tensor_t* grad_output);
-BOAT_API void BOAT_CALL boat_pool_layer_update(const boat_pool_layer_t* layer, float learning_rate);
+BOAT_API void BOAT_CALL boat_pool_layer_free(boat_pool_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_forward(boat_pool_layer_t* layer, const boat_tensor_t* input);
+BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_backward(boat_pool_layer_t* layer, const boat_tensor_t* grad_output);
+BOAT_API void BOAT_CALL boat_pool_layer_update(boat_pool_layer_t* layer, float learning_rate);
 
 // Normalization layer functions (simplified interface)
 BOAT_API boat_norm_layer_t* BOAT_CALL boat_norm_layer_create(size_t normalized_shape, float eps, bool elementwise_affine);

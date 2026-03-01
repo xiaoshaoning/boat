@@ -167,7 +167,9 @@ boat_float8_t boat_float8_from_float(float f) {
 
     // Normalize to range [1, 2) * 2^exp
     int exp;
-    (void)frexpf(f, &exp); // get exponent, normalized value unused
+    float normalized = frexpf(f, &exp); // get normalized value and exponent
+    // Adjust to range [1, 2) instead of [0.5, 1)
+    normalized *= 2.0f;
     exp -= 1;
 
     // Convert to 4-bit exponent with bias 7
