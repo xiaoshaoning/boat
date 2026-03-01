@@ -37,7 +37,7 @@ int main() {
         printf("SUCCESS: boat_relu returned tensor at %p\n", (void*)result);
 
         // Check result values
-        float* result_data = (float*)boat_tensor_data(result);
+        const float* result_data = (const float*)boat_tensor_const_data(result);
         printf("Result data: ");
         for (int i = 0; i < 6; i++) {
             printf("%.1f ", result_data[i]);
