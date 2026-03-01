@@ -686,7 +686,7 @@ void boat_autodiff_clear_computation_graph() {
         }
         // Also remove variable nodes that require gradient (temporary variables)
         else if (node_type == BOAT_NODE_TYPE_VARIABLE) {
-            void* node_data = boat_node_data(node);
+            const void* node_data = boat_node_data(node);
             if (node_data) {
                 const boat_variable_t* var = (const boat_variable_t*)node_data;
                 // Remove variable nodes for temporary variables:

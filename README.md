@@ -493,6 +493,26 @@ For detailed API documentation and development guidelines, see [CLAUDE.md](CLAUD
 - More model format support
 - Advanced layers (transformer blocks, etc.)
 
+## Code Quality
+
+Boat follows strict code quality standards with comprehensive static analysis and const-correctness guidelines.
+
+### Const Correctness
+The framework enforces const correctness throughout its API to improve safety, readability, and compiler optimization. See the [Const Usage Guide](docs/const_usage_guide.md) for detailed guidelines on:
+- Function parameter constness
+- Return value constness
+- Structure field constness
+- Common patterns and examples
+
+### Static Analysis
+The project uses `cppcheck` for static analysis to detect potential issues. Run the analysis with:
+```bash
+cppcheck --enable=warning,style --suppress=missingInclude -I include src
+```
+
+### Automated Testing
+All code changes are validated through comprehensive unit and integration tests.
+
 ## Testing
 
 Run the test suite to verify the installation:

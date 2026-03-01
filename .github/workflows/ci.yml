@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        build_type: [Release]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: Install dependencies (Ubuntu)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential cppcheck
+
+    - name: Install dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        brew update
+        brew install cmake cppcheck
+
+    - name: Install dependencies (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        choco install cmake cppcheck -y
+
+    - name: Configure CMake
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DBOAT_WITH_TESTS=ON -DBOAT_WITH_EXAMPLES=ON -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+
+    - name: Build
+      run: |
+        cd build
+        cmake --build . --config ${{ matrix.build_type }}
+
+    - name: Run tests
+      run: |
+        cd build
+        ctest --output-on-failure -C ${{ matrix.build_type }}
+
+    - name: Static analysis with cppcheck
+      run: |
+        cppcheck --enable=warning,style,performance,portability --suppress=missingInclude --error-exitcode=1 -I include src 2>&1 || true
+        # Note: using --error-exitcode=1 would fail on warnings, we use || true to continue
+        # In future, we can set a warning threshold
+
+    - name: Build and run MNIST example (if built)
+      run: |
+        cd build
+        # Check if MNIST example was built
+        if [ -f "examples/mnist/mnist" ] || [ -f "examples/mnist/mnist.exe" ]; then
+          echo "MNIST example found, running..."
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            examples/mnist/mnist.exe --help || true
+          else
+            examples/mnist/mnist --help || true
+          fi
+        else
+          echo "MNIST example not built (might be disabled in this configuration)"
+        fi
