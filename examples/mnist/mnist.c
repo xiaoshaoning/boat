@@ -314,6 +314,10 @@ int main(int argc, char* argv[]) {
 
     // Training parameters
     int epochs = 5;
+    const char* quick_test = getenv("MNIST_QUICK_TEST");
+    if (quick_test && atoi(quick_test) == 1) {
+        epochs = 1;  // Quick test for CI
+    }
     float learning_rate = 0.001f;
     size_t batch_size = 32;
     size_t num_batches = train_samples / batch_size;

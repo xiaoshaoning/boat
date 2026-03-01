@@ -135,8 +135,7 @@ const void* node_data = boat_node_data(node);
 4. ✅ 启动清理计划（修复首个 const 警告）
 
 ### 短期改进（下一步）
-1. **清理计划推进**: 按阶段修复 const 变量警告
-   - 目标：每周修复 20% 的 const 警告
+1. **清理计划推进**: 修复全部const 变量警告
    - 优先级：tensor.c → autodiff.c → graph.c
 2. **CI 优化**: 添加缓存、矩阵扩展、性能监控
    - 添加 ccache 加速构建
