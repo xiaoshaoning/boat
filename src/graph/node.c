@@ -37,7 +37,7 @@ static boat_node_t* boat_node_create(void* data, boat_node_type_t type,
     return node;
 }
 
-void boat_node_free(boat_node_t* node) {
+void boat_node_free(const boat_node_t* node) {
     if (!node) {
         return;
     }
@@ -51,13 +51,13 @@ void boat_node_free(boat_node_t* node) {
     }
 }
 
-void boat_node_ref(boat_node_t* node) {
+void boat_node_ref(const boat_node_t* node) {
     if (node) {
         node->ref_count++;
     }
 }
 
-void boat_node_unref(boat_node_t* node) {
+void boat_node_unref(const boat_node_t* node) {
     boat_node_free(node);
 }
 
@@ -78,7 +78,7 @@ boat_node_type_t boat_node_type(const boat_node_t* node) {
 }
 
 // Node operations for graph
-boat_node_t* boat_graph_add_node(boat_graph_t* graph, void* data,
+boat_node_t* boat_graph_add_node(const boat_graph_t* graph, void* data,
                                  boat_node_type_t type,
                                  void (*free_fn)(void*)) {
     if (!graph) {
@@ -103,7 +103,7 @@ boat_node_t* boat_graph_add_node(boat_graph_t* graph, void* data,
     return node;
 }
 
-void boat_graph_remove_node(boat_graph_t* graph, boat_node_t* node) {
+void boat_graph_remove_node(const boat_graph_t* graph, const boat_node_t* node) {
     if (!graph || !node) {
         return;
     }
@@ -186,14 +186,14 @@ boat_device_t boat_graph_device(const boat_graph_t* graph) {
     return graph ? graph->device : BOAT_DEVICE_CPU;
 }
 
-void boat_graph_set_device(boat_graph_t* graph, boat_device_t device) {
+void boat_graph_set_device(const boat_graph_t* graph, boat_device_t device) {
     if (!graph) return;
     graph->device = device;
     // Note: Changing device doesn't move existing data
     // Call boat_graph_to_device() to actually move data
 }
 
-void boat_graph_free(boat_graph_t* graph) {
+void boat_graph_free(const boat_graph_t* graph) {
     if (!graph) {
         return;
     }
@@ -271,7 +271,7 @@ bool boat_node_is_output(const boat_node_t* node) {
 }
 
 // Node data management
-void boat_node_set_data(boat_node_t* node, void* data, void (*free_fn)(void*)) {
+void boat_node_set_data(const boat_node_t* node, void* data, void (*free_fn)(void*)) {
     if (!node) {
         return;
     }

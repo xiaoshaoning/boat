@@ -16,7 +16,7 @@ struct boat_edge_t {
 };
 
 // Edge creation and destruction (non-static versions)
-boat_edge_t* boat_edge_create(boat_node_t* from, boat_node_t* to,
+boat_edge_t* boat_edge_create(const boat_node_t* from, const boat_node_t* to,
                               boat_edge_direction_t direction) {
     if (!from || !to) {
         return NULL;
@@ -38,7 +38,7 @@ boat_edge_t* boat_edge_create(boat_node_t* from, boat_node_t* to,
     return edge;
 }
 
-void boat_edge_free(boat_edge_t* edge) {
+void boat_edge_free(const boat_edge_t* edge) {
     if (!edge) {
         return;
     }
@@ -87,7 +87,7 @@ void boat_edge_list_free(boat_edge_list_t* list) {
     boat_free(list);
 }
 
-bool boat_edge_list_add(boat_edge_list_t* list, boat_edge_t* edge) {
+bool boat_edge_list_add(boat_edge_list_t* list, const boat_edge_t* edge) {
     if (!list || !edge) return false;
 
     if (list->count >= list->capacity) {
@@ -105,7 +105,7 @@ bool boat_edge_list_add(boat_edge_list_t* list, boat_edge_t* edge) {
     return true;
 }
 
-bool boat_edge_list_remove(boat_edge_list_t* list, boat_edge_t* edge) {
+bool boat_edge_list_remove(boat_edge_list_t* list, const boat_edge_t* edge) {
     if (!list || !edge) return false;
 
     for (size_t i = 0; i < list->count; i++) {
@@ -121,7 +121,7 @@ bool boat_edge_list_remove(boat_edge_list_t* list, boat_edge_t* edge) {
     return false;
 }
 
-bool boat_edge_list_contains(const boat_edge_list_t* list, boat_edge_t* edge) {
+bool boat_edge_list_contains(const boat_edge_list_t* list, const boat_edge_t* edge) {
     if (!list || !edge) return false;
     for (size_t i = 0; i < list->count; i++) {
         if (list->edges[i] == edge) return true;

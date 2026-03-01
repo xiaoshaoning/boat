@@ -31,10 +31,10 @@ typedef struct {
 BOAT_API boat_attention_t* BOAT_CALL boat_attention_create(const boat_attention_config_t* config);
 
 // Free attention layer
-BOAT_API void BOAT_CALL boat_attention_free(boat_attention_t* attention);
+BOAT_API void BOAT_CALL boat_attention_free(const boat_attention_t* attention);
 
 // Forward pass
-BOAT_API boat_tensor_t* BOAT_CALL boat_attention_forward(boat_attention_t* attention,
+BOAT_API boat_tensor_t* BOAT_CALL boat_attention_forward(const boat_attention_t* attention,
                                        const boat_tensor_t* query,
                                        const boat_tensor_t* key,
                                        const boat_tensor_t* value,
@@ -44,20 +44,20 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_attention_forward(boat_attention_t* atten
 // Returns gradient tensors for query, key, value inputs via output parameters.
 // Returns true on success, false on failure.
 // Parameter gradients are stored in the attention layer and can be accessed via accessor functions.
-BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* attention,
+BOAT_API bool BOAT_CALL boat_attention_backward(const boat_attention_t* attention,
                                         const boat_tensor_t* grad_output,
                                         boat_tensor_t** grad_query,
                                         boat_tensor_t** grad_key,
                                         boat_tensor_t** grad_value);
 
 // Update parameters (for training)
-BOAT_API void BOAT_CALL boat_attention_update(boat_attention_t* attention, float learning_rate);
+BOAT_API void BOAT_CALL boat_attention_update(const boat_attention_t* attention, float learning_rate);
 
 // Set dropout probability
-BOAT_API void BOAT_CALL boat_attention_set_dropout(boat_attention_t* attention, float dropout_prob);
+BOAT_API void BOAT_CALL boat_attention_set_dropout(const boat_attention_t* attention, float dropout_prob);
 
 // Enable/disable causal masking
-BOAT_API void BOAT_CALL boat_attention_set_causal(boat_attention_t* attention, bool causal);
+BOAT_API void BOAT_CALL boat_attention_set_causal(const boat_attention_t* attention, bool causal);
 
 // Multi-head attention (simplified API for self-attention)
 BOAT_API boat_tensor_t* BOAT_CALL boat_multihead_attention(const boat_tensor_t* input,

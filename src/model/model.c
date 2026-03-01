@@ -56,7 +56,7 @@ boat_model_t* boat_model_create() {
     return model;
 }
 
-boat_model_t* boat_model_create_with_graph(boat_graph_t* graph) {
+boat_model_t* boat_model_create_with_graph(const boat_graph_t* graph) {
     if (!graph) {
         return NULL;
     }
@@ -83,7 +83,7 @@ boat_model_t* boat_model_create_with_graph(boat_graph_t* graph) {
     return model;
 }
 
-void boat_model_free(boat_model_t* model) {
+void boat_model_free(const boat_model_t* model) {
     if (!model) {
         return;
     }
@@ -130,7 +130,7 @@ boat_graph_t* boat_model_graph(const boat_model_t* model) {
     return model ? model->graph : NULL;
 }
 
-void boat_model_set_graph(boat_model_t* model, boat_graph_t* graph) {
+void boat_model_set_graph(const boat_model_t* model, const boat_graph_t* graph) {
     if (!model || !graph) {
         return;
     }
@@ -145,7 +145,7 @@ void boat_model_set_graph(boat_model_t* model, boat_graph_t* graph) {
 }
 
 // Model operations
-boat_tensor_t* boat_model_forward(boat_model_t* model, const boat_tensor_t* input) {
+boat_tensor_t* boat_model_forward(const boat_model_t* model, const boat_tensor_t* input) {
     if (!model || !input) return NULL;
     if (model->layer_count == 0) return NULL;
 
@@ -351,14 +351,14 @@ boat_tensor_t* boat_model_forward(boat_model_t* model, const boat_tensor_t* inpu
     return final_output;
 }
 
-boat_tensor_t* boat_model_backward(boat_model_t* model, const boat_tensor_t* grad_output) {
+boat_tensor_t* boat_model_backward(const boat_model_t* model, const boat_tensor_t* grad_output) {
     (void)model;
     (void)grad_output;
     // TODO: Implement backward pass through computational graph
     return NULL;
 }
 
-void boat_model_update(boat_model_t* model, float learning_rate) {
+void boat_model_update(const boat_model_t* model, float learning_rate) {
     (void)model;
     (void)learning_rate;
     // TODO: Implement parameter update
@@ -383,7 +383,7 @@ void* boat_model_get_user_data(const boat_model_t* model) {
     return model ? model->user_data : NULL;
 }
 
-void boat_model_set_user_data(boat_model_t* model, void* user_data, void (*free_fn)(void*)) {
+void boat_model_set_user_data(const boat_model_t* model, void* user_data, void (*free_fn)(void*)) {
     if (!model) {
         return;
     }
@@ -403,7 +403,7 @@ size_t boat_model_layer_count(const boat_model_t* model) {
 }
 
 // Add layer to model
-void boat_model_add_layer(boat_model_t* model, boat_layer_t* layer) {
+void boat_model_add_layer(const boat_model_t* model, const boat_layer_t* layer) {
     if (!model || !layer) {
         return;
     }

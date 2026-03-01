@@ -52,9 +52,9 @@ typedef struct {
 } hf_layer_wrapper_t;
 
 // Forward declarations for static functions
-static void free_config(hf_config_t* config);
-static void init_builders(hf_config_t* config);
-static boat_layer_t* create_layer_from_config(hf_config_t* config, const char* layer_name, boat_tensor_t* weight);
+static void free_config(const hf_config_t* config);
+static void init_builders(const hf_config_t* config);
+static boat_layer_t* create_layer_from_config(const hf_config_t* config, const char* layer_name, boat_tensor_t* weight);
 static hf_layer_wrapper_t* create_layer_wrapper(const char* layer_type, boat_tensor_t* weight);
 static void free_layer_wrapper(hf_layer_wrapper_t* wrapper);
 static char* get_base_layer_name(const char* tensor_name);
@@ -62,25 +62,25 @@ static boat_layer_t* create_actual_layer_from_tensor(const char* base_name, cons
 static char* read_file_to_string(const char* filename);
 
 // Layer operations for dense layers
-static boat_tensor_t* dense_layer_forward(boat_layer_t* layer, const boat_tensor_t* input) {
+static boat_tensor_t* dense_layer_forward(const boat_layer_t* layer, const boat_tensor_t* input) {
     if (!layer || !layer->data || !input) return NULL;
     boat_dense_layer_t* dense_layer = (boat_dense_layer_t*)layer->data;
     return boat_dense_layer_forward(dense_layer, input);
 }
 
-static boat_tensor_t* dense_layer_backward(boat_layer_t* layer, const boat_tensor_t* grad_output) {
+static boat_tensor_t* dense_layer_backward(const boat_layer_t* layer, const boat_tensor_t* grad_output) {
     if (!layer || !layer->data || !grad_output) return NULL;
     boat_dense_layer_t* dense_layer = (boat_dense_layer_t*)layer->data;
     return boat_dense_layer_backward(dense_layer, grad_output);
 }
 
-static void dense_layer_update(boat_layer_t* layer, float learning_rate) {
+static void dense_layer_update(const boat_layer_t* layer, float learning_rate) {
     if (!layer || !layer->data) return;
     boat_dense_layer_t* dense_layer = (boat_dense_layer_t*)layer->data;
     boat_dense_layer_update(dense_layer, learning_rate);
 }
 
-static void dense_layer_free(boat_layer_t* layer) {
+static void dense_layer_free(const boat_layer_t* layer) {
     if (!layer || !layer->data) return;
 
     boat_dense_layer_t* dense_layer = (boat_dense_layer_t*)layer->data;
@@ -98,25 +98,25 @@ static const boat_layer_ops_t dense_layer_ops = {
 };
 
 // Layer operations for layer normalization
-static boat_tensor_t* layernorm_layer_forward(boat_layer_t* layer, const boat_tensor_t* input) {
+static boat_tensor_t* layernorm_layer_forward(const boat_layer_t* layer, const boat_tensor_t* input) {
     if (!layer || !layer->data || !input) return NULL;
     boat_layernorm_t* layernorm = (boat_layernorm_t*)layer->data;
     return boat_layernorm_forward(layernorm, input);
 }
 
-static boat_tensor_t* layernorm_layer_backward(boat_layer_t* layer, const boat_tensor_t* grad_output) {
+static boat_tensor_t* layernorm_layer_backward(const boat_layer_t* layer, const boat_tensor_t* grad_output) {
     if (!layer || !layer->data || !grad_output) return NULL;
     boat_layernorm_t* layernorm = (boat_layernorm_t*)layer->data;
     return boat_layernorm_backward(layernorm, grad_output);
 }
 
-static void layernorm_layer_update(boat_layer_t* layer, float learning_rate) {
+static void layernorm_layer_update(const boat_layer_t* layer, float learning_rate) {
     if (!layer || !layer->data) return;
     boat_layernorm_t* layernorm = (boat_layernorm_t*)layer->data;
     boat_layernorm_update(layernorm, learning_rate);
 }
 
-static void layernorm_layer_free(boat_layer_t* layer) {
+static void layernorm_layer_free(const boat_layer_t* layer) {
     if (!layer || !layer->data) return;
 
     boat_layernorm_t* layernorm = (boat_layernorm_t*)layer->data;
@@ -134,27 +134,27 @@ static const boat_layer_ops_t layernorm_layer_ops = {
 };
 
 // Layer operations for wrapper layers (layer_norm, conv, etc.)
-static boat_tensor_t* wrapper_layer_forward(boat_layer_t* layer, const boat_tensor_t* input) {
+static boat_tensor_t* wrapper_layer_forward(const boat_layer_t* layer, const boat_tensor_t* input) {
     (void)layer;
     (void)input;
     // TODO: Implement forward pass for wrapper layers
     return NULL;
 }
 
-static boat_tensor_t* wrapper_layer_backward(boat_layer_t* layer, const boat_tensor_t* grad_output) {
+static boat_tensor_t* wrapper_layer_backward(const boat_layer_t* layer, const boat_tensor_t* grad_output) {
     (void)layer;
     (void)grad_output;
     // TODO: Implement backward pass for wrapper layers
     return NULL;
 }
 
-static void wrapper_layer_update(boat_layer_t* layer, float learning_rate) {
+static void wrapper_layer_update(const boat_layer_t* layer, float learning_rate) {
     (void)layer;
     (void)learning_rate;
     // TODO: Implement parameter update for wrapper layers
 }
 
-static void wrapper_layer_free(boat_layer_t* layer) {
+static void wrapper_layer_free(const boat_layer_t* layer) {
     if (!layer || !layer->data) return;
 
     hf_layer_wrapper_t* wrapper = (hf_layer_wrapper_t*)layer->data;
@@ -315,7 +315,7 @@ static hf_config_t* parse_config(const char* config_json) {
 // Layer builder management functions
 
 // Initialize builders array
-static void init_builders(hf_config_t* config) {
+static void init_builders(const hf_config_t* config) {
     if (!config) return;
     config->builder_capacity = 16;
     config->builder_count = 0;
@@ -326,7 +326,7 @@ static void init_builders(hf_config_t* config) {
 }
 
 // Free builders array
-static void free_builders(hf_config_t* config) {
+static void free_builders(const hf_config_t* config) {
     if (!config || !config->builders) return;
 
     for (size_t i = 0; i < config->builder_count; i++) {
@@ -347,7 +347,7 @@ static void free_builders(hf_config_t* config) {
 }
 
 // Find or create a layer builder by base name
-static hf_layer_builder_t* find_or_create_builder(hf_config_t* config, const char* base_name, const char* layer_type) {
+static hf_layer_builder_t* find_or_create_builder(const hf_config_t* config, const char* base_name, const char* layer_type) {
     if (!config || !base_name || !layer_type) return NULL;
 
     // First, try to find existing builder
@@ -436,7 +436,7 @@ static bool set_builder_bias(hf_layer_builder_t* builder, boat_tensor_t* bias) {
 }
 
 // Complete builder and create actual layer
-static boat_layer_t* complete_builder(hf_layer_builder_t* builder, hf_config_t* config) {
+static boat_layer_t* complete_builder(hf_layer_builder_t* builder, const hf_config_t* config) {
     if (!builder || !builder->has_weight) return NULL;
 
     // Handle different layer types
@@ -558,7 +558,7 @@ static boat_layer_t* complete_builder(hf_layer_builder_t* builder, hf_config_t* 
 }
 
 // Free configuration
-static void free_config(hf_config_t* config) {
+static void free_config(const hf_config_t* config) {
     if (!config) return;
     free(config->model_type);
     free_builders(config);
@@ -677,7 +677,7 @@ static bool is_safetensors_format(const uint8_t* data, size_t size) {
 }
 
 // Load safetensors format weights
-static bool load_safetensors(const void* data, size_t size, hf_config_t* config, boat_model_t* model) {
+static bool load_safetensors(const void* data, size_t size, const hf_config_t* config, const boat_model_t* model) {
     if (!data || size == 0 || !model) return false;
 
     const uint8_t* file_data = (const uint8_t*)data;
@@ -853,7 +853,7 @@ static bool load_safetensors(const void* data, size_t size, hf_config_t* config,
 }
 
 // Load PyTorch .bin format weights (state_dict)
-static bool load_pytorch_bin(const void* data, size_t size, hf_config_t* config, boat_model_t* model) {
+static bool load_pytorch_bin(const void* data, size_t size, const hf_config_t* config, const boat_model_t* model) {
     // TODO: Implement PyTorch .bin parsing
     // This is more complex due to Pickle format
     // Consider requiring safetensors instead
@@ -893,7 +893,7 @@ static void free_layer_wrapper(hf_layer_wrapper_t* wrapper) {
 }
 
 // Create layers based on configuration
-static boat_layer_t* create_layer_from_config(hf_config_t* config, const char* layer_name, boat_tensor_t* weight) {
+static boat_layer_t* create_layer_from_config(const hf_config_t* config, const char* layer_name, boat_tensor_t* weight) {
     if (!config || !layer_name || !weight) return NULL;
 
     // Get tensor properties for logging

@@ -6,25 +6,25 @@
 #include <stdlib.h>
 
 // Layer operations for dense layer wrapper
-static boat_tensor_t* dense_layer_wrapper_forward(boat_layer_t* layer, const boat_tensor_t* input) {
+static boat_tensor_t* dense_layer_wrapper_forward(const boat_layer_t* layer, const boat_tensor_t* input) {
     if (!layer || !layer->data || !input) return NULL;
     boat_dense_layer_t* dense_layer = (boat_dense_layer_t*)layer->data;
     return boat_dense_layer_forward(dense_layer, input);
 }
 
-static boat_tensor_t* dense_layer_wrapper_backward(boat_layer_t* layer, const boat_tensor_t* grad_output) {
+static boat_tensor_t* dense_layer_wrapper_backward(const boat_layer_t* layer, const boat_tensor_t* grad_output) {
     if (!layer || !layer->data || !grad_output) return NULL;
     boat_dense_layer_t* dense_layer = (boat_dense_layer_t*)layer->data;
     return boat_dense_layer_backward(dense_layer, grad_output);
 }
 
-static void dense_layer_wrapper_update(boat_layer_t* layer, float learning_rate) {
+static void dense_layer_wrapper_update(const boat_layer_t* layer, float learning_rate) {
     if (!layer || !layer->data) return;
     boat_dense_layer_t* dense_layer = (boat_dense_layer_t*)layer->data;
     boat_dense_layer_update(dense_layer, learning_rate);
 }
 
-static void dense_layer_wrapper_free(boat_layer_t* layer) {
+static void dense_layer_wrapper_free(const boat_layer_t* layer) {
     if (!layer || !layer->data) return;
 
     boat_dense_layer_t* dense_layer = (boat_dense_layer_t*)layer->data;
@@ -42,25 +42,25 @@ static const boat_layer_ops_t dense_layer_ops = {
 };
 
 // Layer operations for normalization layer wrapper
-static boat_tensor_t* norm_layer_wrapper_forward(boat_layer_t* layer, const boat_tensor_t* input) {
+static boat_tensor_t* norm_layer_wrapper_forward(const boat_layer_t* layer, const boat_tensor_t* input) {
     if (!layer || !layer->data || !input) return NULL;
     boat_norm_layer_t* norm_layer = (boat_norm_layer_t*)layer->data;
     return boat_norm_layer_forward(norm_layer, input);
 }
 
-static boat_tensor_t* norm_layer_wrapper_backward(boat_layer_t* layer, const boat_tensor_t* grad_output) {
+static boat_tensor_t* norm_layer_wrapper_backward(const boat_layer_t* layer, const boat_tensor_t* grad_output) {
     if (!layer || !layer->data || !grad_output) return NULL;
     boat_norm_layer_t* norm_layer = (boat_norm_layer_t*)layer->data;
     return boat_norm_layer_backward(norm_layer, grad_output);
 }
 
-static void norm_layer_wrapper_update(boat_layer_t* layer, float learning_rate) {
+static void norm_layer_wrapper_update(const boat_layer_t* layer, float learning_rate) {
     if (!layer || !layer->data) return;
     boat_norm_layer_t* norm_layer = (boat_norm_layer_t*)layer->data;
     boat_norm_layer_update(norm_layer, learning_rate);
 }
 
-static void norm_layer_wrapper_free(boat_layer_t* layer) {
+static void norm_layer_wrapper_free(const boat_layer_t* layer) {
     if (!layer || !layer->data) return;
 
     boat_norm_layer_t* norm_layer = (boat_norm_layer_t*)layer->data;

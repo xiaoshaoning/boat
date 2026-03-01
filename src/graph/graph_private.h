@@ -8,9 +8,9 @@
 #include <boat/memory.h>
 
 // Node reference counting (implemented in node.c)
-void boat_node_ref(boat_node_t* node);
-void boat_node_unref(boat_node_t* node);
-void boat_node_free(boat_node_t* node);
+void boat_node_ref(const boat_node_t* node);
+void boat_node_unref(const boat_node_t* node);
+void boat_node_free(const boat_node_t* node);
 
 // Graph structure definition (must match node.c)
 struct boat_graph_t {
@@ -49,19 +49,19 @@ typedef struct boat_edge_list_t {
 // Edge list operations (implemented in edge.c)
 boat_edge_list_t* boat_edge_list_create();
 void boat_edge_list_free(boat_edge_list_t* list);
-bool boat_edge_list_add(boat_edge_list_t* list, struct boat_edge_t* edge);
-bool boat_edge_list_remove(boat_edge_list_t* list, struct boat_edge_t* edge);
-bool boat_edge_list_contains(const boat_edge_list_t* list, struct boat_edge_t* edge);
+bool boat_edge_list_add(boat_edge_list_t* list, const struct boat_edge_t* edge);
+bool boat_edge_list_remove(boat_edge_list_t* list, const struct boat_edge_t* edge);
+bool boat_edge_list_contains(const boat_edge_list_t* list, const struct boat_edge_t* edge);
 size_t boat_edge_list_count(const boat_edge_list_t* list);
 struct boat_edge_t* boat_edge_list_get(const boat_edge_list_t* list, size_t index);
 
 // Edge creation (implemented in edge.c)
-struct boat_edge_t* boat_edge_create(boat_node_t* from, boat_node_t* to,
+struct boat_edge_t* boat_edge_create(const boat_node_t* from, const boat_node_t* to,
                                      boat_edge_direction_t direction);
-void boat_edge_free(struct boat_edge_t* edge);
+void boat_edge_free(const struct boat_edge_t* edge);
 
 // Graph capacity helpers (implemented in graph.c)
-bool ensure_node_capacity(boat_graph_t* graph, size_t needed_capacity);
-bool ensure_edge_capacity(boat_graph_t* graph, size_t needed_capacity);
+bool ensure_node_capacity(const boat_graph_t* graph, size_t needed_capacity);
+bool ensure_edge_capacity(const boat_graph_t* graph, size_t needed_capacity);
 
 #endif // BOAT_GRAPH_PRIVATE_H

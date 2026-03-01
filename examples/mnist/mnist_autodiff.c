@@ -86,7 +86,7 @@ static variable_pool_t* create_variable_pool() {
 }
 
 // Free variable pool
-static void free_variable_pool(variable_pool_t* pool) {
+static void free_variable_pool(const variable_pool_t* pool) {
     if (!pool) return;
 
     if (pool->input_var) boat_variable_free(pool->input_var);
@@ -98,7 +98,7 @@ static void free_variable_pool(variable_pool_t* pool) {
 }
 
 // Reset variable data if variable exists, otherwise create new variable
-static boat_variable_t* get_or_reset_variable(variable_pool_t* pool, boat_variable_t** var_ptr,
+static boat_variable_t* get_or_reset_variable(const variable_pool_t* pool, boat_variable_t** var_ptr,
                                               boat_tensor_t* tensor, bool requires_grad) {
     if (!pool || !var_ptr || !tensor) return NULL;
 
@@ -384,7 +384,7 @@ static boat_variable_t* tensor_to_variable(boat_tensor_t* tensor, bool requires_
 // predictions: variable with shape (batch, 10), logits (before softmax)
 // labels: tensor with shape (batch) containing class indices (0-9)
 // Returns loss variable
-static boat_variable_t* cross_entropy_loss(boat_variable_t* predictions, boat_tensor_t* labels) {
+static boat_variable_t* cross_entropy_loss(const boat_variable_t* predictions, boat_tensor_t* labels) {
     fprintf(stderr, "DEBUG cross_entropy_loss: entered\n");
     // Get prediction tensor
     boat_tensor_t* pred_tensor = boat_variable_data(predictions);
@@ -729,7 +729,7 @@ boat_tensor_t* forward_pass_layer(mnist_model_t* model, boat_tensor_t* input) {
     return x;
 }
 
-boat_variable_t* forward_pass(mnist_model_t* model, boat_variable_t* input) {
+boat_variable_t* forward_pass(mnist_model_t* model, const boat_variable_t* input) {
     fprintf(stderr, "DEBUG forward_pass: entered, input=%p\n", (void*)input);
 
     // Autodiff forward pass using variable operations
@@ -1023,7 +1023,7 @@ static boat_variable_t* get_reusable_target_variable(mnist_model_t* model, boat_
 }
 
 // Compute accuracy
-float compute_accuracy(boat_variable_t* predictions, boat_tensor_t* labels) {
+float compute_accuracy(const boat_variable_t* predictions, boat_tensor_t* labels) {
     boat_tensor_t* pred_tensor = boat_variable_data(predictions);
     const float* pred_data = (const float*)boat_tensor_const_data(pred_tensor);
     const uint8_t* label_data = (const uint8_t*)boat_tensor_const_data(labels);
@@ -2028,7 +2028,7 @@ static bool recreate_optimizer_with_new_betas(mnist_model_t* model, float new_be
 
 // Apply auto-tuning decisions to the model
 static void apply_auto_tuning_decisions(mnist_model_t* model,
-                                       auto_tuning_decision_t* decision,
+                                       const auto_tuning_decision_t* decision,
                                        float* current_lr,
                                        float* current_clip_threshold,
                                        size_t* batch_size,

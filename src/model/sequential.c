@@ -43,7 +43,7 @@ boat_sequential_model_t* boat_sequential_create() {
 }
 
 // Add layer to sequential model
-void boat_sequential_add(boat_sequential_model_t* model, boat_layer_t* layer) {
+void boat_sequential_add(boat_sequential_model_t* model, const boat_layer_t* layer) {
     if (!model || !layer) {
         return;
     }

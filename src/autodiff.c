@@ -104,7 +104,7 @@ static boat_tensor_t* compute_forward_flatten(boat_tensor_t* input);
 static void compute_backward_flatten(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
 static boat_tensor_t* compute_forward_dense(boat_tensor_t* input, void* layer_ptr);
 static void compute_backward_dense(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
-static boat_variable_t* create_attention_operation(boat_variable_t* query, boat_variable_t* key, boat_variable_t* value, struct boat_attention_t* attention, const boat_tensor_t* attention_mask);
+static boat_variable_t* create_attention_operation(const boat_variable_t* query, const boat_variable_t* key, const boat_variable_t* value, const struct boat_attention_t* attention, const boat_tensor_t* attention_mask);
 static void compute_backward_attention(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
 static void compute_backward_add(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
 static void compute_backward_sub(boat_op_node_data_t* op_data, boat_tensor_t* grad_output);
@@ -122,7 +122,7 @@ static void compute_backward_log_softmax(boat_op_node_data_t* op_data, boat_tens
 static boat_op_node_data_t* create_op_node_data(boat_op_type_t op_type,
                                                 boat_variable_t** inputs,
                                                 size_t num_inputs,
-                                                boat_variable_t* output);
+                                                const boat_variable_t* output);
 static void free_op_node_data(void* data);
 static void free_variable_data(void* data);
 static boat_variable_t* create_operation(boat_op_type_t op_type,
@@ -130,9 +130,9 @@ static boat_variable_t* create_operation(boat_op_type_t op_type,
                                          size_t num_inputs,
                                          boat_tensor_t* (*forward_fn)(boat_tensor_t*, boat_tensor_t*),
                                          boat_tensor_t* (*forward_single_fn)(boat_tensor_t*));
-static boat_variable_t* create_conv_operation(boat_variable_t* input, struct boat_conv_layer_t* layer);
-static boat_variable_t* create_pool_operation(boat_variable_t* input, struct boat_pool_layer_t* layer);
-static boat_variable_t* create_dense_operation(boat_variable_t* input, struct boat_dense_layer_t* layer);
+static boat_variable_t* create_conv_operation(const boat_variable_t* input, const struct boat_conv_layer_t* layer);
+static boat_variable_t* create_pool_operation(const boat_variable_t* input, const struct boat_pool_layer_t* layer);
+static boat_variable_t* create_dense_operation(const boat_variable_t* input, const struct boat_dense_layer_t* layer);
 
 // Variable creation and destruction
 BOAT_API boat_variable_t* boat_variable_create(boat_tensor_t* tensor, bool requires_grad) {
@@ -215,7 +215,7 @@ boat_variable_t* boat_variable_create_with_shape(const int64_t* shape, size_t nd
     return boat_variable_create(tensor, requires_grad);
 }
 
-BOAT_API void boat_variable_free(boat_variable_t* variable) {
+BOAT_API void boat_variable_free(const boat_variable_t* variable) {
     if (!variable) return;
 
     // Free gradient tensor if exists
@@ -245,13 +245,13 @@ bool boat_variable_requires_grad(const boat_variable_t* variable) {
     return variable ? variable->requires_grad : false;
 }
 
-void boat_variable_set_requires_grad(boat_variable_t* variable, bool requires_grad) {
+void boat_variable_set_requires_grad(const boat_variable_t* variable, bool requires_grad) {
     if (!variable) return;
     variable->requires_grad = requires_grad;
 }
 
 // Variable data reset/reuse
-BOAT_API bool boat_variable_reset_data(boat_variable_t* variable, boat_tensor_t* new_tensor) {
+BOAT_API bool boat_variable_reset_data(const boat_variable_t* variable, boat_tensor_t* new_tensor) {
     if (!variable || !new_tensor) {
         return false;
     }
@@ -282,7 +282,7 @@ BOAT_API bool boat_variable_reset_data(boat_variable_t* variable, boat_tensor_t*
 }
 
 // Gradient operations
-void boat_variable_zero_grad(boat_variable_t* variable) {
+void boat_variable_zero_grad(const boat_variable_t* variable) {
     if (!variable) return;
 
     if (variable->grad) {
@@ -291,12 +291,12 @@ void boat_variable_zero_grad(boat_variable_t* variable) {
     }
 }
 
-void boat_variable_retain_grad(boat_variable_t* variable, bool retain) {
+void boat_variable_retain_grad(const boat_variable_t* variable, bool retain) {
     if (!variable) return;
     // TODO: implement gradient retention
 }
 
-void boat_variable_backward(boat_variable_t* variable, boat_tensor_t* grad_output) {
+void boat_variable_backward(const boat_variable_t* variable, boat_tensor_t* grad_output) {
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
     if (variable) {
@@ -454,7 +454,7 @@ void boat_variable_backward(boat_variable_t* variable, boat_tensor_t* grad_outpu
     }
 }
 
-BOAT_API void boat_variable_backward_full(boat_variable_t* variable) {
+BOAT_API void boat_variable_backward_full(const boat_variable_t* variable) {
     if (!variable || !variable->requires_grad) return;
 
     // For now, just call backward with NULL gradient (scalar loss)
@@ -463,42 +463,42 @@ BOAT_API void boat_variable_backward_full(boat_variable_t* variable) {
 }
 
 // Arithmetic operations with gradient tracking
-BOAT_API boat_variable_t* boat_var_add(boat_variable_t* a, boat_variable_t* b) {
+BOAT_API boat_variable_t* boat_var_add(const boat_variable_t* a, const boat_variable_t* b) {
     if (!a || !b) return NULL;
 
     boat_variable_t* inputs[] = {a, b};
     return create_operation(BOAT_OP_ADD, inputs, 2, compute_forward_add, NULL);
 }
 
-BOAT_API boat_variable_t* boat_var_sub(boat_variable_t* a, boat_variable_t* b) {
+BOAT_API boat_variable_t* boat_var_sub(const boat_variable_t* a, const boat_variable_t* b) {
     if (!a || !b) return NULL;
 
     boat_variable_t* inputs[] = {a, b};
     return create_operation(BOAT_OP_SUB, inputs, 2, compute_forward_sub, NULL);
 }
 
-BOAT_API boat_variable_t* boat_var_mul(boat_variable_t* a, boat_variable_t* b) {
+BOAT_API boat_variable_t* boat_var_mul(const boat_variable_t* a, const boat_variable_t* b) {
     if (!a || !b) return NULL;
 
     boat_variable_t* inputs[] = {a, b};
     return create_operation(BOAT_OP_MUL, inputs, 2, compute_forward_mul, NULL);
 }
 
-BOAT_API boat_variable_t* boat_var_div(boat_variable_t* a, boat_variable_t* b) {
+BOAT_API boat_variable_t* boat_var_div(const boat_variable_t* a, const boat_variable_t* b) {
     if (!a || !b) return NULL;
 
     boat_variable_t* inputs[] = {a, b};
     return create_operation(BOAT_OP_DIV, inputs, 2, compute_forward_div, NULL);
 }
 
-BOAT_API boat_variable_t* boat_var_matmul(boat_variable_t* a, boat_variable_t* b) {
+BOAT_API boat_variable_t* boat_var_matmul(const boat_variable_t* a, const boat_variable_t* b) {
     if (!a || !b) return NULL;
 
     boat_variable_t* inputs[] = {a, b};
     return create_operation(BOAT_OP_MATMUL, inputs, 2, compute_forward_matmul, NULL);
 }
 
-BOAT_API boat_variable_t* boat_var_dot(boat_variable_t* a, boat_variable_t* b) {
+BOAT_API boat_variable_t* boat_var_dot(const boat_variable_t* a, const boat_variable_t* b) {
     if (!a || !b) return NULL;
 
     boat_variable_t* inputs[] = {a, b};
@@ -506,41 +506,41 @@ BOAT_API boat_variable_t* boat_var_dot(boat_variable_t* a, boat_variable_t* b) {
 }
 
 // Activation functions with gradient tracking
-BOAT_API boat_variable_t* boat_var_relu(boat_variable_t* a) {
+BOAT_API boat_variable_t* boat_var_relu(const boat_variable_t* a) {
     if (!a) return NULL;
 
     boat_variable_t* inputs[] = {a};
     return create_operation(BOAT_OP_RELU, inputs, 1, NULL, compute_forward_relu);
 }
 
-boat_variable_t* boat_var_sigmoid(boat_variable_t* a) {
+boat_variable_t* boat_var_sigmoid(const boat_variable_t* a) {
     if (!a) return NULL;
 
     boat_variable_t* inputs[] = {a};
     return create_operation(BOAT_OP_SIGMOID, inputs, 1, NULL, compute_forward_sigmoid);
 }
 
-boat_variable_t* boat_var_tanh(boat_variable_t* a) {
+boat_variable_t* boat_var_tanh(const boat_variable_t* a) {
     if (!a) return NULL;
 
     boat_variable_t* inputs[] = {a};
     return create_operation(BOAT_OP_TANH, inputs, 1, NULL, compute_forward_tanh);
 }
 
-boat_variable_t* boat_var_softmax(boat_variable_t* a, int axis) {
+boat_variable_t* boat_var_softmax(const boat_variable_t* a, int axis) {
     if (!a) return NULL;
     (void)axis; // TODO: support axis parameter
     boat_variable_t* inputs[] = {a};
     return create_operation(BOAT_OP_SOFTMAX, inputs, 1, NULL, compute_forward_softmax);
 }
 
-BOAT_API boat_variable_t* boat_var_flatten(boat_variable_t* a) {
+BOAT_API boat_variable_t* boat_var_flatten(const boat_variable_t* a) {
     if (!a) return NULL;
     boat_variable_t* inputs[] = {a};
     return create_operation(BOAT_OP_FLATTEN, inputs, 1, NULL, compute_forward_flatten);
 }
 
-BOAT_API boat_variable_t* boat_var_log_softmax(boat_variable_t* a, int axis) {
+BOAT_API boat_variable_t* boat_var_log_softmax(const boat_variable_t* a, int axis) {
     if (!a) return NULL;
     (void)axis; // TODO: support axis parameter
     boat_variable_t* inputs[] = {a};
@@ -548,31 +548,31 @@ BOAT_API boat_variable_t* boat_var_log_softmax(boat_variable_t* a, int axis) {
 }
 
 // Convolution operation with gradient tracking
-BOAT_API boat_variable_t* boat_var_conv(boat_variable_t* input, struct boat_conv_layer_t* layer) {
+BOAT_API boat_variable_t* boat_var_conv(const boat_variable_t* input, const struct boat_conv_layer_t* layer) {
     if (!input || !layer) return NULL;
     return create_conv_operation(input, layer);
 }
 
 // Pooling operation with gradient tracking
-BOAT_API boat_variable_t* boat_var_pool(boat_variable_t* input, struct boat_pool_layer_t* layer) {
+BOAT_API boat_variable_t* boat_var_pool(const boat_variable_t* input, const struct boat_pool_layer_t* layer) {
     if (!input || !layer) return NULL;
     return create_pool_operation(input, layer);
 }
 
 // Dense operation with gradient tracking
-BOAT_API boat_variable_t* boat_var_dense(boat_variable_t* input, struct boat_dense_layer_t* layer) {
+BOAT_API boat_variable_t* boat_var_dense(const boat_variable_t* input, const struct boat_dense_layer_t* layer) {
     if (!input || !layer) return NULL;
     return create_dense_operation(input, layer);
 }
 
 // Attention operation with gradient tracking
-boat_variable_t* boat_var_attention(boat_variable_t* query, boat_variable_t* key, boat_variable_t* value, struct boat_attention_t* attention, const boat_tensor_t* attention_mask) {
+boat_variable_t* boat_var_attention(const boat_variable_t* query, const boat_variable_t* key, const boat_variable_t* value, const struct boat_attention_t* attention, const boat_tensor_t* attention_mask) {
     if (!query || !key || !value || !attention) return NULL;
     return create_attention_operation(query, key, value, attention, attention_mask);
 }
 
 // Reduction operations with gradient tracking
-BOAT_API boat_variable_t* boat_var_sum(boat_variable_t* a, int64_t* dims, size_t n_dims, bool keepdim) {
+BOAT_API boat_variable_t* boat_var_sum(const boat_variable_t* a, const int64_t* dims, size_t n_dims, bool keepdim) {
     if (!a) return NULL;
 
     // For now, only support full reduction (dims == NULL, n_dims == 0)
@@ -587,17 +587,17 @@ BOAT_API boat_variable_t* boat_var_sum(boat_variable_t* a, int64_t* dims, size_t
     return create_operation(BOAT_OP_SUM, inputs, 1, NULL, compute_forward_sum_single);
 }
 
-boat_variable_t* boat_var_mean(boat_variable_t* a, int64_t* dims, size_t n_dims, bool keepdim) {
+boat_variable_t* boat_var_mean(const boat_variable_t* a, int64_t* dims, size_t n_dims, bool keepdim) {
     (void)a; (void)dims; (void)n_dims; (void)keepdim;
     return NULL;
 }
 
-boat_variable_t* boat_var_max(boat_variable_t* a, int64_t* dims, size_t n_dims, bool keepdim) {
+boat_variable_t* boat_var_max(const boat_variable_t* a, int64_t* dims, size_t n_dims, bool keepdim) {
     (void)a; (void)dims; (void)n_dims; (void)keepdim;
     return NULL;
 }
 
-boat_variable_t* boat_var_min(boat_variable_t* a, int64_t* dims, size_t n_dims, bool keepdim) {
+boat_variable_t* boat_var_min(const boat_variable_t* a, int64_t* dims, size_t n_dims, bool keepdim) {
     (void)a; (void)dims; (void)n_dims; (void)keepdim;
     return NULL;
 }
@@ -612,26 +612,26 @@ boat_autodiff_context_t* boat_autodiff_context_create() {
     return ctx;
 }
 
-void boat_autodiff_context_free(boat_autodiff_context_t* context) {
+void boat_autodiff_context_free(const boat_autodiff_context_t* context) {
     if (!context) return;
     boat_free(context);
 }
 
-void boat_autodiff_context_enable_grad(boat_autodiff_context_t* context) {
+void boat_autodiff_context_enable_grad(const boat_autodiff_context_t* context) {
     if (!context) return;
     context->grad_enabled = true;
 }
 
-void boat_autodiff_context_disable_grad(boat_autodiff_context_t* context) {
+void boat_autodiff_context_disable_grad(const boat_autodiff_context_t* context) {
     if (!context) return;
     context->grad_enabled = false;
 }
 
-bool boat_autodiff_context_grad_enabled(boat_autodiff_context_t* context) {
+bool boat_autodiff_context_grad_enabled(const boat_autodiff_context_t* context) {
     return context ? context->grad_enabled : false;
 }
 
-void boat_autodiff_context_set_graph(boat_autodiff_context_t* context, boat_graph_t* graph) {
+void boat_autodiff_context_set_graph(const boat_autodiff_context_t* context, const boat_graph_t* graph) {
     if (!context) return;
     context->graph = graph;
 }
@@ -640,7 +640,7 @@ boat_graph_t* boat_autodiff_context_get_graph(const boat_autodiff_context_t* con
     return context ? context->graph : NULL;
 }
 
-void boat_autodiff_set_current_context(boat_autodiff_context_t* context) {
+void boat_autodiff_set_current_context(const boat_autodiff_context_t* context) {
     current_context = context;
 }
 
@@ -739,7 +739,7 @@ char* boat_autodiff_graph_to_dot(const boat_variable_t* variable) {
 static boat_op_node_data_t* create_op_node_data(boat_op_type_t op_type,
                                                 boat_variable_t** inputs,
                                                 size_t num_inputs,
-                                                boat_variable_t* output) {
+                                                const boat_variable_t* output) {
     boat_op_node_data_t* op_data = boat_malloc(sizeof(boat_op_node_data_t), BOAT_DEVICE_CPU);
     if (!op_data) return NULL;
 
@@ -2148,7 +2148,7 @@ static boat_variable_t* create_operation(boat_op_type_t op_type,
 
     return output_var;
 }
-static boat_variable_t* create_conv_operation(boat_variable_t* input, struct boat_conv_layer_t* layer) {
+static boat_variable_t* create_conv_operation(const boat_variable_t* input, const struct boat_conv_layer_t* layer) {
     if (!input || !layer) return NULL;
 
     // Check if input requires gradient
@@ -2214,7 +2214,7 @@ static boat_variable_t* create_conv_operation(boat_variable_t* input, struct boa
     return output_var;
 }
 
-static boat_variable_t* create_pool_operation(boat_variable_t* input, struct boat_pool_layer_t* layer) {
+static boat_variable_t* create_pool_operation(const boat_variable_t* input, const struct boat_pool_layer_t* layer) {
     if (!input || !layer) return NULL;
 
     // Check if input requires gradient
@@ -2280,7 +2280,7 @@ static boat_variable_t* create_pool_operation(boat_variable_t* input, struct boa
     return output_var;
 }
 
-static boat_variable_t* create_dense_operation(boat_variable_t* input, struct boat_dense_layer_t* layer) {
+static boat_variable_t* create_dense_operation(const boat_variable_t* input, const struct boat_dense_layer_t* layer) {
     if (!input || !layer) return NULL;
 
     // Check if input requires gradient
@@ -2385,7 +2385,7 @@ static void compute_backward_conv(boat_op_node_data_t* op_data, boat_tensor_t* g
 }
 
 // Attention operation with gradient tracking
-static boat_variable_t* create_attention_operation(boat_variable_t* query, boat_variable_t* key, boat_variable_t* value, struct boat_attention_t* attention, const boat_tensor_t* attention_mask) {
+static boat_variable_t* create_attention_operation(const boat_variable_t* query, const boat_variable_t* key, const boat_variable_t* value, const struct boat_attention_t* attention, const boat_tensor_t* attention_mask) {
     if (!query || !key || !value || !attention) return NULL;
 
     // Check if any input requires gradient

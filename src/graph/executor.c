@@ -29,7 +29,7 @@ boat_graph_t* boat_computation_graph_create() {
     return graph;
 }
 
-void boat_computation_graph_forward(boat_graph_t* graph) {
+void boat_computation_graph_forward(const boat_graph_t* graph) {
     if (!graph) return;
 
     // Topological sort to get execution order
@@ -115,7 +115,7 @@ void boat_computation_graph_forward(boat_graph_t* graph) {
     boat_memory_free(sorted_nodes);
 }
 
-void boat_computation_graph_backward(boat_graph_t* graph) {
+void boat_computation_graph_backward(const boat_graph_t* graph) {
     if (!graph) return;
 
     // Reverse topological order
@@ -257,7 +257,7 @@ void boat_computation_graph_backward(boat_graph_t* graph) {
     boat_memory_free(sorted_nodes);
 }
 
-void boat_computation_graph_clear_gradients(boat_graph_t* graph) {
+void boat_computation_graph_clear_gradients(const boat_graph_t* graph) {
     if (!graph) return;
 
     size_t node_count = boat_graph_node_count(graph);
@@ -277,7 +277,7 @@ void boat_computation_graph_clear_gradients(boat_graph_t* graph) {
 }
 
 // Helper function to add operation node with forward/backward functions
-boat_node_t* boat_computation_graph_add_operation(boat_graph_t* graph,
+boat_node_t* boat_computation_graph_add_operation(const boat_graph_t* graph,
                                                   boat_forward_fn_t forward_fn,
                                                   boat_backward_fn_t backward_fn,
                                                   void* user_data) {
@@ -302,7 +302,7 @@ boat_node_t* boat_computation_graph_add_operation(boat_graph_t* graph,
 }
 
 // Helper function to add variable node with initial tensor
-boat_node_t* boat_computation_graph_add_variable(boat_graph_t* graph,
+boat_node_t* boat_computation_graph_add_variable(const boat_graph_t* graph,
                                                  boat_tensor_t* tensor) {
     if (!graph || !tensor) return NULL;
 

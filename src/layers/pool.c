@@ -50,7 +50,7 @@ BOAT_API boat_pool_layer_t* BOAT_CALL boat_pool_layer_create(size_t pool_size, s
     return layer;
 }
 
-BOAT_API void BOAT_CALL boat_pool_layer_free(boat_pool_layer_t* layer) {
+BOAT_API void BOAT_CALL boat_pool_layer_free(const boat_pool_layer_t* layer) {
     if (!layer) {
         return;
     }
@@ -63,7 +63,7 @@ BOAT_API void BOAT_CALL boat_pool_layer_free(boat_pool_layer_t* layer) {
     boat_free(layer);
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_forward(boat_pool_layer_t* layer, const boat_tensor_t* input) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_forward(const boat_pool_layer_t* layer, const boat_tensor_t* input) {
     if (!layer || !input) {
         return NULL;
     }
@@ -170,7 +170,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_forward(boat_pool_layer_t* lay
     return output;
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_backward(boat_pool_layer_t* layer, const boat_tensor_t* grad_output) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_backward(const boat_pool_layer_t* layer, const boat_tensor_t* grad_output) {
     if (!layer || !grad_output || !layer->cache_input || !layer->max_indices) {
         return NULL;
     }
@@ -217,7 +217,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_backward(boat_pool_layer_t* la
     return grad_input;
 }
 
-BOAT_API void BOAT_CALL boat_pool_layer_update(boat_pool_layer_t* layer, float learning_rate) {
+BOAT_API void BOAT_CALL boat_pool_layer_update(const boat_pool_layer_t* layer, float learning_rate) {
     (void)layer;
     (void)learning_rate;
     // Pooling layers have no parameters to update
