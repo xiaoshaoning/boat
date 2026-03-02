@@ -1532,7 +1532,7 @@ bool boat_graph_safe_replace_node(const boat_graph_t* graph, const boat_node_t* 
         const boat_node_t* new_target = (target == old_node) ? new_node : target;
 
         // Create new edge
-        struct boat_edge_t* new_edge = boat_edge_create((boat_node_t*)new_source, (boat_node_t*)new_target, direction);
+        const struct boat_edge_t* new_edge = boat_edge_create(new_source, new_target, direction);
         if (!new_edge) {
             // Cleanup: free old_edges array, but keep changes made so far
             boat_free(old_edges);

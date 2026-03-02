@@ -98,8 +98,8 @@ boat_tensor_t* boat_matmul(const boat_tensor_t* a, const boat_tensor_t* b) {
     // Perform matrix multiplication based on data type
     switch (dtype) {
         case BOAT_DTYPE_FLOAT32: {
-            float* a_ptr = (float*)a_data;
-            float* b_ptr = (float*)b_data;
+            const float* a_ptr = (const float*)a_data;
+            const float* b_ptr = (const float*)b_data;
             float* out_ptr = (float*)out_data;
 
             // Initialize output to zero
@@ -114,8 +114,8 @@ boat_tensor_t* boat_matmul(const boat_tensor_t* a, const boat_tensor_t* b) {
 
             // Naive batch matrix multiplication
             for (int64_t batch = 0; batch < batch_size; batch++) {
-                float* a_batch_ptr = a_ptr + batch * a_batch_stride;
-                float* b_batch_ptr = b_ptr + batch * b_batch_stride;
+                const float* a_batch_ptr = a_ptr + batch * a_batch_stride;
+                const float* b_batch_ptr = b_ptr + batch * b_batch_stride;
                 float* out_batch_ptr = out_ptr + batch * out_batch_stride;
 
                 for (int64_t i = 0; i < m; i++) {
@@ -131,8 +131,8 @@ boat_tensor_t* boat_matmul(const boat_tensor_t* a, const boat_tensor_t* b) {
             break;
         }
         case BOAT_DTYPE_FLOAT64: {
-            double* a_ptr = (double*)a_data;
-            double* b_ptr = (double*)b_data;
+            const double* a_ptr = (const double*)a_data;
+            const double* b_ptr = (const double*)b_data;
             double* out_ptr = (double*)out_data;
 
             size_t out_elements = boat_tensor_nelements(out);
@@ -144,8 +144,8 @@ boat_tensor_t* boat_matmul(const boat_tensor_t* a, const boat_tensor_t* b) {
             size_t out_batch_stride = has_batch ? (m * n) : 0;
 
             for (int64_t batch = 0; batch < batch_size; batch++) {
-                double* a_batch_ptr = a_ptr + batch * a_batch_stride;
-                double* b_batch_ptr = b_ptr + batch * b_batch_stride;
+                const double* a_batch_ptr = a_ptr + batch * a_batch_stride;
+                const double* b_batch_ptr = b_ptr + batch * b_batch_stride;
                 double* out_batch_ptr = out_ptr + batch * out_batch_stride;
 
                 for (int64_t i = 0; i < m; i++) {
@@ -205,8 +205,8 @@ boat_tensor_t* boat_dot(const boat_tensor_t* a, const boat_tensor_t* b) {
 
     switch (dtype) {
         case BOAT_DTYPE_FLOAT32: {
-            float* a_ptr = (float*)a_data;
-            float* b_ptr = (float*)b_data;
+            const float* a_ptr = (const float*)a_data;
+            const float* b_ptr = (const float*)b_data;
             float* out_ptr = (float*)out_data;
             float sum = 0.0f;
             for (int64_t i = 0; i < n; i++) {
@@ -216,8 +216,8 @@ boat_tensor_t* boat_dot(const boat_tensor_t* a, const boat_tensor_t* b) {
             break;
         }
         case BOAT_DTYPE_FLOAT64: {
-            double* a_ptr = (double*)a_data;
-            double* b_ptr = (double*)b_data;
+            const double* a_ptr = (const double*)a_data;
+            const double* b_ptr = (const double*)b_data;
             double* out_ptr = (double*)out_data;
             double sum = 0.0;
             for (int64_t i = 0; i < n; i++) {

@@ -146,7 +146,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_forward(const boat_batc
     // For now, implement a simplified batch normalization
     // In inference mode: output = (input - running_mean) / sqrt(running_var + eps) * weight + bias
     // For testing conversion, we'll just copy input to output
-    float* input_data = (float*)boat_tensor_data(input);
+    const float* input_data = (float*)boat_tensor_data(input);
     float* output_data = (float*)boat_tensor_data(output);
     size_t num_elements = boat_tensor_nelements(input);
 

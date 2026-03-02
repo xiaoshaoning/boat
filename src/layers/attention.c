@@ -1001,8 +1001,8 @@ static boat_tensor_t* scaled_dot_product_attention_impl(const boat_tensor_t* que
             for (int64_t i = 0; i < seq_len; i++) {
                 for (int64_t j = 0; j < seq_len; j++) {
                     float sum = 0.0f;
-                    float* q_row = q_head + i * q_stride_seq;
-                    float* k_row = k_head + j * q_stride_seq;
+                    const float* q_row = q_head + i * q_stride_seq;
+                    const float* k_row = k_head + j * q_stride_seq;
                     for (int64_t d = 0; d < head_size; d++) {
                         sum += q_row[d] * k_row[d];
                     }
@@ -1274,7 +1274,7 @@ static bool linear_projection_backward(const boat_tensor_t* input,
             // grad_output shape: [batch, seq_len, hidden]
             grad_bias_local = boat_tensor_create_like(bias);
             if (grad_bias_local) {
-                float* grad_out_data = (float*)boat_tensor_data(grad_output);
+                const float* grad_out_data = (float*)boat_tensor_data(grad_output);
                 float* grad_bias_data = (float*)boat_tensor_data(grad_bias_local);
                 memset(grad_bias_data, 0, hidden * sizeof(float));
                 // Sum over batch and sequence
@@ -1330,7 +1330,7 @@ static bool linear_projection_backward(const boat_tensor_t* input,
 
             grad_bias_local = boat_tensor_create_like(bias);
             if (grad_bias_local) {
-                float* grad_out_data = (float*)boat_tensor_data(grad_output);
+                const float* grad_out_data = (float*)boat_tensor_data(grad_output);
                 float* grad_bias_data = (float*)boat_tensor_data(grad_bias_local);
                 memset(grad_bias_data, 0, features * sizeof(float));
                 for (int64_t b = 0; b < batch; b++) {
@@ -1367,7 +1367,7 @@ static boat_tensor_t* sum_last_dim_4d(const boat_tensor_t* tensor) {
     const int64_t out_shape[] = {batch, num_heads, seq_len, 1};
     boat_tensor_t* out = boat_tensor_create(out_shape, 4, boat_tensor_dtype(tensor), boat_tensor_device(tensor));
     if (!out) return NULL;
-    float* data = (float*)boat_tensor_data(tensor);
+    const float* data = (float*)boat_tensor_data(tensor);
     float* out_data = (float*)boat_tensor_data(out);
     // For each batch, head, seq_len position, sum over last dimension (seq_len2)
     for (int64_t b = 0; b < batch; b++) {
@@ -1401,7 +1401,7 @@ static bool attention_backward(const boat_tensor_t* query,  // [batch, num_heads
         return false;
     }
     const boat_tensor_t* grad_output_4d = grad_output;
-    boat_tensor_t* grad_output_reshaped = NULL;
+    const boat_tensor_t* grad_output_reshaped = NULL;
     if (boat_tensor_ndim(grad_output) == 3) {
         // Reshape to 4D using query shape
         const int64_t* query_shape = boat_tensor_shape(query);
@@ -1460,11 +1460,10 @@ static bool attention_backward(const boat_tensor_t* query,  // [batch, num_heads
     // Instead, compute softmax gradient directly: dS = A * (dA - sum(dA * A, dim=-1, keepdim=True))
     // Get shapes and data pointers (use existing variables batch, num_heads, seq_len)
     // attention_weights shape: [batch, num_heads, seq_len, seq_len]
-    const int64_t* attn_shape = boat_tensor_shape(attention_weights);
     // batch, num_heads, seq_len already defined above
     // attn_shape[3] should equal seq_len for self-attention
-    float* dA_data = (float*)boat_tensor_data(grad_attn);
-    float* A_data = (float*)boat_tensor_data(attention_weights);
+    const float* dA_data = (float*)boat_tensor_data(grad_attn);
+    const float* A_data = (float*)boat_tensor_data(attention_weights);
     // Create output tensor for gradient scores
     boat_tensor_t* grad_scores = boat_tensor_create_like(attention_weights);
     if (!grad_scores) {
@@ -1494,7 +1493,6 @@ static bool attention_backward(const boat_tensor_t* query,  // [batch, num_heads
     // Now we have grad_scores, can free grad_attn
     boat_tensor_unref(grad_attn);
     // Skip the previous dA_minus_sum step, proceed to scaling
-    boat_tensor_t* dA_minus_sum = NULL; // Not used anymore
     // grad_scores already computed above, skip this step
     // grad_attn already freed above
 

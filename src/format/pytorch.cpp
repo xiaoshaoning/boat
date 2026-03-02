@@ -429,7 +429,7 @@ extern "C" {
                 boat_dtype_t dtype = torch_dtype_to_boat(torch_tensor.scalar_type());
 
                 // Get tensor data
-                void* data = torch_tensor.data_ptr();
+                const void* data = torch_tensor.data_ptr();
                 size_t nbytes = torch_tensor.nbytes();
 
                 // Create Boat tensor
@@ -466,7 +466,7 @@ extern "C" {
                 torch_shape_to_boat(torch_tensor, &shape, &ndim);
 
                 boat_dtype_t dtype = torch_dtype_to_boat(torch_tensor.scalar_type());
-                void* data = torch_tensor.data_ptr();
+                const void* data = torch_tensor.data_ptr();
                 size_t nbytes = torch_tensor.nbytes();
 
                 boat_tensor_t* boat_tensor = boat_tensor_create(shape, ndim, dtype, BOAT_DEVICE_CPU);

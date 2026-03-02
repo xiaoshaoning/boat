@@ -174,7 +174,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_forward(const boat_dense_laye
 
         // Get data pointers
         float* out_data = (float*)boat_tensor_data(output);
-        float* bias_data = (float*)boat_tensor_data(layer->bias);
+        const float* bias_data = (float*)boat_tensor_data(layer->bias);
 
         // Add bias to each row
         for (int64_t i = 0; i < batch; i++) {
