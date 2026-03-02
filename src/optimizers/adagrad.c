@@ -169,9 +169,9 @@ static void adagrad_update_parameter(boat_adagrad_state_t* state, size_t idx) {
         return;
     }
 
-    boat_tensor_t* param = state->params[idx];
-    boat_tensor_t* grad = state->grads[idx];
-    boat_tensor_t* sum_square_grad_tensor = state->sum_square_grad[idx];
+    const boat_tensor_t* param = state->params[idx];
+    const boat_tensor_t* grad = state->grads[idx];
+    const boat_tensor_t* sum_square_grad_tensor = state->sum_square_grad[idx];
 
     if (!param || !grad || !sum_square_grad_tensor) {
         return;
@@ -219,7 +219,7 @@ void adagrad_optimizer_zero_grad(boat_optimizer_t* optimizer) {
     boat_adagrad_state_t* state = (boat_adagrad_state_t*)optimizer;
 
     for (size_t i = 0; i < state->num_params; i++) {
-        boat_tensor_t* grad = state->grads[i];
+        const boat_tensor_t* grad = state->grads[i];
         if (!grad) {
             continue;
         }
