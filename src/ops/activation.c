@@ -53,7 +53,7 @@ BOAT_API boat_tensor_t* boat_softmax(const boat_tensor_t* a, int axis) {
     size_t total_elements = boat_tensor_nelements(a);
     if (total_elements == 0) return out;
 
-    void* a_data = boat_tensor_data(a);
+    const void* a_data = boat_tensor_data(a);
     void* out_data = boat_tensor_data(out);
 
     switch (dtype) {
@@ -164,7 +164,7 @@ boat_tensor_t* boat_log_softmax(const boat_tensor_t* a, int axis) {
     size_t total_elements = boat_tensor_nelements(a);
     if (total_elements == 0) return out;
 
-    void* a_data = boat_tensor_data(a);
+    const void* a_data = boat_tensor_data(a);
     void* out_data = boat_tensor_data(out);
 
     switch (dtype) {
@@ -259,7 +259,7 @@ BOAT_API boat_tensor_t* boat_relu(const boat_tensor_t* a) {
     // Get tensor information
     boat_dtype_t dtype = boat_tensor_dtype(a);
     size_t total_elements = boat_tensor_nelements(a);
-    void* a_data = boat_tensor_data(a);
+    const void* a_data = boat_tensor_data(a);
     void* out_data = boat_tensor_data(out);
 
 

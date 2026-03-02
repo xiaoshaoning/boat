@@ -91,8 +91,8 @@ boat_tensor_t* boat_matmul(const boat_tensor_t* a, const boat_tensor_t* b) {
     if (!out) return NULL;
 
     // Get data pointers
-    void* a_data = boat_tensor_data(a);
-    void* b_data = boat_tensor_data(b);
+    const void* a_data = boat_tensor_data(a);
+    const void* b_data = boat_tensor_data(b);
     void* out_data = boat_tensor_data(out);
 
     // Perform matrix multiplication based on data type
@@ -199,8 +199,8 @@ boat_tensor_t* boat_dot(const boat_tensor_t* a, const boat_tensor_t* b) {
     boat_tensor_t* out = boat_tensor_create(out_shape, 1, dtype, boat_tensor_device(a));
     if (!out) return NULL;
 
-    void* a_data = boat_tensor_data(a);
-    void* b_data = boat_tensor_data(b);
+    const void* a_data = boat_tensor_data(a);
+    const void* b_data = boat_tensor_data(b);
     void* out_data = boat_tensor_data(out);
 
     switch (dtype) {
