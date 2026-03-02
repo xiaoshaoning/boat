@@ -105,7 +105,7 @@ void adagrad_optimizer_set_learning_rate(boat_optimizer_t* optimizer, float lear
 // Implemented in adam.c, sgd.c, and rmsprop.c
 
 // Helper function to get optimizer type
-static boat_optimizer_type_t get_optimizer_type(boat_optimizer_t* optimizer) {
+static boat_optimizer_type_t get_optimizer_type(const boat_optimizer_t* optimizer) {
     if (!optimizer) {
         return BOAT_OPTIMIZER_SGD; // Default
     }
@@ -200,7 +200,7 @@ BOAT_API void boat_optimizer_free(boat_optimizer_t* optimizer) {
 BOAT_API float boat_optimizer_get_learning_rate(const boat_optimizer_t* optimizer) {
     if (!optimizer) return 0.0f;
 
-    switch (get_optimizer_type((boat_optimizer_t*)optimizer)) {
+    switch (get_optimizer_type(optimizer)) {
         case BOAT_OPTIMIZER_ADAM:
             return adam_optimizer_get_learning_rate(optimizer);
         case BOAT_OPTIMIZER_RMSPROP:

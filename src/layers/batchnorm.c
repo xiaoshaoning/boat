@@ -127,10 +127,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_forward(const boat_batc
         return NULL;
     }
 
-    int64_t batch = input_shape[0];
     int64_t channels = input_shape[1];
-    int64_t height = input_shape[2];
-    int64_t width = input_shape[3];
 
     if ((size_t)channels != layer->num_features) {
         fprintf(stderr, "Error: Input channels %lld don't match layer num_features %zu\n", channels, layer->num_features);
