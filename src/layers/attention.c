@@ -1324,9 +1324,9 @@ static bool linear_projection_backward(const boat_tensor_t* input,
         // Compute grad_bias if bias exists (2D case)
         boat_tensor_t* grad_bias_local = NULL;
         if (bias) {
-            const int64_t* grad_shape = boat_tensor_shape(grad_output);
-            int64_t batch = grad_shape[0];
-            int64_t features = grad_shape[1];
+            const int64_t* grad_shape_local = boat_tensor_shape(grad_output);
+            int64_t batch = grad_shape_local[0];
+            int64_t features = grad_shape_local[1];
 
             grad_bias_local = boat_tensor_create_like(bias);
             if (grad_bias_local) {
