@@ -37,7 +37,7 @@ struct boat_rmsnorm_t {
 
 // Helper function to create weight tensor
 static boat_tensor_t* create_weight_tensor(size_t normalized_shape) {
-    int64_t shape[] = { (int64_t)normalized_shape };
+    const int64_t shape[] = { (int64_t)normalized_shape };
     boat_tensor_t* weight = boat_tensor_create(shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
 
     if (!weight) {
@@ -56,7 +56,7 @@ static boat_tensor_t* create_weight_tensor(size_t normalized_shape) {
 
 // Helper function to create bias tensor
 static boat_tensor_t* create_bias_tensor(size_t normalized_shape) {
-    int64_t shape[] = { (int64_t)normalized_shape };
+    const int64_t shape[] = { (int64_t)normalized_shape };
     boat_tensor_t* bias = boat_tensor_create(shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
 
     if (!bias) {

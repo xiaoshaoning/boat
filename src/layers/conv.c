@@ -205,7 +205,7 @@ static boat_tensor_t* compute_bias_gradient(const boat_conv_layer_t* layer,
     int64_t width_out = output_shape[3];
 
     // Create gradient bias tensor with same shape as bias
-    int64_t bias_shape[] = { (int64_t)layer->out_channels };
+    const int64_t bias_shape[] = { (int64_t)layer->out_channels };
     boat_tensor_t* grad_bias = boat_tensor_create(bias_shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!grad_bias) {
         return NULL;
@@ -252,7 +252,7 @@ BOAT_API boat_conv_layer_t* BOAT_CALL boat_conv_layer_create(size_t in_channels,
     layer->use_bias = true; // Default to using bias
 
     // Create weight tensor: [out_channels, in_channels, kernel_size, kernel_size]
-    int64_t weight_shape[] = { (int64_t)out_channels, (int64_t)in_channels, (int64_t)kernel_size, (int64_t)kernel_size };
+    const int64_t weight_shape[] = { (int64_t)out_channels, (int64_t)in_channels, (int64_t)kernel_size, (int64_t)kernel_size };
     layer->weight = boat_tensor_create(weight_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!layer->weight) {
         boat_free(layer);
@@ -268,7 +268,7 @@ BOAT_API boat_conv_layer_t* BOAT_CALL boat_conv_layer_create(size_t in_channels,
     }
 
     // Create bias tensor: [out_channels]
-    int64_t bias_shape[] = { (int64_t)out_channels };
+    const int64_t bias_shape[] = { (int64_t)out_channels };
     layer->bias = boat_tensor_create(bias_shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!layer->bias) {
         boat_tensor_free(layer->weight);
@@ -401,7 +401,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(const boat_conv_layer_
     layer->cache_output_shape[3] = width_out;
 
     // Create output tensor
-    int64_t output_shape[] = { batch, (int64_t)layer->out_channels, height_out, width_out };
+    const int64_t output_shape[] = { batch, (int64_t)layer->out_channels, height_out, width_out };
     boat_tensor_t* output = boat_tensor_create(output_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!output) {
         return NULL;

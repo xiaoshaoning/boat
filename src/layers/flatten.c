@@ -69,7 +69,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_forward(boat_flatten_layer_
         features *= input_shape[i];
     }
 
-    int64_t output_shape[] = { batch, features };
+    const int64_t output_shape[] = { batch, features };
     return boat_tensor_reshape(input, output_shape, 2);
 }
 

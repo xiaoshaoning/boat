@@ -623,7 +623,7 @@ boat_tensor_t* boat_sum(const boat_tensor_t* a, const int64_t* dims, size_t n_di
 
     // Create output tensor: scalar if keepdim == false, otherwise shape with ones?
     // For simplicity, always return a scalar tensor.
-    int64_t out_shape[] = {1};
+    const int64_t out_shape[] = {1};
     size_t out_ndim = 1;
     if (keepdim) {
         // If keepdim is true, output shape should have same ndim with ones
