@@ -183,9 +183,9 @@ static void rmsprop_update_parameter(boat_rmsprop_state_t* state, size_t idx) {
         return;
     }
 
-    boat_tensor_t* param = state->params[idx];
-    boat_tensor_t* grad = state->grads[idx];
-    boat_tensor_t* square_avg_tensor = state->square_avg[idx];
+    const boat_tensor_t* param = state->params[idx];
+    const boat_tensor_t* grad = state->grads[idx];
+    const boat_tensor_t* square_avg_tensor = state->square_avg[idx];
 
     if (!param || !grad || !square_avg_tensor) {
         return;
@@ -193,7 +193,7 @@ static void rmsprop_update_parameter(boat_rmsprop_state_t* state, size_t idx) {
 
     // Get data pointers
     float* param_data = (float*)boat_tensor_data(param);
-    float* grad_data = (float*)boat_tensor_data(grad);
+    const float* grad_data = (const float*)boat_tensor_data(grad);
     float* square_avg_data = (float*)boat_tensor_data(square_avg_tensor);
 
     size_t num_elements = boat_tensor_nelements(param);
@@ -233,7 +233,7 @@ void rmsprop_optimizer_zero_grad(boat_optimizer_t* optimizer) {
     boat_rmsprop_state_t* state = (boat_rmsprop_state_t*)optimizer;
 
     for (size_t i = 0; i < state->num_params; i++) {
-        boat_tensor_t* grad = state->grads[i];
+        const boat_tensor_t* grad = state->grads[i];
         if (!grad) {
             continue;
         }

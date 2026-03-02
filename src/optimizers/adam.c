@@ -182,10 +182,10 @@ static void adam_update_parameter(boat_adam_state_t* state, size_t idx) {
         return;
     }
 
-    boat_tensor_t* param = state->params[idx];
-    boat_tensor_t* grad = state->grads[idx];
-    boat_tensor_t* m_tensor = state->m[idx];
-    boat_tensor_t* v_tensor = state->v[idx];
+    const boat_tensor_t* param = state->params[idx];
+    const boat_tensor_t* grad = state->grads[idx];
+    const boat_tensor_t* m_tensor = state->m[idx];
+    const boat_tensor_t* v_tensor = state->v[idx];
 
     if (!param || !grad || !m_tensor || !v_tensor) {
         return;
@@ -193,7 +193,7 @@ static void adam_update_parameter(boat_adam_state_t* state, size_t idx) {
 
     // Get data pointers
     float* param_data = (float*)boat_tensor_data(param);
-    float* grad_data = (float*)boat_tensor_data(grad);
+    const float* grad_data = (const float*)boat_tensor_data(grad);
     float* m_data = (float*)boat_tensor_data(m_tensor);
     float* v_data = (float*)boat_tensor_data(v_tensor);
 
@@ -248,7 +248,7 @@ void adam_optimizer_zero_grad(boat_optimizer_t* optimizer) {
     boat_adam_state_t* state = (boat_adam_state_t*)optimizer;
 
     for (size_t i = 0; i < state->num_params; i++) {
-        boat_tensor_t* grad = state->grads[i];
+        const boat_tensor_t* grad = state->grads[i];
         if (!grad) {
             continue;
         }
