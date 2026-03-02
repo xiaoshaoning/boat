@@ -58,7 +58,7 @@ BOAT_API boat_tensor_t* boat_softmax(const boat_tensor_t* a, int axis) {
 
     switch (dtype) {
         case BOAT_DTYPE_FLOAT32: {
-            float* a_ptr = (float*)a_data;
+            const float* a_ptr = (const float*)a_data;
             float* out_ptr = (float*)out_data;
 
             for (size_t outer = 0; outer < outer_elements; outer++) {
@@ -96,7 +96,7 @@ BOAT_API boat_tensor_t* boat_softmax(const boat_tensor_t* a, int axis) {
             break;
         }
         case BOAT_DTYPE_FLOAT64: {
-            double* a_ptr = (double*)a_data;
+            const double* a_ptr = (const double*)a_data;
             double* out_ptr = (double*)out_data;
 
             for (size_t outer = 0; outer < outer_elements; outer++) {
@@ -169,7 +169,7 @@ boat_tensor_t* boat_log_softmax(const boat_tensor_t* a, int axis) {
 
     switch (dtype) {
         case BOAT_DTYPE_FLOAT32: {
-            float* a_ptr = (float*)a_data;
+            const float* a_ptr = (const float*)a_data;
             float* out_ptr = (float*)out_data;
 
             for (size_t outer = 0; outer < outer_elements; outer++) {
@@ -204,7 +204,7 @@ boat_tensor_t* boat_log_softmax(const boat_tensor_t* a, int axis) {
             break;
         }
         case BOAT_DTYPE_FLOAT64: {
-            double* a_ptr = (double*)a_data;
+            const double* a_ptr = (const double*)a_data;
             double* out_ptr = (double*)out_data;
 
             for (size_t outer = 0; outer < outer_elements; outer++) {
