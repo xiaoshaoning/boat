@@ -43,7 +43,7 @@ BOAT_API boat_batchnorm2d_layer_t* BOAT_CALL boat_batchnorm2d_layer_create(size_
     layer->bias = NULL;
 
     // Create running mean tensor: [num_features]
-    int64_t running_shape[] = { (int64_t)num_features };
+    const int64_t running_shape[] = { (int64_t)num_features };
     layer->running_mean = boat_tensor_create(running_shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!layer->running_mean) {
         boat_free(layer);

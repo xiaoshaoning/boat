@@ -85,7 +85,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_forward(boat_pool_layer_t* lay
     int64_t width_out = (width + 2 * layer->padding - layer->pool_size) / layer->stride + 1;
 
     // Create output tensor
-    int64_t output_shape[] = { batch, channels, height_out, width_out };
+    const int64_t output_shape[] = { batch, channels, height_out, width_out };
     boat_tensor_t* output = boat_tensor_create(output_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!output) {
         return NULL;
@@ -187,7 +187,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_backward(boat_pool_layer_t* la
     }
 
     // Create gradient input tensor with cached input shape
-    int64_t input_shape[] = { layer->cache_batch, layer->cache_channels,
+    const int64_t input_shape[] = { layer->cache_batch, layer->cache_channels,
                               layer->cache_height, layer->cache_width };
     boat_tensor_t* grad_input = boat_tensor_create(input_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!grad_input) {

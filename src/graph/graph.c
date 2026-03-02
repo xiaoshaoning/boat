@@ -37,7 +37,7 @@ static void remove_all_edges_for_node(const boat_graph_t* graph, const boat_node
 }
 
 // Helper function to ensure adjacency lists capacity
-bool ensure_node_capacity(const boat_graph_t* graph, size_t needed_capacity) {
+bool ensure_node_capacity(boat_graph_t* graph, size_t needed_capacity) {
     if (needed_capacity <= graph->node_capacity) {
         return true;
     }
@@ -101,7 +101,7 @@ bool ensure_edge_capacity(const boat_graph_t* graph, size_t needed_capacity) {
 
 
 // Edge operations
-boat_edge_t* boat_graph_add_edge(const boat_graph_t* graph, const boat_node_t* from, const boat_node_t* to,
+boat_edge_t* boat_graph_add_edge(boat_graph_t* graph, const boat_node_t* from, const boat_node_t* to,
                                  boat_edge_direction_t direction) {
     if (!graph || !from || !to) {
         return NULL;
@@ -178,7 +178,7 @@ boat_edge_t* boat_graph_add_edge(const boat_graph_t* graph, const boat_node_t* f
     return edge;
 }
 
-void boat_graph_remove_edge(const boat_graph_t* graph, const boat_edge_t* edge) {
+void boat_graph_remove_edge(boat_graph_t* graph, const boat_edge_t* edge) {
     if (!graph || !edge) return;
 
     // Find edge in edges array
@@ -925,7 +925,7 @@ boat_graph_t* boat_graph_subgraph(const boat_graph_t* graph, boat_node_t** nodes
     return subgraph;
 }
 
-void boat_graph_merge(const boat_graph_t* dest, const boat_graph_t* src) {
+void boat_graph_merge(boat_graph_t* dest, const boat_graph_t* src) {
     if (!dest || !src) return;
 
     // We need to merge nodes and edges from src into dest
@@ -1087,14 +1087,14 @@ void boat_graph_validate(const boat_graph_t* graph) {
 
     // Check edges array
     for (size_t i = 0; i < graph->edge_count; i++) {
-        struct boat_edge_t* edge = graph->edges[i];
+        const struct boat_edge_t* edge = graph->edges[i];
         if (!edge) {
             fprintf(stderr, "Graph validation error: edge %zu is NULL\n", i);
             continue;
         }
 
-        boat_node_t* from = boat_edge_source(edge);
-        boat_node_t* to = boat_edge_target(edge);
+        const boat_node_t* from = boat_edge_source(edge);
+        const boat_node_t* to = boat_edge_target(edge);
         if (!from || !to) {
             fprintf(stderr, "Graph validation error: edge %zu has NULL source or target\n", i);
         }
@@ -1234,7 +1234,7 @@ bool boat_graph_can_add_edge(const boat_graph_t* graph, const boat_node_t* from,
     if (graph->outgoing[from_idx]) {
         size_t edge_count = boat_edge_list_count(graph->outgoing[from_idx]);
         for (size_t i = 0; i < edge_count; i++) {
-            struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[from_idx], i);
+            const struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[from_idx], i);
             if (boat_edge_target(edge) == to) {
                 // Edge already exists
                 return false;
@@ -1268,7 +1268,7 @@ bool boat_graph_can_remove_node(const boat_graph_t* graph, const boat_node_t* no
     // Or automatically remove edges first
     // For now, allow removal only if node has no edges
     for (size_t i = 0; i < graph->edge_count; i++) {
-        struct boat_edge_t* edge = graph->edges[i];
+        const struct boat_edge_t* edge = graph->edges[i];
         if (!edge) continue;
         if (boat_edge_source(edge) == node || boat_edge_target(edge) == node) {
             // Node has at least one edge
@@ -1280,7 +1280,7 @@ bool boat_graph_can_remove_node(const boat_graph_t* graph, const boat_node_t* no
 }
 
 // Gradient checkpointing
-void boat_graph_enable_checkpointing(const boat_graph_t* graph, bool enabled) {
+void boat_graph_enable_checkpointing(boat_graph_t* graph, bool enabled) {
     if (!graph) return;
 
     graph->checkpointing_enabled = enabled;
@@ -1384,7 +1384,7 @@ char* boat_graph_to_dot(const boat_graph_t* graph) {
 
     // Add nodes
     for (size_t i = 0; i < graph->node_count; i++) {
-        boat_node_t* node = graph->nodes[i];
+        const boat_node_t* node = graph->nodes[i];
         if (!node) continue;
 
         size_t node_id = boat_graph_node_id(node);
@@ -1399,11 +1399,11 @@ char* boat_graph_to_dot(const boat_graph_t* graph) {
 
     // Add edges
     for (size_t i = 0; i < graph->edge_count; i++) {
-        struct boat_edge_t* edge = graph->edges[i];
+        const struct boat_edge_t* edge = graph->edges[i];
         if (!edge) continue;
 
-        boat_node_t* from = boat_edge_source(edge);
-        boat_node_t* to = boat_edge_target(edge);
+        const boat_node_t* from = boat_edge_source(edge);
+        const boat_node_t* to = boat_edge_target(edge);
         boat_edge_direction_t direction = boat_edge_direction(edge);
 
         if (!from || !to) continue;
@@ -1496,7 +1496,7 @@ bool boat_graph_safe_replace_node(const boat_graph_t* graph, const boat_node_t* 
     if (!new_in_graph) {
         // Add new_node to graph with same data as old_node
         // This is a shallow copy - actual data ownership needs consideration
-        boat_node_t* added_node = boat_graph_add_node(graph, boat_node_data(old_node),
+        const boat_node_t* added_node = boat_graph_add_node(graph, boat_node_data(old_node),
                                                      boat_node_type(old_node), NULL);
         if (!added_node) return false;
         new_node = added_node;
@@ -1512,8 +1512,8 @@ bool boat_graph_safe_replace_node(const boat_graph_t* graph, const boat_node_t* 
         struct boat_edge_t* edge = graph->edges[i];
         if (!edge) continue;
 
-        boat_node_t* source = boat_edge_source(edge);
-        boat_node_t* target = boat_edge_target(edge);
+        const boat_node_t* source = boat_edge_source(edge);
+        const boat_node_t* target = boat_edge_target(edge);
 
         if (source == old_node || target == old_node) {
             old_edges[edges_count++] = edge;
@@ -1522,17 +1522,17 @@ bool boat_graph_safe_replace_node(const boat_graph_t* graph, const boat_node_t* 
 
     // For each old edge, create a new edge with old_node replaced by new_node
     for (size_t i = 0; i < edges_count; i++) {
-        struct boat_edge_t* old_edge = old_edges[i];
-        boat_node_t* source = boat_edge_source(old_edge);
-        boat_node_t* target = boat_edge_target(old_edge);
+        const struct boat_edge_t* old_edge = old_edges[i];
+        const boat_node_t* source = boat_edge_source(old_edge);
+        const boat_node_t* target = boat_edge_target(old_edge);
         boat_edge_direction_t direction = boat_edge_direction(old_edge);
 
         // Determine new source and target
-        boat_node_t* new_source = (source == old_node) ? new_node : source;
-        boat_node_t* new_target = (target == old_node) ? new_node : target;
+        const boat_node_t* new_source = (source == old_node) ? new_node : source;
+        const boat_node_t* new_target = (target == old_node) ? new_node : target;
 
         // Create new edge
-        struct boat_edge_t* new_edge = boat_edge_create(new_source, new_target, direction);
+        struct boat_edge_t* new_edge = boat_edge_create((boat_node_t*)new_source, (boat_node_t*)new_target, direction);
         if (!new_edge) {
             // Cleanup: free old_edges array, but keep changes made so far
             boat_free(old_edges);
@@ -1559,7 +1559,7 @@ bool boat_graph_safe_replace_node(const boat_graph_t* graph, const boat_node_t* 
     return true;
 }
 
-void boat_graph_batch_modifications(const boat_graph_t* graph, bool begin) {
+void boat_graph_batch_modifications(boat_graph_t* graph, bool begin) {
     if (!graph) return;
 
     if (begin) {
@@ -1573,7 +1573,7 @@ void boat_graph_batch_modifications(const boat_graph_t* graph, bool begin) {
 }
 
 // Cross-device communication and optimization
-bool boat_graph_to_device(const boat_graph_t* graph, boat_device_t device) {
+bool boat_graph_to_device(boat_graph_t* graph, boat_device_t device) {
     if (!graph) return false;
 
     if (graph->device == device) {
@@ -1734,10 +1734,10 @@ bool boat_graph_migrate_node(const boat_graph_t* dest_graph, const boat_graph_t*
     }
 
     for (size_t i = 0; i < src_graph->edge_count; i++) {
-        struct boat_edge_t* edge = src_graph->edges[i];
+        const struct boat_edge_t* edge = src_graph->edges[i];
         if (!edge) continue;
-        boat_node_t* source = boat_edge_source(edge);
-        boat_node_t* target = boat_edge_target(edge);
+        const boat_node_t* source = boat_edge_source(edge);
+        const boat_node_t* target = boat_edge_target(edge);
         if (source == node || target == node) {
             edges_to_remove[edges_to_remove_count++] = edge;
         }

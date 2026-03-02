@@ -51,7 +51,7 @@ BOAT_API boat_dense_layer_t* BOAT_CALL boat_dense_layer_create(size_t input_feat
     layer->cache_input = NULL;
 
     // Create weight tensor
-    int64_t weight_shape[] = { (int64_t)input_features, (int64_t)output_features };
+    const int64_t weight_shape[] = { (int64_t)input_features, (int64_t)output_features };
     layer->weight = boat_tensor_create(weight_shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!layer->weight) {
         boat_free(layer);
@@ -67,7 +67,7 @@ BOAT_API boat_dense_layer_t* BOAT_CALL boat_dense_layer_create(size_t input_feat
     }
 
     // Create bias tensor if requested
-    int64_t bias_shape[] = { (int64_t)output_features };
+    const int64_t bias_shape[] = { (int64_t)output_features };
     if (use_bias) {
         layer->bias = boat_tensor_create(bias_shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
         if (!layer->bias) {

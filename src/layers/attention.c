@@ -278,7 +278,7 @@ static boat_tensor_t* linear_projection(const boat_tensor_t* input,
         }
 
         // Reshape result back to 3D: [batch*seq_len, hidden] -> [batch, seq_len, hidden]
-        int64_t original_shape[] = {batch, seq_len, hidden};
+        const int64_t original_shape[] = {batch, seq_len, hidden};
         projected_reshaped = boat_tensor_reshape(projected, original_shape, 3);
         boat_tensor_unref(projected);
         if (!projected_reshaped) {
@@ -390,7 +390,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_attention_forward(boat_attention_t* atten
     int64_t hidden = q_shape[2];
 
     // Reshape q_proj, k_proj, v_proj
-    int64_t reshaped_shape[] = {batch, (int64_t)num_heads, seq_len, (int64_t)head_size};
+    const int64_t reshaped_shape[] = {batch, (int64_t)num_heads, seq_len, (int64_t)head_size};
 
     boat_tensor_t* q_reshaped = boat_tensor_reshape(q_proj, reshaped_shape, 4);
     boat_tensor_t* k_reshaped = boat_tensor_reshape(k_proj, reshaped_shape, 4);
@@ -446,7 +446,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_attention_forward(boat_attention_t* atten
     }
 
     // Reshape back: [batch, num_heads, seq_len, head_size] -> [batch, seq_len, hidden]
-    int64_t original_shape[] = {batch, seq_len, hidden};
+    const int64_t original_shape[] = {batch, seq_len, hidden};
     boat_tensor_t* output_reshaped = boat_tensor_reshape(output, original_shape, 3);
     if (!output_reshaped) {
         boat_tensor_free(output);
@@ -561,7 +561,7 @@ BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* attention,
         return false;
     }
 
-    int64_t reshaped_shape[] = {batch, (int64_t)num_heads, seq_len, (int64_t)head_size};
+    const int64_t reshaped_shape[] = {batch, (int64_t)num_heads, seq_len, (int64_t)head_size};
     boat_tensor_t* cache_q_proj_4d = boat_tensor_reshape(attention->cache_q_proj, reshaped_shape, 4);
     boat_tensor_t* cache_k_proj_4d = boat_tensor_reshape(attention->cache_k_proj, reshaped_shape, 4);
     boat_tensor_t* cache_v_proj_4d = boat_tensor_reshape(attention->cache_v_proj, reshaped_shape, 4);
@@ -614,7 +614,7 @@ BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* attention,
     }
 
     // Reshape gradients back to 3D for linear projection backward
-    int64_t original_shape[] = {batch, seq_len, hidden};
+    const int64_t original_shape[] = {batch, seq_len, hidden};
     boat_tensor_t* grad_q_proj_3d = boat_tensor_reshape(grad_q_proj_4d, original_shape, 3);
     boat_tensor_t* grad_k_proj_3d = boat_tensor_reshape(grad_k_proj_4d, original_shape, 3);
     boat_tensor_t* grad_v_proj_3d = boat_tensor_reshape(grad_v_proj_4d, original_shape, 3);
@@ -914,7 +914,7 @@ static boat_tensor_t* scaled_dot_product_attention_impl(const boat_tensor_t* que
                                                    boat_tensor_device(value));
         if (!output) return NULL;
         size_t nbytes = boat_tensor_nbytes(value);
-        void* src_data = boat_tensor_data(value);
+        const void* src_data = boat_tensor_data(value);
         void* dst_data = boat_tensor_data(output);
         memcpy(dst_data, src_data, nbytes);
         return output;
@@ -944,7 +944,7 @@ static boat_tensor_t* scaled_dot_product_attention_impl(const boat_tensor_t* que
     // Create cache for attention weights if requested
     boat_tensor_t* weights_tensor = NULL;
     if (cache_weights) {
-        int64_t weights_shape[] = {batch, num_heads, seq_len, seq_len};
+        const int64_t weights_shape[] = {batch, num_heads, seq_len, seq_len};
         weights_tensor = boat_tensor_create(weights_shape, 4, dtype, boat_tensor_device(value));
         if (!weights_tensor) {
             return NULL;
@@ -1219,7 +1219,7 @@ static bool linear_projection_backward(const boat_tensor_t* input,
             return false;
         }
         // Reshape grad_output to 2D: [batch*seq_len, hidden]
-        int64_t grad_2d_shape[] = {batch * seq_len, hidden};
+        const int64_t grad_2d_shape[] = {batch * seq_len, hidden};
         boat_tensor_t* grad_output_2d_for_input = boat_tensor_reshape(grad_output, grad_2d_shape, 2);
         if (!grad_output_2d_for_input) {
             boat_tensor_unref(weight_transposed);
@@ -1241,7 +1241,7 @@ static bool linear_projection_backward(const boat_tensor_t* input,
 
         // Compute grad_weight = sum_over_batch_seq( input^T @ grad_output )
         // Reshape input and grad_output to 2D: [batch*seq_len, hidden]
-        int64_t reshaped_shape[] = {batch * seq_len, hidden};
+        const int64_t reshaped_shape[] = {batch * seq_len, hidden};
         boat_tensor_t* input_2d = boat_tensor_reshape(input, reshaped_shape, 2);
         boat_tensor_t* grad_output_2d = boat_tensor_reshape(grad_output, reshaped_shape, 2);
         if (!input_2d || !grad_output_2d) {
@@ -1364,7 +1364,7 @@ static boat_tensor_t* sum_last_dim_4d(const boat_tensor_t* tensor) {
     int64_t seq_len = shape[2];
     int64_t seq_len2 = shape[3];
     // Create output tensor with same shape but last dimension kept as 1 (keepdim)
-    int64_t out_shape[] = {batch, num_heads, seq_len, 1};
+    const int64_t out_shape[] = {batch, num_heads, seq_len, 1};
     boat_tensor_t* out = boat_tensor_create(out_shape, 4, boat_tensor_dtype(tensor), boat_tensor_device(tensor));
     if (!out) return NULL;
     float* data = (float*)boat_tensor_data(tensor);
@@ -1405,7 +1405,7 @@ static bool attention_backward(const boat_tensor_t* query,  // [batch, num_heads
     if (boat_tensor_ndim(grad_output) == 3) {
         // Reshape to 4D using query shape
         const int64_t* query_shape = boat_tensor_shape(query);
-        int64_t reshaped_shape[] = {query_shape[0], query_shape[1], query_shape[2], query_shape[3]};
+        const int64_t reshaped_shape[] = {query_shape[0], query_shape[1], query_shape[2], query_shape[3]};
         grad_output_reshaped = boat_tensor_reshape(grad_output, reshaped_shape, 4);
         if (!grad_output_reshaped) {
             return false;

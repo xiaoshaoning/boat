@@ -195,7 +195,7 @@ boat_tensor_t* boat_dot(const boat_tensor_t* a, const boat_tensor_t* b) {
     }
 
     // Output is a scalar (0D tensor)
-    int64_t out_shape[] = {1};
+    const int64_t out_shape[] = {1};
     boat_tensor_t* out = boat_tensor_create(out_shape, 1, dtype, boat_tensor_device(a));
     if (!out) return NULL;
 
