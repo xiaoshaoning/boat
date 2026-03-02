@@ -69,8 +69,8 @@ static boat_tensor_t* compute_input_gradient(const boat_conv_layer_t* layer,
 
     // Get data pointers
     float* grad_input_data = (float*)boat_tensor_data(grad_input);
-    float* weight_data = (float*)boat_tensor_data(layer->weight);
-    float* grad_output_data = (float*)boat_tensor_data(grad_output);
+    const float* weight_data = (float*)boat_tensor_data(layer->weight);
+    const float* grad_output_data = (float*)boat_tensor_data(grad_output);
 
     // Initialize gradient input with zeros
     size_t grad_input_elements = boat_tensor_nelements(grad_input);
@@ -143,8 +143,8 @@ static boat_tensor_t* compute_weight_gradient(const boat_conv_layer_t* layer,
 
     // Get data pointers
     float* grad_weight_data = (float*)boat_tensor_data(grad_weight);
-    float* input_data = (float*)boat_tensor_data(cached_input);
-    float* grad_output_data = (float*)boat_tensor_data(grad_output);
+    const float* input_data = (float*)boat_tensor_data(cached_input);
+    const float* grad_output_data = (float*)boat_tensor_data(grad_output);
 
     // Initialize gradient weight with zeros
     size_t grad_weight_elements = boat_tensor_nelements(grad_weight);
@@ -213,7 +213,7 @@ static boat_tensor_t* compute_bias_gradient(const boat_conv_layer_t* layer,
 
     // Get data pointers
     float* grad_bias_data = (float*)boat_tensor_data(grad_bias);
-    float* grad_output_data = (float*)boat_tensor_data(grad_output);
+    const float* grad_output_data = (float*)boat_tensor_data(grad_output);
 
     // Initialize gradient bias with zeros
     memset(grad_bias_data, 0, layer->out_channels * sizeof(float));
@@ -408,9 +408,9 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(const boat_conv_layer_
     }
 
     // Get data pointers
-    float* input_data = (float*)boat_tensor_data(input);
-    float* weight_data = (float*)boat_tensor_data(layer->weight);
-    float* bias_data = layer->use_bias ? (float*)boat_tensor_data(layer->bias) : NULL;
+    const float* input_data = (float*)boat_tensor_data(input);
+    const float* weight_data = (float*)boat_tensor_data(layer->weight);
+    const float* bias_data = layer->use_bias ? (float*)boat_tensor_data(layer->bias) : NULL;
     float* output_data = (float*)boat_tensor_data(output);
 
     // Initialize output with zeros

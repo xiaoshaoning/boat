@@ -109,7 +109,7 @@ static boat_optimizer_type_t get_optimizer_type(boat_optimizer_t* optimizer) {
     if (!optimizer) {
         return BOAT_OPTIMIZER_SGD; // Default
     }
-    boat_optimizer_header_t* header = (boat_optimizer_header_t*)optimizer;
+    const boat_optimizer_header_t* header = (const boat_optimizer_header_t*)optimizer;
     return header->type;
 }
 

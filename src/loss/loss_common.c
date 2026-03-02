@@ -24,7 +24,7 @@ float boat_loss_compute(boat_loss_t* loss, const void* predictions, const void* 
         return 0.0f;
     }
 
-    boat_loss_common_t* common_loss = (boat_loss_common_t*)loss;
+    const boat_loss_common_t* common_loss = (const boat_loss_common_t*)loss;
 
     switch (common_loss->type) {
         case BOAT_LOSS_MSE:

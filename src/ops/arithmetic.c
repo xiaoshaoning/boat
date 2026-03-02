@@ -194,7 +194,7 @@ boat_tensor_t* boat_##op_name(const boat_tensor_t* a, const boat_tensor_t* b) { 
     switch (dtype) { \
         case BOAT_DTYPE_FLOAT32: { \
             float* a_ptr = (float*)a_data; \
-            float* b_ptr = (float*)b_data; \
+            const float* b_ptr = (const float*)b_data; \
             float* out_ptr = (float*)out_data; \
             for (size_t i = 0; i < nelements; i++) { \
                 size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); \
@@ -205,7 +205,7 @@ boat_tensor_t* boat_##op_name(const boat_tensor_t* a, const boat_tensor_t* b) { 
         } \
         case BOAT_DTYPE_FLOAT64: { \
             double* a_ptr = (double*)a_data; \
-            double* b_ptr = (double*)b_data; \
+            const double* b_ptr = (const double*)b_data; \
             double* out_ptr = (double*)out_data; \
             for (size_t i = 0; i < nelements; i++) { \
                 size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); \
@@ -216,7 +216,7 @@ boat_tensor_t* boat_##op_name(const boat_tensor_t* a, const boat_tensor_t* b) { 
         } \
         case BOAT_DTYPE_INT32: { \
             int32_t* a_ptr = (int32_t*)a_data; \
-            int32_t* b_ptr = (int32_t*)b_data; \
+            const int32_t* b_ptr = (const int32_t*)b_data; \
             int32_t* out_ptr = (int32_t*)out_data; \
             for (size_t i = 0; i < nelements; i++) { \
                 size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); \
@@ -227,7 +227,7 @@ boat_tensor_t* boat_##op_name(const boat_tensor_t* a, const boat_tensor_t* b) { 
         } \
         case BOAT_DTYPE_INT64: { \
             int64_t* a_ptr = (int64_t*)a_data; \
-            int64_t* b_ptr = (int64_t*)b_data; \
+            const int64_t* b_ptr = (const int64_t*)b_data; \
             int64_t* out_ptr = (int64_t*)out_data; \
             for (size_t i = 0; i < nelements; i++) { \
                 size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); \
@@ -307,8 +307,8 @@ boat_tensor_t* boat_mod(const boat_tensor_t* a, const boat_tensor_t* b) {
 
     switch (dtype) {
         case BOAT_DTYPE_FLOAT32: {
-            float* a_ptr = (float*)a_data;
-            float* b_ptr = (float*)b_data;
+            const float* a_ptr = (const float*)a_data;
+            const float* b_ptr = (const float*)b_data;
             float* out_ptr = (float*)out_data;
             for (size_t i = 0; i < nelements; i++) {
                 size_t a_idx = broadcast_index(a, i, out_shape, out_ndim);
@@ -318,8 +318,8 @@ boat_tensor_t* boat_mod(const boat_tensor_t* a, const boat_tensor_t* b) {
             break;
         }
         case BOAT_DTYPE_FLOAT64: {
-            double* a_ptr = (double*)a_data;
-            double* b_ptr = (double*)b_data;
+            const double* a_ptr = (const double*)a_data;
+            const double* b_ptr = (const double*)b_data;
             double* out_ptr = (double*)out_data;
             for (size_t i = 0; i < nelements; i++) {
                 size_t a_idx = broadcast_index(a, i, out_shape, out_ndim);
@@ -329,8 +329,8 @@ boat_tensor_t* boat_mod(const boat_tensor_t* a, const boat_tensor_t* b) {
             break;
         }
         case BOAT_DTYPE_INT32: {
-            int32_t* a_ptr = (int32_t*)a_data;
-            int32_t* b_ptr = (int32_t*)b_data;
+            const int32_t* a_ptr = (const int32_t*)a_data;
+            const int32_t* b_ptr = (const int32_t*)b_data;
             int32_t* out_ptr = (int32_t*)out_data;
             for (size_t i = 0; i < nelements; i++) {
                 size_t a_idx = broadcast_index(a, i, out_shape, out_ndim);
@@ -340,8 +340,8 @@ boat_tensor_t* boat_mod(const boat_tensor_t* a, const boat_tensor_t* b) {
             break;
         }
         case BOAT_DTYPE_INT64: {
-            int64_t* a_ptr = (int64_t*)a_data;
-            int64_t* b_ptr = (int64_t*)b_data;
+            const int64_t* a_ptr = (const int64_t*)a_data;
+            const int64_t* b_ptr = (const int64_t*)b_data;
             int64_t* out_ptr = (int64_t*)out_data;
             for (size_t i = 0; i < nelements; i++) {
                 size_t a_idx = broadcast_index(a, i, out_shape, out_ndim);
@@ -381,7 +381,7 @@ void boat_##op_name##_(boat_tensor_t* const a, const boat_tensor_t* b) { \
     switch (dtype) { \
         case BOAT_DTYPE_FLOAT32: { \
             float* a_ptr = (float*)a_data; \
-            float* b_ptr = (float*)b_data; \
+            const float* b_ptr = (const float*)b_data; \
             for (size_t i = 0; i < a_nelements; i++) { \
                 a_ptr[i] = a_ptr[i] op b_ptr[i]; \
             } \
@@ -389,7 +389,7 @@ void boat_##op_name##_(boat_tensor_t* const a, const boat_tensor_t* b) { \
         } \
         case BOAT_DTYPE_FLOAT64: { \
             double* a_ptr = (double*)a_data; \
-            double* b_ptr = (double*)b_data; \
+            const double* b_ptr = (const double*)b_data; \
             for (size_t i = 0; i < a_nelements; i++) { \
                 a_ptr[i] = a_ptr[i] op b_ptr[i]; \
             } \
@@ -397,7 +397,7 @@ void boat_##op_name##_(boat_tensor_t* const a, const boat_tensor_t* b) { \
         } \
         case BOAT_DTYPE_INT32: { \
             int32_t* a_ptr = (int32_t*)a_data; \
-            int32_t* b_ptr = (int32_t*)b_data; \
+            const int32_t* b_ptr = (const int32_t*)b_data; \
             for (size_t i = 0; i < a_nelements; i++) { \
                 a_ptr[i] = a_ptr[i] op b_ptr[i]; \
             } \
@@ -405,7 +405,7 @@ void boat_##op_name##_(boat_tensor_t* const a, const boat_tensor_t* b) { \
         } \
         case BOAT_DTYPE_INT64: { \
             int64_t* a_ptr = (int64_t*)a_data; \
-            int64_t* b_ptr = (int64_t*)b_data; \
+            const int64_t* b_ptr = (const int64_t*)b_data; \
             for (size_t i = 0; i < a_nelements; i++) { \
                 a_ptr[i] = a_ptr[i] op b_ptr[i]; \
             } \
@@ -600,7 +600,7 @@ boat_tensor_t* boat_broadcast_to(const boat_tensor_t* a, const int64_t* shape, s
         return NULL;
     }
 
-    void* a_data = boat_tensor_data(a);
+    const void* a_data = boat_tensor_data(a);
     void* out_data = boat_tensor_data(out);
     memcpy(out_data, a_data, boat_tensor_nbytes(a));
 

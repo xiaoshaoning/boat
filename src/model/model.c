@@ -179,7 +179,7 @@ boat_tensor_t* boat_model_forward(const boat_model_t* model, const boat_tensor_t
     }
 
     // Use computational graph for forward propagation
-    boat_graph_t* graph = model->graph;
+    const boat_graph_t* graph = model->graph;
 
     // Get topological sort of nodes
     size_t node_count = boat_graph_node_count(graph);
@@ -205,7 +205,7 @@ boat_tensor_t* boat_model_forward(const boat_model_t* model, const boat_tensor_t
 
     // Process nodes in topological order
     for (size_t i = 0; i < sorted_count; i++) {
-        boat_node_t* node = sorted_nodes[i];
+        const boat_node_t* node = sorted_nodes[i];
 
         // Find layer index for this node
         size_t layer_index = SIZE_MAX;
@@ -239,7 +239,7 @@ boat_tensor_t* boat_model_forward(const boat_model_t* model, const boat_tensor_t
         // Count incoming edges with forward direction
         size_t num_inputs = 0;
         for (size_t j = 0; j < boat_graph_edge_count(graph); j++) {
-            boat_edge_t* edge = boat_graph_get_edge_at_index(graph, j);
+            const boat_edge_t* edge = boat_graph_get_edge_at_index(graph, j);
             if (!edge) continue;
             if (boat_edge_target(edge) == node &&
                 boat_edge_direction(edge) == BOAT_EDGE_DIRECTION_FORWARD) {
@@ -255,11 +255,11 @@ boat_tensor_t* boat_model_forward(const boat_model_t* model, const boat_tensor_t
         } else if (num_inputs == 1) {
             // Single input - typical for sequential models
             for (size_t j = 0; j < boat_graph_edge_count(graph); j++) {
-                boat_edge_t* edge = boat_graph_get_edge_at_index(graph, j);
+                const boat_edge_t* edge = boat_graph_get_edge_at_index(graph, j);
                 if (!edge) continue;
                 if (boat_edge_target(edge) == node &&
                     boat_edge_direction(edge) == BOAT_EDGE_DIRECTION_FORWARD) {
-                    boat_node_t* source_node = boat_edge_source(edge);
+                    const boat_node_t* source_node = boat_edge_source(edge);
                     // Find source node index
                     size_t source_idx = SIZE_MAX;
                     for (size_t k = 0; k < model->layer_count; k++) {
@@ -278,11 +278,11 @@ boat_tensor_t* boat_model_forward(const boat_model_t* model, const boat_tensor_t
             // Multiple inputs - not yet supported for simple sequential models
             // For now, use first input
             for (size_t j = 0; j < boat_graph_edge_count(graph); j++) {
-                boat_edge_t* edge = boat_graph_get_edge_at_index(graph, j);
+                const boat_edge_t* edge = boat_graph_get_edge_at_index(graph, j);
                 if (!edge) continue;
                 if (boat_edge_target(edge) == node &&
                     boat_edge_direction(edge) == BOAT_EDGE_DIRECTION_FORWARD) {
-                    boat_node_t* source_node = boat_edge_source(edge);
+                    const boat_node_t* source_node = boat_edge_source(edge);
                     size_t source_idx = SIZE_MAX;
                     for (size_t k = 0; k < model->layer_count; k++) {
                         if (model->nodes[k] == source_node) {
@@ -330,7 +330,7 @@ boat_tensor_t* boat_model_forward(const boat_model_t* model, const boat_tensor_t
         // If this is the last layer (no outgoing edges), it's the final output
         bool has_outgoing = false;
         for (size_t j = 0; j < boat_graph_edge_count(graph); j++) {
-            boat_edge_t* edge = boat_graph_get_edge_at_index(graph, j);
+            const boat_edge_t* edge = boat_graph_get_edge_at_index(graph, j);
             if (!edge) continue;
             if (boat_edge_source(edge) == node &&
                 boat_edge_direction(edge) == BOAT_EDGE_DIRECTION_FORWARD) {
@@ -440,9 +440,9 @@ void boat_model_add_layer(boat_model_t* model, boat_layer_t* layer) {
 
     // Connect to previous node if exists
     if (model->layer_count > 0) {
-        boat_node_t* prev_node = model->nodes[model->layer_count - 1];
+        const boat_node_t* prev_node = model->nodes[model->layer_count - 1];
         if (prev_node) {
-            boat_edge_t* edge = boat_graph_add_edge(model->graph, prev_node, node, BOAT_EDGE_DIRECTION_FORWARD);
+            const boat_edge_t* edge = boat_graph_add_edge(model->graph, prev_node, node, BOAT_EDGE_DIRECTION_FORWARD);
             if (!edge) {
                 fprintf(stderr, "Warning: Failed to add edge between layer nodes\n");
             } else {
