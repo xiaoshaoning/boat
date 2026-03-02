@@ -297,8 +297,8 @@ boat_tensor_t* boat_mod(const boat_tensor_t* a, const boat_tensor_t* b) {
     if (!out) return NULL;
 
     size_t nelements = boat_tensor_nelements(out);
-    void* a_data = boat_tensor_data(a);
-    void* b_data = boat_tensor_data(b);
+    const void* a_data = boat_tensor_data(a);
+    const void* b_data = boat_tensor_data(b);
     void* out_data = boat_tensor_data(out);
 
     /* Get output shape for broadcasting */
@@ -491,13 +491,13 @@ boat_tensor_t* boat_pow_scalar(const boat_tensor_t* a, double scalar) {
     if (!out) return NULL;
 
     size_t nelements = boat_tensor_nelements(a);
-    void* a_data = boat_tensor_data(a);
+    const void* a_data = boat_tensor_data(a);
     void* out_data = boat_tensor_data(out);
 
     switch (dtype) {
         case BOAT_DTYPE_FLOAT32: {
             float scalar_f = (float)scalar;
-            float* a_ptr = (float*)a_data;
+            const float* a_ptr = (const float*)a_data;
             float* out_ptr = (float*)out_data;
             for (size_t i = 0; i < nelements; i++) {
                 out_ptr[i] = powf(a_ptr[i], scalar_f);
@@ -505,7 +505,7 @@ boat_tensor_t* boat_pow_scalar(const boat_tensor_t* a, double scalar) {
             break;
         }
         case BOAT_DTYPE_FLOAT64: {
-            double* a_ptr = (double*)a_data;
+            const double* a_ptr = (const double*)a_data;
             double* out_ptr = (double*)out_data;
             for (size_t i = 0; i < nelements; i++) {
                 out_ptr[i] = pow(a_ptr[i], scalar);
@@ -619,7 +619,7 @@ boat_tensor_t* boat_sum(const boat_tensor_t* a, const int64_t* dims, size_t n_di
 
     boat_dtype_t dtype = boat_tensor_dtype(a);
     size_t nelements = boat_tensor_nelements(a);
-    void* data = boat_tensor_data(a);
+    const void* data = boat_tensor_data(a);
 
     // Create output tensor: scalar if keepdim == false, otherwise shape with ones?
     // For simplicity, always return a scalar tensor.
@@ -637,7 +637,7 @@ boat_tensor_t* boat_sum(const boat_tensor_t* a, const int64_t* dims, size_t n_di
 
     switch (dtype) {
         case BOAT_DTYPE_FLOAT32: {
-            float* ptr = (float*)data;
+            const float* ptr = (const float*)data;
             float sum = 0.0f;
             for (size_t i = 0; i < nelements; i++) {
                 sum += ptr[i];
@@ -646,7 +646,7 @@ boat_tensor_t* boat_sum(const boat_tensor_t* a, const int64_t* dims, size_t n_di
             break;
         }
         case BOAT_DTYPE_FLOAT64: {
-            double* ptr = (double*)data;
+            const double* ptr = (const double*)data;
             double sum = 0.0;
             for (size_t i = 0; i < nelements; i++) {
                 sum += ptr[i];
@@ -655,7 +655,7 @@ boat_tensor_t* boat_sum(const boat_tensor_t* a, const int64_t* dims, size_t n_di
             break;
         }
         case BOAT_DTYPE_INT32: {
-            int32_t* ptr = (int32_t*)data;
+            const int32_t* ptr = (const int32_t*)data;
             int32_t sum = 0;
             for (size_t i = 0; i < nelements; i++) {
                 sum += ptr[i];
@@ -664,7 +664,7 @@ boat_tensor_t* boat_sum(const boat_tensor_t* a, const int64_t* dims, size_t n_di
             break;
         }
         case BOAT_DTYPE_INT64: {
-            int64_t* ptr = (int64_t*)data;
+            const int64_t* ptr = (const int64_t*)data;
             int64_t sum = 0;
             for (size_t i = 0; i < nelements; i++) {
                 sum += ptr[i];
@@ -673,7 +673,7 @@ boat_tensor_t* boat_sum(const boat_tensor_t* a, const int64_t* dims, size_t n_di
             break;
         }
         case BOAT_DTYPE_UINT8: {
-            uint8_t* ptr = (uint8_t*)data;
+            const uint8_t* ptr = (const uint8_t*)data;
             uint8_t sum = 0;
             for (size_t i = 0; i < nelements; i++) {
                 sum += ptr[i];

@@ -179,7 +179,7 @@ static void adagrad_update_parameter(boat_adagrad_state_t* state, size_t idx) {
 
     // Get data pointers
     float* param_data = (float*)boat_tensor_data(param);
-    float* grad_data = (float*)boat_tensor_data(grad);
+    const float* grad_data = (const float*)boat_tensor_data(grad);
     float* sum_square_grad_data = (float*)boat_tensor_data(sum_square_grad_tensor);
 
     size_t num_elements = boat_tensor_nelements(param);
