@@ -749,16 +749,13 @@ static bool load_safetensors(const void* data, size_t size, const hf_config_t* c
 
         // Handle scalar tensors (shape_len = 0)
         int64_t* shape = NULL;
+        // Only fill shape array if shape_len > 0 (scalar tensors have empty shape)
         if (shape_len > 0) {
             shape = malloc(shape_len * sizeof(int64_t));
             if (!shape) {
                 fprintf(stderr, "Memory allocation failed for shape\n");
                 continue;
             }
-        }
-
-        // Only fill shape array if shape_len > 0 (scalar tensors have empty shape)
-        if (shape_len > 0) {
             for (int i = 0; i < shape_len; i++) {
                 cJSON* dim = cJSON_GetArrayItem(shape_item, i);
                 if (cJSON_IsNumber(dim)) {

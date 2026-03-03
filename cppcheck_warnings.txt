@@ -58,66 +58,6 @@ src\format\pytorch.cpp:362:43: warning: Potentially invalid type conversion in o
 src\format\pytorch.cpp:216:25: style: The scope of the variable 'bias_key' can be reduced. [variableScope]
             std::string bias_key = name + ".bias";
                         ^
-src\format\pytorch.cpp:432:23: style: Variable 'data' can be declared as pointer to const [constVariablePointer]
-                void* data = torch_tensor.data_ptr();
-                      ^
-src\format\pytorch.cpp:469:23: style: Variable 'data' can be declared as pointer to const [constVariablePointer]
-                void* data = torch_tensor.data_ptr();
-                      ^
-src\graph\graph.c:1090:29: style: Variable 'edge' can be declared as pointer to const [constVariablePointer]
-        struct boat_edge_t* edge = graph->edges[i];
-                            ^
-src\graph\graph.c:1096:22: style: Variable 'from' can be declared as pointer to const [constVariablePointer]
-        boat_node_t* from = boat_edge_source(edge);
-                     ^
-src\graph\graph.c:1097:22: style: Variable 'to' can be declared as pointer to const [constVariablePointer]
-        boat_node_t* to = boat_edge_target(edge);
-                     ^
-src\graph\graph.c:1237:33: style: Variable 'edge' can be declared as pointer to const [constVariablePointer]
-            struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[from_idx], i);
-                                ^
-src\graph\graph.c:1271:29: style: Variable 'edge' can be declared as pointer to const [constVariablePointer]
-        struct boat_edge_t* edge = graph->edges[i];
-                            ^
-src\graph\graph.c:1387:22: style: Variable 'node' can be declared as pointer to const [constVariablePointer]
-        boat_node_t* node = graph->nodes[i];
-                     ^
-src\graph\graph.c:1402:29: style: Variable 'edge' can be declared as pointer to const [constVariablePointer]
-        struct boat_edge_t* edge = graph->edges[i];
-                            ^
-src\graph\graph.c:1405:22: style: Variable 'from' can be declared as pointer to const [constVariablePointer]
-        boat_node_t* from = boat_edge_source(edge);
-                     ^
-src\graph\graph.c:1406:22: style: Variable 'to' can be declared as pointer to const [constVariablePointer]
-        boat_node_t* to = boat_edge_target(edge);
-                     ^
-src\graph\graph.c:1499:22: style: Variable 'added_node' can be declared as pointer to const [constVariablePointer]
-        boat_node_t* added_node = boat_graph_add_node(graph, boat_node_data(old_node),
-                     ^
-src\graph\graph.c:1515:22: style: Variable 'source' can be declared as pointer to const [constVariablePointer]
-        boat_node_t* source = boat_edge_source(edge);
-                     ^
-src\graph\graph.c:1516:22: style: Variable 'target' can be declared as pointer to const [constVariablePointer]
-        boat_node_t* target = boat_edge_target(edge);
-                     ^
-src\graph\graph.c:1525:29: style: Variable 'old_edge' can be declared as pointer to const [constVariablePointer]
-        struct boat_edge_t* old_edge = old_edges[i];
-                            ^
-src\graph\graph.c:1531:22: style: Variable 'new_source' can be declared as pointer to const [constVariablePointer]
-        boat_node_t* new_source = (source == old_node) ? new_node : source;
-                     ^
-src\graph\graph.c:1532:22: style: Variable 'new_target' can be declared as pointer to const [constVariablePointer]
-        boat_node_t* new_target = (target == old_node) ? new_node : target;
-                     ^
-src\graph\graph.c:1535:29: style: Variable 'new_edge' can be declared as pointer to const [constVariablePointer]
-        struct boat_edge_t* new_edge = boat_edge_create(new_source, new_target, direction);
-                            ^
-src\graph\graph.c:1739:22: style: Variable 'source' can be declared as pointer to const [constVariablePointer]
-        boat_node_t* source = boat_edge_source(edge);
-                     ^
-src\graph\graph.c:1740:22: style: Variable 'target' can be declared as pointer to const [constVariablePointer]
-        boat_node_t* target = boat_edge_target(edge);
-                     ^
 src\layers\attention.c:419:41: style: Condition 'q_proj' is always true [knownConditionTrueFalse]
     if (attention->config.use_rotary && q_proj && k_proj) {
                                         ^
@@ -154,81 +94,6 @@ src\layers\attention.c:1205:20: note: Shadowed declaration
 src\layers\attention.c:1327:28: note: Shadow variable
             const int64_t* grad_shape = boat_tensor_shape(grad_output);
                            ^
-src\layers\attention.c:281:17: style: Variable 'original_shape' can be declared as const array [constVariable]
-        int64_t original_shape[] = {batch, seq_len, hidden};
-                ^
-src\layers\attention.c:393:13: style: Variable 'reshaped_shape' can be declared as const array [constVariable]
-    int64_t reshaped_shape[] = {batch, (int64_t)num_heads, seq_len, (int64_t)head_size};
-            ^
-src\layers\attention.c:449:13: style: Variable 'original_shape' can be declared as const array [constVariable]
-    int64_t original_shape[] = {batch, seq_len, hidden};
-            ^
-src\layers\attention.c:564:13: style: Variable 'reshaped_shape' can be declared as const array [constVariable]
-    int64_t reshaped_shape[] = {batch, (int64_t)num_heads, seq_len, (int64_t)head_size};
-            ^
-src\layers\attention.c:617:13: style: Variable 'original_shape' can be declared as const array [constVariable]
-    int64_t original_shape[] = {batch, seq_len, hidden};
-            ^
-src\layers\attention.c:917:15: style: Variable 'src_data' can be declared as pointer to const [constVariablePointer]
-        void* src_data = boat_tensor_data(value);
-              ^
-src\layers\attention.c:947:17: style: Variable 'weights_shape' can be declared as const array [constVariable]
-        int64_t weights_shape[] = {batch, num_heads, seq_len, seq_len};
-                ^
-src\layers\attention.c:1004:28: style: Variable 'q_row' can be declared as pointer to const [constVariablePointer]
-                    float* q_row = q_head + i * q_stride_seq;
-                           ^
-src\layers\attention.c:1005:28: style: Variable 'k_row' can be declared as pointer to const [constVariablePointer]
-                    float* k_row = k_head + j * q_stride_seq;
-                           ^
-src\layers\attention.c:1222:17: style: Variable 'grad_2d_shape' can be declared as const array [constVariable]
-        int64_t grad_2d_shape[] = {batch * seq_len, hidden};
-                ^
-src\layers\attention.c:1244:17: style: Variable 'reshaped_shape' can be declared as const array [constVariable]
-        int64_t reshaped_shape[] = {batch * seq_len, hidden};
-                ^
-src\layers\attention.c:1277:24: style: Variable 'grad_out_data' can be declared as pointer to const [constVariablePointer]
-                float* grad_out_data = (float*)boat_tensor_data(grad_output);
-                       ^
-src\layers\attention.c:1333:24: style: Variable 'grad_out_data' can be declared as pointer to const [constVariablePointer]
-                float* grad_out_data = (float*)boat_tensor_data(grad_output);
-                       ^
-src\layers\attention.c:1367:13: style: Variable 'out_shape' can be declared as const array [constVariable]
-    int64_t out_shape[] = {batch, num_heads, seq_len, 1};
-            ^
-src\layers\attention.c:1370:12: style: Variable 'data' can be declared as pointer to const [constVariablePointer]
-    float* data = (float*)boat_tensor_data(tensor);
-           ^
-src\layers\attention.c:1404:20: style: Variable 'grad_output_reshaped' can be declared as pointer to const [constVariablePointer]
-    boat_tensor_t* grad_output_reshaped = NULL;
-                   ^
-src\layers\attention.c:1408:17: style: Variable 'reshaped_shape' can be declared as const array [constVariable]
-        int64_t reshaped_shape[] = {query_shape[0], query_shape[1], query_shape[2], query_shape[3]};
-                ^
-src\layers\attention.c:1466:12: style: Variable 'dA_data' can be declared as pointer to const [constVariablePointer]
-    float* dA_data = (float*)boat_tensor_data(grad_attn);
-           ^
-src\layers\attention.c:1467:12: style: Variable 'A_data' can be declared as pointer to const [constVariablePointer]
-    float* A_data = (float*)boat_tensor_data(attention_weights);
-           ^
-src\layers\attention.c:1497:20: style: Variable 'dA_minus_sum' can be declared as pointer to const [constVariablePointer]
-    boat_tensor_t* dA_minus_sum = NULL; // Not used anymore
-                   ^
-src\layers\attention.c:1463:31: style: Variable 'attn_shape' is assigned a value that is never used. [unreadVariable]
-    const int64_t* attn_shape = boat_tensor_shape(attention_weights);
-                              ^
-src\layers\attention.c:1463:20: style: Variable 'attn_shape' is assigned a value that is never used. [unreadVariable]
-    const int64_t* attn_shape = boat_tensor_shape(attention_weights);
-                   ^
-src\layers\attention.c:1497:20: style: Variable 'dA_minus_sum' is assigned a value that is never used. [unreadVariable]
-    boat_tensor_t* dA_minus_sum = NULL; // Not used anymore
-                   ^
-src\layers\batchnorm.c:46:13: style: Variable 'running_shape' can be declared as const array [constVariable]
-    int64_t running_shape[] = { (int64_t)num_features };
-            ^
-src\layers\batchnorm.c:149:12: style: Variable 'input_data' can be declared as pointer to const [constVariablePointer]
-    float* input_data = (float*)boat_tensor_data(input);
-           ^
 src\layers\batchnorm.c:130:19: style: Variable 'batch' is assigned a value that is never used. [unreadVariable]
     int64_t batch = input_shape[0];
                   ^
@@ -265,135 +130,6 @@ src\layers\conv.c:370:91: note: Assignment 'width_out=(width+2*layer->padding-la
 src\layers\conv.c:373:38: note: Condition 'width_out<=0' is always false
     if (height_out <= 0 || width_out <= 0) {
                                      ^
-src\layers\conv.c:72:12: style: Variable 'weight_data' can be declared as pointer to const [constVariablePointer]
-    float* weight_data = (float*)boat_tensor_data(layer->weight);
-           ^
-src\layers\conv.c:73:12: style: Variable 'grad_output_data' can be declared as pointer to const [constVariablePointer]
-    float* grad_output_data = (float*)boat_tensor_data(grad_output);
-           ^
-src\layers\conv.c:146:12: style: Variable 'input_data' can be declared as pointer to const [constVariablePointer]
-    float* input_data = (float*)boat_tensor_data(cached_input);
-           ^
-src\layers\conv.c:147:12: style: Variable 'grad_output_data' can be declared as pointer to const [constVariablePointer]
-    float* grad_output_data = (float*)boat_tensor_data(grad_output);
-           ^
-src\layers\conv.c:208:13: style: Variable 'bias_shape' can be declared as const array [constVariable]
-    int64_t bias_shape[] = { (int64_t)layer->out_channels };
-            ^
-src\layers\conv.c:216:12: style: Variable 'grad_output_data' can be declared as pointer to const [constVariablePointer]
-    float* grad_output_data = (float*)boat_tensor_data(grad_output);
-           ^
-src\layers\conv.c:255:13: style: Variable 'weight_shape' can be declared as const array [constVariable]
-    int64_t weight_shape[] = { (int64_t)out_channels, (int64_t)in_channels, (int64_t)kernel_size, (int64_t)kernel_size };
-            ^
-src\layers\conv.c:271:13: style: Variable 'bias_shape' can be declared as const array [constVariable]
-    int64_t bias_shape[] = { (int64_t)out_channels };
-            ^
-src\layers\conv.c:404:13: style: Variable 'output_shape' can be declared as const array [constVariable]
-    int64_t output_shape[] = { batch, (int64_t)layer->out_channels, height_out, width_out };
-            ^
-src\layers\conv.c:411:12: style: Variable 'input_data' can be declared as pointer to const [constVariablePointer]
-    float* input_data = (float*)boat_tensor_data(input);
-           ^
-src\layers\conv.c:412:12: style: Variable 'weight_data' can be declared as pointer to const [constVariablePointer]
-    float* weight_data = (float*)boat_tensor_data(layer->weight);
-           ^
-src\layers\conv.c:413:12: style: Variable 'bias_data' can be declared as pointer to const [constVariablePointer]
-    float* bias_data = layer->use_bias ? (float*)boat_tensor_data(layer->bias) : NULL;
-           ^
-src\layers\dense.c:54:13: style: Variable 'weight_shape' can be declared as const array [constVariable]
-    int64_t weight_shape[] = { (int64_t)input_features, (int64_t)output_features };
-            ^
-src\layers\dense.c:70:13: style: Variable 'bias_shape' can be declared as const array [constVariable]
-    int64_t bias_shape[] = { (int64_t)output_features };
-            ^
-src\layers\dense.c:177:16: style: Variable 'bias_data' can be declared as pointer to const [constVariablePointer]
-        float* bias_data = (float*)boat_tensor_data(layer->bias);
-               ^
-src\layers\flatten.c:72:13: style: Variable 'output_shape' can be declared as const array [constVariable]
-    int64_t output_shape[] = { batch, features };
-            ^
-src\layers\norm.c:40:13: style: Variable 'shape' can be declared as const array [constVariable]
-    int64_t shape[] = { (int64_t)normalized_shape };
-            ^
-src\layers\norm.c:59:13: style: Variable 'shape' can be declared as const array [constVariable]
-    int64_t shape[] = { (int64_t)normalized_shape };
-            ^
-src\layers\pool.c:88:13: style: Variable 'output_shape' can be declared as const array [constVariable]
-    int64_t output_shape[] = { batch, channels, height_out, width_out };
-            ^
-src\layers\pool.c:190:13: style: Variable 'input_shape' can be declared as const array [constVariable]
-    int64_t input_shape[] = { layer->cache_batch, layer->cache_channels,
-            ^
-src\loss\loss_common.c:27:25: style: Variable 'common_loss' can be declared as pointer to const [constVariablePointer]
-    boat_loss_common_t* common_loss = (boat_loss_common_t*)loss;
-                        ^
-src\model\model.c:182:19: style: Variable 'graph' can be declared as pointer to const [constVariablePointer]
-    boat_graph_t* graph = model->graph;
-                  ^
-src\model\model.c:208:22: style: Variable 'node' can be declared as pointer to const [constVariablePointer]
-        boat_node_t* node = sorted_nodes[i];
-                     ^
-src\model\model.c:242:26: style: Variable 'edge' can be declared as pointer to const [constVariablePointer]
-            boat_edge_t* edge = boat_graph_get_edge_at_index(graph, j);
-                         ^
-src\model\model.c:258:30: style: Variable 'edge' can be declared as pointer to const [constVariablePointer]
-                boat_edge_t* edge = boat_graph_get_edge_at_index(graph, j);
-                             ^
-src\model\model.c:262:34: style: Variable 'source_node' can be declared as pointer to const [constVariablePointer]
-                    boat_node_t* source_node = boat_edge_source(edge);
-                                 ^
-src\model\model.c:281:30: style: Variable 'edge' can be declared as pointer to const [constVariablePointer]
-                boat_edge_t* edge = boat_graph_get_edge_at_index(graph, j);
-                             ^
-src\model\model.c:285:34: style: Variable 'source_node' can be declared as pointer to const [constVariablePointer]
-                    boat_node_t* source_node = boat_edge_source(edge);
-                                 ^
-src\model\model.c:333:26: style: Variable 'edge' can be declared as pointer to const [constVariablePointer]
-            boat_edge_t* edge = boat_graph_get_edge_at_index(graph, j);
-                         ^
-src\model\model.c:443:22: style: Variable 'prev_node' can be declared as pointer to const [constVariablePointer]
-        boat_node_t* prev_node = model->nodes[model->layer_count - 1];
-                     ^
-src\model\model.c:445:26: style: Variable 'edge' can be declared as pointer to const [constVariablePointer]
-            boat_edge_t* edge = boat_graph_add_edge(model->graph, prev_node, node, BOAT_EDGE_DIRECTION_FORWARD);
-                         ^
-src\ops\activation.c:61:20: style: Variable 'a_ptr' can be declared as pointer to const [constVariablePointer]
-            float* a_ptr = (float*)a_data;
-                   ^
-src\ops\activation.c:99:21: style: Variable 'a_ptr' can be declared as pointer to const [constVariablePointer]
-            double* a_ptr = (double*)a_data;
-                    ^
-src\ops\activation.c:172:20: style: Variable 'a_ptr' can be declared as pointer to const [constVariablePointer]
-            float* a_ptr = (float*)a_data;
-                   ^
-src\ops\activation.c:207:21: style: Variable 'a_ptr' can be declared as pointer to const [constVariablePointer]
-            double* a_ptr = (double*)a_data;
-                    ^
-src\ops\arithmetic.c:310:20: style: Variable 'a_ptr' can be declared as pointer to const [constVariablePointer]
-            float* a_ptr = (float*)a_data;
-                   ^
-src\ops\arithmetic.c:311:20: style: Variable 'b_ptr' can be declared as pointer to const [constVariablePointer]
-            float* b_ptr = (float*)b_data;
-                   ^
-src\ops\arithmetic.c:321:21: style: Variable 'a_ptr' can be declared as pointer to const [constVariablePointer]
-            double* a_ptr = (double*)a_data;
-                    ^
-src\ops\arithmetic.c:322:21: style: Variable 'b_ptr' can be declared as pointer to const [constVariablePointer]
-            double* b_ptr = (double*)b_data;
-                    ^
-src\ops\arithmetic.c:332:22: style: Variable 'a_ptr' can be declared as pointer to const [constVariablePointer]
-            int32_t* a_ptr = (int32_t*)a_data;
-                     ^
-src\ops\arithmetic.c:333:22: style: Variable 'b_ptr' can be declared as pointer to const [constVariablePointer]
-            int32_t* b_ptr = (int32_t*)b_data;
-                     ^
-src\ops\arithmetic.c:343:22: style: Variable 'a_ptr' can be declared as pointer to const [constVariablePointer]
-            int64_t* a_ptr = (int64_t*)a_data;
-                     ^
-src\ops\arithmetic.c:344:22: style: Variable 'b_ptr' can be declared as pointer to const [constVariablePointer]
-            int64_t* b_ptr = (int64_t*)b_data;
-                     ^
 src\ops\arithmetic.c:419:1: style: Parameter 'a' can be declared as pointer to const [constParameterPointer]
 DEFINE_INPLACE_OP(add, +)
 ^
@@ -406,12 +142,6 @@ DEFINE_INPLACE_OP(mul, *)
 src\ops\arithmetic.c:422:1: style: Parameter 'a' can be declared as pointer to const [constParameterPointer]
 DEFINE_INPLACE_OP(div, /)
 ^
-src\ops\arithmetic.c:500:20: style: Variable 'a_ptr' can be declared as pointer to const [constVariablePointer]
-            float* a_ptr = (float*)a_data;
-                   ^
-src\ops\arithmetic.c:508:21: style: Variable 'a_ptr' can be declared as pointer to const [constVariablePointer]
-            double* a_ptr = (double*)a_data;
-                    ^
 src\ops\arithmetic.c:569:1: style: Parameter 'a' can be declared as pointer to const [constParameterPointer]
 DEFINE_INPLACE_SCALAR_OP(add, +)
 ^
@@ -424,90 +154,9 @@ DEFINE_INPLACE_SCALAR_OP(mul, *)
 src\ops\arithmetic.c:572:1: style: Parameter 'a' can be declared as pointer to const [constParameterPointer]
 DEFINE_INPLACE_SCALAR_OP(div, /)
 ^
-src\ops\arithmetic.c:603:11: style: Variable 'a_data' can be declared as pointer to const [constVariablePointer]
-    void* a_data = boat_tensor_data(a);
-          ^
-src\ops\arithmetic.c:626:13: style: Variable 'out_shape' can be declared as const array [constVariable]
-    int64_t out_shape[] = {1};
-            ^
-src\ops\arithmetic.c:640:20: style: Variable 'ptr' can be declared as pointer to const [constVariablePointer]
-            float* ptr = (float*)data;
-                   ^
-src\ops\arithmetic.c:649:21: style: Variable 'ptr' can be declared as pointer to const [constVariablePointer]
-            double* ptr = (double*)data;
-                    ^
-src\ops\arithmetic.c:658:22: style: Variable 'ptr' can be declared as pointer to const [constVariablePointer]
-            int32_t* ptr = (int32_t*)data;
-                     ^
-src\ops\arithmetic.c:667:22: style: Variable 'ptr' can be declared as pointer to const [constVariablePointer]
-            int64_t* ptr = (int64_t*)data;
-                     ^
-src\ops\arithmetic.c:676:22: style: Variable 'ptr' can be declared as pointer to const [constVariablePointer]
-            uint8_t* ptr = (uint8_t*)data;
-                     ^
-src\ops\linear.c:117:24: style: Variable 'a_batch_ptr' can be declared as pointer to const [constVariablePointer]
-                float* a_batch_ptr = a_ptr + batch * a_batch_stride;
-                       ^
-src\ops\linear.c:118:24: style: Variable 'b_batch_ptr' can be declared as pointer to const [constVariablePointer]
-                float* b_batch_ptr = b_ptr + batch * b_batch_stride;
-                       ^
-src\ops\linear.c:147:25: style: Variable 'a_batch_ptr' can be declared as pointer to const [constVariablePointer]
-                double* a_batch_ptr = a_ptr + batch * a_batch_stride;
-                        ^
-src\ops\linear.c:148:25: style: Variable 'b_batch_ptr' can be declared as pointer to const [constVariablePointer]
-                double* b_batch_ptr = b_ptr + batch * b_batch_stride;
-                        ^
-src\ops\linear.c:198:13: style: Variable 'out_shape' can be declared as const array [constVariable]
-    int64_t out_shape[] = {1};
-            ^
-src\ops\linear.c:208:20: style: Variable 'a_ptr' can be declared as pointer to const [constVariablePointer]
-            float* a_ptr = (float*)a_data;
-                   ^
-src\ops\linear.c:209:20: style: Variable 'b_ptr' can be declared as pointer to const [constVariablePointer]
-            float* b_ptr = (float*)b_data;
-                   ^
-src\ops\linear.c:219:21: style: Variable 'a_ptr' can be declared as pointer to const [constVariablePointer]
-            double* a_ptr = (double*)a_data;
-                    ^
-src\ops\linear.c:220:21: style: Variable 'b_ptr' can be declared as pointer to const [constVariablePointer]
-            double* b_ptr = (double*)b_data;
-                    ^
-src\optimizers\adagrad.c:172:20: style: Variable 'param' can be declared as pointer to const [constVariablePointer]
-    boat_tensor_t* param = state->params[idx];
-                   ^
-src\optimizers\adagrad.c:173:20: style: Variable 'grad' can be declared as pointer to const [constVariablePointer]
-    boat_tensor_t* grad = state->grads[idx];
-                   ^
-src\optimizers\adagrad.c:174:20: style: Variable 'sum_square_grad_tensor' can be declared as pointer to const [constVariablePointer]
-    boat_tensor_t* sum_square_grad_tensor = state->sum_square_grad[idx];
-                   ^
-src\optimizers\adagrad.c:182:12: style: Variable 'grad_data' can be declared as pointer to const [constVariablePointer]
-    float* grad_data = (float*)boat_tensor_data(grad);
-           ^
-src\optimizers\adagrad.c:222:24: style: Variable 'grad' can be declared as pointer to const [constVariablePointer]
-        boat_tensor_t* grad = state->grads[i];
-                       ^
-src\optimizers\adam.c:185:20: style: Variable 'param' can be declared as pointer to const [constVariablePointer]
-    boat_tensor_t* param = state->params[idx];
-                   ^
-src\optimizers\adam.c:186:20: style: Variable 'grad' can be declared as pointer to const [constVariablePointer]
-    boat_tensor_t* grad = state->grads[idx];
-                   ^
-src\optimizers\adam.c:187:20: style: Variable 'm_tensor' can be declared as pointer to const [constVariablePointer]
-    boat_tensor_t* m_tensor = state->m[idx];
-                   ^
-src\optimizers\adam.c:188:20: style: Variable 'v_tensor' can be declared as pointer to const [constVariablePointer]
-    boat_tensor_t* v_tensor = state->v[idx];
-                   ^
-src\optimizers\adam.c:196:12: style: Variable 'grad_data' can be declared as pointer to const [constVariablePointer]
-    float* grad_data = (float*)boat_tensor_data(grad);
-           ^
-src\optimizers\adam.c:251:24: style: Variable 'grad' can be declared as pointer to const [constVariablePointer]
-        boat_tensor_t* grad = state->grads[i];
-                       ^
-src\optimizers\optimizer_common.c:112:30: style: Variable 'header' can be declared as pointer to const [constVariablePointer]
-    boat_optimizer_header_t* header = (boat_optimizer_header_t*)optimizer;
-                             ^
+src\optimizers\optimizer_common.c:108:67: style: Parameter 'optimizer' can be declared as pointer to const [constParameterPointer]
+static boat_optimizer_type_t get_optimizer_type(boat_optimizer_t* optimizer) {
+                                                                  ^
 src\optimizers\optimizer_common.c:26:29: style: struct member 'boat_sgd_state_t::header' is never used. [unusedStructMember]
     boat_optimizer_header_t header;
                             ^
@@ -583,18 +232,3 @@ src\optimizers\optimizer_common.c:57:12: style: struct member 'boat_adagrad_stat
 src\optimizers\optimizer_common.c:58:12: style: struct member 'boat_adagrad_state_t::capacity' is never used. [unusedStructMember]
     size_t capacity;
            ^
-src\optimizers\rmsprop.c:186:20: style: Variable 'param' can be declared as pointer to const [constVariablePointer]
-    boat_tensor_t* param = state->params[idx];
-                   ^
-src\optimizers\rmsprop.c:187:20: style: Variable 'grad' can be declared as pointer to const [constVariablePointer]
-    boat_tensor_t* grad = state->grads[idx];
-                   ^
-src\optimizers\rmsprop.c:188:20: style: Variable 'square_avg_tensor' can be declared as pointer to const [constVariablePointer]
-    boat_tensor_t* square_avg_tensor = state->square_avg[idx];
-                   ^
-src\optimizers\rmsprop.c:196:12: style: Variable 'grad_data' can be declared as pointer to const [constVariablePointer]
-    float* grad_data = (float*)boat_tensor_data(grad);
-           ^
-src\optimizers\rmsprop.c:236:24: style: Variable 'grad' can be declared as pointer to const [constVariablePointer]
-        boat_tensor_t* grad = state->grads[i];
-                       ^

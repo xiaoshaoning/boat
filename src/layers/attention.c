@@ -416,7 +416,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_attention_forward(boat_attention_t* atten
     v_proj = v_reshaped;
 
     // Apply rotary position encoding if enabled
-    if (attention->config.use_rotary && q_proj && k_proj) {
+    if (attention->config.use_rotary) {
         // TODO: Implement rotary position encoding
     }
 
@@ -440,10 +440,6 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_attention_forward(boat_attention_t* atten
     boat_tensor_free(k_proj);
     boat_tensor_free(v_proj);
 #endif
-
-    if (!output) {
-        return NULL;
-    }
 
     // Reshape back: [batch, num_heads, seq_len, head_size] -> [batch, seq_len, hidden]
     const int64_t original_shape[] = {batch, seq_len, hidden};
@@ -657,9 +653,9 @@ BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* attention,
                                     &attention->grad_weight_q,
                                     &attention->grad_bias_q)) {
         boat_tensor_unref(grad_attention_output);
-        if (grad_q_proj) boat_tensor_unref(grad_q_proj);
-        if (grad_k_proj) boat_tensor_unref(grad_k_proj);
-        if (grad_v_proj) boat_tensor_unref(grad_v_proj);
+        boat_tensor_unref(grad_q_proj);
+        boat_tensor_unref(grad_k_proj);
+        boat_tensor_unref(grad_v_proj);
         if (grad_weight_o_local) boat_tensor_unref(grad_weight_o_local);
         if (grad_bias_o_local) boat_tensor_unref(grad_bias_o_local);
         return false;
@@ -674,9 +670,9 @@ BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* attention,
                                     &attention->grad_weight_k,
                                     &attention->grad_bias_k)) {
         boat_tensor_unref(grad_attention_output);
-        if (grad_q_proj) boat_tensor_unref(grad_q_proj);
-        if (grad_k_proj) boat_tensor_unref(grad_k_proj);
-        if (grad_v_proj) boat_tensor_unref(grad_v_proj);
+        boat_tensor_unref(grad_q_proj);
+        boat_tensor_unref(grad_k_proj);
+        boat_tensor_unref(grad_v_proj);
         if (grad_q) boat_tensor_unref(grad_q);
         if (grad_weight_o_local) boat_tensor_unref(grad_weight_o_local);
         if (grad_bias_o_local) boat_tensor_unref(grad_bias_o_local);
@@ -692,9 +688,9 @@ BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* attention,
                                     &attention->grad_weight_v,
                                     &attention->grad_bias_v)) {
         boat_tensor_unref(grad_attention_output);
-        if (grad_q_proj) boat_tensor_unref(grad_q_proj);
-        if (grad_k_proj) boat_tensor_unref(grad_k_proj);
-        if (grad_v_proj) boat_tensor_unref(grad_v_proj);
+        boat_tensor_unref(grad_q_proj);
+        boat_tensor_unref(grad_k_proj);
+        boat_tensor_unref(grad_v_proj);
         if (grad_q) boat_tensor_unref(grad_q);
         if (grad_k) boat_tensor_unref(grad_k);
         if (grad_weight_o_local) boat_tensor_unref(grad_weight_o_local);
@@ -708,9 +704,9 @@ BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* attention,
 
     // Clean up intermediate tensors
     boat_tensor_unref(grad_attention_output);
-    if (grad_q_proj) boat_tensor_unref(grad_q_proj);
-    if (grad_k_proj) boat_tensor_unref(grad_k_proj);
-    if (grad_v_proj) boat_tensor_unref(grad_v_proj);
+    boat_tensor_unref(grad_q_proj);
+    boat_tensor_unref(grad_k_proj);
+    boat_tensor_unref(grad_v_proj);
 
     // Return gradients for all three inputs via output pointers
     // If an output pointer is NULL, discard the corresponding gradient tensor
