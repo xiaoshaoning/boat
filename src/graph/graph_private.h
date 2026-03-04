@@ -8,9 +8,9 @@
 #include <boat/memory.h>
 
 // Node reference counting (implemented in node.c)
-void boat_node_ref(const boat_node_t* node);
-void boat_node_unref(const boat_node_t* node);
-void boat_node_free(const boat_node_t* node);
+void boat_node_ref(boat_node_t* node);
+void boat_node_unref(boat_node_t* node);
+void boat_node_free(boat_node_t* node);
 
 // Graph structure definition (must match node.c)
 struct boat_graph_t {
@@ -61,7 +61,7 @@ struct boat_edge_t* boat_edge_create(const boat_node_t* from, const boat_node_t*
 void boat_edge_free(const struct boat_edge_t* edge);
 
 // Graph capacity helpers (implemented in graph.c)
-bool ensure_node_capacity(const boat_graph_t* graph, size_t needed_capacity);
-bool ensure_edge_capacity(const boat_graph_t* graph, size_t needed_capacity);
+bool ensure_node_capacity(boat_graph_t* graph, size_t needed_capacity);
+bool ensure_edge_capacity(boat_graph_t* graph, size_t needed_capacity);
 
 #endif // BOAT_GRAPH_PRIVATE_H

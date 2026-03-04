@@ -21,12 +21,13 @@ GRAPH_SRCS = $(wildcard $(SRC_DIR)/graph/*.c)
 LAYERS_SRCS = $(wildcard $(SRC_DIR)/layers/*.c)
 OPTIMIZERS_SRCS = $(wildcard $(SRC_DIR)/optimizers/*.c)
 LOSS_SRCS = $(wildcard $(SRC_DIR)/loss/*.c)
+SCHEDULERS_SRCS = $(wildcard $(SRC_DIR)/schedulers/*.c)
 MODEL_SRCS = $(wildcard $(SRC_DIR)/model/*.c)
 DATA_SRCS = $(wildcard $(SRC_DIR)/data/*.c)
 FORMAT_SRCS = $(wildcard $(SRC_DIR)/format/*.c)
 
 ALL_SRCS = $(CORE_SRCS) $(OPS_SRCS) $(GRAPH_SRCS) $(LAYERS_SRCS) \
-           $(OPTIMIZERS_SRCS) $(LOSS_SRCS) $(MODEL_SRCS) \
+           $(OPTIMIZERS_SRCS) $(SCHEDULERS_SRCS) $(LOSS_SRCS) $(MODEL_SRCS) \
            $(DATA_SRCS) $(FORMAT_SRCS) \
            $(SRC_DIR)/autodiff.c
 

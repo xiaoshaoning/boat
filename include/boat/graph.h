@@ -40,13 +40,13 @@ typedef enum {
 // Graph creation and management
 BOAT_API boat_graph_t* boat_graph_create();
 BOAT_API boat_graph_t* boat_graph_create_with_device(boat_device_t device);
-BOAT_API void boat_graph_free(const boat_graph_t* graph);
+BOAT_API void boat_graph_free(boat_graph_t* graph);
 BOAT_API boat_graph_t* boat_graph_copy(const boat_graph_t* graph);
 
 // Node operations
-BOAT_API boat_node_t* boat_graph_add_node(const boat_graph_t* graph, void* data, boat_node_type_t type,
-                                 void (*free_fn)(const void*));
-BOAT_API void boat_graph_remove_node(const boat_graph_t* graph, const boat_node_t* node);
+BOAT_API boat_node_t* boat_graph_add_node(boat_graph_t* graph, void* data, boat_node_type_t type,
+                                 void (*free_fn)(void*));
+BOAT_API void boat_graph_remove_node(boat_graph_t* graph, boat_node_t* node);
 BOAT_API boat_node_t* boat_graph_get_node(const boat_graph_t* graph, size_t id);
 BOAT_API size_t boat_graph_node_id(const boat_node_t* node);
 BOAT_API void* boat_node_data(const boat_node_t* node);
@@ -62,7 +62,7 @@ BOAT_API boat_edge_direction_t boat_edge_direction(const boat_edge_t* edge);
 
 // Device management
 BOAT_API boat_device_t boat_graph_device(const boat_graph_t* graph);
-BOAT_API void boat_graph_set_device(const boat_graph_t* graph, boat_device_t device);
+BOAT_API void boat_graph_set_device(boat_graph_t* graph, boat_device_t device);
 BOAT_API bool boat_graph_to_device(boat_graph_t* graph, boat_device_t device);
 BOAT_API size_t boat_graph_device_memory_usage(const boat_graph_t* graph, boat_device_t device);
 
@@ -112,14 +112,14 @@ BOAT_API bool boat_graph_can_add_edge(const boat_graph_t* graph, const boat_node
 BOAT_API bool boat_graph_can_remove_node(const boat_graph_t* graph, const boat_node_t* node);
 
 // Real-time graph modification during training
-BOAT_API boat_edge_t* boat_graph_safe_add_edge(const boat_graph_t* graph, const boat_node_t* from, const boat_node_t* to,
+BOAT_API boat_edge_t* boat_graph_safe_add_edge(boat_graph_t* graph, const boat_node_t* from, const boat_node_t* to,
                                      boat_edge_direction_t direction);
-BOAT_API bool boat_graph_safe_remove_node(const boat_graph_t* graph, const boat_node_t* node);
-BOAT_API bool boat_graph_safe_replace_node(const boat_graph_t* graph, const boat_node_t* old_node, const boat_node_t* new_node);
+BOAT_API bool boat_graph_safe_remove_node(boat_graph_t* graph, const boat_node_t* node);
+BOAT_API bool boat_graph_safe_replace_node(boat_graph_t* graph, const boat_node_t* old_node, const boat_node_t* new_node);
 BOAT_API void boat_graph_batch_modifications(boat_graph_t* graph, bool begin);
 
 // Node migration between graphs
-BOAT_API bool boat_graph_migrate_node(const boat_graph_t* dest_graph, const boat_graph_t* src_graph, const boat_node_t* node);
+BOAT_API bool boat_graph_migrate_node(boat_graph_t* dest_graph, boat_graph_t* src_graph, const boat_node_t* node);
 
 // Graph optimizations
 BOAT_API void boat_graph_optimize(const boat_graph_t* graph, unsigned int optimization_flags);

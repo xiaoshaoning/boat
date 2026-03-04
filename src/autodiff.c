@@ -91,12 +91,12 @@ static boat_tensor_t* compute_forward_relu(const boat_tensor_t* a);
 static boat_tensor_t* compute_forward_sigmoid(const boat_tensor_t* a);
 static boat_tensor_t* compute_forward_tanh(const boat_tensor_t* a);
 static boat_tensor_t* compute_forward_matmul(const boat_tensor_t* a, const boat_tensor_t* b);
-static boat_tensor_t* compute_forward_sum(boat_tensor_t* a, int64_t* dims, size_t n_dims, bool keepdim);
-static boat_tensor_t* compute_forward_sum_single(boat_tensor_t* a);
-static boat_tensor_t* compute_forward_mean(boat_tensor_t* a, int64_t* dims, size_t n_dims, bool keepdim);
+static boat_tensor_t* compute_forward_sum(const boat_tensor_t* a, const int64_t* dims, size_t n_dims, bool keepdim);
+static boat_tensor_t* compute_forward_sum_single(const boat_tensor_t* a);
+static boat_tensor_t* compute_forward_mean(const boat_tensor_t* a, const int64_t* dims, size_t n_dims, bool keepdim);
 static boat_tensor_t* compute_forward_softmax(const boat_tensor_t* a);
 static boat_tensor_t* compute_forward_log_softmax(const boat_tensor_t* a);
-static boat_tensor_t* compute_forward_conv(boat_tensor_t* input, void* layer_ptr);
+static boat_tensor_t* compute_forward_conv(const boat_tensor_t* input, const void* layer_ptr);
 static void compute_backward_conv(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
 static boat_tensor_t* compute_forward_pool(const boat_tensor_t* input, void* layer_ptr);
 static void compute_backward_pool(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
@@ -123,8 +123,8 @@ static boat_op_node_data_t* create_op_node_data(boat_op_type_t op_type,
                                                 boat_variable_t** inputs,
                                                 size_t num_inputs,
                                                 const boat_variable_t* output);
-static void free_op_node_data(const void* data);
-static void free_variable_data(const void* data);
+static void free_op_node_data(void* data);
+static void free_variable_data(void* data);
 static boat_variable_t* create_operation(boat_op_type_t op_type,
                                          boat_variable_t** inputs,
                                          size_t num_inputs,
@@ -617,12 +617,12 @@ void boat_autodiff_context_free(const boat_autodiff_context_t* context) {
     boat_free(context);
 }
 
-void boat_autodiff_context_enable_grad(const boat_autodiff_context_t* context) {
+void boat_autodiff_context_enable_grad(boat_autodiff_context_t* context) {
     if (!context) return;
     context->grad_enabled = true;
 }
 
-void boat_autodiff_context_disable_grad(const boat_autodiff_context_t* context) {
+void boat_autodiff_context_disable_grad(boat_autodiff_context_t* context) {
     if (!context) return;
     context->grad_enabled = false;
 }
@@ -631,7 +631,7 @@ bool boat_autodiff_context_grad_enabled(const boat_autodiff_context_t* context) 
     return context ? context->grad_enabled : false;
 }
 
-void boat_autodiff_context_set_graph(const boat_autodiff_context_t* context, const boat_graph_t* graph) {
+void boat_autodiff_context_set_graph(boat_autodiff_context_t* context, const boat_graph_t* graph) {
     if (!context) return;
     context->graph = graph;
 }
@@ -641,7 +641,7 @@ boat_graph_t* boat_autodiff_context_get_graph(const boat_autodiff_context_t* con
 }
 
 void boat_autodiff_set_current_context(const boat_autodiff_context_t* context) {
-    current_context = context;
+    current_context = (boat_autodiff_context_t*)context;
 }
 
 boat_autodiff_context_t* boat_autodiff_get_current_context() {
@@ -714,7 +714,7 @@ void boat_autodiff_clear_computation_graph() {
             }
         }
 
-        boat_graph_remove_node(graph, node);
+        boat_graph_remove_node((boat_graph_t*)graph, (boat_node_t*)node);
     }
 
     boat_free(nodes_to_remove);
@@ -745,7 +745,7 @@ static boat_op_node_data_t* create_op_node_data(boat_op_type_t op_type,
 
     op_data->op_type = op_type;
     op_data->num_inputs = num_inputs;
-    op_data->output = output;
+    op_data->output = (boat_variable_t*)output;
 
     // Copy input pointers
     if (num_inputs > 0) {
@@ -765,7 +765,7 @@ static boat_op_node_data_t* create_op_node_data(boat_op_type_t op_type,
     return op_data;
 }
 
-static void free_op_node_data(const void* data) {
+static void free_op_node_data(void* data) {
     if (!data) return;
 
     boat_op_node_data_t* op_data = (boat_op_node_data_t*)data;
@@ -778,7 +778,7 @@ static void free_op_node_data(const void* data) {
     boat_free(op_data);
 }
 
-static void free_variable_data(const void* data) {
+static void free_variable_data(void* data) {
     if (!data) return;
     const boat_variable_t* var = (const boat_variable_t*)data;
     boat_variable_free(var);
@@ -994,7 +994,7 @@ static boat_tensor_t* compute_forward_conv(const boat_tensor_t* input, const voi
         return NULL;
     }
     const boat_conv_layer_t* layer = (const boat_conv_layer_t*)layer_ptr;
-    boat_tensor_t* output = boat_conv_layer_forward(layer, input);
+    boat_tensor_t* output = boat_conv_layer_forward((boat_conv_layer_t*)layer, input);
     return output;
 }
 
@@ -2155,7 +2155,7 @@ static boat_variable_t* create_conv_operation(const boat_variable_t* input, cons
     bool requires_grad = input->requires_grad;
 
     // Perform forward computation using layer
-    boat_tensor_t* output_tensor = boat_conv_layer_forward(layer, input->data);
+    boat_tensor_t* output_tensor = boat_conv_layer_forward((boat_conv_layer_t*)layer, input->data);
     if (!output_tensor) {
         return NULL;
     }
@@ -2170,17 +2170,17 @@ static boat_variable_t* create_conv_operation(const boat_variable_t* input, cons
     // If gradient is required, create operation node and connect to graph
     if (requires_grad) {
         // Create operation node data with layer pointer in extra_data
-        boat_op_node_data_t* op_data = create_op_node_data(BOAT_OP_CONV, &input, 1, output_var);
+        boat_op_node_data_t* op_data = create_op_node_data(BOAT_OP_CONV, (boat_variable_t**)&input, 1, output_var);
         if (!op_data) {
             boat_variable_free(output_var);
             return NULL;
         }
         // Store layer pointer in extra_data
-        op_data->extra_data = layer;
+        op_data->extra_data = (void*)layer;
 
         // Unify variable graphs (only one input)
         boat_graph_t* graph = NULL;
-        if (!unify_variable_graphs(&input, 1, &graph)) {
+        if (!unify_variable_graphs((boat_variable_t**)&input, 1, &graph)) {
             free_op_node_data(op_data);
             boat_variable_free(output_var);
             return NULL;
@@ -2221,7 +2221,7 @@ static boat_variable_t* create_pool_operation(const boat_variable_t* input, cons
     bool requires_grad = input->requires_grad;
 
     // Perform forward computation using layer
-    boat_tensor_t* output_tensor = boat_pool_layer_forward(layer, input->data);
+    boat_tensor_t* output_tensor = boat_pool_layer_forward((boat_pool_layer_t*)layer, input->data);
     if (!output_tensor) {
         return NULL;
     }
@@ -2236,17 +2236,17 @@ static boat_variable_t* create_pool_operation(const boat_variable_t* input, cons
     // If gradient is required, create operation node and connect to graph
     if (requires_grad) {
         // Create operation node data with layer pointer in extra_data
-        boat_op_node_data_t* op_data = create_op_node_data(BOAT_OP_POOL, &input, 1, output_var);
+        boat_op_node_data_t* op_data = create_op_node_data(BOAT_OP_POOL, (boat_variable_t**)&input, 1, output_var);
         if (!op_data) {
             boat_variable_free(output_var);
             return NULL;
         }
         // Store layer pointer in extra_data
-        op_data->extra_data = layer;
+        op_data->extra_data = (void*)layer;
 
         // Unify variable graphs (only one input)
         boat_graph_t* graph = NULL;
-        if (!unify_variable_graphs(&input, 1, &graph)) {
+        if (!unify_variable_graphs((boat_variable_t**)&input, 1, &graph)) {
             free_op_node_data(op_data);
             boat_variable_free(output_var);
             return NULL;
@@ -2287,7 +2287,7 @@ static boat_variable_t* create_dense_operation(const boat_variable_t* input, con
     bool requires_grad = input->requires_grad;
 
     // Perform forward computation using layer
-    boat_tensor_t* output_tensor = boat_dense_layer_forward(layer, input->data);
+    boat_tensor_t* output_tensor = boat_dense_layer_forward((boat_dense_layer_t*)layer, input->data);
     if (!output_tensor) {
         return NULL;
     }
@@ -2302,17 +2302,17 @@ static boat_variable_t* create_dense_operation(const boat_variable_t* input, con
     // If gradient is required, create operation node and connect to graph
     if (requires_grad) {
         // Create operation node data with layer pointer in extra_data
-        boat_op_node_data_t* op_data = create_op_node_data(BOAT_OP_DENSE, &input, 1, output_var);
+        boat_op_node_data_t* op_data = create_op_node_data(BOAT_OP_DENSE, (boat_variable_t**)&input, 1, output_var);
         if (!op_data) {
             boat_variable_free(output_var);
             return NULL;
         }
         // Store layer pointer in extra_data
-        op_data->extra_data = layer;
+        op_data->extra_data = (void*)layer;
 
         // Unify variable graphs (only one input)
         boat_graph_t* graph = NULL;
-        if (!unify_variable_graphs(&input, 1, &graph)) {
+        if (!unify_variable_graphs((boat_variable_t**)&input, 1, &graph)) {
             free_op_node_data(op_data);
             boat_variable_free(output_var);
             return NULL;
@@ -2360,7 +2360,7 @@ static void compute_backward_conv(boat_op_node_data_t* op_data, const boat_tenso
     
     // Call layer backward function to compute gradient with respect to input
     // This will also compute gradients for weight and bias and store them in layer
-    boat_tensor_t* grad_input = boat_conv_layer_backward(layer, grad_output);
+    boat_tensor_t* grad_input = boat_conv_layer_backward((boat_conv_layer_t*)layer, grad_output);
     if (!grad_input) {
         return;
     }
@@ -2392,7 +2392,7 @@ static boat_variable_t* create_attention_operation(const boat_variable_t* query,
     bool requires_grad = query->requires_grad || key->requires_grad || value->requires_grad;
 
     // Perform forward computation using layer
-    boat_tensor_t* output_tensor = boat_attention_forward(attention, query->data, key->data, value->data, attention_mask);
+    boat_tensor_t* output_tensor = boat_attention_forward((boat_attention_t*)attention, query->data, key->data, value->data, attention_mask);
     if (!output_tensor) {
         return NULL;
     }
@@ -2407,7 +2407,7 @@ static boat_variable_t* create_attention_operation(const boat_variable_t* query,
     // If gradient is required, create operation node and connect to graph
     if (requires_grad) {
         // Prepare input array
-        boat_variable_t* inputs[] = {query, key, value};
+        boat_variable_t* inputs[] = {(boat_variable_t*)query, (boat_variable_t*)key, (boat_variable_t*)value};
         // Create operation node data with layer pointer in extra_data
         boat_op_node_data_t* op_data = create_op_node_data(BOAT_OP_ATTENTION, inputs, 3, output_var);
         if (!op_data) {
@@ -2415,7 +2415,7 @@ static boat_variable_t* create_attention_operation(const boat_variable_t* query,
             return NULL;
         }
         // Store layer pointer in extra_data (attention mask is not stored, as it's not needed for backward)
-        op_data->extra_data = attention;
+        op_data->extra_data = (void*)attention;
 
         // Unify variable graphs
         boat_graph_t* graph = NULL;
@@ -2633,7 +2633,7 @@ static void compute_backward_pool(boat_op_node_data_t* op_data, const boat_tenso
 static boat_tensor_t* compute_forward_dense(const boat_tensor_t* input, const void* layer_ptr) {
     if (!input || !layer_ptr) return NULL;
     const boat_dense_layer_t* layer = (const boat_dense_layer_t*)layer_ptr;
-    return boat_dense_layer_forward(layer, input);
+    return boat_dense_layer_forward((boat_dense_layer_t*)layer, input);
 }
 
 // Dense operation backward pass
@@ -2650,7 +2650,7 @@ static void compute_backward_dense(boat_op_node_data_t* op_data, const boat_tens
 
     // Call layer backward function to compute gradient with respect to input
     // This will also compute gradients for weight and bias and store them in layer
-    boat_tensor_t* grad_input = boat_dense_layer_backward(layer, grad_output);
+    boat_tensor_t* grad_input = boat_dense_layer_backward((boat_dense_layer_t*)layer, grad_output);
     if (!grad_input) {
         return;
     }
