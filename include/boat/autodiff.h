@@ -81,10 +81,10 @@ BOAT_API boat_variable_t* boat_var_min(const boat_variable_t* a, int64_t* dims, 
 // Context management (for controlling gradient computation)
 BOAT_API boat_autodiff_context_t* boat_autodiff_context_create();
 BOAT_API void boat_autodiff_context_free(const boat_autodiff_context_t* context);
-BOAT_API void boat_autodiff_context_enable_grad(const boat_autodiff_context_t* context);
-BOAT_API void boat_autodiff_context_disable_grad(const boat_autodiff_context_t* context);
+BOAT_API void boat_autodiff_context_enable_grad(boat_autodiff_context_t* context);
+BOAT_API void boat_autodiff_context_disable_grad(boat_autodiff_context_t* context);
 BOAT_API bool boat_autodiff_context_grad_enabled(const boat_autodiff_context_t* context);
-BOAT_API void boat_autodiff_context_set_graph(const boat_autodiff_context_t* context, const boat_graph_t* graph);
+BOAT_API void boat_autodiff_context_set_graph(boat_autodiff_context_t* context, const boat_graph_t* graph);
 BOAT_API boat_graph_t* boat_autodiff_context_get_graph(const boat_autodiff_context_t* context);
 BOAT_API void boat_autodiff_set_current_context(const boat_autodiff_context_t* context);
 BOAT_API boat_autodiff_context_t* boat_autodiff_get_current_context();

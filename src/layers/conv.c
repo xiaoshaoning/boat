@@ -316,7 +316,7 @@ BOAT_API boat_conv_layer_t* BOAT_CALL boat_conv_layer_create(size_t in_channels,
     return layer;
 }
 
-BOAT_API void BOAT_CALL boat_conv_layer_free(const boat_conv_layer_t* layer) {
+BOAT_API void BOAT_CALL boat_conv_layer_free(boat_conv_layer_t* layer) {
     if (!layer) {
         return;
     }
@@ -329,7 +329,7 @@ BOAT_API void BOAT_CALL boat_conv_layer_free(const boat_conv_layer_t* layer) {
     boat_free(layer);
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(const boat_conv_layer_t* layer, const boat_tensor_t* input) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* layer, const boat_tensor_t* input) {
     if (!layer || !input) {
         return NULL;
     }
@@ -472,7 +472,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(const boat_conv_layer_
     return output;
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(const boat_conv_layer_t* layer, const boat_tensor_t* grad_output) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* layer, const boat_tensor_t* grad_output) {
     if (!layer || !grad_output) {
         fprintf(stderr, "Error: conv backward: NULL input\n");
         return NULL;
@@ -536,7 +536,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(const boat_conv_layer
     return grad_input;
 }
 
-BOAT_API void BOAT_CALL boat_conv_layer_update(const boat_conv_layer_t* layer, float learning_rate) {
+BOAT_API void BOAT_CALL boat_conv_layer_update(boat_conv_layer_t* layer, float learning_rate) {
     if (!layer) {
         return;
     }
@@ -562,7 +562,7 @@ BOAT_API void BOAT_CALL boat_conv_layer_update(const boat_conv_layer_t* layer, f
 }
 
 // Parameter access functions for model loading
-BOAT_API void BOAT_CALL boat_conv_layer_set_weight(const boat_conv_layer_t* layer, boat_tensor_t* weight) {
+BOAT_API void BOAT_CALL boat_conv_layer_set_weight(boat_conv_layer_t* layer, boat_tensor_t* weight) {
     if (!layer || !weight) {
         return;
     }
@@ -585,7 +585,7 @@ BOAT_API void BOAT_CALL boat_conv_layer_set_weight(const boat_conv_layer_t* laye
     boat_tensor_ref(weight); // Increase ref count since layer now owns it
 }
 
-BOAT_API void BOAT_CALL boat_conv_layer_set_bias(const boat_conv_layer_t* layer, boat_tensor_t* bias) {
+BOAT_API void BOAT_CALL boat_conv_layer_set_bias(boat_conv_layer_t* layer, boat_tensor_t* bias) {
     if (!layer || !bias) {
         return;
     }

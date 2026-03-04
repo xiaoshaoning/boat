@@ -37,6 +37,8 @@ Boat is a lightweight, high-performance deep learning framework written in pure 
 
 ### Building from Source
 
+#### Using CMake (Recommended)
+
 ```bash
 # Clone the repository
 git clone https://github.com/xiaoshaoning/boat.git
@@ -55,6 +57,33 @@ make
 # (Optional) Install system-wide
 sudo make install
 ```
+
+#### Using Makefile
+
+The project also includes a traditional Makefile for simpler builds:
+
+```bash
+# Clone the repository
+git clone https://github.com/xiaoshaoning/boat.git
+cd boat
+
+# Build the library
+make all
+
+# Build with debug symbols
+make dev
+
+# Build optimized release version
+make release
+
+# Run tests
+make test
+
+# Clean build artifacts
+make clean
+```
+
+The Makefile automatically compiles all source files and creates a shared library `libboat.so` (or `boat.dll` on Windows) in the `build/lib/` directory.
 
 ### Build Options
 
@@ -234,6 +263,37 @@ make
 # Run the training and evaluation
 ./mnist
 ```
+
+### Automatic Differentiation Version
+
+Boat also includes an advanced MNIST example using automatic differentiation (`mnist_autodiff.c`) that demonstrates:
+
+- **Dynamic computation graph** with gradient tracking
+- **Learning rate schedulers** (cosine annealing, step LR)
+- **Gradient clipping** and monitoring
+- **Memory optimization** with pooling strategies
+- **Auto-tuning** of hyperparameters during training
+- **Comprehensive logging** and progress tracking
+
+To compile and run the autodiff version:
+
+```bash
+# Navigate to the MNIST example directory
+cd examples/mnist
+
+# Compile with Boat library (ensure libboat.so is in build/lib/)
+gcc -std=c11 -Wall -Wextra -O2 -I../../include \
+    mnist_autodiff.c -o mnist_autodiff \
+    ../../build/lib/libboat.so -lm
+
+# Copy the library to the current directory (or set LD_LIBRARY_PATH)
+cp ../../build/lib/libboat.so .
+
+# Run the autodiff training
+./mnist_autodiff
+```
+
+The autodiff version provides more detailed training metrics and automatic hyperparameter tuning capabilities.
 
 ### Key Code Snippets
 
@@ -477,6 +537,7 @@ For detailed API documentation and development guidelines, see [CLAUDE.md](CLAUD
 - Automatic differentiation with computational graph
 - Neural network layers (dense, conv, attention, etc.)
 - Optimizers (Adam, RMSprop, SGD, Adagrad)
+- Learning rate schedulers (cosine annealing, step LR, lambda LR)
 - Loss functions (MSE, cross-entropy, Huber)
 - Sequential model API
 - Model format loaders (ONNX, PyTorch, TensorFlow, HuggingFace)
@@ -509,6 +570,15 @@ The project uses `cppcheck` for static analysis to detect potential issues. Run 
 ```bash
 cppcheck --enable=warning,style --suppress=missingInclude -I include src
 ```
+
+**Recent Improvements**: The codebase has been extensively analyzed and refined to achieve **zero cppcheck warnings** across all source files. This includes fixes for:
+- Const correctness issues (parameter and pointer constness)
+- Unused variables and functions
+- Variable shadowing
+- Memory management patterns
+- Type consistency and format strings
+
+Static analysis reports are maintained in the repository (`cppcheck_*.txt`) to track code quality improvements over time.
 
 ### Automated Testing
 All code changes are validated through comprehensive unit and integration tests.

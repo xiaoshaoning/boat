@@ -1,0 +1,3 @@
+src\layers\attention.c:1324:21: style: The scope of the variable 'batch' can be reduced. [variableScope]
+            int64_t batch = grad_shape_local[0];
+                    ^

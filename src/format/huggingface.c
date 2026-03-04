@@ -52,8 +52,8 @@ typedef struct {
 } hf_layer_wrapper_t;
 
 // Forward declarations for static functions
-static void free_config(const hf_config_t* config);
-static void init_builders(const hf_config_t* config);
+static void free_config(hf_config_t* config);
+static void init_builders(hf_config_t* config);
 static boat_layer_t* create_layer_from_config(const hf_config_t* config, const char* layer_name, boat_tensor_t* weight);
 static hf_layer_wrapper_t* create_layer_wrapper(const char* layer_type, boat_tensor_t* weight);
 static void free_layer_wrapper(hf_layer_wrapper_t* wrapper);
@@ -315,7 +315,7 @@ static hf_config_t* parse_config(const char* config_json) {
 // Layer builder management functions
 
 // Initialize builders array
-static void init_builders(const hf_config_t* config) {
+static void init_builders(hf_config_t* config) {
     if (!config) return;
     config->builder_capacity = 16;
     config->builder_count = 0;
@@ -326,7 +326,7 @@ static void init_builders(const hf_config_t* config) {
 }
 
 // Free builders array
-static void free_builders(const hf_config_t* config) {
+static void free_builders(hf_config_t* config) {
     if (!config || !config->builders) return;
 
     for (size_t i = 0; i < config->builder_count; i++) {
@@ -347,7 +347,7 @@ static void free_builders(const hf_config_t* config) {
 }
 
 // Find or create a layer builder by base name
-static hf_layer_builder_t* find_or_create_builder(const hf_config_t* config, const char* base_name, const char* layer_type) {
+static hf_layer_builder_t* find_or_create_builder(hf_config_t* config, const char* base_name, const char* layer_type) {
     if (!config || !base_name || !layer_type) return NULL;
 
     // First, try to find existing builder
@@ -558,7 +558,7 @@ static boat_layer_t* complete_builder(hf_layer_builder_t* builder, const hf_conf
 }
 
 // Free configuration
-static void free_config(const hf_config_t* config) {
+static void free_config(hf_config_t* config) {
     if (!config) return;
     free(config->model_type);
     free_builders(config);
@@ -1178,7 +1178,7 @@ boat_model_t* boat_huggingface_load_from_memory(const char* config_json, const v
     }
 
     // Parse model configuration
-    const hf_config_t* config = parse_config(config_json);
+    hf_config_t* config = parse_config(config_json);
     if (!config) {
         fprintf(stderr, "Failed to parse model configuration\n");
         return NULL;

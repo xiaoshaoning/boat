@@ -80,7 +80,7 @@ bool ensure_node_capacity(boat_graph_t* graph, size_t needed_capacity) {
 }
 
 // Helper function to ensure edge array capacity
-bool ensure_edge_capacity(const boat_graph_t* graph, size_t needed_capacity) {
+bool ensure_edge_capacity(boat_graph_t* graph, size_t needed_capacity) {
     if (needed_capacity <= graph->edge_capacity) {
         return true;
     }
@@ -1428,7 +1428,7 @@ char* boat_graph_to_dot(const boat_graph_t* graph) {
 }
 
 // Real-time graph modification during training
-boat_edge_t* boat_graph_safe_add_edge(const boat_graph_t* graph, const boat_node_t* from, const boat_node_t* to,
+boat_edge_t* boat_graph_safe_add_edge(boat_graph_t* graph, const boat_node_t* from, const boat_node_t* to,
                                      boat_edge_direction_t direction) {
     if (!graph || !from || !to) return NULL;
 
@@ -1451,7 +1451,7 @@ boat_edge_t* boat_graph_safe_add_edge(const boat_graph_t* graph, const boat_node
     return boat_graph_add_edge(graph, from, to, direction);
 }
 
-bool boat_graph_safe_remove_node(const boat_graph_t* graph, const boat_node_t* node) {
+bool boat_graph_safe_remove_node(boat_graph_t* graph, const boat_node_t* node) {
     if (!graph || !node) return false;
 
     // Check if node can be removed (no edges)
@@ -1471,7 +1471,7 @@ bool boat_graph_safe_remove_node(const boat_graph_t* graph, const boat_node_t* n
     return true;
 }
 
-bool boat_graph_safe_replace_node(const boat_graph_t* graph, const boat_node_t* old_node, const boat_node_t* new_node) {
+bool boat_graph_safe_replace_node(boat_graph_t* graph, const boat_node_t* old_node, const boat_node_t* new_node) {
     if (!graph || !old_node || !new_node) return false;
 
     // Check if old_node is in graph
@@ -1694,7 +1694,7 @@ void boat_graph_simplify(const boat_graph_t* graph) {
 }
 
 // Node migration between graphs
-bool boat_graph_migrate_node(const boat_graph_t* dest_graph, const boat_graph_t* src_graph, const boat_node_t* node) {
+bool boat_graph_migrate_node(boat_graph_t* dest_graph, boat_graph_t* src_graph, const boat_node_t* node) {
     if (!dest_graph || !src_graph || !node) {
         return false;
     }
