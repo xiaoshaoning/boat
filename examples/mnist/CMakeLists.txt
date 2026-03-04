@@ -8,7 +8,7 @@ project(mnist_example C)
 set(BOAT_ROOT ${CMAKE_SOURCE_DIR})
 # Convert to CMake path (normalize slashes)
 file(TO_CMAKE_PATH ${BOAT_ROOT} BOAT_ROOT)
-set(BOAT_INCLUDE_DIR ${BOAT_ROOT}/include)
+set(BOAT_INCLUDE_DIR ${BOAT_ROOT}/../../include)
 
 # Allow user to manually specify Boat library directory
 option(BOAT_LIB_DIR "Path to Boat library directory" "")
