@@ -6,6 +6,13 @@
 // Force disable debug output
 #undef DEBUG_LEVEL
 #define DEBUG_LEVEL 0
+
+// Force disable all Boat debug output
+#undef BOAT_DEBUG
+#define BOAT_DEBUG 0
+
+#undef DEBUG
+#define DEBUG 0
 #include <boat.h>
 #include <boat/autodiff.h>
 #include <boat/tensor.h>
@@ -41,7 +48,7 @@
 
 // Debug printing macros
 #if DEBUG_LEVEL >= 4
-#define DEBUG_PRINT(fmt, ...) fprintf(stderr, "DEBUG: " fmt, ##__VA_ARGS__)
+#define DEBUG_PRINT(fmt, ...) DEBUG_PRINT("" fmt, ##__VA_ARGS__)
 #else
 #define DEBUG_PRINT(fmt, ...) ((void)0)
 #endif
@@ -169,7 +176,7 @@ boat_tensor_t* load_idx_file(const char* filename, boat_dtype_t dtype) {
                  ((dim_be >> 8) & 0xFF00) |
                  ((dim_be << 8) & 0xFF0000) |
                  ((dim_be << 24) & 0xFF000000);
-        fprintf(stderr, "DEBUG: dims[%d] = %u (0x%08x)\n", i, dims[i], dims[i]);
+        DEBUG_PRINT("dims[%d] = %u (0x%08x)\n", i, dims[i], dims[i]);
     }
 
     // Calculate total elements
@@ -385,22 +392,22 @@ static boat_variable_t* tensor_to_variable(boat_tensor_t* tensor, bool requires_
 // labels: tensor with shape (batch) containing class indices (0-9)
 // Returns loss variable
 static boat_variable_t* cross_entropy_loss(const boat_variable_t* predictions, boat_tensor_t* labels) {
-    fprintf(stderr, "DEBUG cross_entropy_loss: entered\n");
+    DEBUG_PRINT("cross_entropy_loss: entered\n");
     // Get prediction tensor
     boat_tensor_t* pred_tensor = boat_variable_data(predictions);
     const int64_t* shape = boat_tensor_shape(pred_tensor);
     size_t batch_size = shape[0];
     size_t num_classes = shape[1];
-    fprintf(stderr, "DEBUG cross_entropy_loss: batch_size=%zu, num_classes=%zu\n", batch_size, num_classes);
-    fprintf(stderr, "DEBUG cross_entropy_loss: pred_tensor dtype=%d\n", boat_tensor_dtype(pred_tensor));
+    DEBUG_PRINT("cross_entropy_loss: batch_size=%zu, num_classes=%zu\n", batch_size, num_classes);
+    DEBUG_PRINT("cross_entropy_loss: pred_tensor dtype=%d\n", boat_tensor_dtype(pred_tensor));
 
     // Create one-hot encoding of labels
     boat_tensor_t* one_hot_tensor = boat_tensor_create((int64_t[]){batch_size, num_classes}, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!one_hot_tensor) {
-        fprintf(stderr, "DEBUG cross_entropy_loss: failed to create one-hot tensor\n");
+        DEBUG_PRINT("cross_entropy_loss: failed to create one-hot tensor\n");
         return NULL;
     }
-    fprintf(stderr, "DEBUG cross_entropy_loss: one_hot_tensor created, dtype=%d\n", boat_tensor_dtype(one_hot_tensor));
+    DEBUG_PRINT("cross_entropy_loss: one_hot_tensor created, dtype=%d\n", boat_tensor_dtype(one_hot_tensor));
     float* one_hot_data = (float*)boat_tensor_data(one_hot_tensor);
     memset(one_hot_data, 0, batch_size * num_classes * sizeof(float));
 
@@ -416,41 +423,41 @@ static boat_variable_t* cross_entropy_loss(const boat_variable_t* predictions, b
     boat_variable_t* one_hot_var = boat_variable_create(one_hot_tensor, false);
     boat_tensor_unref(one_hot_tensor);
     if (!one_hot_var) {
-        fprintf(stderr, "DEBUG cross_entropy_loss: failed to create one-hot variable\n");
+        DEBUG_PRINT("cross_entropy_loss: failed to create one-hot variable\n");
         return NULL;
     }
 
     // Compute log softmax of predictions (axis=1)
     boat_variable_t* log_softmax = boat_var_log_softmax(predictions, 1);
     if (!log_softmax) {
-        fprintf(stderr, "DEBUG cross_entropy_loss: failed to compute log_softmax\n");
+        DEBUG_PRINT("cross_entropy_loss: failed to compute log_softmax\n");
         boat_variable_free(one_hot_var);
         return NULL;
     }
-    fprintf(stderr, "DEBUG cross_entropy_loss: log_softmax variable created at %p\n", (void*)log_softmax);
+    DEBUG_PRINT("cross_entropy_loss: log_softmax variable created at %p\n", (void*)log_softmax);
     boat_tensor_t* log_softmax_tensor = boat_variable_data(log_softmax);
-    fprintf(stderr, "DEBUG cross_entropy_loss: log_softmax tensor dtype=%d\n", boat_tensor_dtype(log_softmax_tensor));
+    DEBUG_PRINT("cross_entropy_loss: log_softmax tensor dtype=%d\n", boat_tensor_dtype(log_softmax_tensor));
 
     // Debug: print variable info before multiplication
     boat_tensor_t* one_hot_tensor_debug = boat_variable_data(one_hot_var);
     boat_tensor_t* log_softmax_tensor_debug = boat_variable_data(log_softmax);
-    fprintf(stderr, "DEBUG cross_entropy_loss: one_hot dtype=%d, shape=[%ld, %ld]\n",
+    DEBUG_PRINT("cross_entropy_loss: one_hot dtype=%d, shape=[%ld, %ld]\n",
             boat_tensor_dtype(one_hot_tensor_debug),
             boat_tensor_shape(one_hot_tensor_debug)[0],
             boat_tensor_shape(one_hot_tensor_debug)[1]);
-    fprintf(stderr, "DEBUG cross_entropy_loss: log_softmax dtype=%d, shape=[%ld, %ld]\n",
+    DEBUG_PRINT("cross_entropy_loss: log_softmax dtype=%d, shape=[%ld, %ld]\n",
             boat_tensor_dtype(log_softmax_tensor_debug),
             boat_tensor_shape(log_softmax_tensor_debug)[0],
             boat_tensor_shape(log_softmax_tensor_debug)[1]);
 
     // Element-wise multiplication: one_hot * log_softmax
-    fprintf(stderr, "DEBUG cross_entropy_loss: before boat_var_mul, one_hot dtype=%d, log_softmax dtype=%d\n",
+    DEBUG_PRINT("cross_entropy_loss: before boat_var_mul, one_hot dtype=%d, log_softmax dtype=%d\n",
             boat_tensor_dtype(one_hot_tensor_debug),
             boat_tensor_dtype(log_softmax_tensor_debug));
     fflush(stderr);
     boat_variable_t* multiplied = boat_var_mul(one_hot_var, log_softmax);
     if (!multiplied) {
-        fprintf(stderr, "DEBUG cross_entropy_loss: failed to multiply\n");
+        DEBUG_PRINT("cross_entropy_loss: failed to multiply\n");
         boat_variable_free(one_hot_var);
         boat_variable_free(log_softmax);
         return NULL;
@@ -459,7 +466,7 @@ static boat_variable_t* cross_entropy_loss(const boat_variable_t* predictions, b
     // Sum over all elements (both batch and class dimensions)
     boat_variable_t* sum = boat_var_sum(multiplied, NULL, 0, false);
     if (!sum) {
-        fprintf(stderr, "DEBUG cross_entropy_loss: failed to sum\n");
+        DEBUG_PRINT("cross_entropy_loss: failed to sum\n");
         boat_variable_free(one_hot_var);
         boat_variable_free(log_softmax);
         boat_variable_free(multiplied);
@@ -470,7 +477,7 @@ static boat_variable_t* cross_entropy_loss(const boat_variable_t* predictions, b
     // Create constant -1.0 / batch_size variable
     boat_tensor_t* neg_factor_tensor = boat_tensor_create((int64_t[]){1}, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!neg_factor_tensor) {
-        fprintf(stderr, "DEBUG cross_entropy_loss: failed to create factor tensor\n");
+        DEBUG_PRINT("cross_entropy_loss: failed to create factor tensor\n");
         boat_variable_free(one_hot_var);
         boat_variable_free(log_softmax);
         boat_variable_free(multiplied);
@@ -479,17 +486,17 @@ static boat_variable_t* cross_entropy_loss(const boat_variable_t* predictions, b
     }
     float* factor_data = (float*)boat_tensor_data(neg_factor_tensor);
     *factor_data = -1.0f / batch_size;
-    fprintf(stderr, "DEBUG cross_entropy_loss: created neg_factor_tensor dtype=%d, value=%f\n",
+    DEBUG_PRINT("cross_entropy_loss: created neg_factor_tensor dtype=%d, value=%f\n",
             boat_tensor_dtype(neg_factor_tensor), *factor_data);
     boat_variable_t* factor_var = boat_variable_create(neg_factor_tensor, false);
     boat_tensor_unref(neg_factor_tensor);
     if (factor_var) {
         boat_tensor_t* factor_tensor = boat_variable_data(factor_var);
-        fprintf(stderr, "DEBUG cross_entropy_loss: factor_var created, tensor dtype=%d\n",
+        DEBUG_PRINT("cross_entropy_loss: factor_var created, tensor dtype=%d\n",
                 boat_tensor_dtype(factor_tensor));
     }
     if (!factor_var) {
-        fprintf(stderr, "DEBUG cross_entropy_loss: failed to create factor variable\n");
+        DEBUG_PRINT("cross_entropy_loss: failed to create factor variable\n");
         boat_variable_free(one_hot_var);
         boat_variable_free(log_softmax);
         boat_variable_free(multiplied);
@@ -507,88 +514,88 @@ static boat_variable_t* cross_entropy_loss(const boat_variable_t* predictions, b
     boat_variable_free(sum);
     boat_variable_free(factor_var);
 
-    fprintf(stderr, "DEBUG cross_entropy_loss: returning loss_var=%p\n", (void*)loss_var);
+    DEBUG_PRINT("cross_entropy_loss: returning loss_var=%p\n", (void*)loss_var);
     return loss_var;
 }
 
 mnist_model_t* create_mnist_model(float learning_rate) {
-    fprintf(stderr, "DEBUG create_mnist_model: entering\n");
+    DEBUG_PRINT("create_mnist_model: entering\n");
     mnist_model_t* model = malloc(sizeof(mnist_model_t));
     if (!model) return NULL;
-    fprintf(stderr, "DEBUG create_mnist_model: model allocated at %p\n", model);
+    DEBUG_PRINT("create_mnist_model: model allocated at %p\n", model);
 
     // Initialize reusable variables to NULL
     model->reusable_input_var = NULL;
     model->reusable_target_var = NULL;
 
     // Create layers
-    fprintf(stderr, "DEBUG create_mnist_model: creating conv1\n");
+    DEBUG_PRINT("create_mnist_model: creating conv1\n");
     model->conv1 = boat_conv_layer_create(1, 32, 3, 1, 1);  // 1->32 channels, 3x3 kernel, stride=1, padding=1
-    fprintf(stderr, "DEBUG create_mnist_model: conv1 = %p\n", model->conv1);
-    fprintf(stderr, "DEBUG create_mnist_model: creating pool1\n");
+    DEBUG_PRINT("create_mnist_model: conv1 = %p\n", model->conv1);
+    DEBUG_PRINT("create_mnist_model: creating pool1\n");
     model->pool1 = boat_pool_layer_create(2, 2, 0);         // 2x2 max pool, stride=2
-    fprintf(stderr, "DEBUG create_mnist_model: pool1 = %p\n", model->pool1);
+    DEBUG_PRINT("create_mnist_model: pool1 = %p\n", model->pool1);
 
-    fprintf(stderr, "DEBUG create_mnist_model: creating conv2\n");
+    DEBUG_PRINT("create_mnist_model: creating conv2\n");
     model->conv2 = boat_conv_layer_create(32, 64, 3, 1, 1); // 32->64 channels
-    fprintf(stderr, "DEBUG create_mnist_model: conv2 = %p\n", model->conv2);
-    fprintf(stderr, "DEBUG create_mnist_model: creating pool2\n");
+    DEBUG_PRINT("create_mnist_model: conv2 = %p\n", model->conv2);
+    DEBUG_PRINT("create_mnist_model: creating pool2\n");
     model->pool2 = boat_pool_layer_create(2, 2, 0);
-    fprintf(stderr, "DEBUG create_mnist_model: pool2 = %p\n", model->pool2);
+    DEBUG_PRINT("create_mnist_model: pool2 = %p\n", model->pool2);
 
-    fprintf(stderr, "DEBUG create_mnist_model: creating flatten\n");
+    DEBUG_PRINT("create_mnist_model: creating flatten\n");
     model->flatten = boat_flatten_layer_create();
-    fprintf(stderr, "DEBUG create_mnist_model: flatten = %p\n", model->flatten);
+    DEBUG_PRINT("create_mnist_model: flatten = %p\n", model->flatten);
 
-    fprintf(stderr, "DEBUG create_mnist_model: creating fc1\n");
+    DEBUG_PRINT("create_mnist_model: creating fc1\n");
     model->fc1 = boat_dense_layer_create(7*7*64, 128, true); // After 2 poolings: 28->14->7
-    fprintf(stderr, "DEBUG create_mnist_model: fc1 = %p\n", model->fc1);
-    fprintf(stderr, "DEBUG create_mnist_model: creating fc2\n");
+    DEBUG_PRINT("create_mnist_model: fc1 = %p\n", model->fc1);
+    DEBUG_PRINT("create_mnist_model: creating fc2\n");
     model->fc2 = boat_dense_layer_create(128, 10, true);
-    fprintf(stderr, "DEBUG create_mnist_model: fc2 = %p\n", model->fc2);
+    DEBUG_PRINT("create_mnist_model: fc2 = %p\n", model->fc2);
 
     // Check for creation errors
-    fprintf(stderr, "DEBUG create_mnist_model: checking layer creation\n");
+    DEBUG_PRINT("create_mnist_model: checking layer creation\n");
     if (!model->conv1 || !model->conv2 || !model->pool1 || !model->pool2 ||
         !model->flatten || !model->fc1 || !model->fc2) {
         fprintf(stderr, "Error: Failed to create one or more layers\n");
         free(model);
         return NULL;
     }
-    fprintf(stderr, "DEBUG create_mnist_model: all layers created successfully\n");
+    DEBUG_PRINT("create_mnist_model: all layers created successfully\n");
 
     // Create optimizer
-    fprintf(stderr, "DEBUG create_mnist_model: creating optimizer\n");
+    DEBUG_PRINT("create_mnist_model: creating optimizer\n");
     model->current_beta1 = 0.9f;
     model->current_beta2 = 0.999f;
     model->optimizer = boat_adam_optimizer_create(learning_rate, model->current_beta1, model->current_beta2, 1e-8f);
-    fprintf(stderr, "DEBUG create_mnist_model: optimizer = %p\n", model->optimizer);
+    DEBUG_PRINT("create_mnist_model: optimizer = %p\n", model->optimizer);
     if (!model->optimizer) {
         fprintf(stderr, "Error: Failed to create optimizer\n");
         free(model);
         return NULL;
     }
-    fprintf(stderr, "DEBUG create_mnist_model: optimizer created successfully (beta1=%.3f, beta2=%.3f)\n",
+    DEBUG_PRINT("create_mnist_model: optimizer created successfully (beta1=%.3f, beta2=%.3f)\n",
             model->current_beta1, model->current_beta2);
 
     // Create learning rate scheduler (CosineAnnealing with warm-up)
-    fprintf(stderr, "DEBUG create_mnist_model: creating scheduler\n");
+    DEBUG_PRINT("create_mnist_model: creating scheduler\n");
     // Cosine annealing scheduler: T_max=10 epochs (will be adjusted in training loop), eta_min=1% of base LR
     model->scheduler = boat_cosine_annealing_scheduler_create(learning_rate, 10, learning_rate * 0.01f);
-    fprintf(stderr, "DEBUG create_mnist_model: scheduler = %p\n", model->scheduler);
+    DEBUG_PRINT("create_mnist_model: scheduler = %p\n", model->scheduler);
     if (!model->scheduler) {
         fprintf(stderr, "Warning: Failed to create scheduler, continuing without scheduler\n");
     } else {
-        fprintf(stderr, "DEBUG create_mnist_model: cosine annealing scheduler created successfully (T_max=10, eta_min=%.6f)\n", learning_rate * 0.01f);
+        DEBUG_PRINT("create_mnist_model: cosine annealing scheduler created successfully (T_max=10, eta_min=%.6f)\n", learning_rate * 0.01f);
     }
 
     // Register parameters to optimizer
-    fprintf(stderr, "DEBUG create_mnist_model: registering parameters\n");
+    DEBUG_PRINT("create_mnist_model: registering parameters\n");
     // Conv1 weight and bias
-    fprintf(stderr, "DEBUG create_mnist_model: getting conv1 weight\n");
+    DEBUG_PRINT("create_mnist_model: getting conv1 weight\n");
     boat_tensor_t* conv1_weight = boat_conv_layer_get_weight(model->conv1);
     boat_tensor_t* conv1_grad_weight = boat_conv_layer_get_grad_weight(model->conv1);
-    fprintf(stderr, "DEBUG create_mnist_model: conv1_weight=%p, conv1_grad_weight=%p\n", conv1_weight, conv1_grad_weight);
+    DEBUG_PRINT("create_mnist_model: conv1_weight=%p, conv1_grad_weight=%p\n", conv1_weight, conv1_grad_weight);
     if (conv1_weight && conv1_grad_weight) {
         boat_optimizer_add_parameter(model->optimizer, conv1_weight, conv1_grad_weight);
     }
@@ -669,68 +676,68 @@ void free_mnist_model(mnist_model_t* model) {
 // Returns: variable with shape (batch, 10) (logits before softmax)
 // Forward pass using layer functions (non-autodiff version)
 boat_tensor_t* forward_pass_layer(mnist_model_t* model, boat_tensor_t* input) {
-    fprintf(stderr, "DEBUG forward_pass_layer: entered, input=%p\n", (void*)input);
+    DEBUG_PRINT("forward_pass_layer: entered, input=%p\n", (void*)input);
     boat_tensor_t* x = input;
 
     // Conv1 -> ReLU -> Pool1
-    fprintf(stderr, "DEBUG forward_pass_layer: calling boat_conv_layer_forward\n");
+    DEBUG_PRINT("forward_pass_layer: calling boat_conv_layer_forward\n");
     x = boat_conv_layer_forward(model->conv1, x);
-    fprintf(stderr, "DEBUG forward_pass_layer: boat_conv_layer_forward returned %p\n", (void*)x);
+    DEBUG_PRINT("forward_pass_layer: boat_conv_layer_forward returned %p\n", (void*)x);
     if (!x) return NULL;
 
-    fprintf(stderr, "DEBUG forward_pass_layer: calling boat_relu\n");
+    DEBUG_PRINT("forward_pass_layer: calling boat_relu\n");
     x = boat_relu(x);
-    fprintf(stderr, "DEBUG forward_pass_layer: boat_relu returned %p\n", (void*)x);
+    DEBUG_PRINT("forward_pass_layer: boat_relu returned %p\n", (void*)x);
     if (!x) return NULL;
 
-    fprintf(stderr, "DEBUG forward_pass_layer: calling boat_pool_layer_forward\n");
+    DEBUG_PRINT("forward_pass_layer: calling boat_pool_layer_forward\n");
     x = boat_pool_layer_forward(model->pool1, x);
-    fprintf(stderr, "DEBUG forward_pass_layer: boat_pool_layer_forward returned %p\n", (void*)x);
+    DEBUG_PRINT("forward_pass_layer: boat_pool_layer_forward returned %p\n", (void*)x);
     if (!x) return NULL;
 
     // Conv2 -> ReLU -> Pool2
-    fprintf(stderr, "DEBUG forward_pass_layer: calling boat_conv_layer_forward\n");
+    DEBUG_PRINT("forward_pass_layer: calling boat_conv_layer_forward\n");
     x = boat_conv_layer_forward(model->conv2, x);
-    fprintf(stderr, "DEBUG forward_pass_layer: boat_conv_layer_forward returned %p\n", (void*)x);
+    DEBUG_PRINT("forward_pass_layer: boat_conv_layer_forward returned %p\n", (void*)x);
     if (!x) return NULL;
 
-    fprintf(stderr, "DEBUG forward_pass_layer: calling boat_relu\n");
+    DEBUG_PRINT("forward_pass_layer: calling boat_relu\n");
     x = boat_relu(x);
-    fprintf(stderr, "DEBUG forward_pass_layer: boat_relu returned %p\n", (void*)x);
+    DEBUG_PRINT("forward_pass_layer: boat_relu returned %p\n", (void*)x);
     if (!x) return NULL;
 
-    fprintf(stderr, "DEBUG forward_pass_layer: calling boat_pool_layer_forward\n");
+    DEBUG_PRINT("forward_pass_layer: calling boat_pool_layer_forward\n");
     x = boat_pool_layer_forward(model->pool2, x);
-    fprintf(stderr, "DEBUG forward_pass_layer: boat_pool_layer_forward returned %p\n", (void*)x);
+    DEBUG_PRINT("forward_pass_layer: boat_pool_layer_forward returned %p\n", (void*)x);
     if (!x) return NULL;
 
     // Flatten
-    fprintf(stderr, "DEBUG forward_pass_layer: calling boat_flatten_layer_forward\n");
+    DEBUG_PRINT("forward_pass_layer: calling boat_flatten_layer_forward\n");
     x = boat_flatten_layer_forward(model->flatten, x);
-    fprintf(stderr, "DEBUG forward_pass_layer: boat_flatten_layer_forward returned %p\n", (void*)x);
+    DEBUG_PRINT("forward_pass_layer: boat_flatten_layer_forward returned %p\n", (void*)x);
     if (!x) return NULL;
 
     // FC1 -> ReLU (using dense layer forward)
-    fprintf(stderr, "DEBUG forward_pass_layer: calling boat_dense_layer_forward for fc1\n");
+    DEBUG_PRINT("forward_pass_layer: calling boat_dense_layer_forward for fc1\n");
     x = boat_dense_layer_forward(model->fc1, x);
-    fprintf(stderr, "DEBUG forward_pass_layer: boat_dense_layer_forward fc1 returned %p\n", (void*)x);
+    DEBUG_PRINT("forward_pass_layer: boat_dense_layer_forward fc1 returned %p\n", (void*)x);
     if (!x) return NULL;
 
-    fprintf(stderr, "DEBUG forward_pass_layer: calling boat_relu\n");
+    DEBUG_PRINT("forward_pass_layer: calling boat_relu\n");
     x = boat_relu(x);
-    fprintf(stderr, "DEBUG forward_pass_layer: boat_relu returned %p\n", (void*)x);
+    DEBUG_PRINT("forward_pass_layer: boat_relu returned %p\n", (void*)x);
     if (!x) return NULL;
 
     // FC2 (output logits, no activation)
-    fprintf(stderr, "DEBUG forward_pass_layer: calling boat_dense_layer_forward for fc2\n");
+    DEBUG_PRINT("forward_pass_layer: calling boat_dense_layer_forward for fc2\n");
     x = boat_dense_layer_forward(model->fc2, x);
-    fprintf(stderr, "DEBUG forward_pass_layer: boat_dense_layer_forward fc2 returned %p\n", (void*)x);
+    DEBUG_PRINT("forward_pass_layer: boat_dense_layer_forward fc2 returned %p\n", (void*)x);
 
     return x;
 }
 
 boat_variable_t* forward_pass(mnist_model_t* model, const boat_variable_t* input) {
-    fprintf(stderr, "DEBUG forward_pass: entered, input=%p\n", (void*)input);
+    DEBUG_PRINT("forward_pass: entered, input=%p\n", (void*)input);
 
     // Autodiff forward pass using variable operations
     boat_variable_t* x = input;
@@ -755,7 +762,7 @@ boat_variable_t* forward_pass(mnist_model_t* model, const boat_variable_t* input
     // FC2 (output logits, no activation)
     x = boat_var_dense(x, model->fc2);
 
-    fprintf(stderr, "DEBUG forward_pass: returning %p\n", (void*)x);
+    DEBUG_PRINT("forward_pass: returning %p\n", (void*)x);
     return x;
 }
 
@@ -2426,7 +2433,7 @@ void evaluate_model(mnist_model_t* model, boat_tensor_t* images, boat_tensor_t* 
 // Returns loss value
 float train_batch(mnist_model_t* model, boat_tensor_t* batch_images, boat_tensor_t* batch_labels,
                   float learning_rate, bool zero_grad) {
-    fprintf(stderr, "DEBUG train_batch: entered, batch_images=%p, batch_labels=%p\n",
+    DEBUG_PRINT("train_batch: entered, batch_images=%p, batch_labels=%p\n",
             (void*)batch_images, (void*)batch_labels);
     (void)learning_rate; // Parameter not used in this implementation
     // Convert batch data to variables using reusable variables
@@ -2437,23 +2444,23 @@ float train_batch(mnist_model_t* model, boat_tensor_t* batch_images, boat_tensor
         fprintf(stderr, "Error: Failed to get reusable variables\n");
         return 0.0f;
     }
-    fprintf(stderr, "DEBUG train_batch: got variables input_var=%p, target_var=%p\n",
+    DEBUG_PRINT("train_batch: got variables input_var=%p, target_var=%p\n",
             (void*)input_var, (void*)target_var);
 
     // Forward pass
-    fprintf(stderr, "DEBUG train_batch: calling forward_pass\n");
+    DEBUG_PRINT("train_batch: calling forward_pass\n");
     boat_variable_t* logits = forward_pass(model, input_var);
-    fprintf(stderr, "DEBUG train_batch: forward_pass returned logits=%p\n", (void*)logits);
+    DEBUG_PRINT("train_batch: forward_pass returned logits=%p\n", (void*)logits);
 
     // Compute loss
-    fprintf(stderr, "DEBUG train_batch: calling cross_entropy_loss\n");
+    DEBUG_PRINT("train_batch: calling cross_entropy_loss\n");
     boat_variable_t* loss_var = cross_entropy_loss(logits, batch_labels);
-    fprintf(stderr, "DEBUG train_batch: cross_entropy_loss returned loss_var=%p\n", (void*)loss_var);
+    DEBUG_PRINT("train_batch: cross_entropy_loss returned loss_var=%p\n", (void*)loss_var);
 
     // Backward pass
-    fprintf(stderr, "DEBUG train_batch: calling boat_variable_backward_full\n");
+    DEBUG_PRINT("train_batch: calling boat_variable_backward_full\n");
     boat_variable_backward_full(loss_var);
-    fprintf(stderr, "DEBUG train_batch: boat_variable_backward_full returned\n");
+    DEBUG_PRINT("train_batch: boat_variable_backward_full returned\n");
 
     // Optimizer step
     boat_optimizer_step(model->optimizer);
@@ -2479,7 +2486,7 @@ float train_batch(mnist_model_t* model, boat_tensor_t* batch_images, boat_tensor
 
 int main(int argc, char* argv[]) {
     printf("=== MNIST Digit Recognition with Boat Autodiff ===\n");
-    fprintf(stderr, "DEBUG: main() started\n");
+    DEBUG_PRINT("main() started\n");
 
     // Parse command line arguments
     const char* checkpoint_file = NULL;
@@ -2518,17 +2525,17 @@ int main(int argc, char* argv[]) {
     if (train_images_raw) boat_tensor_unref(train_images_raw);
     if (test_images_raw) boat_tensor_unref(test_images_raw);
 
-    fprintf(stderr, "DEBUG: Data loaded: train_images=%p, train_labels=%p, test_images=%p, test_labels=%p\n",
+    DEBUG_PRINT("Data loaded: train_images=%p, train_labels=%p, test_images=%p, test_labels=%p\n",
             train_images, train_labels, test_images, test_labels);
     if (!train_images || !train_labels || !test_images || !test_labels) {
         fprintf(stderr, "Error loading data files\n");
         return 1;
     }
 
-    fprintf(stderr, "DEBUG: Before boat_tensor_shape\n");
+    DEBUG_PRINT("Before boat_tensor_shape\n");
     const int64_t* train_shape = boat_tensor_shape(train_images);
-    fprintf(stderr, "DEBUG: After boat_tensor_shape, shape=%p\n", train_shape);
-    fprintf(stderr, "DEBUG: train_shape[0] = %lld\n", (long long)train_shape[0]);
+    DEBUG_PRINT("After boat_tensor_shape, shape=%p\n", train_shape);
+    DEBUG_PRINT("train_shape[0] = %lld\n", (long long)train_shape[0]);
     size_t train_samples = train_shape[0];
     fprintf(stderr, "Training samples: %zu\n", train_samples);
 
@@ -2569,7 +2576,7 @@ int main(int argc, char* argv[]) {
     train_labels = train_labels_subset;
     train_samples = train_size;  // Update train samples count
 
-    fprintf(stderr, "DEBUG: Data split complete\n");
+    DEBUG_PRINT("Data split complete\n");
 
     // Data standardization: subtract mean, divide by std
     // Compute mean and std from training set
@@ -2656,11 +2663,11 @@ int main(int argc, char* argv[]) {
     val_labels = val_labels_contig;
 
     fprintf(stderr, "Contiguous training and validation data created successfully\n");
-    fprintf(stderr, "DEBUG: Before create_mnist_model\n");
+    DEBUG_PRINT("Before create_mnist_model\n");
 
     // Create model
     mnist_model_t* model = create_mnist_model(0.001f);
-    fprintf(stderr, "DEBUG main: model created at %p\n", model);
+    DEBUG_PRINT("main: model created at %p\n", model);
     if (!model) {
         fprintf(stderr, "Failed to create model\n");
         return 1;
@@ -2677,11 +2684,11 @@ int main(int argc, char* argv[]) {
     }
 
     // Training parameters
-    int epochs = 2;
+    int epochs = 1;
     size_t batch_size = 32;
     size_t num_batches = (train_samples + batch_size - 1) / batch_size;
 
-    fprintf(stderr, "\nDEBUG: Starting training...\n");
+    DEBUG_PRINT("\nStarting training...\n");
     printf("Epochs: %d, Batch size: %zu, Learning rate: 0.001\n", epochs, batch_size);
 
     // Arrays to track training history
