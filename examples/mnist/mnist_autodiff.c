@@ -3,9 +3,9 @@
 // Licensed under the Apache License, Version 2.0
 
 #define BOAT_STATIC_BUILD
-// Force disable debug output
-#undef DEBUG_LEVEL
-#define DEBUG_LEVEL 0
+// Force disable debug output (commented to allow runtime control)
+// #undef DEBUG_LEVEL
+// #define DEBUG_LEVEL 0
 
 // Force disable all Boat debug output
 #undef BOAT_DEBUG
@@ -46,30 +46,33 @@
 #define DEBUG_LEVEL 0  // Default to no debug output for performance
 #endif
 
-// Debug printing macros
-#if DEBUG_LEVEL >= 4
-#define DEBUG_PRINT(fmt, ...) DEBUG_PRINT("" fmt, ##__VA_ARGS__)
-#else
-#define DEBUG_PRINT(fmt, ...) ((void)0)
-#endif
+// Runtime debug level (can be changed via command line)
+static int g_debug_level = DEBUG_LEVEL;
 
-#if DEBUG_LEVEL >= 3
-#define INFO_PRINT(fmt, ...) fprintf(stderr, "INFO: " fmt, ##__VA_ARGS__)
-#else
-#define INFO_PRINT(fmt, ...) ((void)0)
-#endif
+// Debug printing macros with runtime level control
+#define DEBUG_PRINT(fmt, ...) do { \
+    if (g_debug_level >= 4) { \
+        fprintf(stderr, "DEBUG: " fmt, ##__VA_ARGS__); \
+    } \
+} while(0)
 
-#if DEBUG_LEVEL >= 2
-#define WARN_PRINT(fmt, ...) fprintf(stderr, "WARNING: " fmt, ##__VA_ARGS__)
-#else
-#define WARN_PRINT(fmt, ...) ((void)0)
-#endif
+#define INFO_PRINT(fmt, ...) do { \
+    if (g_debug_level >= 3) { \
+        fprintf(stderr, "INFO: " fmt, ##__VA_ARGS__); \
+    } \
+} while(0)
 
-#if DEBUG_LEVEL >= 1
-#define ERROR_PRINT(fmt, ...) fprintf(stderr, "ERROR: " fmt, ##__VA_ARGS__)
-#else
-#define ERROR_PRINT(fmt, ...) ((void)0)
-#endif
+#define WARN_PRINT(fmt, ...) do { \
+    if (g_debug_level >= 2) { \
+        fprintf(stderr, "WARNING: " fmt, ##__VA_ARGS__); \
+    } \
+} while(0)
+
+#define ERROR_PRINT(fmt, ...) do { \
+    if (g_debug_level >= 1) { \
+        fprintf(stderr, "ERROR: " fmt, ##__VA_ARGS__); \
+    } \
+} while(0)
 
 // Variable reuse helpers for performance optimization
 typedef struct {
@@ -2495,9 +2498,14 @@ int main(int argc, char* argv[]) {
             checkpoint_file = argv[i + 1];
             i++; // Skip next argument
             printf("Will load model from checkpoint: %s\n", checkpoint_file);
+        } else if (strcmp(argv[i], "--debug-level") == 0 && i + 1 < argc) {
+            g_debug_level = atoi(argv[i + 1]);
+            i++; // Skip next argument
+            printf("Debug level set to %d\n", g_debug_level);
         } else if (strcmp(argv[i], "--help") == 0) {
-            printf("Usage: %s [--load <checkpoint_file>]\n", argv[0]);
-            printf("       --load <file>   Load model weights from checkpoint file\n");
+            printf("Usage: %s [--load <checkpoint_file>] [--debug-level <level>]\n", argv[0]);
+            printf("       --load <file>        Load model weights from checkpoint file\n");
+            printf("       --debug-level <n>    Set debug output level (0-4, default=0)\n");
             return 0;
         }
     }
@@ -2684,7 +2692,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Training parameters
-    int epochs = 1;
+    int epochs = 2;
     size_t batch_size = 32;
     size_t num_batches = (train_samples + batch_size - 1) / batch_size;
 
@@ -2826,6 +2834,7 @@ int main(int argc, char* argv[]) {
         double batches_per_second = epoch_time > 1e-6 ? num_batches / epoch_time : 0.0;
         printf("Epoch %d/%d: time=%.2fs, loss=%.4f, accuracy=%.2f%%, throughput=%.0f samples/s (%.2f batches/s, %.3fs/batch), lr=%.6f, grad_norm=%.4f\n",
                epoch + 1, epochs, epoch_time, avg_loss, epoch_accuracy * 100.0f, samples_per_second, batches_per_second, avg_batch_time, current_lr, grad_stats.total_norm);
+        fflush(stdout);
 
         // Store training metrics
         train_losses[epoch] = avg_loss;
