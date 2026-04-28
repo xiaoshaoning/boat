@@ -185,6 +185,69 @@ static boat_tensor_t* compute_weight_gradient(const boat_conv_layer_t* layer,
     return grad_weight;
 }
 
+static bool compute_weight_gradient_into(const boat_conv_layer_t* layer,
+                                         const boat_tensor_t* cached_input,
+                                         const int64_t* input_shape,
+                                         const int64_t* output_shape,
+                                         const boat_tensor_t* grad_output,
+                                         boat_tensor_t* grad_weight) {
+    if (!layer || !cached_input || !grad_output || !grad_weight) {
+        return false;
+    }
+
+    // Extract dimensions
+    int64_t batch = input_shape[0];
+    int64_t in_channels = input_shape[1];
+    int64_t height = input_shape[2];
+    int64_t width = input_shape[3];
+    int64_t out_channels = output_shape[1];
+    int64_t height_out = output_shape[2];
+    int64_t width_out = output_shape[3];
+
+    // Get data pointers
+    float* grad_weight_data = (float*)boat_tensor_data(grad_weight);
+    const float* input_data = (float*)boat_tensor_data(cached_input);
+    const float* grad_output_data = (float*)boat_tensor_data(grad_output);
+
+    // Initialize gradient weight with zeros
+    size_t grad_weight_elements = boat_tensor_nelements(grad_weight);
+    memset(grad_weight_data, 0, grad_weight_elements * sizeof(float));
+
+    // For each batch
+    for (int64_t b = 0; b < batch; b++) {
+        // For each output channel
+        for (int64_t oc = 0; oc < (int64_t)layer->out_channels; oc++) {
+            // For each input channel
+            for (int64_t ic = 0; ic < (int64_t)layer->in_channels; ic++) {
+                // For each kernel row
+                for (size_t kh = 0; kh < layer->kernel_size; kh++) {
+                    // For each kernel column
+                    for (size_t kw = 0; kw < layer->kernel_size; kw++) {
+                        // For each output height position
+                        for (int64_t oh = 0; oh < height_out; oh++) {
+                            int64_t ih = oh * layer->stride - layer->padding + kh;
+                            if (ih < 0 || ih >= height) continue;
+                            for (int64_t ow = 0; ow < width_out; ow++) {
+                                int64_t iw = ow * layer->stride - layer->padding + kw;
+                                if (iw < 0 || iw >= width) continue;
+
+                                // Compute indices
+                                size_t input_idx = ((b * in_channels + ic) * height + ih) * width + iw;
+                                size_t grad_output_idx = ((b * out_channels + oc) * height_out + oh) * width_out + ow;
+                                size_t weight_idx = ((oc * layer->in_channels + ic) * layer->kernel_size + kh) * layer->kernel_size + kw;
+
+                                grad_weight_data[weight_idx] += input_data[input_idx] * grad_output_data[grad_output_idx];
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
 // Helper function: compute gradient with respect to bias
 static boat_tensor_t* compute_bias_gradient(const boat_conv_layer_t* layer,
                                             const int64_t* output_shape,
@@ -233,6 +296,46 @@ static boat_tensor_t* compute_bias_gradient(const boat_conv_layer_t* layer,
     }
 
     return grad_bias;
+}
+
+static bool compute_bias_gradient_into(const boat_conv_layer_t* layer,
+                                       const int64_t* output_shape,
+                                       const boat_tensor_t* grad_output,
+                                       boat_tensor_t* grad_bias) {
+    if (!layer || !grad_output || !grad_bias) {
+        return false;
+    }
+    // Only compute bias gradient if bias is used
+    if (!layer->use_bias) {
+        return false;
+    }
+    // Extract dimensions
+    int64_t batch = output_shape[0];
+    int64_t out_channels = output_shape[1];
+    int64_t height_out = output_shape[2];
+    int64_t width_out = output_shape[3];
+
+    // Get data pointers
+    float* grad_bias_data = (float*)boat_tensor_data(grad_bias);
+    const float* grad_output_data = (float*)boat_tensor_data(grad_output);
+
+    // Initialize gradient bias with zeros
+    memset(grad_bias_data, 0, layer->out_channels * sizeof(float));
+
+    // Sum grad_output over batch, height, width dimensions
+    for (int64_t b = 0; b < batch; b++) {
+        for (int64_t oc = 0; oc < (int64_t)layer->out_channels; oc++) {
+            float sum = 0.0f;
+            for (int64_t oh = 0; oh < height_out; oh++) {
+                for (int64_t ow = 0; ow < width_out; ow++) {
+                    size_t grad_output_idx = ((b * out_channels + oc) * height_out + oh) * width_out + ow;
+                    sum += grad_output_data[grad_output_idx];
+                }
+            }
+            grad_bias_data[oc] += sum;
+        }
+    }
+    return true;
 }
 
 BOAT_API boat_conv_layer_t* BOAT_CALL boat_conv_layer_create(size_t in_channels, size_t out_channels,
@@ -477,6 +580,8 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* la
         fprintf(stderr, "Error: conv backward: NULL input\n");
         return NULL;
     }
+    fprintf(stderr, "[conv backward] layer=%p, grad_output=%p\n", (void*)layer, (void*)grad_output);
+    fprintf(stderr, "[conv backward] cache_input=%p\n", (void*)layer->cache_input);
 
     // Check that cached input exists
     if (!layer->cache_input) {
@@ -507,29 +612,65 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* la
         return NULL;
     }
 
-    boat_tensor_t* grad_weight = compute_weight_gradient(layer, layer->cache_input,
-                                                         layer->cache_input_shape,
-                                                         layer->cache_output_shape,
-                                                         grad_output);
-    if (!grad_weight) {
+    // Compute gradients directly into layer's gradient tensors
+    if (!layer->grad_weight) {
+        // Create gradient weight tensor if it doesn't exist (should exist)
+        const int64_t weight_shape[] = { (int64_t)layer->out_channels, (int64_t)layer->in_channels,
+                                         (int64_t)layer->kernel_size, (int64_t)layer->kernel_size };
+        layer->grad_weight = boat_tensor_create(weight_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+        if (!layer->grad_weight) {
+            fprintf(stderr, "Error: conv backward: failed to create grad_weight tensor\n");
+            boat_tensor_free(grad_input);
+            return NULL;
+        }
+    }
+    if (!compute_weight_gradient_into(layer, layer->cache_input,
+                                      layer->cache_input_shape,
+                                      layer->cache_output_shape,
+                                      grad_output,
+                                      layer->grad_weight)) {
         fprintf(stderr, "Error: conv backward: failed to compute weight gradient\n");
         boat_tensor_free(grad_input);
         return NULL;
     }
 
-    boat_tensor_t* grad_bias = compute_bias_gradient(layer, layer->cache_output_shape, grad_output);
-    // grad_bias may be NULL if bias not used, that's fine
+    // Bias gradient (only if bias is used)
+    if (layer->use_bias) {
+        if (!layer->grad_bias) {
+            const int64_t bias_shape[] = { (int64_t)layer->out_channels };
+            layer->grad_bias = boat_tensor_create(bias_shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+            if (!layer->grad_bias) {
+                fprintf(stderr, "Error: conv backward: failed to create grad_bias tensor\n");
+                boat_tensor_free(grad_input);
+                return NULL;
+            }
+        }
+        if (!compute_bias_gradient_into(layer, layer->cache_output_shape, grad_output, layer->grad_bias)) {
+            fprintf(stderr, "Error: conv backward: failed to compute bias gradient\n");
+            boat_tensor_free(grad_input);
+            return NULL;
+        }
+    } else {
+        // Ensure grad_bias is NULL if bias not used
+        if (layer->grad_bias) {
+            boat_tensor_free(layer->grad_bias);
+            layer->grad_bias = NULL;
+        }
+    }
 
-    // Store gradients in layer (free old gradients if they exist)
+    // Debug: print gradient info
     if (layer->grad_weight) {
-        boat_tensor_free(layer->grad_weight);
+        size_t nelem = boat_tensor_nelements(layer->grad_weight);
+        float* data = (float*)boat_tensor_data(layer->grad_weight);
+        float sum = 0.0f;
+        for (size_t i = 0; i < (nelem < 5 ? nelem : 5); i++) {
+            sum += data[i] * data[i];
+        }
+        fprintf(stderr, "[conv backward] grad_weight stored, pointer=%p, nelem=%zu, first 5 norm=%f\n", layer->grad_weight, nelem, sqrt(sum));
     }
-    layer->grad_weight = grad_weight;
-
     if (layer->grad_bias) {
-        boat_tensor_free(layer->grad_bias);
+        fprintf(stderr, "[conv backward] grad_bias stored, pointer=%p\n", layer->grad_bias);
     }
-    layer->grad_bias = grad_bias;
 
     // Note: we don't free cache_input here, it will be freed in next forward pass or layer free
     // Return gradient with respect to input

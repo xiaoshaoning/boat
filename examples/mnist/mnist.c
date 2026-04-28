@@ -101,6 +101,7 @@ typedef struct {
     boat_dense_layer_t* fc2;
     boat_relu_layer_t* relu1;
     boat_relu_layer_t* relu2;
+    boat_relu_layer_t* relu3;
     boat_softmax_layer_t* softmax;
 } mnist_model_t;
 
@@ -119,6 +120,7 @@ mnist_model_t* create_mnist_model() {
 
     model->flatten = boat_flatten_layer_create();
     model->fc1 = boat_dense_layer_create(7*7*64, 128, true); // After 2 poolings: 28->14->7
+    model->relu3 = boat_relu_layer_create();
     model->fc2 = boat_dense_layer_create(128, 10, true);
 
     model->softmax = boat_softmax_layer_create(-1);  // Apply softmax on last dimension
@@ -126,7 +128,7 @@ mnist_model_t* create_mnist_model() {
     // Check for creation errors
     if (!model->conv1 || !model->conv2 || !model->pool1 || !model->pool2 ||
         !model->flatten || !model->fc1 || !model->fc2 ||
-        !model->relu1 || !model->relu2 || !model->softmax) {
+        !model->relu1 || !model->relu2 || !model->relu3 || !model->softmax) {
         fprintf(stderr, "Error: Failed to create one or more layers\n");
         free(model);
         return NULL;
@@ -154,6 +156,7 @@ void free_mnist_model(mnist_model_t* model) {
     if (model->fc2) boat_dense_layer_free(model->fc2);
     if (model->relu1) boat_relu_layer_free(model->relu1);
     if (model->relu2) boat_relu_layer_free(model->relu2);
+    if (model->relu3) boat_relu_layer_free(model->relu3);
     if (model->softmax) boat_softmax_layer_free(model->softmax);
 
     free(model);
@@ -183,9 +186,8 @@ boat_tensor_t* forward_pass(mnist_model_t* model, boat_tensor_t* input) {
     if (!x) { fprintf(stderr, "flatten forward failed\n"); return NULL; }
     x = boat_dense_layer_forward(model->fc1, x);
     if (!x) { fprintf(stderr, "fc1 forward failed\n"); return NULL; }
-    // Note: ReLU after fc1 is already applied by boat_relu_layer_forward
-    // but we need to call it separately. For simplicity, we'll skip explicit ReLU here
-    // as dense layer doesn't include activation.
+    x = boat_relu_layer_forward(model->relu3, x);
+    if (!x) { fprintf(stderr, "relu3 forward failed\n"); return NULL; }
     x = boat_dense_layer_forward(model->fc2, x);
     if (!x) { fprintf(stderr, "fc2 forward failed\n"); return NULL; }
     x = boat_softmax_layer_forward(model->softmax, x);
@@ -202,6 +204,9 @@ void backward_pass(mnist_model_t* model, boat_tensor_t* grad_output) {
     if (!grad) return;
 
     grad = boat_dense_layer_backward(model->fc2, grad);
+    if (!grad) return;
+
+    grad = boat_relu_layer_backward(model->relu3, grad);
     if (!grad) return;
 
     grad = boat_dense_layer_backward(model->fc1, grad);
@@ -241,6 +246,7 @@ void update_model(mnist_model_t* model, float learning_rate) {
     boat_pool_layer_update(model->pool2, learning_rate);
     boat_flatten_layer_update(model->flatten, learning_rate);
     boat_dense_layer_update(model->fc1, learning_rate);
+    boat_relu_layer_update(model->relu3, learning_rate);
     boat_dense_layer_update(model->fc2, learning_rate);
     boat_softmax_layer_update(model->softmax, learning_rate);
 }
@@ -372,8 +378,6 @@ int main(int argc, char* argv[]) {
             for (size_t i = start_idx; i < end_idx && i < train_samples; i++) {
                 // Extract single sample (inefficient but simple)
                 // In a real implementation, we would use tensor slicing
-                // For demonstration, process first 4 samples in each batch
-                if (i >= start_idx + 4) continue;  // Process first 4 samples in each batch
 
                 // Fill test_input with current sample data
                 float* test_data_local = (float*)boat_tensor_data(test_input);

@@ -276,12 +276,10 @@ BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_backward(boat_d
         float* grad_bias_data = (float*)boat_tensor_data(layer->grad_bias);
         size_t bias_elements = boat_tensor_nelements(layer->grad_bias);
 
-        // Initialize with zeros if first accumulation
-        static bool first_bias_grad = true;
-        if (first_bias_grad) {
-            memset(grad_bias_data, 0, bias_elements * sizeof(float));
-            first_bias_grad = false;
-        }
+        // Zero before accumulation. Gradients are zeroed by the optimizer
+        // between batches, but we zero here too for correctness when
+        // backward is the first thing called on this layer.
+        memset(grad_bias_data, 0, bias_elements * sizeof(float));
 
         // Accumulate gradients across batch dimension
         for (int64_t b = 0; b < batch; b++) {
