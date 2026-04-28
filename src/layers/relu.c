@@ -51,7 +51,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_relu_layer_forward(const boat_relu_layer_
     BOAT_DEBUG_PRINT("DEBUG relu_layer_forward: calling boat_relu\n");
     // Apply element-wise ReLU: max(0, x)
     boat_tensor_t* result = boat_relu(input);
-    fprintf(stderr, "DEBUG relu_layer_forward: boat_relu returned %p\n", (void*)result);
+    BOAT_DEBUG_PRINT("DEBUG relu_layer_forward: boat_relu returned %p\n", (void*)result);
     return result;
 }
 

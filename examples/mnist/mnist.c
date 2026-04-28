@@ -164,34 +164,45 @@ void free_mnist_model(mnist_model_t* model) {
 
 boat_tensor_t* forward_pass(mnist_model_t* model, boat_tensor_t* input) {
     boat_tensor_t* x = input;
+    boat_tensor_t* tmp = NULL;
 
     // Conv1 -> ReLU -> Pool1
     x = boat_conv_layer_forward(model->conv1, x);
     if (!x) { fprintf(stderr, "conv1 forward failed\n"); return NULL; }
-    x = boat_relu_layer_forward(model->relu1, x);
-    if (!x) { fprintf(stderr, "relu1 forward failed\n"); return NULL; }
-    x = boat_pool_layer_forward(model->pool1, x);
-    if (!x) { fprintf(stderr, "pool1 forward failed\n"); return NULL; }
+    tmp = boat_relu_layer_forward(model->relu1, x);
+    if (!tmp) { fprintf(stderr, "relu1 forward failed\n"); return NULL; }
+    boat_tensor_unref(x); x = tmp;
+    tmp = boat_pool_layer_forward(model->pool1, x);
+    if (!tmp) { fprintf(stderr, "pool1 forward failed\n"); return NULL; }
+    boat_tensor_unref(x); x = tmp;
 
     // Conv2 -> ReLU -> Pool2
-    x = boat_conv_layer_forward(model->conv2, x);
-    if (!x) { fprintf(stderr, "conv2 forward failed\n"); return NULL; }
-    x = boat_relu_layer_forward(model->relu2, x);
-    if (!x) { fprintf(stderr, "relu2 forward failed\n"); return NULL; }
-    x = boat_pool_layer_forward(model->pool2, x);
-    if (!x) { fprintf(stderr, "pool2 forward failed\n"); return NULL; }
+    tmp = boat_conv_layer_forward(model->conv2, x);
+    if (!tmp) { fprintf(stderr, "conv2 forward failed\n"); return NULL; }
+    boat_tensor_unref(x); x = tmp;
+    tmp = boat_relu_layer_forward(model->relu2, x);
+    if (!tmp) { fprintf(stderr, "relu2 forward failed\n"); return NULL; }
+    boat_tensor_unref(x); x = tmp;
+    tmp = boat_pool_layer_forward(model->pool2, x);
+    if (!tmp) { fprintf(stderr, "pool2 forward failed\n"); return NULL; }
+    boat_tensor_unref(x); x = tmp;
 
     // Flatten -> FC1 -> ReLU -> FC2 -> Softmax
-    x = boat_flatten_layer_forward(model->flatten, x);
-    if (!x) { fprintf(stderr, "flatten forward failed\n"); return NULL; }
-    x = boat_dense_layer_forward(model->fc1, x);
-    if (!x) { fprintf(stderr, "fc1 forward failed\n"); return NULL; }
-    x = boat_relu_layer_forward(model->relu3, x);
-    if (!x) { fprintf(stderr, "relu3 forward failed\n"); return NULL; }
-    x = boat_dense_layer_forward(model->fc2, x);
-    if (!x) { fprintf(stderr, "fc2 forward failed\n"); return NULL; }
-    x = boat_softmax_layer_forward(model->softmax, x);
-    if (!x) { fprintf(stderr, "softmax forward failed\n"); return NULL; }
+    tmp = boat_flatten_layer_forward(model->flatten, x);
+    if (!tmp) { fprintf(stderr, "flatten forward failed\n"); return NULL; }
+    boat_tensor_unref(x); x = tmp;
+    tmp = boat_dense_layer_forward(model->fc1, x);
+    if (!tmp) { fprintf(stderr, "fc1 forward failed\n"); return NULL; }
+    boat_tensor_unref(x); x = tmp;
+    tmp = boat_relu_layer_forward(model->relu3, x);
+    if (!tmp) { fprintf(stderr, "relu3 forward failed\n"); return NULL; }
+    boat_tensor_unref(x); x = tmp;
+    tmp = boat_dense_layer_forward(model->fc2, x);
+    if (!tmp) { fprintf(stderr, "fc2 forward failed\n"); return NULL; }
+    boat_tensor_unref(x); x = tmp;
+    tmp = boat_softmax_layer_forward(model->softmax, x);
+    if (!tmp) { fprintf(stderr, "softmax forward failed\n"); return NULL; }
+    boat_tensor_unref(x); x = tmp;
 
     return x;
 }
@@ -234,21 +245,6 @@ void backward_pass(mnist_model_t* model, boat_tensor_t* grad_output) {
 
     // Clean up intermediate gradients
     boat_tensor_unref(grad);
-}
-
-void update_model(mnist_model_t* model, float learning_rate) {
-    // Update all layers
-    boat_conv_layer_update(model->conv1, learning_rate);
-    boat_relu_layer_update(model->relu1, learning_rate);
-    boat_pool_layer_update(model->pool1, learning_rate);
-    boat_conv_layer_update(model->conv2, learning_rate);
-    boat_relu_layer_update(model->relu2, learning_rate);
-    boat_pool_layer_update(model->pool2, learning_rate);
-    boat_flatten_layer_update(model->flatten, learning_rate);
-    boat_dense_layer_update(model->fc1, learning_rate);
-    boat_relu_layer_update(model->relu3, learning_rate);
-    boat_dense_layer_update(model->fc2, learning_rate);
-    boat_softmax_layer_update(model->softmax, learning_rate);
 }
 
 float compute_accuracy(boat_tensor_t* predictions, boat_tensor_t* labels) {
@@ -318,8 +314,67 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // Create Adam optimizer and register parameters
+    boat_optimizer_t* optimizer = boat_adam_optimizer_create(0.001f, 0.9f, 0.999f, 1e-8f);
+    if (!optimizer) {
+        fprintf(stderr, "Failed to create optimizer\n");
+        free_mnist_model(model);
+        return 1;
+    }
+
+    // Register all trainable parameters with their gradient tensors
+    boat_optimizer_add_parameter(optimizer,
+        boat_conv_layer_get_weight(model->conv1),
+        boat_conv_layer_get_grad_weight(model->conv1));
+    boat_optimizer_add_parameter(optimizer,
+        boat_conv_layer_get_bias(model->conv1),
+        boat_conv_layer_get_grad_bias(model->conv1));
+    boat_optimizer_add_parameter(optimizer,
+        boat_conv_layer_get_weight(model->conv2),
+        boat_conv_layer_get_grad_weight(model->conv2));
+    boat_optimizer_add_parameter(optimizer,
+        boat_conv_layer_get_bias(model->conv2),
+        boat_conv_layer_get_grad_bias(model->conv2));
+    boat_optimizer_add_parameter(optimizer,
+        boat_dense_layer_get_weight(model->fc1),
+        boat_dense_layer_get_grad_weight(model->fc1));
+    boat_optimizer_add_parameter(optimizer,
+        boat_dense_layer_get_bias(model->fc1),
+        boat_dense_layer_get_grad_bias(model->fc1));
+    boat_optimizer_add_parameter(optimizer,
+        boat_dense_layer_get_weight(model->fc2),
+        boat_dense_layer_get_grad_weight(model->fc2));
+    boat_optimizer_add_parameter(optimizer,
+        boat_dense_layer_get_bias(model->fc2),
+        boat_dense_layer_get_grad_bias(model->fc2));
+
+    // Data standardization: compute mean and std from training set
+    printf("Computing mean and std from training set...\n");
+    float* train_data_ptr = (float*)boat_tensor_data(train_images);
+    size_t train_total_pixels = train_shape[0] * train_shape[1] * train_shape[2] * train_shape[3];
+    double sum = 0.0, sum_sq = 0.0;
+    for (size_t i = 0; i < train_total_pixels; i++) {
+        sum += train_data_ptr[i];
+        sum_sq += train_data_ptr[i] * train_data_ptr[i];
+    }
+    float mean = (float)(sum / train_total_pixels);
+    float std = (float)sqrt(sum_sq / train_total_pixels - mean * mean);
+    printf("Training set stats: mean=%.6f, std=%.6f\n", mean, std);
+    for (size_t i = 0; i < train_total_pixels; i++) {
+        train_data_ptr[i] = (train_data_ptr[i] - mean) / std;
+    }
+    // Also standardize test data
+    const int64_t* test_shape_from_data = boat_tensor_shape(test_images);
+    size_t test_total_pixels = test_shape_from_data[0] * test_shape_from_data[1] *
+                               test_shape_from_data[2] * test_shape_from_data[3];
+    float* test_data_ptr = (float*)boat_tensor_data(test_images);
+    for (size_t i = 0; i < test_total_pixels; i++) {
+        test_data_ptr[i] = (test_data_ptr[i] - mean) / std;
+    }
+    printf("Data standardization complete\n");
+
     // Training parameters
-    int epochs = 5;
+    int epochs = 10;
     const char* quick_test = getenv("MNIST_QUICK_TEST");
     if (quick_test && atoi(quick_test) == 1) {
         epochs = 1;  // Quick test for CI
@@ -435,8 +490,11 @@ int main(int argc, char* argv[]) {
                     // Subtract 1 from correct class
                     grad_data[single_label] -= 1.0f;
 
-                    // Scale gradient by learning rate factor (simplified)
-                    float grad_scale = 0.1f;
+                    // Scale gradient by 1/batch_size for averaged gradient.
+                    // Gradients accumulate across the batch via layer backward functions,
+                    // so dividing each sample's contribution by batch_size produces the
+                    // proper mean gradient.
+                    float grad_scale = 1.0f / batch_size;
                     for (int j = 0; j < 10; j++) {
                         grad_data[j] *= grad_scale;
                     }
@@ -450,8 +508,9 @@ int main(int argc, char* argv[]) {
                 boat_tensor_unref(output);
             }
 
-            // Update model (would be after computing gradients)
-            update_model(model, learning_rate);
+            // Update model using Adam optimizer
+            boat_optimizer_step(optimizer);
+            boat_optimizer_zero_grad(optimizer);
         }
 
         clock_t end_time = clock();
@@ -507,6 +566,7 @@ int main(int argc, char* argv[]) {
     printf("Test accuracy: %.2f%% (%d/%zu)\n", test_accuracy * 100.0f, test_correct, test_samples);
 
     // Cleanup
+    boat_optimizer_free(optimizer);
     free_mnist_model(model);
     boat_tensor_unref(train_images);
     boat_tensor_unref(train_labels);

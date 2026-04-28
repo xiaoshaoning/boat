@@ -580,8 +580,8 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* la
         fprintf(stderr, "Error: conv backward: NULL input\n");
         return NULL;
     }
-    fprintf(stderr, "[conv backward] layer=%p, grad_output=%p\n", (void*)layer, (void*)grad_output);
-    fprintf(stderr, "[conv backward] cache_input=%p\n", (void*)layer->cache_input);
+    BOAT_DEBUG_PRINT("[conv backward] layer=%p, grad_output=%p\n", (void*)layer, (void*)grad_output);
+    BOAT_DEBUG_PRINT("[conv backward] cache_input=%p\n", (void*)layer->cache_input);
 
     // Check that cached input exists
     if (!layer->cache_input) {
@@ -659,18 +659,10 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* la
     }
 
     // Debug: print gradient info
-    if (layer->grad_weight) {
-        size_t nelem = boat_tensor_nelements(layer->grad_weight);
-        float* data = (float*)boat_tensor_data(layer->grad_weight);
-        float sum = 0.0f;
-        for (size_t i = 0; i < (nelem < 5 ? nelem : 5); i++) {
-            sum += data[i] * data[i];
-        }
-        fprintf(stderr, "[conv backward] grad_weight stored, pointer=%p, nelem=%zu, first 5 norm=%f\n", layer->grad_weight, nelem, sqrt(sum));
-    }
-    if (layer->grad_bias) {
-        fprintf(stderr, "[conv backward] grad_bias stored, pointer=%p\n", layer->grad_bias);
-    }
+    BOAT_DEBUG_PRINT("[conv backward] grad_weight stored, pointer=%p, nelem=%zu\n",
+                     layer->grad_weight,
+                     layer->grad_weight ? boat_tensor_nelements(layer->grad_weight) : 0);
+    BOAT_DEBUG_PRINT("[conv backward] grad_bias stored, pointer=%p\n", layer->grad_bias);
 
     // Note: we don't free cache_input here, it will be freed in next forward pass or layer free
     // Return gradient with respect to input
