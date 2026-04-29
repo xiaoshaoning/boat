@@ -36,13 +36,13 @@
 ### 环境验证
 
 ```bash
-# 验证 MSVC 编译器
+# Verify MSVC compiler
 cl.exe
 
-# 验证 CMake
+# Verify CMake
 cmake --version
 
-# 验证 Git
+# Verify Git
 git --version
 ```
 
@@ -51,18 +51,18 @@ git --version
 ### 基本构建步骤
 
 ```bash
-# 1. 克隆代码库
+# 1. Clone repository
 git clone https://github.com/your-org/boat.git
 cd boat
 
-# 2. 创建构建目录
+# 2. Create build directory
 mkdir build
 cd build
 
-# 3. 配置 CMake（动态库构建）
+# 3. Configure CMake (shared library build)
 cmake .. -DBOAT_BUILD_SHARED=ON -DCMAKE_BUILD_TYPE=Release
 
-# 4. 构建项目
+# 4. Build project
 cmake --build . --config Release
 ```
 
@@ -80,13 +80,13 @@ cmake --build . --config Release
 ### 高级构建配置
 
 ```bash
-# 调试构建，包含符号信息
+# Debug build with symbol information
 cmake .. -DBOAT_BUILD_SHARED=ON -DCMAKE_BUILD_TYPE=Debug
 
-# 发布构建，带调试信息
+# Release build with debug info
 cmake .. -DBOAT_BUILD_SHARED=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
-# 指定生成器 (Visual Studio 2022)
+# Specify generator (Visual Studio 2022)
 cmake .. -G "Visual Studio 17 2022" -A x64 -DBOAT_BUILD_SHARED=ON
 ```
 
@@ -188,7 +188,7 @@ BOAT_API boat_tensor_t* boat_dense_layer_backward(boat_dense_layer_t* layer,
 // src/layers/dense.c - source definition (wrong, missing BOAT_API)
 boat_tensor_t* boat_dense_layer_backward(boat_dense_layer_t* layer,
                                         const boat_tensor_t* grad_output) {
-    // implementation - 可能无法正确导出
+    // implementation - may not be exported correctly
 }
 ```
 
@@ -259,13 +259,13 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_attention_layer_forward(boat_attention_la
 在 CMake 中控制编译器优化选项：
 
 ```cmake
-# CMakeLists.txt 片段
+# CMakeLists.txt snippet
 if(MSVC)
-    # 禁用函数级链接（防止简单函数被消除）
+    # Disable function-level linking (prevent simple functions from being eliminated)
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /Gy-")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Gy-")
 
-    # 防止未引用函数消除
+    # Prevent elimination of unreferenced functions
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /OPT:NOREF")
     set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /OPT:NOREF")
 endif()
@@ -278,10 +278,10 @@ endif()
 构建后验证 DLL 导出符号：
 
 ```bash
-# 使用 dumpbin 工具检查导出函数
+# Use dumpbin to check exported functions
 dumpbin /exports build/Release/boat.dll
 
-# 查找特定函数
+# Find specific function
 dumpbin /exports build/Release/boat.dll | findstr "boat_attention_layer_backward"
 ```
 
@@ -290,10 +290,10 @@ dumpbin /exports build/Release/boat.dll | findstr "boat_attention_layer_backward
 创建专门的调试构建配置：
 
 ```bash
-# 调试 DLL 构建
+# Debug DLL build
 cmake .. -DBOAT_BUILD_SHARED=ON -DCMAKE_BUILD_TYPE=Debug -DBOAT_ENABLE_DEBUG_SYMBOLS=ON
 
-# 构建并生成 PDB 文件
+# Build and generate PDB files
 cmake --build . --config Debug
 ```
 
@@ -395,14 +395,14 @@ BOAT_NOINLINE void my_function();
 CMake 配置应处理所有平台差异：
 
 ```cmake
-# 平台特定编译器选项
+# Platform-specific compiler options
 if(MSVC)
     set(PLATFORM_C_FLAGS "/Gy- /OPT:NOREF")
 elseif(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     set(PLATFORM_C_FLAGS "-fno-inline-functions")
 endif()
 
-# 应用到所有构建目标
+# Apply to all build targets
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${PLATFORM_C_FLAGS}")
 ```
 
@@ -457,19 +457,19 @@ Windows 平台编译需要特别注意编译器优化行为和 DLL 机制。通�
 ### A. 实用命令参考
 
 ```bash
-# 生成 Visual Studio 解决方案
+# Generate Visual Studio solution
 cmake -G "Visual Studio 17 2022" -A x64 ..
 
-# 构建特定配置
+# Build specific configuration
 cmake --build . --config Release --target boat
 
-# 运行测试
+# Run tests
 ctest -C Release -V
 
-# 检查 DLL 依赖项
+# Check DLL dependencies
 dumpbin /dependents boat.dll
 
-# 检查 DLL 导出函数
+# Check DLL exported functions
 dumpbin /exports boat.dll > exports.txt
 ```
 

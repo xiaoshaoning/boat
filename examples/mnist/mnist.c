@@ -208,74 +208,74 @@ boat_tensor_t* forward_pass(mnist_model_t* model, boat_tensor_t* input) {
 }
 
 void backward_pass(mnist_model_t* model, boat_tensor_t* grad_output) {
-    // Backward pass through layers in reverse order
+    // Backward pass through layers in reverse order.
+    // Convention: each backward function returns a tensor the caller owns.
+    // For layer N's output (grad) going into layer N+1:
+    //   out = backward_N+1(layer, grad);
+    //   boat_tensor_unref(grad);  // release backward_pass's ref on input
+    //   grad = out;               // adopt the returned ref for next layer
+    // First call is special: grad_output is still owned by the caller,
+    // softmax_backward adds a ref which backward_pass adopts.
+    // Last call: unref both input and returned (conv1) gradient.
     boat_tensor_t* grad = grad_output;
+    boat_tensor_t* out = NULL;
 
-    grad = boat_softmax_layer_backward(model->softmax, grad);
-    if (!grad) return;
+    // Layer 1: softmax (no unref — the caller still owns grad_output)
+    out = boat_softmax_layer_backward(model->softmax, grad);
+    if (!out) return;
+    grad = out;
 
-    grad = boat_dense_layer_backward(model->fc2, grad);
-    if (!grad) return;
+    out = boat_dense_layer_backward(model->fc2, grad);
+    if (!out) { boat_tensor_unref(grad); return; }
+    boat_tensor_unref(grad); grad = out;
 
-    grad = boat_relu_layer_backward(model->relu3, grad);
-    if (!grad) return;
+    out = boat_relu_layer_backward(model->relu3, grad);
+    if (!out) { boat_tensor_unref(grad); return; }
+    boat_tensor_unref(grad); grad = out;
 
-    grad = boat_dense_layer_backward(model->fc1, grad);
-    if (!grad) return;
+    out = boat_dense_layer_backward(model->fc1, grad);
+    if (!out) { boat_tensor_unref(grad); return; }
+    boat_tensor_unref(grad); grad = out;
 
-    grad = boat_flatten_layer_backward(model->flatten, grad);
-    if (!grad) return;
+    out = boat_flatten_layer_backward(model->flatten, grad);
+    if (!out) { boat_tensor_unref(grad); return; }
+    boat_tensor_unref(grad); grad = out;
 
-    grad = boat_pool_layer_backward(model->pool2, grad);
-    if (!grad) return;
+    out = boat_pool_layer_backward(model->pool2, grad);
+    if (!out) { boat_tensor_unref(grad); return; }
+    boat_tensor_unref(grad); grad = out;
 
-    grad = boat_relu_layer_backward(model->relu2, grad);
-    if (!grad) return;
+    out = boat_relu_layer_backward(model->relu2, grad);
+    if (!out) { boat_tensor_unref(grad); return; }
+    boat_tensor_unref(grad); grad = out;
 
-    grad = boat_conv_layer_backward(model->conv2, grad);
-    if (!grad) return;
+    out = boat_conv_layer_backward(model->conv2, grad);
+    if (!out) { boat_tensor_unref(grad); return; }
+    boat_tensor_unref(grad); grad = out;
 
-    grad = boat_pool_layer_backward(model->pool1, grad);
-    if (!grad) return;
+    out = boat_pool_layer_backward(model->pool1, grad);
+    if (!out) { boat_tensor_unref(grad); return; }
+    boat_tensor_unref(grad); grad = out;
 
-    grad = boat_relu_layer_backward(model->relu1, grad);
-    if (!grad) return;
+    out = boat_relu_layer_backward(model->relu1, grad);
+    if (!out) { boat_tensor_unref(grad); return; }
+    boat_tensor_unref(grad); grad = out;
 
-    boat_conv_layer_backward(model->conv1, grad);
-
-    // Clean up intermediate gradients
+    // Final layer: conv1. Unref both input and output gradients.
+    out = boat_conv_layer_backward(model->conv1, grad);
     boat_tensor_unref(grad);
-}
-
-float compute_accuracy(boat_tensor_t* predictions, boat_tensor_t* labels) {
-    // predictions shape: (batch_size, 10)
-    // labels shape: (batch_size) as uint8
-    size_t batch_size = boat_tensor_shape(predictions)[0];
-    const float* pred_data = (const float*)boat_tensor_const_data(predictions);
-    const uint8_t* label_data = (const uint8_t*)boat_tensor_const_data(labels);
-
-    int correct = 0;
-    for (size_t i = 0; i < batch_size; i++) {
-        // Find predicted class
-        int pred_class = 0;
-        float max_prob = pred_data[i * 10];
-        for (int j = 1; j < 10; j++) {
-            if (pred_data[i * 10 + j] > max_prob) {
-                max_prob = pred_data[i * 10 + j];
-                pred_class = j;
-            }
-        }
-
-        if (pred_class == label_data[i]) {
-            correct++;
-        }
-    }
-
-    return (float)correct / batch_size;
+    if (out) boat_tensor_unref(out);
 }
 
 int main(int argc, char* argv[]) {
     printf("=== MNIST Digit Recognition with Boat Framework ===\n");
+
+    // Disable stdout buffering so background/log output is visible in real time
+    setvbuf(stdout, NULL, _IONBF, 0);
+
+    // Check env var for quick test mode (small dataset, 1 epoch)
+    const char* quick_test_env = getenv("MNIST_QUICK_TEST");
+    int use_quick_test = quick_test_env && atoi(quick_test_env) == 1;
 
     // Check for data directory
     if (access("data", F_OK) == -1) {
@@ -283,12 +283,15 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Load data (use small subset for quick testing)
-    const char* use_small = getenv("USE_FULL_DATA");
-    const char* train_images_file = use_small ? "data/train_images.bin" : "data/train_images_small.bin";
-    const char* train_labels_file = use_small ? "data/train_labels.bin" : "data/train_labels_small.bin";
-    const char* test_images_file = use_small ? "data/test_images.bin" : "data/test_images_small.bin";
-    const char* test_labels_file = use_small ? "data/test_labels.bin" : "data/test_labels_small.bin";
+    // Select data files based on test mode
+    const char* train_images_file = use_quick_test
+        ? "data/train_images_small.bin" : "data/train_images.bin";
+    const char* train_labels_file = use_quick_test
+        ? "data/train_labels_small.bin" : "data/train_labels.bin";
+    const char* test_images_file = use_quick_test
+        ? "data/test_images_small.bin" : "data/test_images.bin";
+    const char* test_labels_file = use_quick_test
+        ? "data/test_labels_small.bin" : "data/test_labels.bin";
 
     printf("Loading training data from %s...\n", train_images_file);
     boat_tensor_t* train_images = load_tensor_binary(train_images_file, BOAT_DTYPE_FLOAT32);
@@ -374,43 +377,35 @@ int main(int argc, char* argv[]) {
     printf("Data standardization complete\n");
 
     // Training parameters
-    int epochs = 10;
-    const char* quick_test = getenv("MNIST_QUICK_TEST");
-    if (quick_test && atoi(quick_test) == 1) {
-        epochs = 1;  // Quick test for CI
-    }
+    int epochs = use_quick_test ? 1 : 10;
     float learning_rate = 0.001f;
     size_t batch_size = 32;
     size_t num_batches = train_samples / batch_size;
 
-    // Create a small test tensor with single sample for debugging
-    printf("\nCreating test tensor for debugging...\n");
-    int64_t test_shape[] = {1, 1, 28, 28};
-    boat_tensor_t* test_input = boat_tensor_create(test_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
-    if (!test_input) {
-        fprintf(stderr, "Failed to create test tensor\n");
+    // Create reusable batch input tensor
+    int64_t batch_shape[] = {(int64_t)batch_size, 1, 28, 28};
+    boat_tensor_t* batch_input = boat_tensor_create(batch_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    if (!batch_input) {
+        fprintf(stderr, "Failed to create batch input tensor\n");
+        boat_optimizer_free(optimizer);
         free_mnist_model(model);
         return 1;
     }
-    // Fill with first training sample data
-    float* test_data = (float*)boat_tensor_data(test_input);
-    const float* train_data = (const float*)boat_tensor_const_data(train_images);
-    if (train_data) {
-        // Copy first sample (28x28 = 784 elements)
-        for (int i = 0; i < 28*28; i++) {
-            test_data[i] = train_data[i];
-        }
-        printf("Test tensor filled with first training sample data\n");
-    } else {
-        fprintf(stderr, "Warning: train_images data is NULL, using zeros\n");
-        for (int i = 0; i < 28*28; i++) {
-            test_data[i] = 0.0f;
-        }
-    }
-    printf("Test tensor created at %p\n", (void*)test_input);
+
+    // Get direct pointers to training data for fast batch copy
+    const float* train_images_data = (const float*)boat_tensor_const_data(train_images);
+    const uint8_t* train_labels_data = (const uint8_t*)boat_tensor_const_data(train_labels);
+    const float* test_images_data = (const float*)boat_tensor_const_data(test_images);
+    const uint8_t* test_labels_data = (const uint8_t*)boat_tensor_const_data(test_labels);
+    size_t sample_size = 28 * 28;
 
     printf("\nStarting training...\n");
-    printf("Epochs: %d, Learning rate: %.4f, Batch size: %zu\n", epochs, learning_rate, batch_size);
+    printf("Epochs: %d, Learning rate: %.4f, Batch size: %zu, Total batches per epoch: %zu\n",
+           epochs, learning_rate, batch_size, num_batches);
+
+    // Logging interval: report progress every ~10%
+    size_t log_interval = num_batches / 10;
+    if (log_interval < 1) log_interval = 1;
 
     // Training loop
     for (int epoch = 0; epoch < epochs; epoch++) {
@@ -419,160 +414,151 @@ int main(int argc, char* argv[]) {
 
         clock_t start_time = clock();
 
-        // Simple batch iteration (non-randomized for simplicity)
+        printf("  Epoch %d/%d: ", epoch + 1, epochs);
+        fflush(stdout);
+
+        // Batch iteration
         for (size_t batch = 0; batch < num_batches; batch++) {
-            // Get batch indices
             size_t start_idx = batch * batch_size;
-            size_t end_idx = start_idx + batch_size;
 
-            // Extract batch (simplified - in practice would need tensor slicing)
-            // For now, we'll process one sample at a time for simplicity
-            // TODO: Implement proper batch processing
+            // Copy batch data into batch_input tensor (contiguous memcpy)
+            float* batch_data = (float*)boat_tensor_data(batch_input);
+            memcpy(batch_data, train_images_data + start_idx * sample_size,
+                   batch_size * sample_size * sizeof(float));
 
-            // Process each sample in batch
-            for (size_t i = start_idx; i < end_idx && i < train_samples; i++) {
-                // Extract single sample (inefficient but simple)
-                // In a real implementation, we would use tensor slicing
+            // Forward pass
+            boat_tensor_t* output = forward_pass(model, batch_input);
+            if (!output) {
+                fprintf(stderr, "Forward pass failed at batch %zu\n", batch);
+                continue;
+            }
 
-                // Fill test_input with current sample data
-                float* test_data_local = (float*)boat_tensor_data(test_input);
-                const float* train_data_local = (const float*)boat_tensor_const_data(train_images);
-                size_t sample_size = 28 * 28;
-                size_t offset = i * sample_size;
-                for (size_t k = 0; k < sample_size; k++) {
-                    test_data_local[k] = train_data_local[offset + k];
-                }
-
-                // Forward pass
-                boat_tensor_t* output = forward_pass(model, test_input);
-                if (!output) {
-                    fprintf(stderr, "Forward pass failed\n");
-                    continue;
-                }
-
-                // Compute loss (cross-entropy)
-                // For simplicity, we'll skip loss computation in this example
-                // and just compute accuracy
-
-                // Compute accuracy (output is single sample prediction)
-                // Need to extract corresponding single label
-                const uint8_t* label_data = (const uint8_t*)boat_tensor_const_data(train_labels);
-                uint8_t single_label = label_data[i];
-
-                // Check prediction (simplified - assuming output has shape [1, 10])
-                const float* pred_data = (const float*)boat_tensor_const_data(output);
+            // Compute accuracy for this batch
+            const float* pred_data = (const float*)boat_tensor_const_data(output);
+            for (size_t i = 0; i < batch_size; i++) {
+                size_t base = i * 10;
                 int pred_class = 0;
-                float max_prob = pred_data[0];
+                float max_prob = pred_data[base];
                 for (int j = 1; j < 10; j++) {
-                    if (pred_data[j] > max_prob) {
-                        max_prob = pred_data[j];
+                    if (pred_data[base + j] > max_prob) {
+                        max_prob = pred_data[base + j];
                         pred_class = j;
                     }
                 }
-
-                if (pred_class == single_label) {
-                    epoch_correct += 1;
+                if (pred_class == train_labels_data[start_idx + i]) {
+                    epoch_correct++;
                 }
-                epoch_total += 1;
-
-                // Backward pass - compute simple gradient for cross-entropy loss
-                // For softmax output and cross-entropy loss, gradient = pred - one_hot(label)
-                int64_t grad_shape[] = {1, 10};
-                boat_tensor_t* grad_output = boat_tensor_create(grad_shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
-                if (grad_output) {
-                    float* grad_data = (float*)boat_tensor_data(grad_output);
-
-                    // Initialize with prediction values
-                    for (int j = 0; j < 10; j++) {
-                        grad_data[j] = pred_data[j];
-                    }
-
-                    // Subtract 1 from correct class
-                    grad_data[single_label] -= 1.0f;
-
-                    // Scale gradient by 1/batch_size for averaged gradient.
-                    // Gradients accumulate across the batch via layer backward functions,
-                    // so dividing each sample's contribution by batch_size produces the
-                    // proper mean gradient.
-                    float grad_scale = 1.0f / batch_size;
-                    for (int j = 0; j < 10; j++) {
-                        grad_data[j] *= grad_scale;
-                    }
-
-                    // Call backward pass
-                    backward_pass(model, grad_output);
-
-                    boat_tensor_unref(grad_output);
-                }
-
-                boat_tensor_unref(output);
+                epoch_total++;
             }
 
-            // Update model using Adam optimizer
+            // Compute gradient: grad = (pred - one_hot(label)) / batch_size
+            // Cross-entropy with softmax output gives this simple gradient form
+            int64_t grad_shape[] = {(int64_t)batch_size, 10};
+            boat_tensor_t* grad_output = boat_tensor_create(grad_shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+            if (grad_output) {
+                float* grad_data = (float*)boat_tensor_data(grad_output);
+
+                for (size_t i = 0; i < batch_size; i++) {
+                    size_t base = i * 10;
+                    for (int j = 0; j < 10; j++) {
+                        grad_data[base + j] = pred_data[base + j];
+                    }
+                    grad_data[base + train_labels_data[start_idx + i]] -= 1.0f;
+                }
+
+                // Scale by 1/batch_size to compute mean gradient across batch
+                float grad_scale = 1.0f / batch_size;
+                size_t total_vals = batch_size * 10;
+                for (size_t i = 0; i < total_vals; i++) {
+                    grad_data[i] *= grad_scale;
+                }
+
+                backward_pass(model, grad_output);
+                boat_tensor_unref(grad_output);
+            }
+
+            boat_tensor_unref(output);
+
+            // Update model parameters
             boat_optimizer_step(optimizer);
             boat_optimizer_zero_grad(optimizer);
+
+            // Progress logging
+            if ((batch + 1) % log_interval == 0 || batch == num_batches - 1) {
+                printf(".");
+                fflush(stdout);
+            }
         }
 
         clock_t end_time = clock();
         double epoch_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
 
         float epoch_accuracy = epoch_total > 0 ? (float)epoch_correct / epoch_total : 0.0f;
-        printf("Epoch %d/%d: time=%.2fs, accuracy=%.2f%%\n",
-               epoch + 1, epochs, epoch_time, epoch_accuracy * 100.0f);
+        printf(" time=%.2fs, accuracy=%.2f%%\n",
+               epoch_time, epoch_accuracy * 100.0f);
     }
 
-    // Evaluate on test set
+    // Evaluate on test set in batches
     printf("\nEvaluating on test set...\n");
     const int64_t* test_images_shape = boat_tensor_shape(test_images);
     size_t test_samples = test_images_shape[0];
 
     int test_correct = 0;
-    for (size_t i = 0; i < test_samples; i++) {
-        // Fill test_input with current test sample data
-        float* test_data_local = (float*)boat_tensor_data(test_input);
-        const float* test_images_data = (const float*)boat_tensor_const_data(test_images);
-        size_t sample_size = 28 * 28;
-        size_t offset = i * sample_size;
-        for (size_t k = 0; k < sample_size; k++) {
-            test_data_local[k] = test_images_data[offset + k];
+    for (size_t start = 0; start < test_samples; start += batch_size) {
+        size_t current_batch = batch_size;
+        if (start + current_batch > test_samples) {
+            current_batch = test_samples - start;
         }
 
-        // Process one sample at a time (simplified)
-        boat_tensor_t* output = forward_pass(model, test_input);
-        if (!output) continue;
+        // Create input tensor for this batch
+        int64_t eval_shape[] = {(int64_t)current_batch, 1, 28, 28};
+        boat_tensor_t* eval_input = boat_tensor_create(eval_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+        if (!eval_input) continue;
 
-        // Compute accuracy for single sample
-        const uint8_t* label_data = (const uint8_t*)boat_tensor_const_data(test_labels);
-        uint8_t single_label = label_data[i];
+        // Copy batch data
+        float* eval_data = (float*)boat_tensor_data(eval_input);
+        memcpy(eval_data, test_images_data + start * sample_size,
+               current_batch * sample_size * sizeof(float));
 
+        // Forward pass
+        boat_tensor_t* output = forward_pass(model, eval_input);
+        if (!output) {
+            boat_tensor_unref(eval_input);
+            continue;
+        }
+
+        // Compute accuracy
         const float* pred_data = (const float*)boat_tensor_const_data(output);
-        int pred_class = 0;
-        float max_prob = pred_data[0];
-        for (int j = 1; j < 10; j++) {
-            if (pred_data[j] > max_prob) {
-                max_prob = pred_data[j];
-                pred_class = j;
+        for (size_t i = 0; i < current_batch; i++) {
+            size_t base = i * 10;
+            int pred_class = 0;
+            float max_prob = pred_data[base];
+            for (int j = 1; j < 10; j++) {
+                if (pred_data[base + j] > max_prob) {
+                    max_prob = pred_data[base + j];
+                    pred_class = j;
+                }
+            }
+            if (pred_class == test_labels_data[start + i]) {
+                test_correct++;
             }
         }
 
-        if (pred_class == single_label) {
-            test_correct += 1;
-        }
-
         boat_tensor_unref(output);
+        boat_tensor_unref(eval_input);
     }
 
     float test_accuracy = (float)test_correct / test_samples;
     printf("Test accuracy: %.2f%% (%d/%zu)\n", test_accuracy * 100.0f, test_correct, test_samples);
 
     // Cleanup
+    boat_tensor_unref(batch_input);
     boat_optimizer_free(optimizer);
     free_mnist_model(model);
     boat_tensor_unref(train_images);
     boat_tensor_unref(train_labels);
     boat_tensor_unref(test_images);
     boat_tensor_unref(test_labels);
-    boat_tensor_unref(test_input);
 
     printf("\nDone!\n");
     return 0;
