@@ -15,7 +15,7 @@
 
 #### 2.1 前向传播函数 (Forward Pass)
 ```c
-// 正确：前向传播不修改层状态，使用 const
+// Correct: forward pass does not modify layer state, use const
 boat_tensor_t* boat_attention_forward(const boat_attention_t* attention,
                                      const boat_tensor_t* query,
                                      const boat_tensor_t* key,
@@ -25,7 +25,7 @@ boat_tensor_t* boat_attention_forward(const boat_attention_t* attention,
 
 #### 2.2 反向传播函数 (Backward Pass)
 ```c
-// 正确：反向传播需要存储梯度，使用非 const
+// Correct: backward pass needs gradient storage, use non-const
 bool boat_attention_backward(boat_attention_t* attention,
                             const boat_tensor_t* grad_output,
                             boat_tensor_t** grad_query,
@@ -35,19 +35,19 @@ bool boat_attention_backward(boat_attention_t* attention,
 
 #### 2.3 参数更新函数
 ```c
-// 正确：更新内部参数，使用非 const
+// Correct: update internal parameters, use non-const
 void boat_attention_update(boat_attention_t* attention, float learning_rate);
 ```
 
 #### 2.4 内存管理函数
 ```c
-// 正确：释放内存需要修改所有权，使用非 const
+// Correct: freeing memory requires modifying ownership, use non-const
 void boat_attention_free(boat_attention_t* attention);
 ```
 
 #### 2.5 访问器函数 (Accessors)
 ```c
-// 正确：只读访问，使用 const
+// Correct: read-only access, use const
 boat_tensor_t* boat_attention_get_weight_q(const boat_attention_t* attention);
 ```
 
@@ -74,8 +74,8 @@ boat_tensor_t* boat_attention_get_weight_q(const boat_attention_t* attention);
 
 ```c
 typedef struct boat_layer_t {
-    void* data;                    // 内部数据，可修改
-    const boat_layer_ops_t* ops;   // 操作表，只读（类似虚函数表）
+    void* data;                    // internal data, mutable
+    const boat_layer_ops_t* ops;   // op table, read-only (like vtable)
 } boat_layer_t;
 ```
 
@@ -83,23 +83,23 @@ typedef struct boat_layer_t {
 
 ### 1. 创建-使用-销毁模式
 ```c
-// 创建：返回新对象
+// create: returns new object
 boat_attention_t* attn = boat_attention_create(&config);
 
-// 使用：前向传播（const），反向传播（非 const）
+// use: forward (const), backward (non-const)
 boat_tensor_t* output = boat_attention_forward(attn, query, key, value, NULL);
 bool success = boat_attention_backward(attn, grad_output, &grad_q, &grad_k, &grad_v);
 
-// 销毁：需要非 const
+// destroy: non-const required
 boat_attention_free(attn);
 ```
 
 ### 2. Getter/Setter 模式
 ```c
-// Getter：const 参数，返回 const 或非 const 指针（根据所有权）
-boat_tensor_t* weight = boat_attention_get_weight_q(attn);  // 返回内部引用
+// Getter: const param, returns const or non-const pointer (based on ownership)
+boat_tensor_t* weight = boat_attention_get_weight_q(attn);  // returns internal reference
 
-// Setter：非 const 参数
+// Setter: non-const param
 void boat_attention_set_dropout(boat_attention_t* attn, float prob);
 ```
 
@@ -119,13 +119,13 @@ MSVC 对 const 正确性检查较为严格，特别是：
 
 ### 1. 常见错误
 ```c
-// 错误：const 参数调用修改函数
+// Wrong: calling mutating function with const param
 const boat_attention_t* attn = boat_attention_create(&config);
-boat_attention_set_dropout(attn, 0.5f);  // 编译错误：attn 是 const
+boat_attention_set_dropout(attn, 0.5f);  // compile error: attn is const
 
-// 正确：使用非 const 指针
+// Correct: use non-const pointer
 boat_attention_t* attn = boat_attention_create(&config);
-boat_attention_set_dropout(attn, 0.5f);  // 正确
+boat_attention_set_dropout(attn, 0.5f);  // correct
 ```
 
 ### 2. 调试建议
@@ -149,26 +149,26 @@ boat_attention_set_dropout(attn, 0.5f);  // 正确
 
 ### 完整示例：注意力层
 ```c
-// 创建（非 const 返回）
+// create (non-const return)
 boat_attention_t* attn = boat_attention_create(&config);
 
-// 前向传播（const 参数）
+// forward (const param)
 boat_tensor_t* output = boat_attention_forward(attn, query, key, value, NULL);
 
-// 访问权重（const 参数，返回非 const 指针）
+// access weights (const param, returns non-const pointer)
 boat_tensor_t* weight_q = boat_attention_get_weight_q(attn);
 
-// 修改配置（非 const 参数）
+// modify config (non-const param)
 boat_attention_set_dropout(attn, 0.1f);
 
-// 反向传播（非 const 参数）
+// backward (non-const param)
 boat_tensor_t* grad_q, *grad_k, *grad_v;
 bool success = boat_attention_backward(attn, grad_output, &grad_q, &grad_k, &grad_v);
 
-// 更新参数（非 const 参数）
+// update parameters (non-const param)
 boat_attention_update(attn, 0.001f);
 
-// 销毁（非 const 参数）
+// destroy (non-const param)
 boat_attention_free(attn);
 ```
 

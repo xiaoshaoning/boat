@@ -49,7 +49,8 @@ The framework supports a wide range of data types for efficient computation:
 - **Variable names**: `snake_case`
 - **Type names**: `snake_type_t`
 - **Constants**: `SNAKE_CASE`
-- **Comments**: English only, no Chinese characters
+- **Comments**: English only (code comments), no Chinese characters in code
+- **Documentation**: Chinese or English (project primarily uses Chinese for developer docs)
 - **Indentation**: 4 spaces, no tabs
 - **Line length**: 100 characters maximum
 
@@ -74,65 +75,69 @@ boat/
 │   │       └── tensorflow.h # TensorFlow format support
 │   └── boat.h               # Main include file
 ├── src/                     # Implementation
+│   ├── autodiff.c          # Automatic differentiation engine
 │   ├── core/               # Core functionality
-│   │   ├── tensor.c        # Tensor implementation
+│   │   ├── error.c         # Error handling
 │   │   ├── memory.c        # Memory management
-│   │   └── utils.c         # Utility functions
-│   ├── ops/                # Operations
-│   │   ├── arithmetic.c    # Add, sub, mul, div
-│   │   ├── linear.c        # Linear algebra operations
-│   │   ├── activation.c    # Activation functions
-│   │   ├── reduction.c     # Reduction operations
-│   │   └── autodiff/       # Automatic differentiation ops
-│   │       ├── grad.c      # Gradient computation
-│   │       ├── backward.c  # Backward pass
-│   │       └── ops_grad.c  # Operation gradients
+│   │   ├── packed.c        # Packed data types
+│   │   ├── tensor.c        # Tensor implementation
+│   │   └── version.c       # Version information
 │   ├── graph/              # Computational graph
-│   │   ├── node.c          # Graph node
 │   │   ├── edge.c          # Graph edge
+│   │   ├── executor.c      # Graph executor
 │   │   ├── graph.c         # Graph structure
-│   │   └── executor.c      # Graph executor
+│   │   ├── graph_private.h # Internal graph header
+│   │   └── node.c          # Graph node
 │   ├── layers/             # Neural network layers
-│   │   ├── dense.c         # Fully connected layer
+│   │   ├── attention.c     # Attention mechanisms
+│   │   ├── batchnorm.c     # Batch normalization
 │   │   ├── conv.c          # Convolutional layer
-│   │   ├── pool.c          # Pooling layers
+│   │   ├── dense.c         # Fully connected layer
+│   │   ├── flatten.c       # Flatten layer
+│   │   ├── gru.c           # GRU layer
+│   │   ├── lstm.c          # LSTM layer
 │   │   ├── norm.c          # Normalization layers
-│   │   └── attention.c     # Attention mechanisms
-│   ├── optimizers/         # Optimization algorithms
-│   │   ├── sgd.c           # Stochastic Gradient Descent
-│   │   ├── adam.c          # Adam optimizer
-│   │   └── rmsprop.c       # RMSprop optimizer
+│   │   ├── pool.c          # Pooling layers
+│   │   ├── relu.c          # ReLU activation
+│   │   └── softmax.c       # Softmax activation
 │   ├── loss/               # Loss functions
-│   │   ├── mse.c           # Mean Squared Error
 │   │   ├── cross_entropy.c # Cross Entropy Loss
-│   │   └── huber.c         # Huber Loss
+│   │   ├── huber.c         # Huber Loss
+│   │   ├── loss_common.c   # Common loss utilities
+│   │   └── mse.c           # Mean Squared Error
 │   ├── model/              # Model management
+│   │   ├── graph_model.c   # Graph-based model
 │   │   ├── model.c         # Model definition
-│   │   ├── sequential.c    # Sequential model
-│   │   └── graph_model.c   # Graph-based model
-│   ├── data/               # Data handling
-│   │   ├── dataset.c       # Dataset abstraction
-│   │   ├── loader.c        # Data loader
-│   │   └── transforms.c    # Data transformations
+│   │   └── sequential.c    # Sequential model
+│   ├── ops/                # Operations
+│   │   ├── activation.c    # Activation functions
+│   │   ├── arithmetic.c    # Add, sub, mul, div
+│   │   └── linear.c        # Linear algebra operations
+│   ├── optimizers/         # Optimization algorithms
+│   │   ├── adagrad.c       # Adagrad optimizer
+│   │   ├── adam.c          # Adam optimizer
+│   │   ├── optimizer_common.c # Common optimizer utilities
+│   │   └── rmsprop.c       # RMSprop optimizer
+│   ├── schedulers/         # Learning rate schedulers
+│   │   ├── cosine_annealing.c # Cosine annealing
+│   │   ├── lambda_lr.c     # Lambda LR scheduler
+│   │   ├── scheduler_common.c # Common scheduler utilities
+│   │   ├── schedulers_internal.h # Internal scheduler header
+│   │   └── step_lr.c       # Step LR scheduler
 │   └── format/             # Model format loaders
+│       ├── huggingface.c   # HuggingFace Safetensors loader
 │       ├── onnx.c          # ONNX loader
-│       ├── pytorch.c       # PyTorch loader
+│       ├── pytorch.cpp     # PyTorch loader (C++)
 │       └── tensorflow.c    # TensorFlow loader
-├── cuda/                   # CUDA implementation (future)
-│   ├── tensor.cu          # GPU tensor operations
-│   ├── ops/               # GPU operations
-│   ├── autodiff/          # GPU autodiff
-│   ├── graph/             # GPU graph execution
-│   └── kernels/           # CUDA kernels
 ├── examples/              # Example programs
 │   ├── mnist/             # MNIST classification
-│   ├── cifar10/           # CIFAR-10 classification
-│   ├── transformer/       # Transformer example
-│   └── autodiff/          # Automatic differentiation examples
+│   └── scheduler_usage.c  # Scheduler example
 ├── tests/                 # Test suite
 │   ├── unit/              # Unit tests
-│   └── integration/       # Integration tests
-├── tools/                 # Development tools
+│   └── archive/           # Archived/legacy tests
+├── benchmarks/            # Performance benchmarks
+├── docs/                  # Documentation
+├── scripts/               # Utility scripts
 ├── CMakeLists.txt         # CMake build configuration
 ├── Makefile               # Make build configuration
 └── CLAUDE.md              # This file

@@ -25,7 +25,7 @@
 #include <time.h>
 
 clock_t start = clock();
-// 需要测量的代码
+// code to measure
 clock_t end = clock();
 double elapsed = (double)(end - start) / CLOCKS_PER_SEC;
 printf("Time: %f seconds\n", elapsed);
@@ -37,7 +37,7 @@ printf("Time: %f seconds\n", elapsed);
 #include <stdio.h>
 
 size_t start_memory = get_current_memory_usage();
-// 内存操作
+// memory operations
 size_t end_memory = get_current_memory_usage();
 printf("Memory delta: %zu bytes\n", end_memory - start_memory);
 ```
@@ -57,14 +57,14 @@ printf("Memory delta: %zu bytes\n", end_memory - start_memory);
 
 ### 示例优化
 ```c
-// 低效: 每次计算索引
+// inefficient: compute index each time
 for (size_t i = 0; i < n; i++) {
     for (size_t j = 0; j < m; j++) {
         data[i * stride_i + j * stride_j] = ...;
     }
 }
 
-// 高效: 预计算指针
+// efficient: precompute pointer
 for (size_t i = 0; i < n; i++) {
     float* row = data + i * stride_i;
     for (size_t j = 0; j < m; j++) {
@@ -95,7 +95,7 @@ typedef struct {
 
 void* pool_alloc(memory_pool_t* pool, size_t size) {
     if (pool->size >= pool->capacity) {
-        // 扩展池
+        // expand pool
     }
     return pool->blocks[pool->size++];
 }
@@ -114,7 +114,7 @@ void pool_reset(memory_pool_t* pool) {
 
 ### 循环优化
 ```c
-// 循环展开
+// loop unrolling
 for (size_t i = 0; i < n; i += 4) {
     data[i] = ...;
     data[i+1] = ...;
@@ -122,13 +122,13 @@ for (size_t i = 0; i < n; i += 4) {
     data[i+3] = ...;
 }
 
-// 减少循环内计算
+// reduce computation inside loop
 size_t stride = calculate_stride();
 for (size_t i = 0; i < n; i++) {
-    // 避免在循环内重复计算
-    size_t offset = i * stride;  // 好: 在循环外计算
+    // avoid repeated computation in loop
+    size_t offset = i * stride;  // good: compute outside loop
     // vs
-    size_t offset = calculate_offset(i);  // 差: 每次调用函数
+    size_t offset = calculate_offset(i);  // bad: call function each time
 }
 ```
 
@@ -161,7 +161,7 @@ void vector_add(float* a, float* b, float* c, size_t n) {
 
 #pragma omp parallel for
 for (size_t i = 0; i < n; i++) {
-    // 并行化循环
+    // parallelize loop
 }
 ```
 
@@ -190,17 +190,17 @@ for (size_t i = 0; i < n; i++) {
 
 ### 编译标志
 ```cmake
-# Release 模式优化
+# Release mode optimization
 set(CMAKE_C_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
 
-# 链接时优化
+# Link-time optimization
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 ```
 
 ### 内联优化
 ```c
-// 使用 static inline 提示编译器
+// use static inline to hint compiler
 static inline float fast_sigmoid(float x) {
     return 1.0f / (1.0f + expf(-x));
 }
@@ -208,11 +208,11 @@ static inline float fast_sigmoid(float x) {
 
 ### 分支预测
 ```c
-// 提示编译器分支概率
-if (likely(condition)) {  // 很可能为真
-    // 快速路径
+// hint branch probability to compiler
+if (likely(condition)) {  // likely true
+    // fast path
 } else {
-    // 慢速路径
+    // slow path
 }
 ```
 
@@ -236,20 +236,32 @@ if (likely(condition)) {  // 很可能为真
 
 ## 性能测试套件
 
-### 基准测试框架
+### 基准测试
 ```c
-#include <boat/benchmark.h>
+#include <time.h>
 
-BENCHMARK("矩阵乘法", [](BenchmarkState& state) {
-    size_t n = state.range(0);
-    Matrix a = create_random_matrix(n, n);
-    Matrix b = create_random_matrix(n, n);
-
-    for (auto _ : state) {
-        Matrix c = matrix_multiply(a, b);
-        benchmark::DoNotOptimize(c);
+double benchmark_time_us(void (*func)(void*), void* arg, int iterations) {
+    clock_t start = clock();
+    for (int i = 0; i < iterations; i++) {
+        func(arg);
     }
-})->Range(64, 1024)->Unit(benchmark::kMillisecond);
+    clock_t end = clock();
+    double total_s = (double)(end - start) / CLOCKS_PER_SEC;
+    return (total_s / iterations) * 1e6; // return microseconds
+}
+
+// usage example
+void matmul_test(void* arg) {
+    size_t n = *(size_t*)arg;
+    // run matrix multiplication test
+}
+
+int main() {
+    size_t n = 256;
+    double us = benchmark_time_us(matmul_test, &n, 100);
+    printf("Average time: %.2f us\n", us);
+    return 0;
+}
 ```
 
 ### 性能回归测试

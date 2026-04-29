@@ -64,12 +64,12 @@ boat_attention_layer_backward endp
 对于 DLL 导出函数，不要依赖编译器的自动优化决策。显式指定函数的优化属性。
 
 ```c
-// 错误：依赖编译器决策
+// Wrong: relies on compiler decision
 BOAT_API boat_tensor_t* boat_simple_wrapper(...) {
     return underlying_function(...);
 }
 
-// 正确：显式控制优化
+// Correct: explicitly control optimization
 BOAT_NOINLINE BOAT_API boat_tensor_t* boat_simple_wrapper(...) {
     return underlying_function(...);
 }
@@ -80,12 +80,12 @@ BOAT_NOINLINE BOAT_API boat_tensor_t* boat_simple_wrapper(...) {
 确保函数在头文件声明和源文件定义中的一致性。
 
 ```c
-// include/boat/layers.h - 声明
+// include/boat/layers.h - declaration
 BOAT_API boat_tensor_t* BOAT_CALL boat_layer_function(...);
 
-// src/layers/layer.c - 定义（必须匹配）
+// src/layers/layer.c - definition (must match)
 BOAT_API boat_tensor_t* BOAT_CALL boat_layer_function(...) {
-    // 实现
+    // implementation
 }
 ```
 
@@ -104,13 +104,13 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_layer_function(...) {
 **适用场景**: 函数仅调用另一个函数，无额外逻辑。
 
 ```c
-// 不安全实现
+// unsafe implementation
 BOAT_API boat_tensor_t* boat_norm_layer_backward(boat_norm_layer_t* layer,
                                                  const boat_tensor_t* grad_output) {
     return boat_layernorm_backward(layer, grad_output);
 }
 
-// 安全实现
+// safe implementation
 BOAT_NOINLINE BOAT_API boat_tensor_t* boat_norm_layer_backward(boat_norm_layer_t* layer,
                                                                const boat_tensor_t* grad_output) {
     return boat_layernorm_backward(layer, grad_output);
@@ -122,12 +122,12 @@ BOAT_NOINLINE BOAT_API boat_tensor_t* boat_norm_layer_backward(boat_norm_layer_t
 **适用场景**: 函数返回固定值或简单计算值。
 
 ```c
-// 不安全实现
+// unsafe implementation
 BOAT_API const char* boat_get_version(void) {
     return "1.0.0";
 }
 
-// 安全实现
+// safe implementation
 BOAT_NOINLINE BOAT_API const char* boat_get_version(void) {
     static const char* version = "1.0.0";
     return version;
@@ -139,7 +139,7 @@ BOAT_NOINLINE BOAT_API const char* boat_get_version(void) {
 **适用场景**: 检查参数后调用实际函数。
 
 ```c
-// 安全实现（包含额外逻辑，通常不会被过度优化）
+// safe implementation (has extra logic, unlikely to be optimized)
 BOAT_API boat_tensor_t* boat_checked_layer_forward(boat_layer_t* layer,
                                                    const boat_tensor_t* input) {
     if (!layer || !input) {
@@ -161,22 +161,22 @@ BOAT_API boat_tensor_t* boat_checked_layer_forward(boat_layer_t* layer,
 **适用场景**: 函数包含循环、内存分配、系统调用等。
 
 ```c
-// 通常安全，无需特殊处理
+// generally safe, no special handling needed
 BOAT_API boat_tensor_t* boat_complex_operation(const boat_tensor_t* a,
                                                const boat_tensor_t* b) {
-    // 参数检查
+    // parameter check
     if (!a || !b) return NULL;
 
-    // 内存分配
+    // memory allocation
     boat_tensor_t* result = boat_tensor_create(...);
     if (!result) return NULL;
 
-    // 复杂计算（循环、条件分支等）
+    // complex computation (loops, branches, etc.)
     for (size_t i = 0; i < size; i++) {
-        // 复杂逻辑
+        // complex logic
     }
 
-    // 系统调用或外部依赖
+    // syscall or external dependency
     some_external_function();
 
     return result;
@@ -188,12 +188,12 @@ BOAT_API boat_tensor_t* boat_complex_operation(const boat_tensor_t* a,
 **适用场景**: 访问或修改结构体成员。
 
 ```c
-// 简单 getter - 需要保护
+// simple getter - needs protection
 BOAT_NOINLINE BOAT_API size_t boat_layer_get_input_features(boat_layer_t* layer) {
     return layer ? layer->input_features : 0;
 }
 
-// 简单 setter - 需要保护
+// simple setter - needs protection
 BOAT_NOINLINE BOAT_API void boat_layer_set_input_features(boat_layer_t* layer, size_t features) {
     if (layer) {
         layer->input_features = features;
@@ -307,7 +307,7 @@ echo All required functions are exported successfully
 
 ```c
 void test_function_export(void) {
-    // 获取函数地址
+    // get function address
     void* func_addr = (void*)boat_attention_layer_backward;
 
     if (func_addr == NULL) {
@@ -315,10 +315,10 @@ void test_function_export(void) {
         return;
     }
 
-    // 检查地址是否在有效范围内
+    // check address is in valid range
     HMODULE hmodule = GetModuleHandleA("boat.dll");
     if (hmodule) {
-        // 验证地址在 DLL 范围内
+        // verify address is within DLL range
         // ...
     }
 
@@ -334,16 +334,16 @@ void test_function_export(void) {
 
 ```c
 BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_layer_backward(...) {
-    // 平台特定调试输出
+    // platform-specific debug output
 #ifdef _MSC_VER
     OutputDebugStringA("[DLL_DEBUG] boat_attention_layer_backward: entering\n");
 #endif
 
-    // 标准输出（确保在 Release 中保留）
+    // stdout (ensure retained in Release)
     printf("[DEBUG] boat_attention_layer_backward called with layer=%p, grad=%p\n",
            (void*)layer, (void*)grad_output);
 
-    // 函数实现
+    // function implementation
     // ...
 
 #ifdef _MSC_VER
@@ -360,7 +360,7 @@ BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_layer_backward(..
 
 ```c
 BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_layer_backward(...) {
-    // 自我验证：确保这不是跳转存根
+    // self-check: ensure this is not a jump stub
     static volatile int verification_counter = 0;
     verification_counter++;
 
@@ -368,7 +368,7 @@ BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_layer_backward(..
         printf("[VERIFICATION] First call to boat_attention_layer_backward\n");
     }
 
-    // 实际实现
+    // actual implementation
     // ...
 }
 ```
@@ -420,7 +420,7 @@ dumpbin /disasm boat.dll /out:disasm.txt
 #elif defined(__GNUC__) || defined(__clang__)
     #define BOAT_NOINLINE __attribute__((noinline))
     #define BOAT_DEBUG_BREAK() __builtin_trap()
-    #define BOAT_OUTPUT_DEBUG_STRING(msg) /* Linux/macOS 无等效 */
+    #define BOAT_OUTPUT_DEBUG_STRING(msg) /* No equivalent on Linux/macOS */
 #else
     #define BOAT_NOINLINE
     #define BOAT_DEBUG_BREAK()
@@ -486,7 +486,7 @@ void test_all_exported_functions(void) {
         {"boat_attention_layer_backward", (void*)boat_attention_layer_backward},
         {"boat_norm_layer_forward", (void*)boat_norm_layer_forward},
         {"boat_norm_layer_backward", (void*)boat_norm_layer_backward},
-        // ... 所有导出函数
+        // ... all exported functions
     };
 
     for (size_t i = 0; i < sizeof(functions)/sizeof(functions[0]); i++) {
@@ -595,12 +595,12 @@ def find_simple_wrappers(filepath):
 
 #### 解决方案
 ```c
-// 修复前
+// before fix
 BOAT_API boat_tensor_t* BOAT_CALL boat_attention_layer_backward(...) {
     return boat_attention_backward(...);
 }
 
-// 修复后
+// after fix
 BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_layer_backward(...) {
     return boat_attention_backward(...);
 }
@@ -624,15 +624,15 @@ BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_layer_backward(..
 
 #### 解决方案
 ```c
-// 修复前
+// before fix
 BOAT_API void boat_initialize(void) {
     g_initialized = true;
 }
 
-// 修复后
+// after fix
 BOAT_NOINLINE BOAT_API void boat_initialize(void) {
     g_initialized = true;
-    printf("Boat framework initialized\n");  // 添加副作用
+    printf("Boat framework initialized\n");  // add side effect
 }
 ```
 
@@ -649,12 +649,12 @@ BOAT_NOINLINE BOAT_API void boat_initialize(void) {
 
 #### 解决方案
 ```c
-// 修复前
+// before fix
 BOAT_API size_t boat_layer_get_features(boat_layer_t* layer) {
     return layer ? layer->features : 0;
 }
 
-// 修复后
+// after fix
 BOAT_NOINLINE BOAT_API size_t boat_layer_get_features(boat_layer_t* layer) {
     return layer ? layer->features : 0;
 }
@@ -685,7 +685,6 @@ DLL 导出函数设计需要特别注意编译器优化行为，特别是在 Win
 - `include/boat/export.h` - 平台特定宏定义
 - `docs/Windows-Compilation-Guide.md` - Windows 编译指南
 - `scripts/verify_dll_exports.py` - DLL 导出验证脚本
-- `tests/platform_compatibility/` - 平台兼容性测试
 
 ### B. 参考资料
 

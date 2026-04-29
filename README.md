@@ -505,19 +505,15 @@ boat/
 │   ├── graph/              # Computational graph
 │   ├── layers/             # Neural network layers
 │   ├── optimizers/         # Optimization algorithms
+│   ├── schedulers/         # Learning rate schedulers
 │   ├── loss/               # Loss functions
 │   ├── model/              # Model management
-│   ├── data/               # Data handling
 │   └── format/             # Model format loaders
 ├── examples/               # Example programs
-│   ├── mnist/             # MNIST classification
-│   ├── cifar10/           # CIFAR-10 classification
-│   ├── transformer/       # Transformer example
-│   └── autodiff/          # Automatic differentiation examples
+│   └── mnist/             # MNIST classification
 ├── tests/                 # Test suite
 │   ├── unit/              # Unit tests
-│   └── integration/       # Integration tests
-├── tools/                 # Development tools
+│   └── archive/           # Archived/legacy tests
 ├── benchmarks/            # Performance benchmarks
 ├── docs/                  # Documentation
 └── scripts/               # Utility scripts

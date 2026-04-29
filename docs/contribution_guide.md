@@ -12,7 +12,6 @@
    ```bash
    git clone https://github.com/your-username/boat.git
    cd boat
-   git submodule update --init --recursive
    ```
 3. **设置上游远程**:
    ```bash
@@ -105,18 +104,18 @@ git push origin feature/your-feature-name
 
 ### 示例
 ```c
-// 函数声明
+// function declaration
 boat_tensor_t* boat_tensor_create(const int64_t* shape, size_t ndim,
                                   boat_dtype_t dtype, boat_device_t device);
 
-// 结构体定义
+// struct definition
 struct boat_tensor_t {
     int64_t* shape;
     size_t ndim;
     boat_dtype_t dtype;
 };
 
-// 常量定义
+// constant definition
 #define BOAT_MAX_DIMENSIONS 8
 ```
 
@@ -159,8 +158,8 @@ struct boat_tensor_t {
 #include <boat/test.h>
 
 TEST(test_function_name) {
-    // 测试代码
-    ASSERT(condition, "错误信息");
+    // test code
+    ASSERT(condition, "error message");
     ASSERT_EQ(expected, actual);
     ASSERT_NEAR(float_expected, float_actual, epsilon);
 }
@@ -181,13 +180,13 @@ int main() {
 ### API 文档示例
 ```c
 /**
- * 创建新张量
+ * create new tensor
  *
- * @param shape 张量形状数组，长度为 ndim
- * @param ndim 张量维度数（0 表示标量）
- * @param dtype 数据类型
- * @param device 设备类型（CPU/GPU）
- * @return 新张量指针，失败返回 NULL
+ * @param shape tensor shape array, length is ndim
+ * @param ndim number of tensor dimensions (0 means scalar)
+ * @param dtype data type
+ * @param device device type (CPU/GPU)
+ * @return new tensor pointer, returns NULL on failure
  */
 BOAT_API boat_tensor_t* boat_tensor_create(const int64_t* shape, size_t ndim,
                                            boat_dtype_t dtype, boat_device_t device);
@@ -241,21 +240,20 @@ BOAT_API boat_tensor_t* boat_tensor_create(const int64_t* shape, size_t ndim,
 ## 工具支持
 
 ### 开发工具
-- **编辑器配置**: `.editorconfig` 文件
-- **代码格式化**: `clang-format` 配置
+- **代码格式化**: 遵循 CLAUDE.md 中的代码风格
 - **静态分析**: `cppcheck` 集成
 - **构建系统**: CMake
 
-### 本地检查脚本
+### 本地检查
 ```bash
-# 运行代码格式化检查
-./scripts/check_format.sh
+# run static analysis
+cppcheck --enable=warning,style --suppress=missingInclude -I include src
 
-# 运行静态分析
-./scripts/check_static.sh
-
-# 运行完整测试套件
-./scripts/run_tests.sh
+# run full test suite
+mkdir -p build && cd build
+cmake .. -DBOAT_WITH_TESTS=ON
+cmake --build .
+ctest --output-on-failure
 ```
 
 ## 社区准则
@@ -275,18 +273,18 @@ BOAT_API boat_tensor_t* boat_tensor_create(const int64_t* shape, size_t ndim,
 
 ### 常用命令
 ```bash
-# 设置开发环境
+# setup development environment
 git clone --recursive https://github.com/your-username/boat.git
 cd boat
 mkdir build && cd build
 cmake .. -DBOAT_WITH_TESTS=ON -DCMAKE_BUILD_TYPE=Debug
 
-# 日常开发循环
-make                    # 构建
-ctest -V               # 运行测试
-cppcheck src          # 静态检查
+# daily development loop
+make                    # build
+ctest -V               # run tests
+cppcheck src          # static check
 
-# 提交更改
+# commit changes
 git add .
 git commit -m "feat: 添加新功能"
 git push origin feature/xxx

@@ -32,9 +32,9 @@ make
 ```c
 #include <boat/format/huggingface.h>
 
-// 从目录加载 Hugging Face 模型
+// Load Hugging Face model from directory
 boat_model_t* model = boat_huggingface_load("path/to/model_dir");
-// model_dir 应包含 config.json 和权重文件（pytorch_model.bin 或 model.safetensors）
+// model_dir should contain config.json and weights (pytorch_model.bin or model.safetensors)
 ```
 
 ## 需要实现的下一步

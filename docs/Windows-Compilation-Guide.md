@@ -157,13 +157,13 @@ MSVC 编译器在 Release 模式下会进行激进优化，可能导致以下问
 简单包装函数（特别是仅调用另一个函数的包装器）容易被编译器优化消除。使用 `BOAT_NOINLINE` 强制保留函数体。
 
 ```c
-// 危险：简单包装函数可能被优化消除
+// Dangerous: simple wrapper may be optimized away
 BOAT_API boat_tensor_t* boat_norm_layer_backward(boat_norm_layer_t* layer,
                                                  const boat_tensor_t* grad_output) {
     return boat_layernorm_backward(layer, grad_output);
 }
 
-// 安全：使用 BOAT_NOINLINE 防止优化
+// Safe: use BOAT_NOINLINE to prevent optimization
 BOAT_NOINLINE BOAT_API boat_tensor_t* boat_norm_layer_backward(boat_norm_layer_t* layer,
                                                                const boat_tensor_t* grad_output) {
     return boat_layernorm_backward(layer, grad_output);
@@ -175,20 +175,20 @@ BOAT_NOINLINE BOAT_API boat_tensor_t* boat_norm_layer_backward(boat_norm_layer_t
 确保头文件声明和源文件定义一致：
 
 ```c
-// include/boat/layers.h - 头文件声明
+// include/boat/layers.h - header declaration
 BOAT_API boat_tensor_t* boat_dense_layer_backward(boat_dense_layer_t* layer,
                                                   const boat_tensor_t* grad_output);
 
-// src/layers/dense.c - 源文件定义（正确）
+// src/layers/dense.c - source definition (correct)
 BOAT_API boat_tensor_t* boat_dense_layer_backward(boat_dense_layer_t* layer,
                                                   const boat_tensor_t* grad_output) {
-    // 实现
+    // implementation
 }
 
-// src/layers/dense.c - 源文件定义（错误，缺少 BOAT_API）
+// src/layers/dense.c - source definition (wrong, missing BOAT_API)
 boat_tensor_t* boat_dense_layer_backward(boat_dense_layer_t* layer,
                                         const boat_tensor_t* grad_output) {
-    // 实现 - 可能无法正确导出
+    // implementation - 可能无法正确导出
 }
 ```
 
@@ -197,7 +197,7 @@ boat_tensor_t* boat_dense_layer_backward(boat_dense_layer_t* layer,
 对所有导出函数使用 `BOAT_CALL` 宏确保跨平台一致性：
 
 ```c
-// 推荐：使用 BOAT_CALL 确保调用约定正确
+// Recommended: use BOAT_CALL for correct calling convention
 BOAT_API boat_tensor_t* BOAT_CALL boat_attention_layer_forward(boat_attention_layer_t* layer,
                                                                const boat_tensor_t* query,
                                                                const boat_tensor_t* key,
@@ -305,12 +305,12 @@ cmake --build . --config Debug
 #include <boat/export.h>
 
 BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_layer_backward(...) {
-    // 平台特定调试输出
+    // platform-specific debug output
 #ifdef _MSC_VER
     OutputDebugStringA("[DEBUG] boat_attention_layer_backward called\n");
 #endif
 
-    // 函数实现
+    // function implementation
     // ...
 }
 ```
@@ -380,13 +380,13 @@ BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_layer_backward(..
 确保所有平台特定代码通过宏定义处理：
 
 ```c
-// 错误：直接使用平台特定语法
+// Wrong: directly using platform-specific syntax
 #ifdef _MSC_VER
 __declspec(noinline)
 #endif
 void my_function();
 
-// 正确：使用框架提供的宏
+// Correct: use framework macro
 BOAT_NOINLINE void my_function();
 ```
 

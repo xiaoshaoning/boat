@@ -36,14 +36,14 @@ make
 ```c
 #include <boat/format/huggingface.h>
 
-// 1. 读取 config.json 到字符串
+// 1. Read config.json into string
 const char* config_json = "{ \"model_type\": \"bert\", ... }";
 
-// 2. 读取 model.safetensors 到内存
+// 2. Read model.safetensors into memory
 void* weights_data = ...;
 size_t weights_size = ...;
 
-// 3. 加载模型
+// 3. Load model
 boat_model_t* model = boat_huggingface_load_from_memory(config_json, weights_data, weights_size);
 ```
 
@@ -84,7 +84,7 @@ make
 ### 2. 使用 MNIST CNN 模型测试
 已有的 `safetensors` 文件可用于测试：
 ```c
-// 加载 MNIST CNN 模型的 safetensors 文件
+// Load safetensors file for MNIST CNN model
 boat_model_t* model = boat_huggingface_load_from_memory(config_json, safetensors_data, data_size);
 ```
 
