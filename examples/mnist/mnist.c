@@ -551,6 +551,32 @@ int main(int argc, char* argv[]) {
     float test_accuracy = (float)test_correct / test_samples;
     printf("Test accuracy: %.2f%% (%d/%zu)\n", test_accuracy * 100.0f, test_correct, test_samples);
 
+    // Save trained model
+    {
+        boat_model_t* save_model = boat_model_create();
+        if (save_model) {
+            boat_layer_t* w;
+            w = malloc(sizeof(boat_layer_t)); w->data = model->conv1; w->type = BOAT_LAYER_TYPE_CONV2D; w->ops = NULL;    boat_model_add_layer(save_model, w);
+            w = malloc(sizeof(boat_layer_t)); w->data = model->relu1; w->type = BOAT_LAYER_TYPE_RELU; w->ops = NULL;      boat_model_add_layer(save_model, w);
+            w = malloc(sizeof(boat_layer_t)); w->data = model->pool1; w->type = BOAT_LAYER_TYPE_MAXPOOL2D; w->ops = NULL; boat_model_add_layer(save_model, w);
+            w = malloc(sizeof(boat_layer_t)); w->data = model->conv2; w->type = BOAT_LAYER_TYPE_CONV2D; w->ops = NULL;    boat_model_add_layer(save_model, w);
+            w = malloc(sizeof(boat_layer_t)); w->data = model->relu2; w->type = BOAT_LAYER_TYPE_RELU; w->ops = NULL;      boat_model_add_layer(save_model, w);
+            w = malloc(sizeof(boat_layer_t)); w->data = model->pool2; w->type = BOAT_LAYER_TYPE_MAXPOOL2D; w->ops = NULL; boat_model_add_layer(save_model, w);
+            w = malloc(sizeof(boat_layer_t)); w->data = model->flatten; w->type = BOAT_LAYER_TYPE_FLATTEN; w->ops = NULL; boat_model_add_layer(save_model, w);
+            w = malloc(sizeof(boat_layer_t)); w->data = model->fc1; w->type = BOAT_LAYER_TYPE_DENSE; w->ops = NULL;       boat_model_add_layer(save_model, w);
+            w = malloc(sizeof(boat_layer_t)); w->data = model->relu3; w->type = BOAT_LAYER_TYPE_RELU; w->ops = NULL;      boat_model_add_layer(save_model, w);
+            w = malloc(sizeof(boat_layer_t)); w->data = model->fc2; w->type = BOAT_LAYER_TYPE_DENSE; w->ops = NULL;       boat_model_add_layer(save_model, w);
+            w = malloc(sizeof(boat_layer_t)); w->data = model->softmax; w->type = BOAT_LAYER_TYPE_SOFTMAX; w->ops = NULL; boat_model_add_layer(save_model, w);
+
+            if (boat_model_save(save_model, "mnist_model.boat")) {
+                printf("Model saved to mnist_model.boat\n");
+            } else {
+                fprintf(stderr, "Failed to save model\n");
+            }
+            boat_model_free(save_model);
+        }
+    }
+
     // Cleanup
     boat_tensor_unref(batch_input);
     boat_optimizer_free(optimizer);

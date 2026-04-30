@@ -68,4 +68,7 @@ void boat_sequential_add(boat_sequential_model_t* model, boat_layer_t* layer) {
     // Add layer
     private->layers[private->layer_count] = layer;
     private->layer_count++;
+
+    // Also add to model's layer array for serialization and forward pass
+    boat_model_add_layer((boat_model_t*)model, layer);
 }

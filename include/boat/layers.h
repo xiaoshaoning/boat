@@ -12,6 +12,24 @@
 extern "C" {
 #endif
 
+// Layer type enumeration for serialization
+typedef enum {
+    BOAT_LAYER_TYPE_UNKNOWN = 0,
+    BOAT_LAYER_TYPE_DENSE,
+    BOAT_LAYER_TYPE_CONV2D,
+    BOAT_LAYER_TYPE_BATCHNORM2D,
+    BOAT_LAYER_TYPE_MAXPOOL2D,
+    BOAT_LAYER_TYPE_RELU,
+    BOAT_LAYER_TYPE_SOFTMAX,
+    BOAT_LAYER_TYPE_FLATTEN,
+    BOAT_LAYER_TYPE_LAYERNORM,
+    BOAT_LAYER_TYPE_RMSNORM,
+    BOAT_LAYER_TYPE_LSTM,
+    BOAT_LAYER_TYPE_GRU,
+    BOAT_LAYER_TYPE_ATTENTION,
+    BOAT_LAYER_TYPE_COUNT
+} boat_layer_type_t;
+
 // Forward declarations for all layer types
 typedef struct boat_dense_layer_t boat_dense_layer_t;
 typedef struct boat_conv_layer_t boat_conv_layer_t;
@@ -49,6 +67,8 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_weight(const boat_conv_lay
 BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_bias(const boat_conv_layer_t* layer);
 BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_grad_weight(const boat_conv_layer_t* layer);
 BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_grad_bias(const boat_conv_layer_t* layer);
+BOAT_API size_t BOAT_CALL boat_conv_layer_get_stride(const boat_conv_layer_t* layer);
+BOAT_API size_t BOAT_CALL boat_conv_layer_get_padding(const boat_conv_layer_t* layer);
 
 // Batch normalization layer functions (BatchNorm2d)
 typedef struct boat_batchnorm2d_layer_t boat_batchnorm2d_layer_t;
@@ -63,6 +83,13 @@ BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_weight(boat_batchnorm2d_layer
 BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_bias(boat_batchnorm2d_layer_t* layer, boat_tensor_t* bias);
 BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_running_mean(boat_batchnorm2d_layer_t* layer, boat_tensor_t* running_mean);
 BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_running_var(boat_batchnorm2d_layer_t* layer, boat_tensor_t* running_var);
+BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_get_weight(const boat_batchnorm2d_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_get_bias(const boat_batchnorm2d_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_get_running_mean(const boat_batchnorm2d_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_get_running_var(const boat_batchnorm2d_layer_t* layer);
+BOAT_API float BOAT_CALL boat_batchnorm2d_layer_get_eps(const boat_batchnorm2d_layer_t* layer);
+BOAT_API float BOAT_CALL boat_batchnorm2d_layer_get_momentum(const boat_batchnorm2d_layer_t* layer);
+BOAT_API bool BOAT_CALL boat_batchnorm2d_layer_get_affine(const boat_batchnorm2d_layer_t* layer);
 
 // Pooling layer functions (MaxPool2d)
 BOAT_API boat_pool_layer_t* BOAT_CALL boat_pool_layer_create(size_t pool_size, size_t stride, size_t padding);
@@ -70,6 +97,9 @@ BOAT_API void BOAT_CALL boat_pool_layer_free(boat_pool_layer_t* layer);
 BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_forward(boat_pool_layer_t* layer, const boat_tensor_t* input);
 BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_backward(boat_pool_layer_t* layer, const boat_tensor_t* grad_output);
 BOAT_API void BOAT_CALL boat_pool_layer_update(boat_pool_layer_t* layer, float learning_rate);
+BOAT_API size_t BOAT_CALL boat_pool_layer_get_pool_size(const boat_pool_layer_t* layer);
+BOAT_API size_t BOAT_CALL boat_pool_layer_get_stride(const boat_pool_layer_t* layer);
+BOAT_API size_t BOAT_CALL boat_pool_layer_get_padding(const boat_pool_layer_t* layer);
 
 // Normalization layer functions (simplified interface)
 BOAT_API boat_norm_layer_t* BOAT_CALL boat_norm_layer_create(size_t normalized_shape, float eps, bool elementwise_affine);
@@ -105,6 +135,7 @@ BOAT_API void BOAT_CALL boat_softmax_layer_free(boat_softmax_layer_t* layer);
 BOAT_API boat_tensor_t* BOAT_CALL boat_softmax_layer_forward(const boat_softmax_layer_t* layer, const boat_tensor_t* input);
 BOAT_API boat_tensor_t* BOAT_CALL boat_softmax_layer_backward(boat_softmax_layer_t* layer, const boat_tensor_t* grad_output);
 BOAT_API void BOAT_CALL boat_softmax_layer_update(boat_softmax_layer_t* layer, float learning_rate);
+BOAT_API int BOAT_CALL boat_softmax_layer_get_axis(const boat_softmax_layer_t* layer);
 
 typedef struct boat_flatten_layer_t boat_flatten_layer_t;
 

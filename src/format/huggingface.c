@@ -474,6 +474,7 @@ static boat_layer_t* complete_builder(hf_layer_builder_t* builder, const hf_conf
         }
         layer->data = dense_layer;
         layer->ops = &dense_layer_ops;
+        layer->type = BOAT_LAYER_TYPE_DENSE;
 
         // Store the actual layer pointer in builder for reference
         builder->layer = dense_layer;
@@ -533,6 +534,7 @@ static boat_layer_t* complete_builder(hf_layer_builder_t* builder, const hf_conf
         }
         layer->data = layernorm;
         layer->ops = &layernorm_layer_ops;
+        layer->type = BOAT_LAYER_TYPE_LAYERNORM;
 
         // Store the actual layer pointer in builder for reference
         builder->layer = layernorm;
@@ -1073,6 +1075,7 @@ static boat_layer_t* create_layer_from_config(const hf_config_t* config, const c
         }
         layer->data = wrapper;
         layer->ops = &wrapper_layer_ops;
+        layer->type = BOAT_LAYER_TYPE_UNKNOWN;
         printf("    Created convolutional layer wrapper\n");
         return layer;
     }
@@ -1340,6 +1343,7 @@ static boat_layer_t* create_actual_layer_from_tensor(const char* base_name, cons
             return NULL;
         }
         layer->data = dense_layer;
+        layer->type = BOAT_LAYER_TYPE_DENSE;
         printf("    Created dense layer with dimensions %zu -> %zu\n", input_features, output_features);
         return layer;
     }

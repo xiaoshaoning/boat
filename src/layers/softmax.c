@@ -62,3 +62,7 @@ BOAT_API void BOAT_CALL boat_softmax_layer_update(boat_softmax_layer_t* layer, f
     (void)learning_rate;
     // Softmax has no parameters to update
 }
+
+BOAT_API int BOAT_CALL boat_softmax_layer_get_axis(const boat_softmax_layer_t* layer) {
+    return layer ? layer->axis : 0;
+}

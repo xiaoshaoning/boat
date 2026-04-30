@@ -222,3 +222,15 @@ BOAT_API void BOAT_CALL boat_pool_layer_update(boat_pool_layer_t* layer, float l
     (void)learning_rate;
     // Pooling layers have no parameters to update
 }
+
+BOAT_NOINLINE BOAT_API size_t BOAT_CALL boat_pool_layer_get_pool_size(const boat_pool_layer_t* layer) {
+    return layer ? layer->pool_size : 0;
+}
+
+BOAT_NOINLINE BOAT_API size_t BOAT_CALL boat_pool_layer_get_stride(const boat_pool_layer_t* layer) {
+    return layer ? layer->stride : 0;
+}
+
+BOAT_NOINLINE BOAT_API size_t BOAT_CALL boat_pool_layer_get_padding(const boat_pool_layer_t* layer) {
+    return layer ? layer->padding : 0;
+}

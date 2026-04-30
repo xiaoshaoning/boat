@@ -757,3 +757,11 @@ BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_grad_weight(
 BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_grad_bias(const boat_conv_layer_t* layer) {
     return layer ? layer->grad_bias : NULL;
 }
+
+BOAT_NOINLINE BOAT_API size_t BOAT_CALL boat_conv_layer_get_stride(const boat_conv_layer_t* layer) {
+    return layer ? layer->stride : 0;
+}
+
+BOAT_NOINLINE BOAT_API size_t BOAT_CALL boat_conv_layer_get_padding(const boat_conv_layer_t* layer) {
+    return layer ? layer->padding : 0;
+}

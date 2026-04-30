@@ -242,3 +242,31 @@ BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_running_var(boat_batchnorm2d_
     layer->running_var = running_var;
     boat_tensor_ref(running_var);
 }
+
+BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_get_weight(const boat_batchnorm2d_layer_t* layer) {
+    return layer ? layer->weight : NULL;
+}
+
+BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_get_bias(const boat_batchnorm2d_layer_t* layer) {
+    return layer ? layer->bias : NULL;
+}
+
+BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_get_running_mean(const boat_batchnorm2d_layer_t* layer) {
+    return layer ? layer->running_mean : NULL;
+}
+
+BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_get_running_var(const boat_batchnorm2d_layer_t* layer) {
+    return layer ? layer->running_var : NULL;
+}
+
+BOAT_NOINLINE BOAT_API float BOAT_CALL boat_batchnorm2d_layer_get_eps(const boat_batchnorm2d_layer_t* layer) {
+    return layer ? layer->eps : 0.0f;
+}
+
+BOAT_NOINLINE BOAT_API float BOAT_CALL boat_batchnorm2d_layer_get_momentum(const boat_batchnorm2d_layer_t* layer) {
+    return layer ? layer->momentum : 0.0f;
+}
+
+BOAT_NOINLINE BOAT_API bool BOAT_CALL boat_batchnorm2d_layer_get_affine(const boat_batchnorm2d_layer_t* layer) {
+    return layer ? layer->affine : false;
+}
