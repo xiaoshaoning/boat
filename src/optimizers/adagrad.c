@@ -3,18 +3,10 @@
 // Licensed under the Apache License, Version 2.0
 
 #include <stddef.h>
-#include <boat/optimizers.h>
-#define BOAT_DEVICE_T_DEFINED
-#include <boat/tensor.h>
-#include <boat/memory.h>
+#include <boat.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-
-#ifdef _WIN32
-#include <windows.h>
-#endif
 
 // Adagrad optimizer state structure
 typedef struct boat_adagrad_state_t {
@@ -42,15 +34,18 @@ BOAT_API boat_optimizer_t* boat_adagrad_optimizer_create(float learning_rate,
                                                 float epsilon) {
     // Parameter validation
     if (learning_rate <= 0.0f) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Adagrad] Learning rate must be positive\n");
         return NULL;
     }
     if (epsilon <= 0.0f) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Adagrad] Epsilon must be positive\n");
         return NULL;
     }
 
     // Allocate optimizer state
     boat_adagrad_state_t* state = (boat_adagrad_state_t*)boat_malloc(sizeof(boat_adagrad_state_t), BOAT_DEVICE_CPU);
     if (!state) {
+        boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[Adagrad] Failed to allocate optimizer state\n");
         return NULL;
     }
 
@@ -67,6 +62,7 @@ BOAT_API boat_optimizer_t* boat_adagrad_optimizer_create(float learning_rate,
     state->sum_square_grad = (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
 
     if (!state->params || !state->grads || !state->sum_square_grad) {
+        boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[Adagrad] Failed to allocate optimizer state\n");
         if (state->params) boat_free(state->params);
         if (state->grads) boat_free(state->grads);
         if (state->sum_square_grad) boat_free(state->sum_square_grad);

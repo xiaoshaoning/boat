@@ -2,24 +2,10 @@
 // Copyright (c) 2026 Shaoning, Xiao 萧少宁
 // Licensed under the Apache License, Version 2.0
 
-#include <boat/layers.h>
-#include <boat/ops.h>
-#include <boat/memory.h>
+#include <boat.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include <stdio.h>
-
-// Debug output control
-#ifndef BOAT_DEBUG
-#define BOAT_DEBUG 0
-#endif
-
-#if BOAT_DEBUG
-#define BOAT_DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
-#else
-#define BOAT_DEBUG_PRINT(...) ((void)0)
-#endif
 
 // Dense layer structure
 struct boat_dense_layer_t {
@@ -201,7 +187,7 @@ BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_backward(boat_d
     const int64_t* grad_output_shape = boat_tensor_shape(grad_output);
 
     if (boat_tensor_ndim(input) != 2 || boat_tensor_ndim(grad_output) != 2) {
-        fprintf(stderr, "Error: Dense layer backward expects 2D tensors\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[DenseLayer] Backward expects 2D tensors\n");
         return NULL;
     }
 
@@ -212,7 +198,7 @@ BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_backward(boat_d
     if (input_features != (int64_t)layer->input_features ||
         output_features != (int64_t)layer->output_features ||
         grad_output_shape[0] != batch) {
-        fprintf(stderr, "Error: Dense layer backward shape mismatch\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[DenseLayer] Backward shape mismatch\n");
         return NULL;
     }
 
@@ -334,7 +320,7 @@ BOAT_API void BOAT_CALL boat_dense_layer_set_weight(boat_dense_layer_t* layer, b
     const int64_t* weight_shape = boat_tensor_shape(weight);
     if (weight_shape[0] != (int64_t)layer->input_features ||
         weight_shape[1] != (int64_t)layer->output_features) {
-        fprintf(stderr, "Error: Weight shape [%lld, %lld] does not match layer dimensions [%zu, %zu]\n",
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[DenseLayer] Weight shape [%lld, %lld] does not match layer dimensions [%zu, %zu]\n",
                 weight_shape[0], weight_shape[1], layer->input_features, layer->output_features);
         return;
     }
@@ -351,13 +337,13 @@ BOAT_API void BOAT_CALL boat_dense_layer_set_bias(boat_dense_layer_t* layer, boa
         return;
     }
     if (!layer->use_bias) {
-        fprintf(stderr, "Warning: Layer was created without bias, ignoring bias tensor\n");
+        BOAT_DEBUG_PRINT("[DenseLayer] Warning: Layer was created without bias, ignoring bias tensor\n");
         return;
     }
     // Check bias shape matches output features
     const int64_t* bias_shape = boat_tensor_shape(bias);
     if (bias_shape[0] != (int64_t)layer->output_features) {
-        fprintf(stderr, "Error: Bias shape [%lld] does not match output features %zu\n",
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[DenseLayer] Bias shape [%lld] does not match output features %zu\n",
                 bias_shape[0], layer->output_features);
         return;
     }

@@ -3,8 +3,7 @@
 // Licensed under the Apache License, Version 2.0
 
 #define BOAT_BUILDING_DLL
-#include <boat/tensor.h>
-#include <boat/memory.h>
+#include <boat.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -55,7 +54,7 @@ void* boat_memory_allocate(size_t size, boat_device_t device,
     // Allocate memory
     boat_memory_header_t* header = malloc(total_size);
     if (!header) {
-        fprintf(stderr, "Memory allocation failed: %zu bytes at %s:%d\n",
+        boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[Memory] Allocation of %zu bytes failed at %s:%d\n",
                 size, file, line);
         return NULL;
     }
@@ -101,7 +100,7 @@ void* boat_memory_reallocate(void* ptr, size_t new_size, boat_device_t device,
     size_t total_size = sizeof(boat_memory_header_t) + new_size;
     boat_memory_header_t* new_header = realloc(old_header, total_size);
     if (!new_header) {
-        fprintf(stderr, "Memory reallocation failed: %zu bytes at %s:%d\n",
+        boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[Memory] Reallocation of %zu bytes failed at %s:%d\n",
                 new_size, file, line);
         return NULL;
     }
@@ -233,7 +232,7 @@ void boat_memory_copy(void* dest, const void* src, size_t size,
         memcpy(dest, src, size);
     } else {
         // TODO: Implement cross-device copying when CUDA support is added
-        fprintf(stderr, "Cross-device memory copy not implemented yet\n");
+        boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Memory] Cross-device memory copy not implemented yet\n");
     }
 }
 
@@ -242,7 +241,7 @@ void boat_memory_set(void* dest, int value, size_t size, boat_device_t device) {
         memset(dest, value, size);
     } else {
         // TODO: Implement device-specific memset when CUDA support is added
-        fprintf(stderr, "Device-specific memset not implemented yet\n");
+        boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Memory] Device-specific memset not implemented yet\n");
     }
 }
 

@@ -2,22 +2,10 @@
 // Copyright (c) 2026 Shaoning, Xiao 萧少宁
 // Licensed under the Apache License, Version 2.0
 
-#include <boat/ops.h>
-#include <boat/memory.h>
+#include <boat.h>
 #include <string.h>
 #include <math.h>
 #include <float.h>
-#include <stdio.h>
-
-#ifndef BOAT_DEBUG
-#define BOAT_DEBUG 0
-#endif
-
-#if BOAT_DEBUG
-#define BOAT_DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
-#else
-#define BOAT_DEBUG_PRINT(...) ((void)0)
-#endif
 
 // Helper functions
 static size_t broadcast_index(const boat_tensor_t* tensor, size_t output_idx,
@@ -110,46 +98,41 @@ static boat_tensor_t* create_broadcasted_output(const boat_tensor_t* a,
     size_t out_ndim;
 
     if (!validate_shapes_for_broadcasting(a, b, out_shape, &out_ndim)) {
-#if BOAT_DEBUG
-        fprintf(stderr, "DEBUG create_broadcasted_output: validate_shapes_for_broadcasting failed\n");
+        BOAT_DEBUG_PRINT("DEBUG create_broadcasted_output: validate_shapes_for_broadcasting failed\n");
         // Debug shape info
         size_t a_ndim = boat_tensor_ndim(a);
         size_t b_ndim = boat_tensor_ndim(b);
         const int64_t* a_shape = boat_tensor_shape(a);
         const int64_t* b_shape = boat_tensor_shape(b);
-        fprintf(stderr, "  a shape: [");
+        BOAT_DEBUG_PRINT("  a shape: [");
         for (size_t i = 0; i < a_ndim; i++) {
-            fprintf(stderr, "%ld", a_shape[i]);
-            if (i < a_ndim - 1) fprintf(stderr, ", ");
+            BOAT_DEBUG_PRINT("%ld", a_shape[i]);
+            if (i < a_ndim - 1) BOAT_DEBUG_PRINT(", ");
         }
-        fprintf(stderr, "]\n");
-        fprintf(stderr, "  b shape: [");
+        BOAT_DEBUG_PRINT("]\n");
+        BOAT_DEBUG_PRINT("  b shape: [");
         for (size_t i = 0; i < b_ndim; i++) {
-            fprintf(stderr, "%ld", b_shape[i]);
-            if (i < b_ndim - 1) fprintf(stderr, ", ");
+            BOAT_DEBUG_PRINT("%ld", b_shape[i]);
+            if (i < b_ndim - 1) BOAT_DEBUG_PRINT(", ");
         }
-        fprintf(stderr, "]\n");
-#endif
+        BOAT_DEBUG_PRINT("]\n");
         return NULL;
     }
 
     boat_device_t device = boat_tensor_device(a);
     boat_device_t b_device = boat_tensor_device(b);
     if (device != b_device) {
-#if BOAT_DEBUG
-        fprintf(stderr, "DEBUG create_broadcasted_output: device mismatch: a=%d, b=%d\n", device, b_device);
-#endif
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Device mismatch in broadcast: a=%d, b=%d\n", device, b_device);
+        BOAT_DEBUG_PRINT("DEBUG create_broadcasted_output: device mismatch: a=%d, b=%d\n", device, b_device);
         return NULL;
     }
 
-#if BOAT_DEBUG
-    fprintf(stderr, "DEBUG create_broadcasted_output: creating tensor shape=[");
+    BOAT_DEBUG_PRINT("DEBUG create_broadcasted_output: creating tensor shape=[");
     for (size_t i = 0; i < out_ndim; i++) {
-        fprintf(stderr, "%ld", out_shape[i]);
-        if (i < out_ndim - 1) fprintf(stderr, ", ");
+        BOAT_DEBUG_PRINT("%ld", out_shape[i]);
+        if (i < out_ndim - 1) BOAT_DEBUG_PRINT(", ");
     }
-    fprintf(stderr, "], dtype=%d, device=%d\n", dtype, device);
-#endif
+    BOAT_DEBUG_PRINT("], dtype=%d, device=%d\n", dtype, device);
     return boat_tensor_create(out_shape, out_ndim, dtype, device);
 }
 
@@ -158,12 +141,14 @@ static boat_tensor_t* create_broadcasted_output(const boat_tensor_t* a,
 boat_tensor_t* boat_##op_name(const boat_tensor_t* a, const boat_tensor_t* b) { \
     BOAT_DEBUG_PRINT("DEBUG boat_%s: called, a=%p, b=%p\n", #op_name, (void*)a, (void*)b); \
     if (!a || !b) { \
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Null input in boat_%s\n", #op_name); \
         BOAT_DEBUG_PRINT("DEBUG boat_%s: null input\n", #op_name); \
         return NULL; \
     } \
     \
     boat_dtype_t dtype = boat_tensor_dtype(a); \
     if (dtype != boat_tensor_dtype(b)) { \
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Dtype mismatch in boat_%s: %d vs %d\n", #op_name, dtype, boat_tensor_dtype(b)); \
         BOAT_DEBUG_PRINT("DEBUG boat_%s: dtype mismatch: a=%d, b=%d\n", #op_name, dtype, boat_tensor_dtype(b)); \
         /* TODO: Type promotion */ \
         return NULL; \
@@ -171,6 +156,7 @@ boat_tensor_t* boat_##op_name(const boat_tensor_t* a, const boat_tensor_t* b) { 
     \
     boat_tensor_t* out = create_broadcasted_output(a, b, dtype); \
     if (!out) { \
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Broadcast failed in boat_%s\n", #op_name); \
         BOAT_DEBUG_PRINT("DEBUG boat_%s: create_broadcasted_output failed\n", #op_name); \
         return NULL; \
     } \
@@ -260,6 +246,7 @@ boat_tensor_t* boat_##op_name(const boat_tensor_t* a, const boat_tensor_t* b) { 
         } \
         case BOAT_DTYPE_FLOAT16: { \
             /* TODO: Implement half-precision floating point */ \
+            boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Arithmetic] float16 not supported in boat_%s\n", #op_name); \
             BOAT_DEBUG_PRINT("DEBUG boat_%s: float16 not supported\n", #op_name); \
             boat_tensor_free(out); \
             return NULL; \
@@ -269,6 +256,7 @@ boat_tensor_t* boat_##op_name(const boat_tensor_t* a, const boat_tensor_t* b) { 
         case BOAT_DTYPE_BITS2:   /* Fall through */ \
         case BOAT_DTYPE_BITS1:   /* Fall through */ \
         default: \
+            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Unsupported dtype in boat_%s: %d\n", #op_name, dtype); \
             BOAT_DEBUG_PRINT("DEBUG boat_%s: unsupported dtype=%d\n", #op_name, dtype); \
             boat_tensor_free(out); \
             return NULL; \
@@ -286,15 +274,22 @@ DEFINE_ELEMENTWISE_OP(div, /)
 
 // Mod operation (special handling for floating point)
 boat_tensor_t* boat_mod(const boat_tensor_t* a, const boat_tensor_t* b) {
-    if (!a || !b) return NULL;
+    if (!a || !b) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Null input in boat_mod\n");
+        return NULL;
+    }
 
     boat_dtype_t dtype = boat_tensor_dtype(a);
     if (dtype != boat_tensor_dtype(b)) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Dtype mismatch in boat_mod: %d vs %d\n", dtype, boat_tensor_dtype(b));
         return NULL;
     }
 
     boat_tensor_t* out = create_broadcasted_output(a, b, dtype);
-    if (!out) return NULL;
+    if (!out) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Broadcast failed in boat_mod\n");
+        return NULL;
+    }
 
     size_t nelements = boat_tensor_nelements(out);
     const void* a_data = boat_tensor_data(a);
@@ -351,6 +346,7 @@ boat_tensor_t* boat_mod(const boat_tensor_t* a, const boat_tensor_t* b) {
             break;
         }
         default:
+            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Unsupported dtype in boat_mod\n");
             boat_tensor_free(out);
             return NULL;
     }
@@ -361,10 +357,14 @@ boat_tensor_t* boat_mod(const boat_tensor_t* a, const boat_tensor_t* b) {
 // In-place operations
 #define DEFINE_INPLACE_OP(op_name, op) \
 void boat_##op_name##_(boat_tensor_t* const a, const boat_tensor_t* b) { \
-    if (!a || !b) return; \
+    if (!a || !b) { \
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Null input in boat_%s_\n", #op_name); \
+        return; \
+    } \
     \
     boat_dtype_t dtype = boat_tensor_dtype(a); \
     if (dtype != boat_tensor_dtype(b)) { \
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Dtype mismatch in boat_%s_: %d vs %d\n", #op_name, dtype, boat_tensor_dtype(b)); \
         return; \
     } \
     \
@@ -424,11 +424,18 @@ DEFINE_INPLACE_OP(div, /)
 // Scalar operations
 #define DEFINE_SCALAR_OP(op_name, op) \
 boat_tensor_t* boat_##op_name##_scalar(const boat_tensor_t* a, double scalar) { \
-    if (!a) return NULL; \
+    if (!a) { \
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Null input in boat_%s_scalar\n", #op_name); \
+        return NULL; \
+    } \
+    \
     \
     boat_dtype_t dtype = boat_tensor_dtype(a); \
     boat_tensor_t* out = boat_tensor_create_like(a); \
-    if (!out) return NULL; \
+    if (!out) { \
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Failed to create output in boat_%s_scalar\n", #op_name); \
+        return NULL; \
+    } \
     \
     size_t nelements = boat_tensor_nelements(a); \
     void* a_data = boat_tensor_data(a); \
@@ -471,6 +478,7 @@ boat_tensor_t* boat_##op_name##_scalar(const boat_tensor_t* a, double scalar) { 
             break; \
         } \
         default: \
+            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Unsupported dtype in boat_%s_scalar\n", #op_name); \
             boat_tensor_free(out); \
             return NULL; \
     } \
@@ -484,7 +492,10 @@ DEFINE_SCALAR_OP(mul, *)
 DEFINE_SCALAR_OP(div, /)
 
 boat_tensor_t* boat_pow_scalar(const boat_tensor_t* a, double scalar) {
-    if (!a) return NULL;
+    if (!a) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Null input in boat_pow_scalar\n");
+        return NULL;
+    }
 
     boat_dtype_t dtype = boat_tensor_dtype(a);
     boat_tensor_t* out = boat_tensor_create_like(a);
@@ -581,7 +592,10 @@ bool boat_can_broadcast(const boat_tensor_t* a, const boat_tensor_t* b) {
 }
 
 boat_tensor_t* boat_broadcast_to(const boat_tensor_t* a, const int64_t* shape, size_t ndim) {
-    if (!a || !shape) return NULL;
+    if (!a || !shape) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Null input in boat_broadcast_to\n");
+        return NULL;
+    }
 
     // TODO: Implement actual broadcasting (this is just shape checking for now)
     // For now, create a new tensor with the target shape and copy data
@@ -609,7 +623,10 @@ boat_tensor_t* boat_broadcast_to(const boat_tensor_t* a, const int64_t* shape, s
 
 // Reduction operations
 boat_tensor_t* boat_sum(const boat_tensor_t* a, const int64_t* dims, size_t n_dims, bool keepdim) {
-    if (!a) return NULL;
+    if (!a) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Null input in boat_sum\n");
+        return NULL;
+    }
 
     // For now, implement only full reduction (dims == NULL, n_dims == 0)
     if (dims != NULL || n_dims != 0) {

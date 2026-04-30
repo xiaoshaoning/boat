@@ -9,6 +9,7 @@
 #include <boat/memory.h>
 #include <boat/tensor.h>
 #include <boat/graph.h>
+#include <boat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -228,7 +229,7 @@ static hf_config_t* parse_config(const char* config_json) {
     // Parse JSON using cJSON
     cJSON* root = cJSON_Parse(config_json);
     if (!root) {
-        fprintf(stderr, "Failed to parse JSON configuration\n");
+        boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Failed to parse JSON configuration\n");
         free_config(config);
         return NULL;
     }
@@ -282,7 +283,7 @@ static hf_config_t* parse_config(const char* config_json) {
 #else
     // Without cJSON, use default values and try to parse simple JSON
     // This is a very basic parser that only looks for specific patterns
-    fprintf(stderr, "cJSON not available, using default configuration\n");
+    BOAT_DEBUG_PRINT("[HuggingFace] cJSON not available, using default configuration\n");
 
     // Simple string extraction for model_type
     const char* model_type_ptr = strstr(config_json, "\"model_type\"");
@@ -644,9 +645,9 @@ static char* parse_safetensors_header(const uint8_t* data, size_t size, size_t* 
 
 // Check if data looks like a safetensors file
 static bool is_safetensors_format(const uint8_t* data, size_t size) {
-    fprintf(stderr, "is_safetensors_format: size=%zu\n", size);
+    BOAT_DEBUG_PRINT("[HuggingFace] is_safetensors_format: size=%zu\n", size);
     if (size < 8) {
-        fprintf(stderr, "  size < 8\n");
+        BOAT_DEBUG_PRINT("[HuggingFace] size < 8\n");
         return false;
     }
 
@@ -662,7 +663,7 @@ static bool is_safetensors_format(const uint8_t* data, size_t size) {
     // Check that JSON starts with '{' and ends with '}' (allowing padding spaces)
     // This is a simple heuristic
     if (data[8] != '{') {
-        fprintf(stderr, "  JSON does not start with '{'\n");
+        BOAT_DEBUG_PRINT("[HuggingFace] JSON does not start with '{'\n");
         return false;
     }
     // Find last non-space character before JSON end
@@ -671,7 +672,7 @@ static bool is_safetensors_format(const uint8_t* data, size_t size) {
         pos--;
     }
     if (data[pos] != '}') {
-        fprintf(stderr, "  JSON does not end with '}' (found 0x%02x at pos %zu)\n", data[pos], pos);
+        BOAT_DEBUG_PRINT("[HuggingFace] JSON does not end with '}' (found 0x%02x at pos %zu)\n", data[pos], pos);
         return false;
     }
 
@@ -688,7 +689,7 @@ static bool load_safetensors(const void* data, size_t size, const hf_config_t* c
     size_t header_size = 0;
     char* json_header = parse_safetensors_header(file_data, size, &header_size);
     if (!json_header) {
-        fprintf(stderr, "Failed to parse safetensors header\n");
+        boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Failed to parse safetensors header\n");
         return false;
     }
 
@@ -703,7 +704,7 @@ static bool load_safetensors(const void* data, size_t size, const hf_config_t* c
     // Parse JSON using cJSON
     cJSON* root = cJSON_Parse(json_header);
     if (!root) {
-        fprintf(stderr, "Failed to parse safetensors JSON header\n");
+        boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Failed to parse safetensors JSON header\n");
         free(json_header);
         return false;
     }
@@ -724,13 +725,13 @@ static bool load_safetensors(const void* data, size_t size, const hf_config_t* c
         cJSON* offsets_item = cJSON_GetObjectItem(item, "data_offsets");
 
         if (!dtype_item || !shape_item || !offsets_item) {
-            fprintf(stderr, "Warning: tensor '%s' missing required fields\n", key);
+            BOAT_DEBUG_PRINT("[HuggingFace] Warning: tensor '%s' missing required fields\n", key);
             continue;
         }
 
         // Extract dtype
         if (!cJSON_IsString(dtype_item)) {
-            fprintf(stderr, "Warning: tensor '%s' dtype is not a string\n", key);
+            BOAT_DEBUG_PRINT("[HuggingFace] Warning: tensor '%s' dtype is not a string\n", key);
             continue;
         }
         const char* dtype_str = dtype_item->valuestring;
@@ -739,13 +740,13 @@ static bool load_safetensors(const void* data, size_t size, const hf_config_t* c
 
         // Extract shape
         if (!cJSON_IsArray(shape_item)) {
-            fprintf(stderr, "Warning: tensor '%s' shape is not an array\n", key);
+            BOAT_DEBUG_PRINT("[HuggingFace] Warning: tensor '%s' shape is not an array\n", key);
             continue;
         }
 
         int shape_len = cJSON_GetArraySize(shape_item);
         if (shape_len < 0 || shape_len > BOAT_MAX_DIMS) {
-            fprintf(stderr, "Warning: tensor '%s' invalid shape length %d\n", key, shape_len);
+            BOAT_DEBUG_PRINT("[HuggingFace] Warning: tensor '%s' invalid shape length %d\n", key, shape_len);
             continue;
         }
 
@@ -755,7 +756,7 @@ static bool load_safetensors(const void* data, size_t size, const hf_config_t* c
         if (shape_len > 0) {
             shape = malloc(shape_len * sizeof(int64_t));
             if (!shape) {
-                fprintf(stderr, "Memory allocation failed for shape\n");
+                boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[HuggingFace] Memory allocation failed for shape\n");
                 continue;
             }
             for (int i = 0; i < shape_len; i++) {
@@ -770,7 +771,7 @@ static bool load_safetensors(const void* data, size_t size, const hf_config_t* c
 
         // Extract data offsets
         if (!cJSON_IsArray(offsets_item) || cJSON_GetArraySize(offsets_item) != 2) {
-            fprintf(stderr, "Warning: tensor '%s' invalid data_offsets\n", key);
+            BOAT_DEBUG_PRINT("[HuggingFace] Warning: tensor '%s' invalid data_offsets\n", key);
             free(shape);
             continue;
         }
@@ -778,7 +779,7 @@ static bool load_safetensors(const void* data, size_t size, const hf_config_t* c
         cJSON* offset_start = cJSON_GetArrayItem(offsets_item, 0);
         cJSON* offset_end = cJSON_GetArrayItem(offsets_item, 1);
         if (!cJSON_IsNumber(offset_start) || !cJSON_IsNumber(offset_end)) {
-            fprintf(stderr, "Warning: tensor '%s' offsets not numbers\n", key);
+            BOAT_DEBUG_PRINT("[HuggingFace] Warning: tensor '%s' offsets not numbers\n", key);
             free(shape);
             continue;
         }
@@ -786,7 +787,7 @@ static bool load_safetensors(const void* data, size_t size, const hf_config_t* c
         size_t start = (size_t)offset_start->valueint;
         size_t end = (size_t)offset_end->valueint;
         if (start >= end || end > (size - header_size)) {
-            fprintf(stderr, "Warning: tensor '%s' invalid offset range\n", key);
+            BOAT_DEBUG_PRINT("[HuggingFace] Warning: tensor '%s' invalid offset range\n", key);
             free(shape);
             continue;
         }
@@ -801,7 +802,7 @@ static bool load_safetensors(const void* data, size_t size, const hf_config_t* c
         free(shape);
 
         if (!tensor) {
-            fprintf(stderr, "Warning: failed to create tensor '%s'\n", key);
+            BOAT_DEBUG_PRINT("[HuggingFace] Warning: failed to create tensor '%s'\n", key);
             continue;
         }
 
@@ -827,7 +828,7 @@ static bool load_safetensors(const void* data, size_t size, const hf_config_t* c
                 printf("] dtype=%s\n", dtype_str);
             }
         } else {
-            fprintf(stderr, "Warning: no layer mapping for tensor '%s'\n", key);
+            BOAT_DEBUG_PRINT("[HuggingFace] Warning: no layer mapping for tensor '%s'\n", key);
         }
 
         boat_tensor_unref(tensor); // Model now holds reference
@@ -955,7 +956,7 @@ static boat_layer_t* create_layer_from_config(const hf_config_t* config, const c
         free(base_name);
 
         if (!builder) {
-            fprintf(stderr, "Failed to create/find builder for layer: %s\n", layer_name);
+            boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Failed to create/find builder for layer: %s\n", layer_name);
             return NULL;
         }
 
@@ -963,13 +964,13 @@ static boat_layer_t* create_layer_from_config(const hf_config_t* config, const c
         if (strstr(layer_name, "weight") != NULL && ndim == 2) {
             printf("    Weight matrix: %" PRId64 "x%" PRId64 "\n", shape[0], shape[1]);
             if (!set_builder_weight(builder, weight)) {
-                fprintf(stderr, "Failed to set weight for builder: %s\n", layer_name);
+                boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Failed to set weight for builder: %s\n", layer_name);
                 return NULL;
             }
         } else if (strstr(layer_name, "bias") != NULL && ndim == 1) {
             printf("    Bias vector: length %" PRId64 "\n", shape[0]);
             if (!set_builder_bias(builder, weight)) {
-                fprintf(stderr, "Failed to set bias for builder: %s\n", layer_name);
+                boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Failed to set bias for builder: %s\n", layer_name);
                 return NULL;
             }
         } else {
@@ -990,7 +991,7 @@ static boat_layer_t* create_layer_from_config(const hf_config_t* config, const c
                 if (layer) {
                     return layer;
                 } else {
-                    fprintf(stderr, "Failed to complete builder for layer: %s\n", layer_name);
+                    boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Failed to complete builder for layer: %s\n", layer_name);
                     return NULL;
                 }
             }
@@ -1015,7 +1016,7 @@ static boat_layer_t* create_layer_from_config(const hf_config_t* config, const c
         free(base_name);
 
         if (!builder) {
-            fprintf(stderr, "Failed to create/find builder for layer: %s\n", layer_name);
+            boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Failed to create/find builder for layer: %s\n", layer_name);
             return NULL;
         }
 
@@ -1023,13 +1024,13 @@ static boat_layer_t* create_layer_from_config(const hf_config_t* config, const c
         if (strstr(layer_name, "weight") != NULL && ndim == 1) {
             printf("    Scale (gamma) parameter: length %" PRId64 "\n", shape[0]);
             if (!set_builder_weight(builder, weight)) {
-                fprintf(stderr, "Failed to set weight for builder: %s\n", layer_name);
+                boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Failed to set weight for builder: %s\n", layer_name);
                 return NULL;
             }
         } else if (strstr(layer_name, "bias") != NULL && ndim == 1) {
             printf("    Shift (beta) parameter: length %" PRId64 "\n", shape[0]);
             if (!set_builder_bias(builder, weight)) {
-                fprintf(stderr, "Failed to set bias for builder: %s\n", layer_name);
+                boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Failed to set bias for builder: %s\n", layer_name);
                 return NULL;
             }
         } else {
@@ -1050,7 +1051,7 @@ static boat_layer_t* create_layer_from_config(const hf_config_t* config, const c
                 if (layer) {
                     return layer;
                 } else {
-                    fprintf(stderr, "Failed to complete builder for layer: %s\n", layer_name);
+                    boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Failed to complete builder for layer: %s\n", layer_name);
                     return NULL;
                 }
             }
@@ -1103,7 +1104,7 @@ boat_model_t* boat_huggingface_load(const char* model_dir) {
         snprintf(weights_path, sizeof(weights_path), "%s/pytorch_model.bin", model_dir);
         weights_file = fopen(weights_path, "rb");
         if (!weights_file) {
-            fprintf(stderr, "No weight file found (tried model.safetensors and pytorch_model.bin)\n");
+            boat_set_errorf(BOAT_ERROR_FILE_IO, "[HuggingFace] No weight file found (tried model.safetensors and pytorch_model.bin)\n");
             return NULL;
         }
     }
@@ -1116,7 +1117,7 @@ boat_model_t* boat_huggingface_load(const char* model_dir) {
     // 1. Read config.json into string
     char* config_json = read_file_to_string(config_path);
     if (!config_json) {
-        fprintf(stderr, "Failed to read config.json\n");
+        boat_set_errorf(BOAT_ERROR_FILE_IO, "[HuggingFace] Failed to read config.json\n");
         return NULL;
     }
 
@@ -1124,7 +1125,7 @@ boat_model_t* boat_huggingface_load(const char* model_dir) {
     FILE* fp = fopen(weights_path, "rb");
     if (!fp) {
         free(config_json);
-        fprintf(stderr, "Failed to open weights file: %s\n", weights_path);
+        boat_set_errorf(BOAT_ERROR_FILE_IO, "[HuggingFace] Failed to open weights file: %s\n", weights_path);
         return NULL;
     }
 
@@ -1135,7 +1136,7 @@ boat_model_t* boat_huggingface_load(const char* model_dir) {
     if (weights_size <= 0) {
         fclose(fp);
         free(config_json);
-        fprintf(stderr, "Weights file is empty or error getting size: %s\n", weights_path);
+        boat_set_errorf(BOAT_ERROR_FILE_IO, "[HuggingFace] Weights file is empty or error getting size: %s\n", weights_path);
         return NULL;
     }
 
@@ -1143,7 +1144,7 @@ boat_model_t* boat_huggingface_load(const char* model_dir) {
     if (!weights_data) {
         fclose(fp);
         free(config_json);
-        fprintf(stderr, "Failed to allocate memory for weights data: %zu bytes\n", (size_t)weights_size);
+        boat_set_errorf(BOAT_ERROR_FILE_IO, "[HuggingFace] Failed to allocate memory for weights data: %zu bytes\n", (size_t)weights_size);
         return NULL;
     }
 
@@ -1153,7 +1154,7 @@ boat_model_t* boat_huggingface_load(const char* model_dir) {
     if (bytes_read != (size_t)weights_size) {
         free(weights_data);
         free(config_json);
-        fprintf(stderr, "Failed to read entire weights file: %s (read %zu of %ld bytes)\n",
+        boat_set_errorf(BOAT_ERROR_FILE_IO, "[HuggingFace] Failed to read entire weights file: %s (read %zu of %ld bytes)\n",
                 weights_path, bytes_read, weights_size);
         return NULL;
     }
@@ -1166,7 +1167,7 @@ boat_model_t* boat_huggingface_load(const char* model_dir) {
     free(config_json);
 
     if (!model) {
-        fprintf(stderr, "Failed to load model from memory data\n");
+        BOAT_DEBUG_PRINT("[HuggingFace] Failed to load model from memory data\n");
     } else {
         printf("Successfully loaded model from directory: %s\n", model_dir);
     }
@@ -1183,14 +1184,14 @@ boat_model_t* boat_huggingface_load_from_memory(const char* config_json, const v
     // Parse model configuration
     hf_config_t* config = parse_config(config_json);
     if (!config) {
-        fprintf(stderr, "Failed to parse model configuration\n");
+        boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Failed to parse model configuration\n");
         return NULL;
     }
 
     // Create empty model
     boat_model_t* model = boat_model_create();
     if (!model) {
-        fprintf(stderr, "Failed to create model\n");
+        boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[HuggingFace] Failed to create model\n");
         free_config(config);
         return NULL;
     }
@@ -1209,12 +1210,12 @@ boat_model_t* boat_huggingface_load_from_memory(const char* config_json, const v
             printf("Detected PyTorch .bin format (pickle)\n");
             success = load_pytorch_bin(weights_data, weights_size, config, model);
         } else {
-            fprintf(stderr, "Unknown weights format\n");
+            boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Unknown weights format\n");
         }
     }
 
     if (!success) {
-        fprintf(stderr, "Failed to load weights\n");
+        boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Failed to load weights\n");
         boat_model_free(model);
         free_config(config);
         return NULL;
@@ -1329,7 +1330,7 @@ static boat_layer_t* create_actual_layer_from_tensor(const char* base_name, cons
         // Create dense layer with bias (will be set later if bias tensor exists)
         boat_dense_layer_t* dense_layer = boat_dense_layer_create(input_features, output_features, true);
         if (!dense_layer) {
-            fprintf(stderr, "Failed to create dense layer\n");
+            boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[HuggingFace] Failed to create dense layer\n");
             return NULL;
         }
 
@@ -1371,7 +1372,7 @@ static char* read_file_to_string(const char* filename) {
 
     FILE* fp = fopen(filename, "rb");
     if (!fp) {
-        fprintf(stderr, "Failed to open file: %s\n", filename);
+        boat_set_errorf(BOAT_ERROR_FILE_IO, "[HuggingFace] Failed to open file: %s\n", filename);
         return NULL;
     }
 
@@ -1382,7 +1383,7 @@ static char* read_file_to_string(const char* filename) {
 
     if (file_size <= 0) {
         fclose(fp);
-        fprintf(stderr, "File is empty or error getting size: %s\n", filename);
+        boat_set_errorf(BOAT_ERROR_FILE_IO, "[HuggingFace] File is empty or error getting size: %s\n", filename);
         return NULL;
     }
 
@@ -1390,7 +1391,7 @@ static char* read_file_to_string(const char* filename) {
     char* buffer = (char*)malloc(file_size + 1);
     if (!buffer) {
         fclose(fp);
-        fprintf(stderr, "Failed to allocate memory for file: %s\n", filename);
+        boat_set_errorf(BOAT_ERROR_FILE_IO, "[HuggingFace] Failed to allocate memory for file: %s\n", filename);
         return NULL;
     }
 
@@ -1400,7 +1401,7 @@ static char* read_file_to_string(const char* filename) {
 
     if (bytes_read != (size_t)file_size) {
         free(buffer);
-        fprintf(stderr, "Failed to read entire file: %s (read %zu of %ld bytes)\n",
+        boat_set_errorf(BOAT_ERROR_FILE_IO, "[HuggingFace] Failed to read entire file: %s (read %zu of %ld bytes)\n",
                 filename, bytes_read, file_size);
         return NULL;
     }

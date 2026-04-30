@@ -2,12 +2,9 @@
 // Copyright (c) 2026 Shaoning, Xiao 萧少宁
 // Licensed under the Apache License, Version 2.0
 
-#include <boat/layers.h>
-#include <boat/ops.h>
-#include <boat/memory.h>
+#include <boat.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 #include <math.h>
 
 // Batch normalization layer structure (BatchNorm2d)
@@ -123,14 +120,14 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_forward(const boat_batc
     // Input should be 4D: [batch, channels, height, width]
     const int64_t* input_shape = boat_tensor_shape(input);
     if (boat_tensor_ndim(input) != 4) {
-        fprintf(stderr, "Error: BatchNorm2d expects 4D input tensor\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[BatchNormLayer] BatchNorm2d expects 4D input tensor\n");
         return NULL;
     }
 
     int64_t channels = input_shape[1];
 
     if ((size_t)channels != layer->num_features) {
-        fprintf(stderr, "Error: Input channels %lld don't match layer num_features %zu\n", channels, layer->num_features);
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[BatchNormLayer] Input channels %lld don't match layer num_features %zu\n", channels, layer->num_features);
         return NULL;
     }
 
@@ -172,12 +169,12 @@ BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_weight(boat_batchnorm2d_layer
         return;
     }
     if (!layer->affine) {
-        fprintf(stderr, "Warning: Layer was created without affine transform, ignoring weight tensor\n");
+        BOAT_DEBUG_PRINT("[BatchNormLayer] Warning: Layer was created without affine transform, ignoring weight tensor\n");
         return;
     }
     const int64_t* weight_shape = boat_tensor_shape(weight);
     if (weight_shape[0] != (int64_t)layer->num_features) {
-        fprintf(stderr, "Error: Weight shape [%lld] does not match num_features %zu\n",
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[BatchNormLayer] Weight shape [%lld] does not match num_features %zu\n",
                 weight_shape[0], layer->num_features);
         return;
     }
@@ -193,12 +190,12 @@ BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_bias(boat_batchnorm2d_layer_t
         return;
     }
     if (!layer->affine) {
-        fprintf(stderr, "Warning: Layer was created without affine transform, ignoring bias tensor\n");
+        BOAT_DEBUG_PRINT("[BatchNormLayer] Warning: Layer was created without affine transform, ignoring bias tensor\n");
         return;
     }
     const int64_t* bias_shape = boat_tensor_shape(bias);
     if (bias_shape[0] != (int64_t)layer->num_features) {
-        fprintf(stderr, "Error: Bias shape [%lld] does not match num_features %zu\n",
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[BatchNormLayer] Bias shape [%lld] does not match num_features %zu\n",
                 bias_shape[0], layer->num_features);
         return;
     }
@@ -215,7 +212,7 @@ BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_running_mean(boat_batchnorm2d
     }
     const int64_t* running_mean_shape = boat_tensor_shape(running_mean);
     if (running_mean_shape[0] != (int64_t)layer->num_features) {
-        fprintf(stderr, "Error: Running mean shape [%lld] does not match num_features %zu\n",
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[BatchNormLayer] Running mean shape [%lld] does not match num_features %zu\n",
                 running_mean_shape[0], layer->num_features);
         return;
     }
@@ -232,7 +229,7 @@ BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_running_var(boat_batchnorm2d_
     }
     const int64_t* running_var_shape = boat_tensor_shape(running_var);
     if (running_var_shape[0] != (int64_t)layer->num_features) {
-        fprintf(stderr, "Error: Running var shape [%lld] does not match num_features %zu\n",
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[BatchNormLayer] Running var shape [%lld] does not match num_features %zu\n",
                 running_var_shape[0], layer->num_features);
         return;
     }

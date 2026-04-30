@@ -2,12 +2,9 @@
 // Copyright (c) 2026 Shaoning, Xiao 萧少宁
 // Licensed under the Apache License, Version 2.0
 
-#include <boat/layers.h>
-#include <boat/ops.h>
-#include <boat/memory.h>
+#include <boat.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 // Softmax layer structure
 struct boat_softmax_layer_t {
@@ -33,6 +30,7 @@ BOAT_API void BOAT_CALL boat_softmax_layer_free(boat_softmax_layer_t* layer) {
 
 BOAT_API boat_tensor_t* BOAT_CALL boat_softmax_layer_forward(const boat_softmax_layer_t* layer, const boat_tensor_t* input) {
     if (!layer || !input) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[SoftmaxLayer] NULL input or layer\n");
         return NULL;
     }
 
@@ -47,6 +45,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_softmax_layer_backward(boat_softmax_layer
     // In our MNIST implementation, we already compute pred - one_hot(label)
     // So we just need to return the gradient output
     if (!grad_output) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[SoftmaxLayer] NULL gradient output\n");
         return NULL;
     }
 

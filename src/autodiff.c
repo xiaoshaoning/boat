@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <float.h>
+#include <boat.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -259,7 +260,7 @@ BOAT_API bool boat_variable_reset_data(boat_variable_t* variable, boat_tensor_t*
     // Check if variable is part of a computation graph
     // If it has a node, we cannot safely reset data as it would break the graph
     if (variable->node != NULL) {
-        fprintf(stderr, "Warning: Cannot reset data for variable with computation graph node\n");
+        BOAT_DEBUG_PRINT("Warning: Cannot reset data for variable with computation graph node\n");
         return false;
     }
 
@@ -297,9 +298,8 @@ void boat_variable_retain_grad(const boat_variable_t* variable, bool retain) {
 }
 
 void boat_variable_backward(boat_variable_t* variable, boat_tensor_t* grad_output) {
-    setbuf(stdout, NULL);
     setbuf(stderr, NULL);
-    fprintf(stderr, "[autodiff] boat_variable_backward: variable=%p, requires_grad=%d, grad_output=%p\n",
+    BOAT_DEBUG_PRINT("[autodiff] boat_variable_backward: variable=%p, requires_grad=%d, grad_output=%p\n",
             variable, variable ? variable->requires_grad : -1, grad_output);
     if (variable) {
     }
@@ -372,7 +372,7 @@ void boat_variable_backward(boat_variable_t* variable, boat_tensor_t* grad_outpu
     boat_op_node_data_t* op_data = (boat_op_node_data_t*)node_data;
 
     // Dispatch to appropriate backward function
-    fprintf(stderr, "[autodiff] boat_variable_backward: op_data=%p, op_type=%d\n", op_data, op_data->op_type);
+    BOAT_DEBUG_PRINT("[autodiff] boat_variable_backward: op_data=%p, op_type=%d\n", op_data, op_data->op_type);
     switch (op_data->op_type) {
         case BOAT_OP_ADD:
             compute_backward_add(op_data, local_grad);
@@ -431,10 +431,10 @@ void boat_variable_backward(boat_variable_t* variable, boat_tensor_t* grad_outpu
     }
 
     // Recursively backward to input variables (chain rule)
-    fprintf(stderr, "[autodiff] boat_variable_backward: recursive loop, num_inputs=%zu\n", op_data->num_inputs);
+    BOAT_DEBUG_PRINT("[autodiff] boat_variable_backward: recursive loop, num_inputs=%zu\n", op_data->num_inputs);
     for (size_t i = 0; i < op_data->num_inputs; i++) {
         boat_variable_t* input_var = op_data->inputs[i];
-        fprintf(stderr, "[autodiff]   input %zu: var=%p, requires_grad=%d, grad=%p, producer_node=%p\n",
+        BOAT_DEBUG_PRINT("[autodiff]   input %zu: var=%p, requires_grad=%d, grad=%p, producer_node=%p\n",
                 i, input_var, input_var ? input_var->requires_grad : -1, input_var ? input_var->grad : NULL, input_var ? input_var->producer_node : NULL);
         if (input_var && input_var->requires_grad) {
             // Get gradient for this input (should have been computed by compute_backward_*)
@@ -443,19 +443,19 @@ void boat_variable_backward(boat_variable_t* variable, boat_tensor_t* grad_outpu
                 // Only propagate to non-leaf variables (those with producers)
                 // Leaf variables already have gradients accumulated by compute_backward_*
                 if (input_var->producer_node) {
-                    fprintf(stderr, "[autodiff]   calling backward on input %zu (non-leaf)\n", i);
+                    BOAT_DEBUG_PRINT("[autodiff]   calling backward on input %zu (non-leaf)\n", i);
                     // Increase refcount since we're passing it to backward
                     boat_tensor_ref(input_grad);
                     boat_variable_backward(input_var, input_grad);
                     // backward doesn't consume the tensor, so unref
                     boat_tensor_unref(input_grad);
                 } else {
-                    fprintf(stderr, "[autodiff]   input %zu is leaf, gradient accumulated\n", i);
+                    BOAT_DEBUG_PRINT("[autodiff]   input %zu is leaf, gradient accumulated\n", i);
                 }
                 // For leaf variables, gradient is already stored in input_var->grad
                 // No need to call backward further
             } else {
-                fprintf(stderr, "[autodiff]   input %zu has requires_grad but grad is NULL\n", i);
+                BOAT_DEBUG_PRINT("[autodiff]   input %zu has requires_grad but grad is NULL\n", i);
             }
         }
     }
@@ -466,7 +466,7 @@ void boat_variable_backward(boat_variable_t* variable, boat_tensor_t* grad_outpu
 }
 
 BOAT_API void boat_variable_backward_full(const boat_variable_t* variable) {
-    fprintf(stderr, "[autodiff] boat_variable_backward_full: variable=%p, requires_grad=%d\n", variable, variable ? variable->requires_grad : -1);
+    BOAT_DEBUG_PRINT("[autodiff] boat_variable_backward_full: variable=%p, requires_grad=%d\n", variable, variable ? variable->requires_grad : -1);
     if (!variable || !variable->requires_grad) return;
 
     // For now, just call backward with NULL gradient (scalar loss)
@@ -591,7 +591,7 @@ BOAT_API boat_variable_t* boat_var_sum(const boat_variable_t* a, const int64_t* 
     // TODO: Support reduction along specific dimensions
     if (dims != NULL || n_dims != 0 || keepdim) {
         // Not yet implemented
-        fprintf(stderr, "ERROR: boat_var_sum only supports full reduction (dims=NULL, n_dims=0, keepdim=false) for now\n");
+        boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Autodiff] boat_var_sum only supports full reduction (dims=NULL, n_dims=0, keepdim=false) for now\n");
         return NULL;
     }
 
@@ -1126,7 +1126,7 @@ static void compute_backward_sub(boat_op_node_data_t* op_data, const boat_tensor
 }
 
 static void compute_backward_mul(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
-    fprintf(stderr, "[autodiff] compute_backward_mul: op_data=%p, grad_output=%p\n", op_data, grad_output);
+    BOAT_DEBUG_PRINT("[autodiff] compute_backward_mul: op_data=%p, grad_output=%p\n", op_data, grad_output);
     if (!op_data || op_data->num_inputs != 2 || !grad_output) return;
 
     // Gradient for multiplication: ∂L/∂a = ∂L/∂c * b, ∂L/∂b = ∂L/∂c * a
@@ -1135,44 +1135,44 @@ static void compute_backward_mul(boat_op_node_data_t* op_data, const boat_tensor
     boat_variable_t* b = op_data->inputs[1];
 
     if (a->requires_grad) {
-        fprintf(stderr, "[autodiff] compute_backward_mul: a requires grad=%d, a->grad=%p\n", a->requires_grad, a->grad);
+        BOAT_DEBUG_PRINT("[autodiff] compute_backward_mul: a requires grad=%d, a->grad=%p\n", a->requires_grad, a->grad);
         // Compute gradient contribution: grad_output * b
         boat_tensor_t* grad_a = boat_mul(grad_output, b->data);
         if (grad_a) {
             if (!a->grad) {
                 a->grad = grad_a;
-                fprintf(stderr, "[autodiff] compute_backward_mul: set a->grad=%p\n", grad_a);
+                BOAT_DEBUG_PRINT("[autodiff] compute_backward_mul: set a->grad=%p\n", grad_a);
             } else {
                 // Accumulate gradient: a->grad += grad_a
-                fprintf(stderr, "[autodiff] compute_backward_mul: accumulate a->grad\n");
+                BOAT_DEBUG_PRINT("[autodiff] compute_backward_mul: accumulate a->grad\n");
                 boat_add_(a->grad, grad_a);
                 boat_tensor_unref(grad_a);
             }
         } else {
-            fprintf(stderr, "[autodiff] compute_backward_mul: grad_a computation failed\n");
+            BOAT_DEBUG_PRINT("[autodiff] compute_backward_mul: grad_a computation failed\n");
         }
     } else {
-        fprintf(stderr, "[autodiff] compute_backward_mul: a does not require grad\n");
+        BOAT_DEBUG_PRINT("[autodiff] compute_backward_mul: a does not require grad\n");
     }
 
     if (b->requires_grad) {
-        fprintf(stderr, "[autodiff] compute_backward_mul: b requires grad=%d, b->grad=%p\n", b->requires_grad, b->grad);
+        BOAT_DEBUG_PRINT("[autodiff] compute_backward_mul: b requires grad=%d, b->grad=%p\n", b->requires_grad, b->grad);
         // Compute gradient contribution: grad_output * a
         boat_tensor_t* grad_b = boat_mul(grad_output, a->data);
         if (grad_b) {
             if (!b->grad) {
                 b->grad = grad_b;
-                fprintf(stderr, "[autodiff] compute_backward_mul: set b->grad=%p\n", grad_b);
+                BOAT_DEBUG_PRINT("[autodiff] compute_backward_mul: set b->grad=%p\n", grad_b);
             } else {
-                fprintf(stderr, "[autodiff] compute_backward_mul: accumulate b->grad\n");
+                BOAT_DEBUG_PRINT("[autodiff] compute_backward_mul: accumulate b->grad\n");
                 boat_add_(b->grad, grad_b);
                 boat_tensor_unref(grad_b);
             }
         } else {
-            fprintf(stderr, "[autodiff] compute_backward_mul: grad_b computation failed\n");
+            BOAT_DEBUG_PRINT("[autodiff] compute_backward_mul: grad_b computation failed\n");
         }
     } else {
-        fprintf(stderr, "[autodiff] compute_backward_mul: b does not require grad\n");
+        BOAT_DEBUG_PRINT("[autodiff] compute_backward_mul: b does not require grad\n");
     }
 }
 
@@ -2001,7 +2001,7 @@ static void compute_backward_softmax(boat_op_node_data_t* op_data, const boat_te
 }
 
 static void compute_backward_log_softmax(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
-    fprintf(stderr, "[autodiff] compute_backward_log_softmax: op_data=%p, grad_output=%p\n", op_data, grad_output);
+    BOAT_DEBUG_PRINT("[autodiff] compute_backward_log_softmax: op_data=%p, grad_output=%p\n", op_data, grad_output);
     if (!op_data || op_data->num_inputs != 1 || !grad_output || !op_data->output) return;
 
     // Gradient for log_softmax: ∂L/∂x_i = ∂L/∂y_i - exp(y_i) * sum(∂L/∂y_j)
@@ -2186,21 +2186,18 @@ static boat_variable_t* create_conv_operation(const boat_variable_t* input, cons
     bool layer_has_params = true;
     // Output requires gradient if either input requires gradient or layer has parameters
     bool output_requires_grad = requires_grad || layer_has_params;
-    fprintf(stderr, "[autodiff] create_conv_operation: input=%p, layer=%p, requires_grad=%d, layer_has_params=%d, output_requires_grad=%d\n", input, layer, requires_grad, layer_has_params, output_requires_grad);
-    fflush(stderr);
+    BOAT_DEBUG_PRINT("[autodiff] create_conv_operation: input=%p, layer=%p, requires_grad=%d, layer_has_params=%d, output_requires_grad=%d\n", input, layer, requires_grad, layer_has_params, output_requires_grad);
 
     // Perform forward computation using layer
     boat_tensor_t* output_tensor = boat_conv_layer_forward((boat_conv_layer_t*)layer, input->data);
-    fprintf(stderr, "[autodiff] conv forward: output_tensor=%p\n", output_tensor);
-    fflush(stderr);
+    BOAT_DEBUG_PRINT("[autodiff] conv forward: output_tensor=%p\n", output_tensor);
     if (!output_tensor) {
         return NULL;
     }
 
     // Create output variable
     boat_variable_t* output_var = boat_variable_create(output_tensor, output_requires_grad);
-    fprintf(stderr, "[autodiff] create_conv_operation: output_var=%p, output_requires_grad=%d\n", output_var, output_requires_grad);
-    fflush(stderr);
+    BOAT_DEBUG_PRINT("[autodiff] create_conv_operation: output_var=%p, output_requires_grad=%d\n", output_var, output_requires_grad);
     if (!output_var) {
         boat_tensor_unref(output_tensor);
         return NULL;
@@ -2224,12 +2221,10 @@ static boat_variable_t* create_conv_operation(const boat_variable_t* input, cons
             boat_variable_free(output_var);
             return NULL;
         }
-        fprintf(stderr, "[autodiff] unify succeeded, graph=%p\n", graph);
-        fflush(stderr);
+        BOAT_DEBUG_PRINT("[autodiff] unify succeeded, graph=%p\n", graph);
 
         boat_node_t* op_node = boat_graph_add_node(graph, op_data, BOAT_NODE_TYPE_OPERATION, free_op_node_data);
-        fprintf(stderr, "[autodiff] op_node=%p, op_type=%d\n", op_node, op_data->op_type);
-        fflush(stderr);
+        BOAT_DEBUG_PRINT("[autodiff] op_node=%p, op_type=%d\n", op_node, op_data->op_type);
         if (!op_node) {
             if (graph != input->graph) {
                 boat_graph_free(graph);
@@ -2294,12 +2289,10 @@ static boat_variable_t* create_pool_operation(const boat_variable_t* input, cons
             boat_variable_free(output_var);
             return NULL;
         }
-        fprintf(stderr, "[autodiff] unify succeeded, graph=%p\n", graph);
-        fflush(stderr);
+        BOAT_DEBUG_PRINT("[autodiff] unify succeeded, graph=%p\n", graph);
 
         boat_node_t* op_node = boat_graph_add_node(graph, op_data, BOAT_NODE_TYPE_OPERATION, free_op_node_data);
-        fprintf(stderr, "[autodiff] op_node=%p, op_type=%d\n", op_node, op_data->op_type);
-        fflush(stderr);
+        BOAT_DEBUG_PRINT("[autodiff] op_node=%p, op_type=%d\n", op_node, op_data->op_type);
         if (!op_node) {
             if (graph != input->graph) {
                 boat_graph_free(graph);
@@ -2368,12 +2361,10 @@ static boat_variable_t* create_dense_operation(const boat_variable_t* input, con
             boat_variable_free(output_var);
             return NULL;
         }
-        fprintf(stderr, "[autodiff] unify succeeded, graph=%p\n", graph);
-        fflush(stderr);
+        BOAT_DEBUG_PRINT("[autodiff] unify succeeded, graph=%p\n", graph);
 
         boat_node_t* op_node = boat_graph_add_node(graph, op_data, BOAT_NODE_TYPE_OPERATION, free_op_node_data);
-        fprintf(stderr, "[autodiff] op_node=%p, op_type=%d\n", op_node, op_data->op_type);
-        fflush(stderr);
+        BOAT_DEBUG_PRINT("[autodiff] op_node=%p, op_type=%d\n", op_node, op_data->op_type);
         if (!op_node) {
             if (graph != input->graph) {
                 boat_graph_free(graph);
@@ -2402,7 +2393,7 @@ static boat_variable_t* create_dense_operation(const boat_variable_t* input, con
 }
 
 static void compute_backward_conv(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
-    fprintf(stderr, "[autodiff] compute_backward_conv called, op_data=%p, grad_output=%p\n", op_data, grad_output);
+    BOAT_DEBUG_PRINT("[autodiff] compute_backward_conv called, op_data=%p, grad_output=%p\n", op_data, grad_output);
     if (!op_data || op_data->num_inputs != 1 || !grad_output) {
         return;
     }
@@ -2416,11 +2407,11 @@ static void compute_backward_conv(boat_op_node_data_t* op_data, const boat_tenso
     
     // Call layer backward function to compute gradient with respect to input
     // This will also compute gradients for weight and bias and store them in layer
-    fprintf(stderr, "[autodiff compute_backward_conv] calling boat_conv_layer_backward, layer=%p, grad_output=%p\n", layer, grad_output);
+    BOAT_DEBUG_PRINT("[autodiff compute_backward_conv] calling boat_conv_layer_backward, layer=%p, grad_output=%p\n", layer, grad_output);
     boat_tensor_t* grad_input = boat_conv_layer_backward((boat_conv_layer_t*)layer, grad_output);
-    fprintf(stderr, "[autodiff compute_backward_conv] boat_conv_layer_backward returned grad_input=%p\n", grad_input);
+    BOAT_DEBUG_PRINT("[autodiff compute_backward_conv] boat_conv_layer_backward returned grad_input=%p\n", grad_input);
     if (!grad_input) {
-        fprintf(stderr, "[autodiff compute_backward_conv] grad_input is NULL, returning\n");
+        BOAT_DEBUG_PRINT("[autodiff compute_backward_conv] grad_input is NULL, returning\n");
         return;
     }
     
@@ -2599,7 +2590,7 @@ static boat_tensor_t* compute_forward_flatten(const boat_tensor_t* input) {
     size_t ndim = boat_tensor_ndim(input);
 
     if (ndim < 2) {
-        fprintf(stderr, "Error: Flatten expects at least 2D input tensor\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Autodiff] Flatten expects at least 2D input tensor\n");
         return NULL;
     }
 

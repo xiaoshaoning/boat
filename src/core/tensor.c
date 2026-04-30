@@ -5,6 +5,7 @@
 #define BOAT_BUILDING_DLL
 #include <boat/tensor.h>
 #include <boat/memory.h>
+#include <boat.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -66,6 +67,7 @@ BOAT_API boat_tensor_t* boat_tensor_create(const int64_t* shape, size_t ndim,
                                   boat_dtype_t dtype, boat_device_t device) {
     // Allow scalar tensors (ndim = 0)
     if (!shape && ndim > 0) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Tensor] shape is NULL but ndim > 0\n");
         return NULL;
     }
 
@@ -263,7 +265,7 @@ BOAT_API boat_tensor_t* boat_tensor_reshape(const boat_tensor_t* tensor, const i
 
     // Verify element count matches
     if (new_nelements != tensor->nelements) {
-        fprintf(stderr, "Error: Reshape element count mismatch: %zu != %zu\n", new_nelements, tensor->nelements);
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Tensor] Reshape element count mismatch: %zu != %zu\n", new_nelements, tensor->nelements);
         return NULL;
     }
 
@@ -314,7 +316,7 @@ BOAT_API boat_tensor_t* boat_tensor_slice(const boat_tensor_t* tensor, const siz
 
     // Validate dimensions
     if (ndim == 0) {
-        fprintf(stderr, "Error: Cannot slice scalar tensor\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[Tensor] Cannot slice scalar tensor\n");
         return NULL;
     }
 
@@ -334,7 +336,7 @@ BOAT_API boat_tensor_t* boat_tensor_slice(const boat_tensor_t* tensor, const siz
     for (size_t i = 0; i < ndim; i++) {
         effective_step[i] = (step != NULL) ? step[i] : 1;
         if (effective_step[i] == 0) {
-            fprintf(stderr, "Error: Step cannot be zero\n");
+            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Tensor] Step cannot be zero\n");
             boat_free(new_shape);
             boat_free(effective_step);
             return NULL;
@@ -345,7 +347,7 @@ BOAT_API boat_tensor_t* boat_tensor_slice(const boat_tensor_t* tensor, const siz
     for (size_t i = 0; i < ndim; i++) {
         size_t dim_size = tensor->shape[i];
         if (start[i] >= dim_size || end[i] > dim_size || start[i] > end[i]) {
-            fprintf(stderr, "Error: Invalid slice range for dimension %zu: [%zu, %zu) (dim size: %zu)\n",
+            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Tensor] Invalid slice range for dimension %zu: [%zu, %zu) (dim size: %zu)\n",
                     i, start[i], end[i], dim_size);
             boat_free(new_shape);
             boat_free(effective_step);
@@ -358,7 +360,7 @@ BOAT_API boat_tensor_t* boat_tensor_slice(const boat_tensor_t* tensor, const siz
         new_shape[i] = (int64_t)dim_new_size;
 
         if (dim_new_size == 0) {
-            fprintf(stderr, "Error: Slice results in zero-size dimension %zu\n", i);
+            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Tensor] Slice results in zero-size dimension %zu\n", i);
             boat_free(new_shape);
             boat_free(effective_step);
             return NULL;
@@ -376,7 +378,7 @@ BOAT_API boat_tensor_t* boat_tensor_slice(const boat_tensor_t* tensor, const siz
 
     // Check if tensor is contiguous
     if (!tensor->is_contiguous) {
-        fprintf(stderr, "Error: Slicing non-contiguous tensors not supported\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[Tensor] Slicing non-contiguous tensors not supported\n");
         boat_free(new_shape);
         boat_free(effective_step);
         return NULL;
@@ -401,7 +403,7 @@ BOAT_API boat_tensor_t* boat_tensor_slice(const boat_tensor_t* tensor, const siz
     }
 
     if (has_non_unit_step) {
-        fprintf(stderr, "Error: Non-unit step slicing not yet implemented\n");
+        boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Tensor] Non-unit step slicing not yet implemented\n");
         boat_free(new_shape);
         boat_free(effective_step);
         return NULL;

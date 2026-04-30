@@ -105,7 +105,7 @@ static boat_model_t* convert_pytorch_module_to_boat_model(const torch::jit::Modu
             }
 
             if (weight_it == model_data->parameters.end()) {
-                fprintf(stderr, "Warning: Could not find weight parameter for layer %s\n", name.c_str());
+                BOAT_DEBUG_PRINT("[PyTorch] Warning: Could not find weight parameter for layer %s\n", name.c_str());
                 continue;
             }
 
@@ -126,7 +126,7 @@ static boat_model_t* convert_pytorch_module_to_boat_model(const torch::jit::Modu
             // Create dense layer
             boat_dense_layer_t* dense_layer = boat_dense_layer_create(input_features, output_features, use_bias);
             if (!dense_layer) {
-                fprintf(stderr, "Warning: Failed to create dense layer for %s\n", name.c_str());
+                BOAT_DEBUG_PRINT("[PyTorch] Warning: Failed to create dense layer for %s\n", name.c_str());
                 continue;
             }
 
@@ -146,7 +146,7 @@ static boat_model_t* convert_pytorch_module_to_boat_model(const torch::jit::Modu
             // Create ReLU activation layer
             boat_relu_layer_t* relu_layer = boat_relu_layer_create();
             if (!relu_layer) {
-                fprintf(stderr, "Warning: Failed to create ReLU layer for %s\n", name.c_str());
+                BOAT_DEBUG_PRINT("[PyTorch] Warning: Failed to create ReLU layer for %s\n", name.c_str());
                 continue;
             }
             // Convert to generic layer
@@ -165,7 +165,7 @@ static boat_model_t* convert_pytorch_module_to_boat_model(const torch::jit::Modu
             }
 
             if (weight_it == model_data->parameters.end()) {
-                fprintf(stderr, "Warning: Could not find weight parameter for Conv2d layer %s\n", name.c_str());
+                BOAT_DEBUG_PRINT("[PyTorch] Warning: Could not find weight parameter for Conv2d layer %s\n", name.c_str());
                 continue;
             }
 
@@ -194,7 +194,7 @@ static boat_model_t* convert_pytorch_module_to_boat_model(const torch::jit::Modu
             // Create conv layer
             boat_conv_layer_t* conv_layer = boat_conv_layer_create(in_channels, out_channels, kernel_size, stride, padding);
             if (!conv_layer) {
-                fprintf(stderr, "Warning: Failed to create conv layer for %s\n", name.c_str());
+                BOAT_DEBUG_PRINT("[PyTorch] Warning: Failed to create conv layer for %s\n", name.c_str());
                 continue;
             }
 
@@ -236,13 +236,13 @@ static boat_model_t* convert_pytorch_module_to_boat_model(const torch::jit::Modu
                     const int64_t* running_mean_shape = boat_tensor_shape(running_mean_tensor);
                     num_features = running_mean_shape[0];
                 } else {
-                    fprintf(stderr, "Warning: Could not determine num_features for BatchNorm2d layer %s\n", name.c_str());
+                    BOAT_DEBUG_PRINT("[PyTorch] Warning: Could not determine num_features for BatchNorm2d layer %s\n", name.c_str());
                     continue;
                 }
             }
 
             if (num_features == 0) {
-                fprintf(stderr, "Warning: num_features is zero for BatchNorm2d layer %s\n", name.c_str());
+                BOAT_DEBUG_PRINT("[PyTorch] Warning: num_features is zero for BatchNorm2d layer %s\n", name.c_str());
                 continue;
             }
 
@@ -253,7 +253,7 @@ static boat_model_t* convert_pytorch_module_to_boat_model(const torch::jit::Modu
             // Create BatchNorm2d layer
             boat_batchnorm2d_layer_t* bn_layer = boat_batchnorm2d_layer_create(num_features, eps, momentum, affine);
             if (!bn_layer) {
-                fprintf(stderr, "Warning: Failed to create BatchNorm2d layer for %s\n", name.c_str());
+                BOAT_DEBUG_PRINT("[PyTorch] Warning: Failed to create BatchNorm2d layer for %s\n", name.c_str());
                 continue;
             }
 
@@ -291,7 +291,7 @@ static boat_model_t* convert_pytorch_module_to_boat_model(const torch::jit::Modu
             int axis = -1; // TODO: Extract actual dim from PyTorch module
             boat_softmax_layer_t* softmax_layer = boat_softmax_layer_create(axis);
             if (!softmax_layer) {
-                fprintf(stderr, "Warning: Failed to create Softmax layer for %s\n", name.c_str());
+                BOAT_DEBUG_PRINT("[PyTorch] Warning: Failed to create Softmax layer for %s\n", name.c_str());
                 continue;
             }
             // Convert to generic layer
@@ -307,7 +307,7 @@ static boat_model_t* convert_pytorch_module_to_boat_model(const torch::jit::Modu
 
             boat_pool_layer_t* pool_layer = boat_pool_layer_create(kernel_size, stride, padding);
             if (!pool_layer) {
-                fprintf(stderr, "Warning: Failed to create MaxPool2d layer for %s\n", name.c_str());
+                BOAT_DEBUG_PRINT("[PyTorch] Warning: Failed to create MaxPool2d layer for %s\n", name.c_str());
                 continue;
             }
             // Convert to generic layer
@@ -317,7 +317,7 @@ static boat_model_t* convert_pytorch_module_to_boat_model(const torch::jit::Modu
             // Flatten layer
             boat_flatten_layer_t* flatten_layer = boat_flatten_layer_create();
             if (!flatten_layer) {
-                fprintf(stderr, "Warning: Failed to create Flatten layer for %s\n", name.c_str());
+                BOAT_DEBUG_PRINT("[PyTorch] Warning: Failed to create Flatten layer for %s\n", name.c_str());
                 continue;
             }
             // Convert to generic layer
@@ -335,7 +335,7 @@ static boat_model_t* convert_pytorch_module_to_boat_model(const torch::jit::Modu
 
             boat_lstm_layer_t* lstm_layer = boat_lstm_layer_create(input_size, hidden_size, num_layers, bidirectional, dropout);
             if (!lstm_layer) {
-                fprintf(stderr, "Warning: Failed to create LSTM layer for %s\n", name.c_str());
+                BOAT_DEBUG_PRINT("[PyTorch] Warning: Failed to create LSTM layer for %s\n", name.c_str());
                 continue;
             }
 
@@ -353,7 +353,7 @@ static boat_model_t* convert_pytorch_module_to_boat_model(const torch::jit::Modu
 
             boat_gru_layer_t* gru_layer = boat_gru_layer_create(input_size, hidden_size, num_layers, bidirectional, dropout);
             if (!gru_layer) {
-                fprintf(stderr, "Warning: Failed to create GRU layer for %s\n", name.c_str());
+                BOAT_DEBUG_PRINT("[PyTorch] Warning: Failed to create GRU layer for %s\n", name.c_str());
                 continue;
             }
 
@@ -370,7 +370,7 @@ static boat_model_t* convert_pytorch_module_to_boat_model(const torch::jit::Modu
             // Skip container modules, we're already iterating through their children
             continue;
         } else {
-            fprintf(stderr, "Warning: Unsupported module type: %s (layer: %s)\n", module_type.c_str(), name.c_str());
+            BOAT_DEBUG_PRINT("[PyTorch] Warning: Unsupported module type: %s (layer: %s)\n", module_type.c_str(), name.c_str());
         }
     }
 
@@ -390,7 +390,7 @@ extern "C" {
             try {
                 module = torch::jit::load(filename);
             } catch (const c10::Error& e) {
-                fprintf(stderr, "Failed to load PyTorch model %s: %s\n",
+                boat_set_errorf(BOAT_ERROR_FORMAT, "[PyTorch] Failed to load PyTorch model %s: %s\n",
                         filename, e.what());
                 return NULL;
             }
@@ -398,14 +398,14 @@ extern "C" {
             // Create Boat model
             boat_model_t* model = boat_model_create();
             if (!model) {
-                fprintf(stderr, "Failed to create Boat model\n");
+                boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[PyTorch] Failed to create Boat model\n");
                 return NULL;
             }
 
             // Create model data structure to store parameters and buffers
             pytorch_model_data_t* model_data = new pytorch_model_data_t();
             if (!model_data) {
-                fprintf(stderr, "Failed to allocate model data\n");
+                boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[PyTorch] Failed to allocate model data\n");
                 boat_model_free(model);
                 return NULL;
             }
@@ -498,12 +498,12 @@ extern "C" {
                 return converted_model;
             } else {
                 // Conversion failed, return basic model with parameters
-                fprintf(stderr, "Warning: Model architecture conversion failed, returning basic model\n");
+                BOAT_DEBUG_PRINT("[PyTorch] Warning: Model architecture conversion failed, returning basic model\n");
                 return model;
             }
 
         } catch (const std::exception& e) {
-            fprintf(stderr, "PyTorch loading error: %s\n", e.what());
+            boat_set_errorf(BOAT_ERROR_FORMAT, "[PyTorch] Loading error: %s\n", e.what());
             return NULL;
         }
     }
@@ -512,7 +512,7 @@ extern "C" {
     bool boat_pytorch_save(const boat_model_t* model, const char* filename) {
         (void)model;
         (void)filename;
-        fprintf(stderr, "PyTorch model saving not implemented yet\n");
+        boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[PyTorch] Model saving not implemented yet\n");
         return false;
     }
 
@@ -520,7 +520,7 @@ extern "C" {
     boat_model_t* boat_pytorch_load_from_memory(const void* data, size_t size) {
         (void)data;
         (void)size;
-        fprintf(stderr, "PyTorch model loading from memory not implemented yet\n");
+        boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[PyTorch] Model loading from memory not implemented yet\n");
         return NULL;
     }
 
@@ -529,7 +529,7 @@ extern "C" {
         (void)model;
         (void)data;
         (void)size;
-        fprintf(stderr, "PyTorch model saving to memory not implemented yet\n");
+        boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[PyTorch] Model saving to memory not implemented yet\n");
         return false;
     }
 

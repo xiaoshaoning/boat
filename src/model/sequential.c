@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Shaoning, Xiao 萧少宁
 // Licensed under the Apache License, Version 2.0
 
+#include <boat.h>
 #include <boat/model.h>
 #include <boat/memory.h>
 #include <boat/tensor.h>
@@ -44,14 +45,11 @@ boat_sequential_model_t* boat_sequential_create() {
 
 // Add layer to sequential model
 void boat_sequential_add(boat_sequential_model_t* model, boat_layer_t* layer) {
-    if (!model || !layer) {
-        return;
-    }
+    BOAT_CHECK_NULL_VOID(model);
+    BOAT_CHECK_NULL_VOID(layer);
 
     boat_sequential_model_private_t* private = (boat_sequential_model_private_t*)boat_model_get_user_data((boat_model_t*)model);
-    if (!private) {
-        return;
-    }
+    BOAT_CHECK_NULL_VOID(private);
 
     // Resize layers array if needed
     if (private->layer_count >= private->layer_capacity) {

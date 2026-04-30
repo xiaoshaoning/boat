@@ -2,23 +2,9 @@
 // Copyright (c) 2026 Shaoning, Xiao 萧少宁
 // Licensed under the Apache License, Version 2.0
 
-#include <boat/layers.h>
-#include <boat/ops.h>
-#include <boat/memory.h>
+#include <boat.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-
-// Debug output control
-#ifndef BOAT_DEBUG
-#define BOAT_DEBUG 0
-#endif
-
-#if BOAT_DEBUG
-#define BOAT_DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
-#else
-#define BOAT_DEBUG_PRINT(...) ((void)0)
-#endif
 
 // ReLU layer structure (no parameters, just operations)
 struct boat_relu_layer_t {
@@ -45,7 +31,7 @@ BOAT_API void BOAT_CALL boat_relu_layer_free(boat_relu_layer_t* layer) {
 BOAT_API boat_tensor_t* BOAT_CALL boat_relu_layer_forward(const boat_relu_layer_t* layer, const boat_tensor_t* input) {
     BOAT_DEBUG_PRINT("DEBUG relu_layer_forward: ENTER, layer=%p, input=%p\n", (void*)layer, (void*)input);
     if (!layer || !input) {
-        BOAT_DEBUG_PRINT("DEBUG relu_layer_forward: NULL input or layer\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ReLULayer] NULL input or layer\n");
         return NULL;
     }
     BOAT_DEBUG_PRINT("DEBUG relu_layer_forward: calling boat_relu\n");
@@ -61,6 +47,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_relu_layer_backward(boat_relu_layer_t* la
     // Simple backward pass for ReLU: grad_output * mask(where input > 0)
     // For now, just pass gradient through (will need input cache for proper implementation)
     if (!grad_output) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ReLULayer] NULL gradient output\n");
         return NULL;
     }
 

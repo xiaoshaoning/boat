@@ -2,24 +2,10 @@
 // Copyright (c) 2026 Shaoning, Xiao 萧少宁
 // Licensed under the Apache License, Version 2.0
 
-#include <boat/layers.h>
-#include <boat/ops.h>
-#include <boat/memory.h>
+#include <boat.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 #include <math.h>
-
-// Debug output control
-#ifndef BOAT_DEBUG
-#define BOAT_DEBUG 0
-#endif
-
-#if BOAT_DEBUG
-#define BOAT_DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
-#else
-#define BOAT_DEBUG_PRINT(...) ((void)0)
-#endif
 
 // Convolutional layer structure
 struct boat_conv_layer_t {
@@ -440,7 +426,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
     // Output shape: [batch, out_channels, height_out, width_out]
     const int64_t* input_shape = boat_tensor_shape(input);
     if (boat_tensor_ndim(input) != 4) {
-        fprintf(stderr, "Error: Conv2d expects 4D input tensor\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Conv2d expects 4D input tensor\n");
         return NULL;
     }
 
@@ -450,21 +436,21 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
     int64_t width = input_shape[3];
 
     if ((size_t)in_channels != layer->in_channels) {
-        fprintf(stderr, "Error: Input channels %lld don't match layer in_channels %zu\n", in_channels, layer->in_channels);
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Input channels %lld don't match layer in_channels %zu\n", in_channels, layer->in_channels);
         return NULL;
     }
 
     // Check data types
     if (boat_tensor_dtype(input) != BOAT_DTYPE_FLOAT32) {
-        fprintf(stderr, "Error: Conv2d only supports FLOAT32 input tensors\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Conv2d only supports FLOAT32 input tensors\n");
         return NULL;
     }
     if (boat_tensor_dtype(layer->weight) != BOAT_DTYPE_FLOAT32) {
-        fprintf(stderr, "Error: Conv2d weight tensor must be FLOAT32\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Conv2d weight tensor must be FLOAT32\n");
         return NULL;
     }
     if (layer->use_bias && layer->bias && boat_tensor_dtype(layer->bias) != BOAT_DTYPE_FLOAT32) {
-        fprintf(stderr, "Error: Conv2d bias tensor must be FLOAT32\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Conv2d bias tensor must be FLOAT32\n");
         return NULL;
     }
 
@@ -474,10 +460,8 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
 
     // Validate output dimensions
     if (height_out <= 0 || width_out <= 0) {
-        fprintf(stderr, "Error: Invalid convolution parameters - output dimensions would be non-positive\n");
-        fprintf(stderr, "  height_out = %lld, width_out = %lld\n", height_out, width_out);
-        fprintf(stderr, "  height = %lld, width = %lld, padding = %zu, kernel_size = %zu, stride = %zu\n",
-                height, width, layer->padding, layer->kernel_size, layer->stride);
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Invalid convolution parameters - output dimensions would be non-positive: height_out=%lld, width_out=%lld (height=%lld, width=%lld, padding=%zu, kernel_size=%zu, stride=%zu)\n",
+                height_out, width_out, height, width, layer->padding, layer->kernel_size, layer->stride);
         return NULL;
     }
 
@@ -577,7 +561,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
 
 BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* layer, const boat_tensor_t* grad_output) {
     if (!layer || !grad_output) {
-        fprintf(stderr, "Error: conv backward: NULL input\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] conv backward: NULL input\n");
         return NULL;
     }
     BOAT_DEBUG_PRINT("[conv backward] layer=%p, grad_output=%p\n", (void*)layer, (void*)grad_output);
@@ -585,7 +569,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* la
 
     // Check that cached input exists
     if (!layer->cache_input) {
-        fprintf(stderr, "Error: conv backward: no cached input (forward not called or cache cleared)\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[ConvLayer] conv backward: no cached input (forward not called or cache cleared)\n");
         return NULL;
     }
 
@@ -595,7 +579,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* la
         grad_shape[1] != layer->cache_output_shape[1] ||
         grad_shape[2] != layer->cache_output_shape[2] ||
         grad_shape[3] != layer->cache_output_shape[3]) {
-        fprintf(stderr, "Error: conv backward: grad_output shape [%lld, %lld, %lld, %lld] doesn't match cached output shape [%lld, %lld, %lld, %lld]\n",
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] conv backward: grad_output shape [%lld, %lld, %lld, %lld] doesn't match cached output shape [%lld, %lld, %lld, %lld]\n",
                 grad_shape[0], grad_shape[1], grad_shape[2], grad_shape[3],
                 layer->cache_output_shape[0], layer->cache_output_shape[1],
                 layer->cache_output_shape[2], layer->cache_output_shape[3]);
@@ -608,7 +592,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* la
                                                        layer->cache_output_shape,
                                                        grad_output);
     if (!grad_input) {
-        fprintf(stderr, "Error: conv backward: failed to compute input gradient\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[ConvLayer] conv backward: failed to compute input gradient\n");
         return NULL;
     }
 
@@ -619,7 +603,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* la
                                          (int64_t)layer->kernel_size, (int64_t)layer->kernel_size };
         layer->grad_weight = boat_tensor_create(weight_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
         if (!layer->grad_weight) {
-            fprintf(stderr, "Error: conv backward: failed to create grad_weight tensor\n");
+            boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[ConvLayer] conv backward: failed to create grad_weight tensor\n");
             boat_tensor_free(grad_input);
             return NULL;
         }
@@ -629,7 +613,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* la
                                       layer->cache_output_shape,
                                       grad_output,
                                       layer->grad_weight)) {
-        fprintf(stderr, "Error: conv backward: failed to compute weight gradient\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[ConvLayer] conv backward: failed to compute weight gradient\n");
         boat_tensor_free(grad_input);
         return NULL;
     }
@@ -640,13 +624,13 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* la
             const int64_t bias_shape[] = { (int64_t)layer->out_channels };
             layer->grad_bias = boat_tensor_create(bias_shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
             if (!layer->grad_bias) {
-                fprintf(stderr, "Error: conv backward: failed to create grad_bias tensor\n");
+                boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[ConvLayer] conv backward: failed to create grad_bias tensor\n");
                 boat_tensor_free(grad_input);
                 return NULL;
             }
         }
         if (!compute_bias_gradient_into(layer, layer->cache_output_shape, grad_output, layer->grad_bias)) {
-            fprintf(stderr, "Error: conv backward: failed to compute bias gradient\n");
+            boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[ConvLayer] conv backward: failed to compute bias gradient\n");
             boat_tensor_free(grad_input);
             return NULL;
         }
@@ -705,7 +689,7 @@ BOAT_API void BOAT_CALL boat_conv_layer_set_weight(boat_conv_layer_t* layer, boa
         weight_shape[1] != (int64_t)layer->in_channels ||
         weight_shape[2] != (int64_t)layer->kernel_size ||
         weight_shape[3] != (int64_t)layer->kernel_size) {
-        fprintf(stderr, "Error: Weight shape [%lld, %lld, %lld, %lld] does not match layer dimensions [%zu, %zu, %zu, %zu]\n",
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Weight shape [%lld, %lld, %lld, %lld] does not match layer dimensions [%zu, %zu, %zu, %zu]\n",
                 weight_shape[0], weight_shape[1], weight_shape[2], weight_shape[3],
                 layer->out_channels, layer->in_channels, layer->kernel_size, layer->kernel_size);
         return;
@@ -723,13 +707,13 @@ BOAT_API void BOAT_CALL boat_conv_layer_set_bias(boat_conv_layer_t* layer, boat_
         return;
     }
     if (!layer->use_bias) {
-        fprintf(stderr, "Warning: Layer was created without bias, ignoring bias tensor\n");
+        BOAT_DEBUG_PRINT("[ConvLayer] Warning: Layer was created without bias, ignoring bias tensor\n");
         return;
     }
     // Check bias shape matches output channels
     const int64_t* bias_shape = boat_tensor_shape(bias);
     if (bias_shape[0] != (int64_t)layer->out_channels) {
-        fprintf(stderr, "Error: Bias shape [%lld] does not match output channels %zu\n",
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Bias shape [%lld] does not match output channels %zu\n",
                 bias_shape[0], layer->out_channels);
         return;
     }

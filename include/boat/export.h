@@ -71,4 +71,58 @@
 #define BOAT_DEBUG 0
 #endif
 
+// Centralized debug logging (gated by BOAT_DEBUG)
+#if BOAT_DEBUG
+#define BOAT_DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
+#else
+#define BOAT_DEBUG_PRINT(...) ((void)0)
+#endif
+
+// ---------------------------------------------------------------------------
+// Error-checking helper macros
+// These forward-declare boat_set_errorf (declared in boat.h with BOAT_API).
+// In translation units that include boat.h before using these, the BOOT_API
+// declaration takes over; the forward decl here is purely so that the macros
+// can be used without error in files that include export.h before boat.h.
+// ---------------------------------------------------------------------------
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void boat_set_errorf(int error, const char* format, ...);
+
+#ifdef __cplusplus
+}
+#endif
+
+// Check that a pointer is non-NULL; if NULL, set error and return NULL.
+#define BOAT_CHECK_NULL(ptr) \
+    do { \
+        if (!(ptr)) { \
+            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, \
+                "[%s] NULL argument: '%s'\n", __func__, #ptr); \
+            return NULL; \
+        } \
+    } while(0)
+
+// Like BOAT_CHECK_NULL but for void functions (returns void).
+#define BOAT_CHECK_NULL_VOID(ptr) \
+    do { \
+        if (!(ptr)) { \
+            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, \
+                "[%s] NULL argument: '%s'\n", __func__, #ptr); \
+            return; \
+        } \
+    } while(0)
+
+// Like BOAT_CHECK_NULL but for functions returning bool.
+#define BOAT_CHECK_NULL_BOOL(ptr) \
+    do { \
+        if (!(ptr)) { \
+            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, \
+                "[%s] NULL argument: '%s'\n", __func__, #ptr); \
+            return false; \
+        } \
+    } while(0)
+
 #endif // BOAT_EXPORT_H

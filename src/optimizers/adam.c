@@ -10,6 +10,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <boat.h>
 
 // Adam optimizer state structure
 typedef struct boat_adam_state_t {
@@ -43,18 +44,22 @@ BOAT_API boat_optimizer_t* boat_adam_optimizer_create(float learning_rate,
                                              float epsilon) {
     // Validate hyperparameters
     if (learning_rate <= 0.0f) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Adam] Learning rate must be positive\n");
         return NULL;
     }
     if (beta1 <= 0.0f || beta1 >= 1.0f) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Adam] beta1 must be in [0, 1)\n");
         return NULL;
     }
     if (beta2 <= 0.0f || beta2 >= 1.0f) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Adam] beta2 must be in [0, 1)\n");
         return NULL;
     }
 
     // Allocate optimizer state
     boat_adam_state_t* state = (boat_adam_state_t*)boat_malloc(sizeof(boat_adam_state_t), BOAT_DEVICE_CPU);
     if (!state) {
+        boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[Adam] Failed to allocate optimizer state\n");
         return NULL;
     }
 
@@ -75,6 +80,7 @@ BOAT_API boat_optimizer_t* boat_adam_optimizer_create(float learning_rate,
     state->v = (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
 
     if (!state->params || !state->grads || !state->m || !state->v) {
+        boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[Adam] Failed to allocate optimizer state\n");
         if (state->params) boat_free(state->params);
         if (state->grads) boat_free(state->grads);
         if (state->m) boat_free(state->m);

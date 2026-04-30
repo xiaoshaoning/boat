@@ -2,12 +2,9 @@
 // Copyright (c) 2026 Shaoning, Xiao 萧少宁
 // Licensed under the Apache License, Version 2.0
 
-#include <boat/layers.h>
-#include <boat/ops.h>
-#include <boat/memory.h>
+#include <boat.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 // Flatten layer structure
 struct boat_flatten_layer_t {
@@ -45,7 +42,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_forward(boat_flatten_layer_
     size_t ndim = boat_tensor_ndim(input);
 
     if (ndim < 2) {
-        fprintf(stderr, "Error: Flatten expects at least 2D input tensor\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[FlattenLayer] Expects at least 2D input tensor\n");
         return NULL;
     }
 
@@ -80,7 +77,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_backward(const boat_flatten
 
     // Check if shape is cached
     if (!layer->cached_shape || layer->cached_ndim == 0) {
-        fprintf(stderr, "Error: Flatten backward called without cached shape (forward not called)\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[FlattenLayer] Backward called without cached shape (forward not called)\n");
         return NULL;
     }
 

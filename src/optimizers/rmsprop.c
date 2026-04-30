@@ -3,18 +3,10 @@
 // Licensed under the Apache License, Version 2.0
 
 #include <stddef.h>
-#include <boat/optimizers.h>
-#define BOAT_DEVICE_T_DEFINED
-#include <boat/tensor.h>
-#include <boat/memory.h>
+#include <boat.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-
-#ifdef _WIN32
-#include <windows.h>
-#endif
 
 // RMSprop optimizer state structure
 typedef struct boat_rmsprop_state_t {
@@ -42,31 +34,24 @@ static void rmsprop_update_parameter(boat_rmsprop_state_t* state, size_t idx);
 BOAT_API boat_optimizer_t* boat_rmsprop_optimizer_create(float learning_rate,
                                                 float alpha,
                                                 float epsilon) {
-    // Debug
-    printf("RMSprop create called: lr=%f, alpha=%f, eps=%f\n", learning_rate, alpha, epsilon);
-    fprintf(stderr, "RMSprop create: lr=%f, alpha=%f, eps=%f\n", learning_rate, alpha, epsilon);
-    fprintf(stderr, "BOAT_DEVICE_CPU = %d\n", BOAT_DEVICE_CPU);
-    fprintf(stderr, "sizeof(boat_rmsprop_state_t) = %zu\n", sizeof(boat_rmsprop_state_t));
-
     // Parameter validation
     if (learning_rate <= 0.0f) {
-        fprintf(stderr, "Validation failed: learning_rate <= 0\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[RMSprop] Learning rate must be positive\n");
         return NULL;
     }
     if (alpha <= 0.0f || alpha >= 1.0f) {
-        fprintf(stderr, "Validation failed: alpha=%f not in (0,1)\n", alpha);
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[RMSprop] Alpha must be positive\n");
         return NULL;
     }
     if (epsilon <= 0.0f) {
-        fprintf(stderr, "Validation failed: epsilon <= 0\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[RMSprop] Epsilon must be positive\n");
         return NULL;
     }
 
     // Allocate optimizer state
     boat_rmsprop_state_t* state = (boat_rmsprop_state_t*)boat_malloc(sizeof(boat_rmsprop_state_t), BOAT_DEVICE_CPU);
-    fprintf(stderr, "boat_malloc returned: %p\n", state);
     if (!state) {
-        fprintf(stderr, "boat_malloc failed\n");
+        boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[RMSprop] Failed to allocate optimizer state\n");
         return NULL;
     }
 
@@ -84,6 +69,7 @@ BOAT_API boat_optimizer_t* boat_rmsprop_optimizer_create(float learning_rate,
     state->square_avg = (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
 
     if (!state->params || !state->grads || !state->square_avg) {
+        boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[RMSprop] Failed to allocate optimizer state\n");
         if (state->params) boat_free(state->params);
         if (state->grads) boat_free(state->grads);
         if (state->square_avg) boat_free(state->square_avg);

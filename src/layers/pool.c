@@ -5,12 +5,9 @@
 #define _USE_MATH_DEFINES  // For INFINITY on Windows
 #include <math.h>
 
-#include <boat/layers.h>
-#include <boat/ops.h>
-#include <boat/memory.h>
+#include <boat.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 // Pooling layer structure (MaxPool2d)
 struct boat_pool_layer_t {
@@ -71,7 +68,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_forward(boat_pool_layer_t* lay
     // Input should be 4D: [batch, channels, height, width]
     const int64_t* input_shape = boat_tensor_shape(input);
     if (boat_tensor_ndim(input) != 4) {
-        fprintf(stderr, "Error: MaxPool2d expects 4D input tensor\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[PoolLayer] MaxPool2d expects 4D input tensor\n");
         return NULL;
     }
 
@@ -182,7 +179,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_backward(boat_pool_layer_t* la
         grad_output_shape[1] != layer->cache_channels ||
         grad_output_shape[2] != layer->cache_height_out ||
         grad_output_shape[3] != layer->cache_width_out) {
-        fprintf(stderr, "Error: MaxPool2d backward gradient shape mismatch\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[PoolLayer] MaxPool2d backward gradient shape mismatch\n");
         return NULL;
     }
 

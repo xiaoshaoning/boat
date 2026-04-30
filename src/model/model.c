@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Shaoning, Xiao 萧少宁
 // Licensed under the Apache License, Version 2.0
 
+#include <boat.h>
 #include <boat/model.h>
 #include <boat/memory.h>
 #include <boat/tensor.h>
@@ -695,7 +696,7 @@ bool boat_model_save(const boat_model_t* model, const char* filename) {
                 break;
             }
             default:
-                fprintf(stderr, "boat_model_save: unsupported layer type %u\n", type_u32);
+                boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Model] Save: unsupported layer type %u\n", type_u32);
                 fclose(f);
                 return false;
         }
@@ -869,7 +870,7 @@ boat_model_t* boat_model_load(const char* filename) {
                 break;
             }
             default:
-                fprintf(stderr, "boat_model_load: unsupported layer type %u\n", type_u32);
+                boat_set_errorf(BOAT_ERROR_FORMAT, "[Model] Load: unsupported layer type %u\n", type_u32);
                 free(wrapper);
                 boat_model_free(model);
                 fclose(f);
@@ -927,7 +928,7 @@ void boat_model_add_layer(boat_model_t* model, boat_layer_t* layer) {
         // Reallocate layers array
         boat_layer_t** new_layers = boat_realloc(model->layers, new_capacity * sizeof(boat_layer_t*), BOAT_DEVICE_CPU);
         if (!new_layers) {
-            fprintf(stderr, "Failed to expand layers array\n");
+            boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[Model] Failed to expand layers array\n");
             return;
         }
         model->layers = new_layers;
@@ -935,7 +936,7 @@ void boat_model_add_layer(boat_model_t* model, boat_layer_t* layer) {
         // Reallocate nodes array
         boat_node_t** new_nodes = boat_realloc(model->nodes, new_capacity * sizeof(boat_node_t*), BOAT_DEVICE_CPU);
         if (!new_nodes) {
-            fprintf(stderr, "Failed to expand nodes array\n");
+            boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[Model] Failed to expand nodes array\n");
             // Note: layers array already reallocated, but this is an error state
             return;
         }
@@ -946,7 +947,7 @@ void boat_model_add_layer(boat_model_t* model, boat_layer_t* layer) {
     // Create graph node for this layer
     boat_node_t* node = boat_graph_add_node(model->graph, layer, BOAT_NODE_TYPE_OPERATION, NULL);
     if (!node) {
-        fprintf(stderr, "Failed to create graph node for layer\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[Model] Failed to create graph node for layer\n");
         return;
     }
 
@@ -956,7 +957,7 @@ void boat_model_add_layer(boat_model_t* model, boat_layer_t* layer) {
         if (prev_node) {
             const boat_edge_t* edge = boat_graph_add_edge(model->graph, prev_node, node, BOAT_EDGE_DIRECTION_FORWARD);
             if (!edge) {
-                fprintf(stderr, "Warning: Failed to add edge between layer nodes\n");
+                BOAT_DEBUG_PRINT("[Model] Warning: Failed to add edge between layer nodes\n");
             }
         }
     }
