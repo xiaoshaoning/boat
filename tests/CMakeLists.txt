@@ -84,3 +84,7 @@ target_link_libraries(test_gradient_check boat)
 # Transpose operation tests
 add_executable(test_transpose unit/test_transpose.c)
 target_link_libraries(test_transpose boat)
+
+# Serialization integration test (train -> save -> load -> inference round-trip)
+add_executable(test_serialization_integration test_serialization_integration.c)
+target_link_libraries(test_serialization_integration boat)

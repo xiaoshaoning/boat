@@ -100,7 +100,7 @@ void boat_model_free(boat_model_t* model) {
                     layer->ops->free(layer);
                 } else {
                     // Fallback: free layer wrapper only
-                    boat_free(layer);
+                    free(layer);
                 }
             }
         }
