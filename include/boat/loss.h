@@ -16,6 +16,8 @@ typedef enum {
     BOAT_LOSS_HUBER
 } boat_loss_type_t;
 
+#include <boat/tensor.h>
+
 // Loss structure (opaque)
 typedef struct boat_loss_t boat_loss_t;
 
@@ -26,6 +28,7 @@ boat_loss_t* boat_huber_loss_create(float delta);
 
 // Loss operations
 float boat_loss_compute(boat_loss_t* loss, const void* predictions, const void* targets);
+boat_tensor_t* boat_loss_backward(boat_loss_t* loss, const void* predictions, const void* targets);
 void boat_loss_free(boat_loss_t* loss);
 
 #ifdef __cplusplus

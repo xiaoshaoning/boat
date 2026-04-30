@@ -98,3 +98,64 @@ float huber_loss_compute(boat_loss_t* loss_ptr, const void* predictions_ptr, con
 
     return huber;
 }
+
+// Compute Huber backward gradient
+boat_tensor_t* huber_loss_backward(boat_loss_t* loss_ptr, const void* predictions_ptr, const void* targets_ptr) {
+    if (!loss_ptr || !predictions_ptr || !targets_ptr) {
+        return NULL;
+    }
+
+    huber_loss_t* loss = (huber_loss_t*)loss_ptr;
+    const boat_tensor_t* predictions = (const boat_tensor_t*)predictions_ptr;
+    const boat_tensor_t* targets = (const boat_tensor_t*)targets_ptr;
+
+    // Verify tensors have same shape and dtype
+    if (boat_tensor_ndim(predictions) != boat_tensor_ndim(targets)) {
+        return NULL;
+    }
+
+    size_t ndim = boat_tensor_ndim(predictions);
+    const int64_t* pred_shape = boat_tensor_shape(predictions);
+    const int64_t* target_shape = boat_tensor_shape(targets);
+
+    for (size_t i = 0; i < ndim; i++) {
+        if (pred_shape[i] != target_shape[i]) {
+            return NULL;
+        }
+    }
+
+    if (boat_tensor_dtype(predictions) != boat_tensor_dtype(targets)) {
+        return NULL;
+    }
+
+    if (boat_tensor_dtype(predictions) != BOAT_DTYPE_FLOAT32) {
+        return NULL;
+    }
+
+    size_t num_elements = boat_tensor_nelements(predictions);
+    const float* pred_data = (const float*)boat_tensor_data(predictions);
+    const float* target_data = (const float*)boat_tensor_data(targets);
+    float delta = loss->delta;
+
+    boat_tensor_t* grad = boat_tensor_create_like(predictions);
+    if (!grad) {
+        return NULL;
+    }
+
+    float* grad_data = (float*)boat_tensor_data(grad);
+    float inv_n = 1.0f / (float)num_elements;
+
+    for (size_t i = 0; i < num_elements; i++) {
+        float diff = pred_data[i] - target_data[i];
+        float abs_diff = fabsf(diff);
+        if (abs_diff <= delta) {
+            grad_data[i] = diff * inv_n;
+        } else if (diff > 0.0f) {
+            grad_data[i] = delta * inv_n;
+        } else {
+            grad_data[i] = -delta * inv_n;
+        }
+    }
+
+    return grad;
+}

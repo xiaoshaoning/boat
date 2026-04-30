@@ -88,3 +88,7 @@ target_link_libraries(test_transpose boat)
 # Serialization integration test (train -> save -> load -> inference round-trip)
 add_executable(test_serialization_integration test_serialization_integration.c)
 target_link_libraries(test_serialization_integration boat)
+
+# Loss function integration tests (forward, backward, training, edge cases)
+add_executable(test_loss_integration test_loss_integration.c)
+target_link_libraries(test_loss_integration boat)

@@ -87,3 +87,54 @@ float mse_loss_compute(boat_loss_t* loss_ptr, const void* predictions_ptr, const
     return mse;
 }
 
+// Compute MSE backward gradient
+boat_tensor_t* mse_loss_backward(boat_loss_t* loss_ptr, const void* predictions_ptr, const void* targets_ptr) {
+    if (!loss_ptr || !predictions_ptr || !targets_ptr) {
+        return NULL;
+    }
+
+    const boat_tensor_t* predictions = (const boat_tensor_t*)predictions_ptr;
+    const boat_tensor_t* targets = (const boat_tensor_t*)targets_ptr;
+
+    // Verify tensors have same shape and dtype
+    if (boat_tensor_ndim(predictions) != boat_tensor_ndim(targets)) {
+        return NULL;
+    }
+
+    size_t ndim = boat_tensor_ndim(predictions);
+    const int64_t* pred_shape = boat_tensor_shape(predictions);
+    const int64_t* target_shape = boat_tensor_shape(targets);
+
+    for (size_t i = 0; i < ndim; i++) {
+        if (pred_shape[i] != target_shape[i]) {
+            return NULL;
+        }
+    }
+
+    if (boat_tensor_dtype(predictions) != boat_tensor_dtype(targets)) {
+        return NULL;
+    }
+
+    if (boat_tensor_dtype(predictions) != BOAT_DTYPE_FLOAT32) {
+        return NULL;
+    }
+
+    size_t num_elements = boat_tensor_nelements(predictions);
+    const float* pred_data = (const float*)boat_tensor_data(predictions);
+    const float* target_data = (const float*)boat_tensor_data(targets);
+
+    boat_tensor_t* grad = boat_tensor_create_like(predictions);
+    if (!grad) {
+        return NULL;
+    }
+
+    float* grad_data = (float*)boat_tensor_data(grad);
+    float inv_n = 1.0f / (float)num_elements;
+
+    for (size_t i = 0; i < num_elements; i++) {
+        grad_data[i] = 2.0f * (pred_data[i] - target_data[i]) * inv_n;
+    }
+
+    return grad;
+}
+
