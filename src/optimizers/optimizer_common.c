@@ -21,18 +21,6 @@ typedef struct boat_optimizer_header_t {
     boat_optimizer_type_t type;
 } boat_optimizer_header_t;
 
-// SGD optimizer state structure
-typedef struct boat_sgd_state_t {
-    boat_optimizer_header_t header;
-    float learning_rate;
-    float momentum;
-    boat_tensor_t** params;
-    boat_tensor_t** grads;
-    boat_tensor_t** velocity;  // For momentum
-    size_t num_params;
-    size_t capacity;
-} boat_sgd_state_t;
-
 // RMSprop optimizer state structure
 typedef struct boat_rmsprop_state_t {
     boat_optimizer_header_t header;
@@ -58,13 +46,8 @@ typedef struct boat_adagrad_state_t {
     size_t capacity;
 } boat_adagrad_state_t;
 
-// Create SGD optimizer (stub implementation)
-BOAT_API boat_optimizer_t* boat_sgd_optimizer_create(float learning_rate, float momentum) {
-    // TODO: Implement SGD optimizer
-    (void)learning_rate;
-    (void)momentum;
-    return NULL;
-}
+// Create SGD optimizer (implemented in sgd.c)
+// boat_optimizer_t* boat_sgd_optimizer_create(float learning_rate, float momentum);
 
 // Create RMSprop optimizer (implemented in rmsprop.c)
 // boat_optimizer_t* boat_rmsprop_optimizer_create(float learning_rate, float alpha, float epsilon);
@@ -85,6 +68,11 @@ void adagrad_optimizer_step(boat_optimizer_t* optimizer);
 void adagrad_optimizer_zero_grad(boat_optimizer_t* optimizer);
 void adagrad_optimizer_free(boat_optimizer_t* optimizer);
 
+void sgd_optimizer_add_parameter(boat_optimizer_t* optimizer, boat_tensor_t* param, boat_tensor_t* grad);
+void sgd_optimizer_step(boat_optimizer_t* optimizer);
+void sgd_optimizer_zero_grad(boat_optimizer_t* optimizer);
+void sgd_optimizer_free(boat_optimizer_t* optimizer);
+
 // Learning rate access functions
 float adam_optimizer_get_learning_rate(const boat_optimizer_t* optimizer);
 void adam_optimizer_set_learning_rate(boat_optimizer_t* optimizer, float learning_rate);
@@ -94,6 +82,9 @@ void rmsprop_optimizer_set_learning_rate(boat_optimizer_t* optimizer, float lear
 
 float adagrad_optimizer_get_learning_rate(const boat_optimizer_t* optimizer);
 void adagrad_optimizer_set_learning_rate(boat_optimizer_t* optimizer, float learning_rate);
+
+float sgd_optimizer_get_learning_rate(const boat_optimizer_t* optimizer);
+void sgd_optimizer_set_learning_rate(boat_optimizer_t* optimizer, float learning_rate);
 
 // Generic optimizer step function (dispatches to specific implementation)
 // Implemented in adam.c, sgd.c, and rmsprop.c
@@ -130,8 +121,9 @@ BOAT_API void boat_optimizer_add_parameter(boat_optimizer_t* optimizer,
             adagrad_optimizer_add_parameter(optimizer, param, grad);
             break;
         case BOAT_OPTIMIZER_SGD:
+            sgd_optimizer_add_parameter(optimizer, param, grad);
+            break;
         default:
-            // TODO: Implement SGD
             break;
     }
 }
@@ -150,8 +142,9 @@ BOAT_API void boat_optimizer_step(boat_optimizer_t* optimizer) {
             adagrad_optimizer_step(optimizer);
             break;
         case BOAT_OPTIMIZER_SGD:
+            sgd_optimizer_step(optimizer);
+            break;
         default:
-            // TODO: Implement SGD
             break;
     }
 }
@@ -170,8 +163,9 @@ BOAT_API void boat_optimizer_zero_grad(boat_optimizer_t* optimizer) {
             adagrad_optimizer_zero_grad(optimizer);
             break;
         case BOAT_OPTIMIZER_SGD:
+            sgd_optimizer_zero_grad(optimizer);
+            break;
         default:
-            // TODO: Implement SGD
             break;
     }
 }
@@ -190,8 +184,9 @@ BOAT_API void boat_optimizer_free(boat_optimizer_t* optimizer) {
             adagrad_optimizer_free(optimizer);
             break;
         case BOAT_OPTIMIZER_SGD:
+            sgd_optimizer_free(optimizer);
+            break;
         default:
-            // TODO: Implement SGD
             break;
     }
 }
@@ -208,8 +203,8 @@ BOAT_API float boat_optimizer_get_learning_rate(const boat_optimizer_t* optimize
         case BOAT_OPTIMIZER_ADAGRAD:
             return adagrad_optimizer_get_learning_rate(optimizer);
         case BOAT_OPTIMIZER_SGD:
+            return sgd_optimizer_get_learning_rate(optimizer);
         default:
-            // TODO: Implement SGD
             return 0.0f;
     }
 }
@@ -229,8 +224,9 @@ BOAT_API void boat_optimizer_set_learning_rate(boat_optimizer_t* optimizer, floa
             adagrad_optimizer_set_learning_rate(optimizer, learning_rate);
             break;
         case BOAT_OPTIMIZER_SGD:
+            sgd_optimizer_set_learning_rate(optimizer, learning_rate);
+            break;
         default:
-            // TODO: Implement SGD
             break;
     }
 }

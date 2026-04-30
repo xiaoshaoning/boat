@@ -43,6 +43,9 @@ BOAT_API void boat_optimizer_add_parameter(boat_optimizer_t* optimizer,
 BOAT_API float boat_optimizer_get_learning_rate(const boat_optimizer_t* optimizer);
 BOAT_API void boat_optimizer_set_learning_rate(boat_optimizer_t* optimizer, float learning_rate);
 
+// SGD-specific: enable Nesterov momentum (disabled by default)
+BOAT_API void boat_sgd_set_nesterov(boat_optimizer_t* optimizer, int use_nesterov);
+
 #ifdef __cplusplus
 }
 #endif

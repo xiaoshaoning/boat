@@ -65,6 +65,10 @@ target_link_libraries(test_optimizer_rmsprop boat)
 add_executable(test_optimizer_adagrad unit/test_optimizer_adagrad.c)
 target_link_libraries(test_optimizer_adagrad boat)
 
+# SGD optimizer test
+add_executable(test_optimizer_sgd unit/test_optimizer_sgd.c)
+target_link_libraries(test_optimizer_sgd boat)
+
 # Scheduler tests
 add_executable(test_schedulers unit/test_schedulers.c)
 target_link_libraries(test_schedulers boat)

@@ -132,6 +132,7 @@ set(BOAT_SOURCES
     src/model/sequential.c
     src/model/graph_model.c
     src/optimizers/adam.c
+    src/optimizers/sgd.c
     src/optimizers/rmsprop.c
     src/optimizers/adagrad.c
     src/optimizers/optimizer_common.c
