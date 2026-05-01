@@ -450,17 +450,305 @@ bool boat_onnx_get_version(const char* filename, int* major, int* minor, int* pa
     return ok;
 }
 
-bool boat_onnx_save(const boat_model_t* model, const char* filename) {
-    (void)model;
-    (void)filename;
-    // TODO: Implement ONNX model saving
-    return false;
+// -----------------------------------------------------------------------
+// ONNX save helpers
+// -----------------------------------------------------------------------
+
+// Write an INT attribute inside an AttributeProto submessage (field 5)
+static void write_int_attr(pb_builder_t* b, const char* name, int64_t val) {
+    size_t pos = pb_begin_submessage(b, 5);
+    pb_write_string(b, 1, name);
+    pb_write_tag(b, 5, 0); pb_write_varint(b, 2);
+    pb_write_tag(b, 3, 0); pb_write_varint(b, val);
+    pb_patch_length(b, pos);
 }
 
-bool boat_onnx_save_to_memory(const boat_model_t* model, void** data, size_t* size) {
-    (void)model;
-    (void)data;
-    (void)size;
-    // TODO: Implement ONNX model saving to memory
-    return false;
+// Write an INTS attribute inside an AttributeProto submessage
+static void write_ints_attr(pb_builder_t* b, const char* name, const int64_t* vals, int count) {
+    size_t pos = pb_begin_submessage(b, 5);
+    pb_write_string(b, 1, name);
+    pb_write_tag(b, 5, 0); pb_write_varint(b, 7);
+    for (int i = 0; i < count; i++) {
+        pb_write_tag(b, 7, 0); pb_write_varint(b, vals[i]);
+    }
+    pb_patch_length(b, pos);
+}
+
+// Write a FLOAT attribute inside an AttributeProto submessage
+static void write_float_attr(pb_builder_t* b, const char* name, float val) {
+    size_t pos = pb_begin_submessage(b, 5);
+    pb_write_string(b, 1, name);
+    pb_write_tag(b, 5, 0); pb_write_varint(b, 1);
+    pb_write_tag(b, 2, 5);
+    pb_write_raw(b, &val, sizeof(val));
+    pb_patch_length(b, pos);
+}
+
+// Write a boat_tensor as an ONNX TensorProto initializer (field 5 of GraphProto)
+static void write_tensor_initializer(pb_builder_t* b, const char* name, const boat_tensor_t* t) {
+    if (!t) return;
+    size_t pos = pb_begin_submessage(b, 5);
+
+    const int64_t* shape = boat_tensor_shape(t);
+    size_t ndim = boat_tensor_ndim(t);
+    for (size_t d = 0; d < ndim; d++) {
+        pb_write_tag(b, 1, 0);
+        pb_write_varint(b, (uint64_t)shape[d]);
+    }
+
+    pb_write_tag(b, 5, 0);
+    pb_write_varint(b, 1);  // data_type = FLOAT
+
+    pb_write_string(b, 7, name);
+
+    const void* data = boat_tensor_const_data(t);
+    size_t nbytes = boat_tensor_nbytes(t);
+    pb_write_bytes(b, 10, data, nbytes);
+
+    pb_patch_length(b, pos);
+}
+
+// Write a NodeProto for an activation-type op (Relu, Softmax, Flatten)
+static void write_simple_node(pb_builder_t* b, const char* input_name,
+                              const char* output_name, const char* node_name,
+                              const char* op_type) {
+    size_t pos = pb_begin_submessage(b, 1);
+    pb_write_string(b, 1, input_name);
+    pb_write_string(b, 2, output_name);
+    pb_write_string(b, 3, node_name);
+    pb_write_string(b, 4, op_type);
+    pb_patch_length(b, pos);
+}
+
+// -----------------------------------------------------------------------
+// ONNX public API — save
+// -----------------------------------------------------------------------
+
+bool boat_onnx_save_to_memory(const boat_model_t* model, void** out_data, size_t* out_size) {
+    if (!model || !out_data || !out_size) return false;
+
+    size_t layer_count = boat_model_layer_count(model);
+    if (layer_count == 0) return false;
+
+    pb_builder_t b;
+    pb_builder_init(&b);
+
+    // ir_version = 8 (field 1, int64)
+    pb_write_tag(&b, 1, 0);
+    pb_write_varint(&b, 8);
+
+    // producer_name = "boat" (field 2)
+    pb_write_string(&b, 2, "boat");
+    // producer_version = "0.1.0" (field 3)
+    pb_write_string(&b, 3, "0.1.0");
+
+    // opset_import { domain: "", version: 18 } (field 8)
+    size_t opset_pos = pb_begin_submessage(&b, 8);
+    pb_write_string(&b, 1, "");
+    pb_write_tag(&b, 2, 0);
+    pb_write_varint(&b, 18);
+    pb_patch_length(&b, opset_pos);
+
+    // GraphProto (field 7)
+    size_t graph_pos = pb_begin_submessage(&b, 7);
+    pb_write_string(&b, 2, "exported");
+
+    char prev_output[64] = "input";
+
+    for (size_t i = 0; i < layer_count; i++) {
+        boat_layer_t* wrapper = boat_model_get_layer(model, i);
+        char cur_output[64];
+        snprintf(cur_output, sizeof(cur_output), "layer_%zu_output", i);
+
+        switch (wrapper->type) {
+            case BOAT_LAYER_TYPE_DENSE: {
+                boat_dense_layer_t* dense = (boat_dense_layer_t*)wrapper->data;
+                boat_tensor_t* w = boat_dense_layer_get_weight(dense);
+                boat_tensor_t* bias = boat_dense_layer_get_bias(dense);
+
+                char w_name[64], b_name[64];
+                snprintf(w_name, sizeof(w_name), "layer_%zu_weight", i);
+                snprintf(b_name, sizeof(b_name), "layer_%zu_bias", i);
+
+                write_tensor_initializer(&b, w_name, w);
+                bool has_bias = bias && boat_tensor_nbytes(bias) > 0;
+                if (has_bias) write_tensor_initializer(&b, b_name, bias);
+
+                char node_name[64];
+                snprintf(node_name, sizeof(node_name), "layer_%zu", i);
+
+                // Gemm node with transB=0 (weight shape matches boat layout directly)
+                size_t np = pb_begin_submessage(&b, 1);
+                pb_write_string(&b, 1, prev_output);
+                pb_write_string(&b, 1, w_name);
+                if (has_bias) pb_write_string(&b, 1, b_name);
+                pb_write_string(&b, 2, cur_output);
+                pb_write_string(&b, 3, node_name);
+                pb_write_string(&b, 4, "Gemm");
+                write_int_attr(&b, "transB", 0);
+                pb_patch_length(&b, np);
+                break;
+            }
+
+            case BOAT_LAYER_TYPE_CONV2D: {
+                boat_conv_layer_t* conv = (boat_conv_layer_t*)wrapper->data;
+                boat_tensor_t* w = boat_conv_layer_get_weight(conv);
+                boat_tensor_t* bias = boat_conv_layer_get_bias(conv);
+
+                char w_name[64], b_name[64];
+                snprintf(w_name, sizeof(w_name), "layer_%zu_weight", i);
+                snprintf(b_name, sizeof(b_name), "layer_%zu_bias", i);
+
+                write_tensor_initializer(&b, w_name, w);
+                bool has_bias = bias && boat_tensor_nbytes(bias) > 0;
+                if (has_bias) write_tensor_initializer(&b, b_name, bias);
+
+                const int64_t* ws = boat_tensor_shape(w);
+                int64_t kernel_size = (boat_tensor_ndim(w) >= 3) ? ws[2] : 1;
+                int64_t stride = (int64_t)boat_conv_layer_get_stride(conv);
+                int64_t padding = (int64_t)boat_conv_layer_get_padding(conv);
+
+                char node_name[64];
+                snprintf(node_name, sizeof(node_name), "layer_%zu", i);
+
+                size_t np = pb_begin_submessage(&b, 1);
+                pb_write_string(&b, 1, prev_output);
+                pb_write_string(&b, 1, w_name);
+                if (has_bias) pb_write_string(&b, 1, b_name);
+                pb_write_string(&b, 2, cur_output);
+                pb_write_string(&b, 3, node_name);
+                pb_write_string(&b, 4, "Conv");
+                { int64_t ks[] = {kernel_size, kernel_size};
+                  write_ints_attr(&b, "kernel_shape", ks, 2);
+                  int64_t st[] = {stride, stride};
+                  write_ints_attr(&b, "strides", st, 2);
+                  int64_t pd[] = {padding, padding};
+                  write_ints_attr(&b, "pads", pd, 2); }
+                pb_patch_length(&b, np);
+                break;
+            }
+
+            case BOAT_LAYER_TYPE_BATCHNORM2D: {
+                boat_batchnorm2d_layer_t* bn = (boat_batchnorm2d_layer_t*)wrapper->data;
+                boat_tensor_t* scale = boat_batchnorm2d_layer_get_weight(bn);
+                boat_tensor_t* bn_bias = boat_batchnorm2d_layer_get_bias(bn);
+                boat_tensor_t* mean = boat_batchnorm2d_layer_get_running_mean(bn);
+                boat_tensor_t* var = boat_batchnorm2d_layer_get_running_var(bn);
+
+                char s_name[64], b_name[64], m_name[64], v_name[64];
+                snprintf(s_name, sizeof(s_name), "layer_%zu_scale", i);
+                snprintf(b_name, sizeof(b_name), "layer_%zu_bias", i);
+                snprintf(m_name, sizeof(m_name), "layer_%zu_mean", i);
+                snprintf(v_name, sizeof(v_name), "layer_%zu_var", i);
+
+                write_tensor_initializer(&b, s_name, scale);
+                write_tensor_initializer(&b, b_name, bn_bias);
+                write_tensor_initializer(&b, m_name, mean);
+                write_tensor_initializer(&b, v_name, var);
+
+                float eps = boat_batchnorm2d_layer_get_eps(bn);
+
+                char node_name[64];
+                snprintf(node_name, sizeof(node_name), "layer_%zu", i);
+
+                // BatchNormalization node: 5 inputs (X, scale, B, mean, var)
+                size_t np = pb_begin_submessage(&b, 1);
+                pb_write_string(&b, 1, prev_output);
+                pb_write_string(&b, 1, s_name);
+                pb_write_string(&b, 1, b_name);
+                pb_write_string(&b, 1, m_name);
+                pb_write_string(&b, 1, v_name);
+                pb_write_string(&b, 2, cur_output);
+                pb_write_string(&b, 3, node_name);
+                pb_write_string(&b, 4, "BatchNormalization");
+                write_float_attr(&b, "epsilon", eps);
+                pb_patch_length(&b, np);
+                break;
+            }
+
+            case BOAT_LAYER_TYPE_MAXPOOL2D: {
+                boat_pool_layer_t* pool = (boat_pool_layer_t*)wrapper->data;
+                int64_t pool_size = (int64_t)boat_pool_layer_get_pool_size(pool);
+                int64_t stride = (int64_t)boat_pool_layer_get_stride(pool);
+                int64_t padding = (int64_t)boat_pool_layer_get_padding(pool);
+
+                char node_name[64];
+                snprintf(node_name, sizeof(node_name), "layer_%zu", i);
+
+                size_t np = pb_begin_submessage(&b, 1);
+                pb_write_string(&b, 1, prev_output);
+                pb_write_string(&b, 2, cur_output);
+                pb_write_string(&b, 3, node_name);
+                pb_write_string(&b, 4, "MaxPool");
+                { int64_t ks[] = {pool_size, pool_size};
+                  write_ints_attr(&b, "kernel_shape", ks, 2);
+                  int64_t st[] = {stride, stride};
+                  write_ints_attr(&b, "strides", st, 2);
+                  int64_t pd[] = {padding, padding};
+                  write_ints_attr(&b, "pads", pd, 2); }
+                pb_patch_length(&b, np);
+                break;
+            }
+
+            case BOAT_LAYER_TYPE_RELU:
+                { char nn[64]; snprintf(nn, sizeof(nn), "layer_%zu", i);
+                  write_simple_node(&b, prev_output, cur_output, nn, "Relu"); }
+                break;
+
+            case BOAT_LAYER_TYPE_SOFTMAX:
+                { char nn[64]; snprintf(nn, sizeof(nn), "layer_%zu", i);
+                  write_simple_node(&b, prev_output, cur_output, nn, "Softmax"); }
+                break;
+
+            case BOAT_LAYER_TYPE_FLATTEN:
+                { char nn[64]; snprintf(nn, sizeof(nn), "layer_%zu", i);
+                  write_simple_node(&b, prev_output, cur_output, nn, "Flatten"); }
+                break;
+
+            default:
+                pb_builder_free(&b);
+                return false;
+        }
+
+        strcpy(prev_output, cur_output);
+    }
+
+    // Input value info (field 11)
+    size_t inp_pos = pb_begin_submessage(&b, 11);
+    pb_write_string(&b, 1, "input");
+    pb_patch_length(&b, inp_pos);
+
+    // Output value info (field 12)
+    size_t out_pos = pb_begin_submessage(&b, 12);
+    pb_write_string(&b, 1, prev_output);
+    pb_patch_length(&b, out_pos);
+
+    pb_patch_length(&b, graph_pos);
+
+    *out_data = b.data;
+    *out_size = b.size;
+    return true;
+}
+
+bool boat_onnx_save(const boat_model_t* model, const char* filename) {
+    if (!model || !filename) return false;
+
+    void* data;
+    size_t size;
+    if (!boat_onnx_save_to_memory(model, &data, &size)) return false;
+
+    FILE* f = fopen(filename, "wb");
+    if (!f) { free(data); return false; }
+
+    size_t written = fwrite(data, 1, size, f);
+    fclose(f);
+
+    if (written != size) {
+        free(data);
+        remove(filename);
+        return false;
+    }
+
+    free(data);
+    return true;
 }

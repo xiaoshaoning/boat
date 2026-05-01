@@ -448,9 +448,11 @@ int main(int argc, char* argv[]) {
             memcpy(batch_data, train_images_data + start_idx * sample_size,
                    batch_size * sample_size * sizeof(float));
 
-            // Forward pass
+            // Forward pass (add ref to protect batch_input from unref in forward_pass)
+            boat_tensor_ref(batch_input);
             boat_tensor_t* output = forward_pass(model, batch_input);
             if (!output) {
+                boat_tensor_unref(batch_input);
                 fprintf(stderr, "Forward pass failed at batch %zu\n", batch);
                 continue;
             }
@@ -535,6 +537,7 @@ int main(int argc, char* argv[]) {
         memcpy(eval_data, test_images_data + start * sample_size,
                current_batch * sample_size * sizeof(float));
 
+        boat_tensor_ref(eval_input);
         boat_tensor_t* output = forward_pass(model, eval_input);
         if (!output) {
             boat_tensor_unref(eval_input);

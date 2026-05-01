@@ -1104,6 +1104,165 @@ static int test_onnx_load_cnn(void) {
     PASS(); return 0;
 }
 
+static int test_onnx_save_model(void) {
+    TEST("ONNX save model -> load -> forward");
+
+    // Build a boat model: Dense(4->3, bias=true) + Relu
+    boat_model_t* model = boat_model_create();
+    if (!model) FAIL("model_create failed");
+
+    boat_dense_layer_t* dense = boat_dense_layer_create(4, 3, true);
+    if (!dense) { boat_model_free(model); FAIL("dense_create failed"); }
+
+    int64_t w_shape[] = {4, 3};
+    float w_data[12];
+    for (int i = 0; i < 12; i++) w_data[i] = 0.1f * (float)(i + 1);
+    boat_tensor_t* w = boat_tensor_from_data(w_shape, 2, BOAT_DTYPE_FLOAT32, w_data);
+    boat_dense_layer_set_weight(dense, w);
+    boat_tensor_unref(w);
+
+    int64_t b_shape[] = {3};
+    float b_data[3] = {0.01f, 0.02f, 0.03f};
+    boat_tensor_t* b = boat_tensor_from_data(b_shape, 1, BOAT_DTYPE_FLOAT32, b_data);
+    boat_dense_layer_set_bias(dense, b);
+    boat_tensor_unref(b);
+
+    boat_layer_t* w1 = (boat_layer_t*)malloc(sizeof(boat_layer_t));
+    if (!w1) { boat_dense_layer_free(dense); boat_model_free(model); FAIL("malloc failed"); }
+    w1->data = dense; w1->type = BOAT_LAYER_TYPE_DENSE; w1->ops = NULL;
+    boat_model_add_layer(model, w1);
+
+    boat_relu_layer_t* relu = boat_relu_layer_create();
+    boat_layer_t* w2 = (boat_layer_t*)malloc(sizeof(boat_layer_t));
+    if (!w2) { boat_relu_layer_free(relu); boat_model_free(model); FAIL("malloc failed"); }
+    w2->data = relu; w2->type = BOAT_LAYER_TYPE_RELU; w2->ops = NULL;
+    boat_model_add_layer(model, w2);
+
+    // Save to ONNX memory buffer
+    void* onnx_data;
+    size_t onnx_size;
+    if (!boat_onnx_save_to_memory(model, &onnx_data, &onnx_size)) {
+        boat_model_free(model);
+        FAIL("save_to_memory failed");
+    }
+
+    // Load back from ONNX
+    boat_model_t* loaded = boat_onnx_load_from_memory(onnx_data, onnx_size);
+    if (!loaded) {
+        free(onnx_data); boat_model_free(model);
+        FAIL("load_from_memory failed");
+    }
+
+    // Forward with original model
+    int64_t in_shape[] = {2, 4};
+    float in_data[] = {0.5f, 1.0f, 1.5f, 2.0f, -0.5f, -1.0f, -1.5f, -2.0f};
+    boat_tensor_t* input = boat_tensor_from_data(in_shape, 2, BOAT_DTYPE_FLOAT32, in_data);
+    if (!input) { free(onnx_data); boat_model_free(model); boat_model_free(loaded); FAIL("input failed"); }
+
+    boat_tensor_t* orig_out = boat_model_forward(model, input);
+    if (!orig_out) {
+        boat_tensor_unref(input); free(onnx_data); boat_model_free(model); boat_model_free(loaded);
+        FAIL("original forward failed");
+    }
+
+    // Forward with loaded model
+    boat_tensor_t* in2 = boat_tensor_from_data(in_shape, 2, BOAT_DTYPE_FLOAT32, in_data);
+    boat_tensor_t* loaded_out = boat_model_forward(loaded, in2);
+    if (!loaded_out) {
+        boat_tensor_unref(orig_out); boat_tensor_unref(input); boat_tensor_unref(in2);
+        free(onnx_data); boat_model_free(model); boat_model_free(loaded);
+        FAIL("loaded forward failed");
+    }
+
+    // Compare
+    const float* od_orig = (const float*)boat_tensor_const_data(orig_out);
+    const float* od_loaded = (const float*)boat_tensor_const_data(loaded_out);
+    bool match = true;
+    for (int i = 0; i < 6; i++) {
+        if (fabsf(od_orig[i] - od_loaded[i]) > 1e-5f) {
+            printf("FAIL: output[%d] orig=%f loaded=%f\n", i, od_orig[i], od_loaded[i]);
+            match = false; break;
+        }
+    }
+
+    boat_tensor_unref(orig_out);
+    boat_tensor_unref(loaded_out);
+    boat_tensor_unref(input);
+    boat_tensor_unref(in2);
+    free(onnx_data);
+    boat_model_free(model);
+    boat_model_free(loaded);
+
+    if (!match) return 1;
+    PASS(); return 0;
+}
+
+static int test_onnx_save_roundtrip(void) {
+    TEST("ONNX save roundtrip (pb -> load -> save -> load)");
+
+    size_t model_size;
+    uint8_t* model_bytes = build_test_onnx(&model_size);
+    if (!model_bytes) FAIL("build_test_onnx failed");
+
+    boat_model_t* model = boat_onnx_load_from_memory(model_bytes, model_size);
+    if (!model) { free(model_bytes); FAIL("initial load failed"); }
+
+    // Forward to get reference
+    int64_t in_shape[] = {2, 4};
+    float in_data[] = {-0.5f, 0.5f, -1.0f, 1.0f, 1.0f, 0.0f, -1.0f, -0.5f};
+    boat_tensor_t* input = boat_tensor_from_data(in_shape, 2, BOAT_DTYPE_FLOAT32, in_data);
+    if (!input) { free(model_bytes); boat_model_free(model); FAIL("input failed"); }
+
+    boat_tensor_t* ref_out = boat_model_forward(model, input);
+    if (!ref_out) {
+        boat_tensor_unref(input); free(model_bytes); boat_model_free(model);
+        FAIL("reference forward failed");
+    }
+
+    // Save and reload
+    void* save_data;
+    size_t save_size;
+    if (!boat_onnx_save_to_memory(model, &save_data, &save_size)) {
+        boat_tensor_unref(ref_out); boat_tensor_unref(input); free(model_bytes);
+        boat_model_free(model); FAIL("save_to_memory failed");
+    }
+
+    boat_model_t* reloaded = boat_onnx_load_from_memory(save_data, save_size);
+    if (!reloaded) {
+        boat_tensor_unref(ref_out); boat_tensor_unref(input); free(save_data);
+        free(model_bytes); boat_model_free(model);
+        FAIL("reload failed");
+    }
+
+    boat_tensor_t* in2 = boat_tensor_from_data(in_shape, 2, BOAT_DTYPE_FLOAT32, in_data);
+    boat_tensor_t* reloaded_out = boat_model_forward(reloaded, in2);
+    if (!reloaded_out) {
+        FAIL("reloaded forward failed");
+    }
+
+    const float* ref_data = (const float*)boat_tensor_const_data(ref_out);
+    const float* reload_data = (const float*)boat_tensor_const_data(reloaded_out);
+    bool match = true;
+    for (int i = 0; i < 6; i++) {
+        if (fabsf(ref_data[i] - reload_data[i]) > 1e-5f) {
+            printf("FAIL: output[%d] ref=%f reload=%f\n", i, ref_data[i], reload_data[i]);
+            match = false; break;
+        }
+    }
+
+    boat_tensor_unref(ref_out);
+    boat_tensor_unref(reloaded_out);
+    boat_tensor_unref(input);
+    boat_tensor_unref(in2);
+    free(save_data);
+    free(model_bytes);
+    boat_model_free(model);
+    boat_model_free(reloaded);
+
+    if (!match) return 1;
+    PASS(); return 0;
+}
+
 int main(void) {
     setvbuf(stdout, NULL, _IONBF, 0);
     printf("ONNX Loader Tests\n");
@@ -1122,6 +1281,8 @@ int main(void) {
     fail |= test_onnx_load_softmax();
     fail |= test_onnx_load_flatten();
     fail |= test_onnx_load_cnn();
+    fail |= test_onnx_save_model();
+    fail |= test_onnx_save_roundtrip();
 
     printf("\nResults: %d/%d passed\n", tests_passed, tests_total);
     return fail ? 1 : 0;
