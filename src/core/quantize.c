@@ -29,28 +29,46 @@ BOAT_API void boat_compute_quant_params(float min_val, float max_val,
                                          bool symmetric,
                                          float* out_scale,
                                          int32_t* out_zero_point) {
-    (void)quant_dtype; // only UINT8 supported for now
-
     // Degenerate case: all values identical
     if (max_val - min_val < 1e-10f) {
-        // Use symmetric-style centered quantization
         float abs_val = fmaxf(fabsf(min_val), 1e-10f);
-        *out_scale = abs_val / 127.0f;
-        *out_zero_point = 128;
+        if (quant_dtype == BOAT_DTYPE_INT8) {
+            *out_scale = abs_val / 127.0f;
+            *out_zero_point = 0;
+        } else {
+            *out_scale = abs_val / 127.0f;
+            *out_zero_point = 128;
+        }
         return;
     }
 
-    if (symmetric) {
-        // Symmetric UINT8: map [-abs_max, +abs_max] -> [0, 255], zp = 128
-        float abs_max = fmaxf(fabsf(min_val), fabsf(max_val));
-        *out_scale = abs_max / 127.0f;
-        *out_zero_point = 128;
+    if (quant_dtype == BOAT_DTYPE_INT8) {
+        if (symmetric) {
+            // Symmetric INT8: map [-abs_max, +abs_max] -> [-128, 127], zp = 0
+            float abs_max = fmaxf(fabsf(min_val), fabsf(max_val));
+            *out_scale = abs_max / 127.0f;
+            *out_zero_point = 0;
+        } else {
+            // Asymmetric INT8: map [min_val, max_val] -> [-128, 127]
+            *out_scale = (max_val - min_val) / 255.0f;
+            float inv_scale = 1.0f / *out_scale;
+            *out_zero_point = -128 - (int32_t)roundf(min_val * inv_scale);
+            if (*out_zero_point < -128) *out_zero_point = -128;
+            if (*out_zero_point > 127) *out_zero_point = 127;
+        }
     } else {
-        // Asymmetric UINT8: map [min_val, max_val] -> [0, 255]
-        // zp can be negative or > 255 — the q values will still be in [0,255].
-        *out_scale = (max_val - min_val) / 255.0f;
-        float inv_scale = 1.0f / *out_scale;
-        *out_zero_point = (int32_t)roundf(-min_val * inv_scale);
+        // UINT8 (default)
+        if (symmetric) {
+            // Symmetric UINT8: map [-abs_max, +abs_max] -> [0, 255], zp = 128
+            float abs_max = fmaxf(fabsf(min_val), fabsf(max_val));
+            *out_scale = abs_max / 127.0f;
+            *out_zero_point = 128;
+        } else {
+            // Asymmetric UINT8: map [min_val, max_val] -> [0, 255]
+            *out_scale = (max_val - min_val) / 255.0f;
+            float inv_scale = 1.0f / *out_scale;
+            *out_zero_point = (int32_t)roundf(-min_val * inv_scale);
+        }
     }
 }
 
@@ -88,10 +106,10 @@ BOAT_API boat_tensor_t* boat_quantize_tensor(const boat_tensor_t* fp32_tensor,
     boat_compute_quant_params(min_val, max_val, config->quant_dtype,
                               config->symmetric, &scale, &zero_point);
 
-    // Create UINT8 output tensor with same shape
+    // Create quantized output tensor with the requested dtype
     const int64_t* shape = boat_tensor_shape(fp32_tensor);
     size_t ndim = boat_tensor_ndim(fp32_tensor);
-    boat_tensor_t* quantized = boat_tensor_create(shape, ndim, BOAT_DTYPE_UINT8,
+    boat_tensor_t* quantized = boat_tensor_create(shape, ndim, config->quant_dtype,
                                                    BOAT_DEVICE_CPU);
     if (!quantized) return NULL;
 
@@ -99,13 +117,23 @@ BOAT_API boat_tensor_t* boat_quantize_tensor(const boat_tensor_t* fp32_tensor,
     boat_tensor_set_quant_params(quantized, scale, zero_point);
 
     // Pass 2: quantize
-    uint8_t* dst = (uint8_t*)boat_tensor_data(quantized);
     float inv_scale = 1.0f / scale;
-    for (size_t i = 0; i < n; i++) {
-        int32_t q = (int32_t)roundf(src[i] * inv_scale) + zero_point;
-        if (q < 0) q = 0;
-        if (q > 255) q = 255;
-        dst[i] = (uint8_t)q;
+    if (config->quant_dtype == BOAT_DTYPE_INT8) {
+        int8_t* dst = (int8_t*)boat_tensor_data(quantized);
+        for (size_t i = 0; i < n; i++) {
+            int32_t q = (int32_t)roundf(src[i] * inv_scale) + zero_point;
+            if (q < -128) q = -128;
+            if (q > 127) q = 127;
+            dst[i] = (int8_t)q;
+        }
+    } else {
+        uint8_t* dst = (uint8_t*)boat_tensor_data(quantized);
+        for (size_t i = 0; i < n; i++) {
+            int32_t q = (int32_t)roundf(src[i] * inv_scale) + zero_point;
+            if (q < 0) q = 0;
+            if (q > 255) q = 255;
+            dst[i] = (uint8_t)q;
+        }
     }
 
     return quantized;
@@ -116,10 +144,11 @@ BOAT_API boat_tensor_t* boat_dequantize_tensor(const boat_tensor_t* quantized_te
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Dequantize] NULL argument\n");
         return NULL;
     }
-    if (boat_tensor_dtype(quantized_tensor) != BOAT_DTYPE_UINT8) {
+    boat_dtype_t dt = boat_tensor_dtype(quantized_tensor);
+    if (dt != BOAT_DTYPE_UINT8 && dt != BOAT_DTYPE_INT8) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
-                        "[Dequantize] expected UINT8 tensor, got %s\n",
-                        boat_dtype_name(boat_tensor_dtype(quantized_tensor)));
+                        "[Dequantize] expected UINT8 or INT8 tensor, got %s\n",
+                        boat_dtype_name(dt));
         return NULL;
     }
 
@@ -131,9 +160,7 @@ BOAT_API boat_tensor_t* boat_dequantize_tensor(const boat_tensor_t* quantized_te
     }
     int32_t zero_point = boat_tensor_get_zero_point(quantized_tensor);
 
-    const uint8_t* src = (const uint8_t*)boat_tensor_const_data(quantized_tensor);
     size_t n = boat_tensor_nelements(quantized_tensor);
-
     const int64_t* shape = boat_tensor_shape(quantized_tensor);
     size_t ndim = boat_tensor_ndim(quantized_tensor);
     boat_tensor_t* fp32 = boat_tensor_create(shape, ndim, BOAT_DTYPE_FLOAT32,
@@ -141,8 +168,16 @@ BOAT_API boat_tensor_t* boat_dequantize_tensor(const boat_tensor_t* quantized_te
     if (!fp32) return NULL;
 
     float* dst = (float*)boat_tensor_data(fp32);
-    for (size_t i = 0; i < n; i++) {
-        dst[i] = ((int32_t)src[i] - zero_point) * scale;
+    if (dt == BOAT_DTYPE_INT8) {
+        const int8_t* src = (const int8_t*)boat_tensor_const_data(quantized_tensor);
+        for (size_t i = 0; i < n; i++) {
+            dst[i] = ((int32_t)src[i] - zero_point) * scale;
+        }
+    } else {
+        const uint8_t* src = (const uint8_t*)boat_tensor_const_data(quantized_tensor);
+        for (size_t i = 0; i < n; i++) {
+            dst[i] = ((int32_t)src[i] - zero_point) * scale;
+        }
     }
 
     return fp32;
@@ -212,8 +247,9 @@ static bool dequantize_layer_weight(void* layer_data, boat_layer_type_t type) {
     weight = get_weight(layer_data);
     if (!weight) return false;
 
-    // Only dequantize UINT8 tensors with scale != 0
-    if (boat_tensor_dtype(weight) != BOAT_DTYPE_UINT8 ||
+    // Only dequantize UINT8/INT8 tensors with scale != 0
+    boat_dtype_t wdt = boat_tensor_dtype(weight);
+    if ((wdt != BOAT_DTYPE_UINT8 && wdt != BOAT_DTYPE_INT8) ||
         boat_tensor_get_scale(weight) == 0.0f) {
         return true; // not quantized, skip
     }

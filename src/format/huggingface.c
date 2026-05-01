@@ -599,7 +599,7 @@ static boat_dtype_t boat_dtype_from_safetensors(safetensors_dtype_t sdtype) {
         case SAFETENSORS_DTYPE_I64: return BOAT_DTYPE_INT64;
         case SAFETENSORS_DTYPE_I32: return BOAT_DTYPE_INT32;
         case SAFETENSORS_DTYPE_I16: return BOAT_DTYPE_INT32; // Map to INT32
-        case SAFETENSORS_DTYPE_I8: return BOAT_DTYPE_INT32;  // Map to INT32
+        case SAFETENSORS_DTYPE_I8: return BOAT_DTYPE_INT8;
         case SAFETENSORS_DTYPE_U64: return BOAT_DTYPE_INT64; // Map to INT64
         case SAFETENSORS_DTYPE_U32: return BOAT_DTYPE_INT32; // Map to INT32
         case SAFETENSORS_DTYPE_U16: return BOAT_DTYPE_INT32; // Map to INT32

@@ -50,6 +50,7 @@ static size_t dtype_size(boat_dtype_t dtype) {
         case BOAT_DTYPE_INT64:   return sizeof(int64_t);
         case BOAT_DTYPE_INT32:   return sizeof(int32_t);
         case BOAT_DTYPE_UINT8:   return sizeof(uint8_t);
+        case BOAT_DTYPE_INT8:    return sizeof(int8_t);
         case BOAT_DTYPE_BITS2:   return 1;  // 2 bits packed (4 per byte)
         case BOAT_DTYPE_BITS1:   return 1;  // 1 bit packed (8 per byte)
         case BOAT_DTYPE_BOOL:    return sizeof(bool);
@@ -251,6 +252,7 @@ BOAT_API const char* boat_dtype_name(boat_dtype_t dtype) {
         case BOAT_DTYPE_INT64:   return "int64";
         case BOAT_DTYPE_INT32:   return "int32";
         case BOAT_DTYPE_UINT8:   return "uint8";
+        case BOAT_DTYPE_INT8:    return "int8";
         case BOAT_DTYPE_BITS2:   return "bits2";
         case BOAT_DTYPE_BITS1:   return "bits1";
         case BOAT_DTYPE_BOOL:    return "bool";

@@ -62,6 +62,8 @@ int main() {
         assert(boat_dtype_size(BOAT_DTYPE_FLOAT64) == sizeof(double));
         assert(boat_dtype_size(BOAT_DTYPE_INT32) == sizeof(int32_t));
         assert(boat_dtype_size(BOAT_DTYPE_INT64) == sizeof(int64_t));
+        assert(boat_dtype_size(BOAT_DTYPE_INT8) == sizeof(int8_t));
+        assert(boat_dtype_size(BOAT_DTYPE_UINT8) == sizeof(uint8_t));
 
         const char* name = boat_dtype_name(BOAT_DTYPE_FLOAT32);
         assert(name != NULL);
@@ -89,6 +91,14 @@ int main() {
         boat_tensor_t* uint8_tensor = boat_tensor_create(shape, 1, BOAT_DTYPE_UINT8, BOAT_DEVICE_CPU);
         assert(uint8_tensor != NULL);
         boat_tensor_unref(uint8_tensor);
+
+        // Test INT8
+        boat_tensor_t* int8_tensor = boat_tensor_create(shape, 1, BOAT_DTYPE_INT8, BOAT_DEVICE_CPU);
+        assert(int8_tensor != NULL);
+        int8_t* int8_data = (int8_t*)boat_tensor_data(int8_tensor);
+        int8_data[0] = -42;
+        assert(int8_data[0] == -42);
+        boat_tensor_unref(int8_tensor);
 
         // Test BOOL
         boat_tensor_t* bool_tensor = boat_tensor_create(shape, 1, BOAT_DTYPE_BOOL, BOAT_DEVICE_CPU);

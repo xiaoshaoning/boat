@@ -179,11 +179,30 @@ static bool test_transpose_different_dtypes() {
         if (!t_t) all_pass = false;
 
         // For unsupported types, we just expect a tensor with swapped shape
-        // (implementation may or may not actually transpose)
         if (t_t) {
             const int64_t* out_shape = boat_tensor_shape(t_t);
             if (!(out_shape[0] == 3 && out_shape[1] == 2)) all_pass = false;
 
+            boat_tensor_unref(t_t);
+        }
+        if (t) boat_tensor_unref(t);
+    }
+
+    // Test int8 (same fallback path as uint8)
+    {
+        int64_t shape[] = {2, 3};
+        boat_tensor_t* t = boat_tensor_create(shape, 2, BOAT_DTYPE_INT8, BOAT_DEVICE_CPU);
+        if (!t) all_pass = false;
+
+        int8_t* data = (int8_t*)boat_tensor_data(t);
+        for (int i = 0; i < 6; i++) data[i] = (int8_t)(i + 1);
+
+        boat_tensor_t* t_t = boat_transpose(t, 0, 1);
+        if (!t_t) all_pass = false;
+
+        if (t_t) {
+            const int64_t* out_shape = boat_tensor_shape(t_t);
+            if (!(out_shape[0] == 3 && out_shape[1] == 2)) all_pass = false;
             boat_tensor_unref(t_t);
         }
         if (t) boat_tensor_unref(t);

@@ -351,6 +351,95 @@ static int test_quantized_save_load_forward(void) {
     PASS(); return 0;
 }
 
+// --- Test 12: INT8 quantize-dequantize roundtrip ---
+static int test_roundtrip_int8(void) {
+    TEST("INT8 quantize-dequantize roundtrip");
+    int64_t shape[] = {3, 4};
+    boat_tensor_t* fp32 = boat_tensor_create(shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    fill_tensor(fp32, 0.0f);
+
+    boat_quant_config_t cfg = boat_quant_config_default();
+    cfg.quant_dtype = BOAT_DTYPE_INT8;
+    boat_tensor_t* q = boat_quantize_tensor(fp32, &cfg);
+    if (!q) FAIL("quantize returned NULL");
+    if (boat_tensor_dtype(q) != BOAT_DTYPE_INT8) FAIL("dtype not INT8");
+    if (boat_tensor_get_scale(q) == 0.0f) FAIL("scale is 0");
+
+    boat_tensor_t* deq = boat_dequantize_tensor(q);
+    if (!deq) FAIL("dequantize returned NULL");
+
+    if (!tensors_allclose(fp32, deq, 0.05f)) FAIL("values out of tolerance");
+    boat_tensor_unref(fp32);
+    boat_tensor_unref(q);
+    boat_tensor_unref(deq);
+    PASS(); return 0;
+}
+
+// --- Test 13: INT8 symmetric quantization (zp=0) ---
+static int test_symmetric_int8(void) {
+    TEST("INT8 symmetric quantization");
+    float data[] = {-2.0f, -1.0f, 0.0f, 1.0f, 2.0f};
+    int64_t shape[] = {5};
+    boat_tensor_t* fp32 = boat_tensor_from_data(shape, 1, BOAT_DTYPE_FLOAT32, data);
+
+    boat_quant_config_t cfg = boat_quant_config_default();
+    cfg.quant_dtype = BOAT_DTYPE_INT8;
+    cfg.symmetric = true;
+    boat_tensor_t* q = boat_quantize_tensor(fp32, &cfg);
+    if (!q) FAIL("quantize returned NULL");
+    if (boat_tensor_get_zero_point(q) != 0) FAIL("zp not 0 for INT8 symmetric");
+
+    boat_tensor_t* deq = boat_dequantize_tensor(q);
+    if (!tensors_allclose(fp32, deq, 0.05f)) FAIL("values out of tolerance");
+    boat_tensor_unref(fp32);
+    boat_tensor_unref(q);
+    boat_tensor_unref(deq);
+    PASS(); return 0;
+}
+
+// --- Test 14: INT8 quantized bounds in [-128, 127] ---
+static int test_bounds_int8(void) {
+    TEST("INT8 quantized values in [-128, 127]");
+    float data[] = {-100.0f, 0.0f, 100.0f, 1000.0f};
+    int64_t shape[] = {4};
+    boat_tensor_t* fp32 = boat_tensor_from_data(shape, 1, BOAT_DTYPE_FLOAT32, data);
+
+    boat_quant_config_t cfg = boat_quant_config_default();
+    cfg.quant_dtype = BOAT_DTYPE_INT8;
+    boat_tensor_t* q = boat_quantize_tensor(fp32, &cfg);
+    if (!q) FAIL("quantize returned NULL");
+
+    const int8_t* qd = (const int8_t*)boat_tensor_const_data(q);
+    size_t n = boat_tensor_nelements(q);
+    for (size_t i = 0; i < n; i++) {
+        if (qd[i] < -128 || qd[i] > 127) FAIL("value out of INT8 range");
+    }
+    boat_tensor_unref(fp32);
+    boat_tensor_unref(q);
+    PASS(); return 0;
+}
+
+// --- Test 15: INT8 model quantize Dense ---
+static int test_model_quantize_dense_int8(void) {
+    TEST("INT8 model quantize Dense");
+    boat_model_t* m = boat_model_create();
+    boat_dense_layer_t* d = boat_dense_layer_create(4, 8, true);
+    fill_tensor(boat_dense_layer_get_weight(d), 1.0f);
+    fill_tensor(boat_dense_layer_get_bias(d), 0.1f);
+    boat_model_add_layer(m, wrap(d, BOAT_LAYER_TYPE_DENSE));
+
+    boat_quant_config_t cfg = boat_quant_config_default();
+    cfg.quant_dtype = BOAT_DTYPE_INT8;
+    if (!boat_model_quantize(m, &cfg)) FAIL("model_quantize failed");
+
+    boat_tensor_t* w = boat_dense_layer_get_weight(d);
+    if (boat_tensor_dtype(w) != BOAT_DTYPE_INT8) FAIL("weight dtype not INT8");
+    if (boat_tensor_get_scale(w) == 0.0f) FAIL("weight scale is 0");
+
+    boat_model_free(m);
+    PASS(); return 0;
+}
+
 int main(void) {
     setvbuf(stdout, NULL, _IONBF, 0);
     printf("Quantization Tests\n");
@@ -368,6 +457,10 @@ int main(void) {
     fail |= test_calibration();
     fail |= test_quantized_save_load();
     fail |= test_quantized_save_load_forward();
+    fail |= test_roundtrip_int8();
+    fail |= test_symmetric_int8();
+    fail |= test_bounds_int8();
+    fail |= test_model_quantize_dense_int8();
 
     printf("\nResults: %d/%d passed\n", tests_passed, tests_total);
     return fail ? 1 : 0;

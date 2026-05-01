@@ -41,6 +41,9 @@ typedef enum {
     // Special types
     BOAT_DTYPE_BOOL,      // boolean (1 byte per element)
 
+    // Future types (at end for backward compat with serialization)
+    BOAT_DTYPE_INT8,      // 8-bit signed integer
+
     BOAT_DTYPE_COUNT      // number of data types
 } boat_dtype_t;
 

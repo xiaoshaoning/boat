@@ -29,9 +29,7 @@ static boat_dtype_t torch_dtype_to_boat(torch::Dtype dtype) {
             return BOAT_DTYPE_FLOAT32;
         case torch::kInt32:   return BOAT_DTYPE_INT32;
         case torch::kInt64:   return BOAT_DTYPE_INT64;
-        case torch::kInt8:
-            // INT8 not yet supported in Boat, fall back to INT32
-            return BOAT_DTYPE_INT32;
+        case torch::kInt8:    return BOAT_DTYPE_INT8;
         case torch::kUInt8:   return BOAT_DTYPE_UINT8;
         case torch::kBool:    return BOAT_DTYPE_BOOL;
         default:              return BOAT_DTYPE_FLOAT32;

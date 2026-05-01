@@ -233,6 +233,17 @@ boat_tensor_t* boat_##op_name(const boat_tensor_t* a, const boat_tensor_t* b) { 
             } \
             break; \
         } \
+        case BOAT_DTYPE_INT8: { \
+            const int8_t* a_ptr = (const int8_t*)a_data; \
+            const int8_t* b_ptr = (const int8_t*)b_data; \
+            int8_t* out_ptr = (int8_t*)out_data; \
+            for (size_t i = 0; i < nelements; i++) { \
+                size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); \
+                size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); \
+                out_ptr[i] = a_ptr[a_idx] op b_ptr[b_idx]; \
+            } \
+            break; \
+        } \
         case BOAT_DTYPE_BOOL: { \
             const bool* a_ptr = (const bool*)a_data; \
             const bool* b_ptr = (const bool*)b_data; \
@@ -696,6 +707,15 @@ boat_tensor_t* boat_sum(const boat_tensor_t* a, const int64_t* dims, size_t n_di
                 sum += ptr[i];
             }
             *((uint8_t*)out_data) = sum;
+            break;
+        }
+        case BOAT_DTYPE_INT8: {
+            const int8_t* ptr = (const int8_t*)data;
+            int8_t sum = 0;
+            for (size_t i = 0; i < nelements; i++) {
+                sum += ptr[i];
+            }
+            *((int8_t*)out_data) = sum;
             break;
         }
         default:

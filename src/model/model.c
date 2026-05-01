@@ -391,7 +391,8 @@ static bool save_tensor_to_file(FILE* f, const boat_tensor_t* tensor, uint32_t v
     if (fwrite(data, 1, nbytes, f) != nbytes) return false;
 
     if (version >= 2) {
-        bool quantized = (boat_tensor_dtype(tensor) == BOAT_DTYPE_UINT8 &&
+        bool quantized = ((boat_tensor_dtype(tensor) == BOAT_DTYPE_UINT8 ||
+                           boat_tensor_dtype(tensor) == BOAT_DTYPE_INT8) &&
                           boat_tensor_get_scale(tensor) != 0.0f);
         uint32_t quant_flag = quantized ? 1 : 0;
         if (fwrite(&quant_flag, sizeof(uint32_t), 1, f) != 1) return false;
@@ -614,7 +615,8 @@ bool boat_model_save(const boat_model_t* model, const char* filename) {
             default:
                 break;
         }
-        if (w && boat_tensor_dtype(w) == BOAT_DTYPE_UINT8 &&
+        if (w && (boat_tensor_dtype(w) == BOAT_DTYPE_UINT8 ||
+                   boat_tensor_dtype(w) == BOAT_DTYPE_INT8) &&
             boat_tensor_get_scale(w) != 0.0f) {
             version = 2;
             break;
