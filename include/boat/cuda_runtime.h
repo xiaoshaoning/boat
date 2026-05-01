@@ -63,6 +63,56 @@ void boat_cuda_matmul_f32(const float* A, const float* B, float* C,
                           size_t M, size_t N, size_t K);
 
 // ---------------------------------------------------------------------------
+// cuBLAS wrappers
+// ---------------------------------------------------------------------------
+void boat_cuda_cublas_destroy(void);
+void boat_cuda_matmul_f32_cublas(const float* A, const float* B, float* C,
+                                  size_t M, size_t N, size_t K);
+void boat_cuda_matmul_f32_strided_batched(const float* A, const float* B, float* C,
+                                           size_t M, size_t N, size_t K,
+                                           size_t batch_count,
+                                           int64_t stride_A, int64_t stride_B, int64_t stride_C);
+
+// ---------------------------------------------------------------------------
+// Dense layer kernels
+// ---------------------------------------------------------------------------
+void boat_cuda_dense_forward_f32(const float* input, const float* weight,
+                                  const float* bias, float* output,
+                                  size_t B, size_t I, size_t O);
+void boat_cuda_dense_forward_warp_f32(const float* input, const float* weight,
+                                       const float* bias, float* output,
+                                       size_t B, size_t I, size_t O);
+void boat_cuda_add_bias_f32(const float* input, const float* bias,
+                             float* output, size_t B, size_t O);
+
+// ---------------------------------------------------------------------------
+// Conv2D kernels (implicit GEMM via im2col + cuBLAS)
+// ---------------------------------------------------------------------------
+void boat_cuda_conv2d_forward_f32(const float* input, const float* weight,
+                                   const float* bias, float* output,
+                                   size_t N, size_t C, size_t H, size_t W,
+                                   size_t OC, size_t KH, size_t KW,
+                                   size_t pad, size_t stride, size_t groups);
+
+// ---------------------------------------------------------------------------
+// Batch norm kernels
+// ---------------------------------------------------------------------------
+void boat_cuda_batchnorm_forward_f32(const float* input, float* output,
+                                      const float* gamma, const float* beta,
+                                      float* mean, float* var,
+                                      size_t N, size_t C, size_t H, size_t W,
+                                      float eps);
+
+// ---------------------------------------------------------------------------
+// Fused kernels
+// ---------------------------------------------------------------------------
+void boat_cuda_fused_bn_relu_f32(const float* input, float* output,
+                                   const float* gamma, const float* beta,
+                                   const float* mean, const float* var,
+                                   size_t N, size_t C, size_t H, size_t W,
+                                   float eps);
+
+// ---------------------------------------------------------------------------
 // Tensor device transfer
 // ---------------------------------------------------------------------------
 void* boat_cuda_clone_to_device(const void* src, size_t nbytes);

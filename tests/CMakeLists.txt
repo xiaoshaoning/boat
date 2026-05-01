@@ -122,5 +122,7 @@ if(BOAT_WITH_CUDA)
     target_link_libraries(test_cuda_mini boat)
     add_executable(test_cuda_basic test_cuda_basic.c)
     target_link_libraries(test_cuda_basic boat)
+    add_executable(test_cuda_layers test_cuda_layers.c)
+    target_link_libraries(test_cuda_layers boat)
 endif()
 

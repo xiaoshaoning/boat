@@ -322,12 +322,16 @@ if(BOAT_WITH_CUDA)
     # CUDA source files
     set(BOAT_CUDA_SOURCES
         cuda/tensor.cu
+        cuda/cublas_handle.cu
         cuda/ops/arithmetic.cu
         cuda/ops/linear.cu
         cuda/ops/activation.cu
         cuda/autodiff/grad.cu
         cuda/graph/executor.cu
         cuda/kernels/basic.cu
+        cuda/kernels/dense.cu
+        cuda/kernels/conv.cu
+        cuda/kernels/fused.cu
     )
 
     list(APPEND BOAT_SOURCES ${BOAT_CUDA_SOURCES})
