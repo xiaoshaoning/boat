@@ -305,11 +305,11 @@ The autodiff version provides more detailed training metrics and automatic hyper
 boat_sequential_model_t* model = boat_sequential_create();
 
 // Add convolutional layers
-boat_layer_t* conv1 = boat_conv_layer_create(1, 32, 3, 1, 1);
+boat_layer_t* conv1 = boat_conv_layer_create(1, 32, 3, 1, 1, 1);
 boat_layer_t* relu1 = boat_relu_layer_create();
 boat_layer_t* pool1 = boat_pool_layer_create(2, 2, 0);
 
-boat_layer_t* conv2 = boat_conv_layer_create(32, 64, 3, 1, 1);
+boat_layer_t* conv2 = boat_conv_layer_create(32, 64, 3, 1, 1, 1);
 boat_layer_t* relu2 = boat_relu_layer_create();
 boat_layer_t* pool2 = boat_pool_layer_create(2, 2, 0);
 

@@ -336,6 +336,11 @@ if(BOAT_WITH_CUDA)
     set(CMAKE_CUDA_STANDARD 11)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
+    # Default CUDA architectures (Blackwell+ — override with -DCMAKE_CUDA_ARCHITECTURES=)
+    if(NOT CMAKE_CUDA_ARCHITECTURES)
+        set(CMAKE_CUDA_ARCHITECTURES "100" CACHE STRING "CUDA architectures to target")
+    endif()
+
     # Find CUDA
     find_package(CUDAToolkit REQUIRED)
 endif()
@@ -426,6 +431,7 @@ target_include_directories(boat PUBLIC
 
 # Link libraries
 if(BOAT_WITH_CUDA)
+    target_compile_definitions(boat PRIVATE BOAT_WITH_CUDA)
     target_link_libraries(boat PUBLIC CUDA::cudart CUDA::cublas)
 endif()
 

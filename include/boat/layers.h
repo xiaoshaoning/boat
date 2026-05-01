@@ -55,7 +55,8 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_get_grad_bias(const boat_dens
 
 // Convolutional layer functions
 BOAT_API boat_conv_layer_t* BOAT_CALL boat_conv_layer_create(size_t in_channels, size_t out_channels,
-                                           size_t kernel_size, size_t stride, size_t padding);
+                                           size_t kernel_size, size_t stride, size_t padding,
+                                           size_t groups);
 BOAT_API void BOAT_CALL boat_conv_layer_free(boat_conv_layer_t* layer);
 BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* layer, const boat_tensor_t* input);
 BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* layer, const boat_tensor_t* grad_output);
@@ -70,6 +71,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_grad_weight(const boat_con
 BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_grad_bias(const boat_conv_layer_t* layer);
 BOAT_API size_t BOAT_CALL boat_conv_layer_get_stride(const boat_conv_layer_t* layer);
 BOAT_API size_t BOAT_CALL boat_conv_layer_get_padding(const boat_conv_layer_t* layer);
+BOAT_API size_t BOAT_CALL boat_conv_layer_get_groups(const boat_conv_layer_t* layer);
 
 // Batch normalization layer functions (BatchNorm2d)
 typedef struct boat_batchnorm2d_layer_t boat_batchnorm2d_layer_t;

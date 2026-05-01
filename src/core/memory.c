@@ -8,6 +8,10 @@
 #include <string.h>
 #include <stdio.h>
 
+#ifdef BOAT_WITH_CUDA
+#include <boat/cuda_runtime.h>
+#endif
+
 
 // Global memory statistics
 static boat_memory_stats_t g_memory_stats = {0};
@@ -169,18 +173,33 @@ void boat_memory_print_stats(FILE* stream) {
     }
 }
 
-// Device-specific memory allocation (stubs for now)
+// Device-specific memory allocation
 void* boat_memory_allocate_device(size_t size, boat_device_t device,
                                   const char* file, int line) {
-    // For now, just use CPU allocation
-    // TODO: Implement CUDA allocation when CUDA support is added
+    if (size == 0) return NULL;
+#ifdef BOAT_WITH_CUDA
+    if (device == BOAT_DEVICE_CUDA) {
+        void* ptr = boat_cuda_malloc(size);
+        if (!ptr) {
+            boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[Memory] CUDA allocation of %zu bytes failed at %s:%d\n",
+                    size, file, line);
+            return NULL;
+        }
+        return ptr;
+    }
+#endif
     return boat_memory_allocate(size, BOAT_DEVICE_CPU, file, line);
 }
 
 void boat_memory_free_device(void* ptr, boat_device_t device) {
-    // For now, just use CPU deallocation
-    // TODO: Implement CUDA deallocation when CUDA support is added
-    (void)device; // Unused parameter
+    if (!ptr) return;
+#ifdef BOAT_WITH_CUDA
+    if (device == BOAT_DEVICE_CUDA) {
+        boat_cuda_free(ptr);
+        return;
+    }
+#endif
+    (void)device;
     boat_memory_free(ptr);
 }
 
@@ -230,8 +249,15 @@ void boat_memory_copy(void* dest, const void* src, size_t size,
                       boat_device_t dest_device, boat_device_t src_device) {
     if (dest_device == BOAT_DEVICE_CPU && src_device == BOAT_DEVICE_CPU) {
         memcpy(dest, src, size);
+#ifdef BOAT_WITH_CUDA
+    } else if (dest_device == BOAT_DEVICE_CUDA && src_device == BOAT_DEVICE_CPU) {
+        boat_cuda_memcpy_h2d(dest, src, size);
+    } else if (dest_device == BOAT_DEVICE_CPU && src_device == BOAT_DEVICE_CUDA) {
+        boat_cuda_memcpy_d2h(dest, src, size);
+    } else if (dest_device == BOAT_DEVICE_CUDA && src_device == BOAT_DEVICE_CUDA) {
+        boat_cuda_memcpy_d2d(dest, src, size);
+#endif
     } else {
-        // TODO: Implement cross-device copying when CUDA support is added
         boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Memory] Cross-device memory copy not implemented yet\n");
     }
 }
@@ -239,8 +265,11 @@ void boat_memory_copy(void* dest, const void* src, size_t size,
 void boat_memory_set(void* dest, int value, size_t size, boat_device_t device) {
     if (device == BOAT_DEVICE_CPU) {
         memset(dest, value, size);
+#ifdef BOAT_WITH_CUDA
+    } else if (device == BOAT_DEVICE_CUDA) {
+        boat_cuda_memset(dest, value, size);
+#endif
     } else {
-        // TODO: Implement device-specific memset when CUDA support is added
         boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Memory] Device-specific memset not implemented yet\n");
     }
 }

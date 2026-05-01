@@ -14,7 +14,7 @@
 | Schedulers (StepLR, CosineAnnealing, LambdaLR) | Done | 2026-04 |
 | Loss functions (MSE, CrossEntropy, Huber) | Done | 2026-04 |
 | Sequential model API | Done | 2026-04 |
-| Advanced layers (Attention, GRU, LSTM, LayerNorm) | Done | 2026-04 |
+| Advanced layers (Attention, GRU, LSTM, LayerNorm, PReLU) | Done | 2026-04 |
 | Unit tests and gradient checks | Done | 2026-04 |
 
 ### Phase 2: Quantization ✅
@@ -53,6 +53,7 @@
 | Optimizer benchmarks | Done | 2026-04 |
 | Attention performance benchmark | Done | 2026-04 |
 | Transformer end-to-end (tokenization, training, decoding) | Done | 2026-05 |
+| InsightFace face recognition (ONNX ResNet50, 130-node graph) | Done | 2026-05 |
 
 ### Phase 5: Data Pipeline ✅
 
@@ -104,6 +105,26 @@ Extend Conv2D to support groups > 1 for depthwise separable convolutions (used i
 - unit tests with group > 1
 
 **Files:** `src/layers/conv.c`, `tests/test_conv.c`
+
+### 3. NanoChat LLM inference + training
+
+Implement a full inference and training pipeline for nanochat GPT models, following the detailed plan at `docs/nanochat_plan.md`.
+
+- Weight loader for nanochat checkpoint format (safetensors + meta)
+- BPE tokenizer (tiktoken-compatible regex splitting)
+- GPT model forward/backward: RoPE, GQA, RMSNorm, ReLU², sliding window attention, value residual, logit softcap
+- KV cache + inference engine (prefill + decode loop)
+- Sampling (top-k, temperature, repetition penalty)
+- Muon + AdamW optimizer (Polar Express + NorMuon)
+- BOS-aligned best-fit dataloader
+- Pretraining / SFT with loss masking / RL (GRPO) training loops
+- FP8 dynamic tensorwise scaling
+- Interactive chat CLI with tool use
+- Unit tests for all components
+
+**Files:** `examples/nanochat/*.{c,h}` (20+ new files), `src/ops/` (RoPE, gather, top-k), `src/core/` (FP8 extend)
+
+**Estimated:** 6 phases, ~12 weeks
 
 ---
 
@@ -165,4 +186,4 @@ BOAT_DTYPE_BITS1 already exists in the enum. Implement BNN-style binary convolut
 
 ---
 
-*Last updated: 2026-05-01*
+*Last updated: 2026-05-02*

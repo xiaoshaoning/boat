@@ -225,7 +225,7 @@ static int test_model_dequantize_dense(void) {
 static int test_model_quantize_conv(void) {
     TEST("Model quantize Conv2D");
     boat_model_t* m = boat_model_create();
-    boat_conv_layer_t* c = boat_conv_layer_create(1, 4, 3, 1, 1);
+    boat_conv_layer_t* c = boat_conv_layer_create(1, 4, 3, 1, 1, 1);
     fill_tensor(boat_conv_layer_get_weight(c), 1.0f);
     fill_tensor(boat_conv_layer_get_bias(c), 0.1f);
     boat_model_add_layer(m, wrap(c, BOAT_LAYER_TYPE_CONV2D));

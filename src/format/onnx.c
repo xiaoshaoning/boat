@@ -195,7 +195,7 @@ static boat_model_t* build_model(const onnx_model_t* onnx) {
             size_t padding = (size_t)get_attr_ints_first(node, "pads", 0);
 
             boat_conv_layer_t* conv = boat_conv_layer_create(
-                in_channels, out_channels, kernel_size, stride, padding);
+                in_channels, out_channels, kernel_size, stride, padding, 1);
             if (!conv) { boat_model_free(model); return NULL; }
 
             boat_tensor_t* w = onnx_tensor_to_boat(w_init);
@@ -897,7 +897,7 @@ static bool onnx_rt_build(boat_onnx_runtime_t* rt) {
             size_t stride = (size_t)get_attr_ints_first(on, "strides", 1);
             size_t padding = (size_t)get_attr_ints_first(on, "pads", 0);
             boat_conv_layer_t* conv = boat_conv_layer_create(
-                in_channels, out_channels, kernel_size, stride, padding);
+                in_channels, out_channels, kernel_size, stride, padding, 1);
             if (!conv) return false;
             boat_tensor_t* w = onnx_tensor_to_boat(w_init);
             if (!w) { boat_conv_layer_free(conv); return false; }

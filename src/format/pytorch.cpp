@@ -188,7 +188,7 @@ static boat_model_t* convert_pytorch_module_to_boat_model(const torch::jit::Modu
             }
 
             // Create conv layer
-            boat_conv_layer_t* conv_layer = boat_conv_layer_create(in_channels, out_channels, kernel_size, stride, padding);
+            boat_conv_layer_t* conv_layer = boat_conv_layer_create(in_channels, out_channels, kernel_size, stride, padding, 1);
             if (!conv_layer) {
                 BOAT_DEBUG_PRINT("[PyTorch] Warning: Failed to create conv layer for %s\n", name.c_str());
                 continue;

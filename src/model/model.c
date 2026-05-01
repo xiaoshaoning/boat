@@ -765,11 +765,12 @@ bool boat_model_save(const boat_model_t* model, const char* filename) {
                 boat_tensor_t* b = boat_conv_layer_get_bias(c);
                 const int64_t* ws = boat_tensor_shape(w);
 
-                uint32_t hp_size = sizeof(uint64_t) * 5;
+                uint32_t hp_size = sizeof(uint64_t) * 6;
                 uint64_t hp_in = (uint64_t)ws[1], hp_out = (uint64_t)ws[0];
                 uint64_t hp_k = (uint64_t)ws[2];
                 uint64_t hp_s = (uint64_t)boat_conv_layer_get_stride(c);
                 uint64_t hp_p = (uint64_t)boat_conv_layer_get_padding(c);
+                uint64_t hp_g = (uint64_t)boat_conv_layer_get_groups(c);
 
                 if (fwrite(&hp_size, sizeof(uint32_t), 1, f) != 1) { fclose(f); return false; }
                 fwrite(&hp_in, sizeof(uint64_t), 1, f);
@@ -777,6 +778,7 @@ bool boat_model_save(const boat_model_t* model, const char* filename) {
                 fwrite(&hp_k, sizeof(uint64_t), 1, f);
                 fwrite(&hp_s, sizeof(uint64_t), 1, f);
                 fwrite(&hp_p, sizeof(uint64_t), 1, f);
+                fwrite(&hp_g, sizeof(uint64_t), 1, f);
 
                 uint32_t tc = 2;
                 fwrite(&tc, sizeof(uint32_t), 1, f);
@@ -913,18 +915,23 @@ boat_model_t* boat_model_load(const char* filename) {
             }
             case BOAT_LAYER_TYPE_CONV2D: {
                 uint32_t hp_size;
-                if (fread(&hp_size, sizeof(uint32_t), 1, f) != 1 || hp_size != sizeof(uint64_t) * 5) {
+                if (fread(&hp_size, sizeof(uint32_t), 1, f) != 1 ||
+                    (hp_size != sizeof(uint64_t) * 5 && hp_size != sizeof(uint64_t) * 6)) {
                     free(wrapper); boat_model_free(model); fclose(f); return NULL;
                 }
-                uint64_t hp_in, hp_out, hp_k, hp_s, hp_p;
+                uint64_t hp_in, hp_out, hp_k, hp_s, hp_p, hp_g;
                 fread(&hp_in, sizeof(uint64_t), 1, f);
                 fread(&hp_out, sizeof(uint64_t), 1, f);
                 fread(&hp_k, sizeof(uint64_t), 1, f);
                 fread(&hp_s, sizeof(uint64_t), 1, f);
                 fread(&hp_p, sizeof(uint64_t), 1, f);
+                hp_g = 1;
+                if (hp_size == sizeof(uint64_t) * 6) {
+                    fread(&hp_g, sizeof(uint64_t), 1, f);
+                }
 
                 boat_conv_layer_t* conv = boat_conv_layer_create(
-                    (size_t)hp_in, (size_t)hp_out, (size_t)hp_k, (size_t)hp_s, (size_t)hp_p);
+                    (size_t)(hp_in * hp_g), (size_t)hp_out, (size_t)hp_k, (size_t)hp_s, (size_t)hp_p, (size_t)hp_g);
                 if (!conv) { free(wrapper); boat_model_free(model); fclose(f); return NULL; }
                 wrapper->data = conv;
 

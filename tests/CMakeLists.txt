@@ -116,3 +116,11 @@ if(BOAT_WITH_GGUF)
     target_link_libraries(test_gguf boat)
 endif()
 
+# CUDA backend tests
+if(BOAT_WITH_CUDA)
+    add_executable(test_cuda_mini test_cuda_mini.c)
+    target_link_libraries(test_cuda_mini boat)
+    add_executable(test_cuda_basic test_cuda_basic.c)
+    target_link_libraries(test_cuda_basic boat)
+endif()
+

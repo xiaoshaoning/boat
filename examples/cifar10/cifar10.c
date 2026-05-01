@@ -90,16 +90,16 @@ static cifar10_model_t* create_cifar10_model(void) {
     if (!model) return NULL;
 
     // Conv block 1: 3->32, 3x3, pad=1 -> ReLU -> Conv 32->32 -> ReLU -> MaxPool 2x2
-    model->conv1 = boat_conv_layer_create(3, 32, 3, 1, 1);
+    model->conv1 = boat_conv_layer_create(3, 32, 3, 1, 1, 1);
     model->relu1 = boat_relu_layer_create();
-    model->conv2 = boat_conv_layer_create(32, 32, 3, 1, 1);
+    model->conv2 = boat_conv_layer_create(32, 32, 3, 1, 1, 1);
     model->relu2 = boat_relu_layer_create();
     model->pool1 = boat_pool_layer_create(2, 2, 0);
 
     // Conv block 2: 32->64, 3x3, pad=1 -> ReLU -> Conv 64->64 -> ReLU -> MaxPool 2x2
-    model->conv3 = boat_conv_layer_create(32, 64, 3, 1, 1);
+    model->conv3 = boat_conv_layer_create(32, 64, 3, 1, 1, 1);
     model->relu3 = boat_relu_layer_create();
-    model->conv4 = boat_conv_layer_create(64, 64, 3, 1, 1);
+    model->conv4 = boat_conv_layer_create(64, 64, 3, 1, 1, 1);
     model->relu4 = boat_relu_layer_create();
     model->pool2 = boat_pool_layer_create(2, 2, 0);
 

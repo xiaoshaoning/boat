@@ -561,14 +561,14 @@ mnist_model_t* create_mnist_model(float learning_rate, int total_epochs) {
 
     // Create layers
     DEBUG_PRINT("create_mnist_model: creating conv1\n");
-    model->conv1 = boat_conv_layer_create(1, 32, 3, 1, 1);  // 1->32 channels, 3x3 kernel, stride=1, padding=1
+    model->conv1 = boat_conv_layer_create(1, 32, 3, 1, 1, 1);  // 1->32 channels, 3x3 kernel, stride=1, padding=1
     DEBUG_PRINT("create_mnist_model: conv1 = %p\n", model->conv1);
     DEBUG_PRINT("create_mnist_model: creating pool1\n");
     model->pool1 = boat_pool_layer_create(2, 2, 0);         // 2x2 max pool, stride=2
     DEBUG_PRINT("create_mnist_model: pool1 = %p\n", model->pool1);
 
     DEBUG_PRINT("create_mnist_model: creating conv2\n");
-    model->conv2 = boat_conv_layer_create(32, 64, 3, 1, 1); // 32->64 channels
+    model->conv2 = boat_conv_layer_create(32, 64, 3, 1, 1, 1); // 32->64 channels
     DEBUG_PRINT("create_mnist_model: conv2 = %p\n", model->conv2);
     DEBUG_PRINT("create_mnist_model: creating pool2\n");
     model->pool2 = boat_pool_layer_create(2, 2, 0);
