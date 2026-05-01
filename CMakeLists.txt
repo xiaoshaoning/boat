@@ -49,6 +49,8 @@ option(BOAT_WITH_PYTORCH "Enable PyTorch support" OFF)
 option(BOAT_WITH_TENSORFLOW "Enable TensorFlow support" OFF)
 option(BOAT_WITH_HUGGINGFACE "Enable Hugging Face Transformers support" OFF)
 option(BOAT_WITH_GGUF "Enable GGUF format support" OFF)
+option(BOAT_WITH_SIMD "Enable SIMD optimizations (AVX2/NEON)" ON)
+option(BOAT_WITH_OPENMP "Enable OpenMP parallelism" ON)
 option(BOAT_DEBUG "Enable debug output (0=disabled, 1=enabled)" 0)
 
 # PyTorch path configuration
@@ -71,6 +73,40 @@ if(BOAT_WITH_ASAN)
     else()
         message(WARNING "AddressSanitizer not supported for compiler ${CMAKE_C_COMPILER_ID}")
     endif()
+endif()
+
+# SIMD optimization flags
+if(BOAT_WITH_SIMD)
+    if(MSVC)
+        # MSVC: /arch:AVX2 enables AVX2 and FMA intrinsics
+        message(STATUS "Enabling AVX2 SIMD optimizations (MSVC)")
+        string(APPEND CMAKE_C_FLAGS " /arch:AVX2")
+    elseif(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        include(CheckCCompilerFlag)
+        check_c_compiler_flag("-mavx2" HAVE_AVX2_FLAG)
+        if(HAVE_AVX2_FLAG)
+            message(STATUS "Enabling AVX2+FMA SIMD optimizations")
+            string(APPEND CMAKE_C_FLAGS " -mavx2 -mfma")
+        else()
+            message(STATUS "AVX2 not supported by compiler, disabling SIMD")
+            set(BOAT_WITH_SIMD OFF)
+        endif()
+    endif()
+endif()
+
+# OpenMP parallelism
+if(BOAT_WITH_OPENMP)
+    find_package(OpenMP QUIET)
+    if(OpenMP_C_FOUND)
+        message(STATUS "Enabling OpenMP parallelism")
+        string(APPEND CMAKE_C_FLAGS " ${OpenMP_C_FLAGS}")
+        set(BOAT_LINK_OPENMP ON)
+    else()
+        message(STATUS "OpenMP not found, sequential fallback")
+        set(BOAT_LINK_OPENMP OFF)
+    endif()
+else()
+    set(BOAT_LINK_OPENMP OFF)
 endif()
 
 # Platform-specific optimization control for DLL compatibility
@@ -114,6 +150,8 @@ set(BOAT_SOURCES
     src/ops/arithmetic.c
     src/ops/linear.c
     src/ops/activation.c
+    src/ops/simd_kernels.c
+    src/ops/sgemm.c
     src/autodiff.c
     src/graph/node.c
     src/graph/edge.c
@@ -337,6 +375,21 @@ if(BOAT_WITH_GGUF)
     target_compile_definitions(boat PRIVATE BOAT_WITH_GGUF)
 endif()
 
+# SIMD compile-time flag
+if(BOAT_WITH_SIMD)
+    target_compile_definitions(boat PRIVATE BOAT_WITH_SIMD=1)
+else()
+    target_compile_definitions(boat PRIVATE BOAT_WITH_SIMD=0)
+endif()
+
+# OpenMP link and compile flag
+if(BOAT_LINK_OPENMP)
+    target_compile_definitions(boat PRIVATE BOAT_WITH_OPENMP=1)
+    target_link_libraries(boat PUBLIC OpenMP::OpenMP_C)
+else()
+    target_compile_definitions(boat PRIVATE BOAT_WITH_OPENMP=0)
+endif()
+
 # Set library properties
 set_target_properties(boat PROPERTIES
     VERSION ${PROJECT_VERSION}
@@ -445,4 +498,8 @@ endif()
 if(BOAT_WITH_TESTS)
     enable_testing()
     add_subdirectory(tests)
+
+    # Benchmarks
+    add_executable(benchmark_sgemm benchmarks/sgemm_benchmark.c)
+    target_link_libraries(benchmark_sgemm boat)
 endif()

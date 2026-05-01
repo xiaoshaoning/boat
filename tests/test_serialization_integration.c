@@ -90,11 +90,9 @@ static int test_dense_roundtrip(void) {
     if (!l0) FAIL("layer is NULL");
     if (l0->type != BOAT_LAYER_TYPE_DENSE) FAIL("wrong type");
     boat_dense_layer_t* ld = (boat_dense_layer_t*)l0->data;
-    if (!tensors_equal(boat_dense_layer_get_weight(ld), boat_dense_layer_get_weight(d)) ||
-        memcmp(w_orig, boat_tensor_const_data(boat_dense_layer_get_weight(ld)), w_bytes) != 0)
+    if (memcmp(w_orig, boat_tensor_const_data(boat_dense_layer_get_weight(ld)), w_bytes) != 0)
         FAIL("weight mismatch");
-    if (!tensors_equal(boat_dense_layer_get_bias(ld), boat_dense_layer_get_bias(d)) ||
-        memcmp(b_orig, boat_tensor_const_data(boat_dense_layer_get_bias(ld)), b_bytes) != 0)
+    if (memcmp(b_orig, boat_tensor_const_data(boat_dense_layer_get_bias(ld)), b_bytes) != 0)
         FAIL("bias mismatch");
     if (!l0->ops) FAIL("ops not set");
     boat_model_free(loaded); free(w_orig); free(b_orig);

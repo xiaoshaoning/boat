@@ -4,6 +4,9 @@
 
 #include <boat/ops.h>
 #include <boat/memory.h>
+#include <boat/sgemm.h>
+#include <boat/simd.h>
+#include "../core/openmp.h"
 #include <string.h>
 #include <math.h>
 #include <stdio.h>
@@ -112,21 +115,16 @@ boat_tensor_t* boat_matmul(const boat_tensor_t* a, const boat_tensor_t* b) {
             size_t b_batch_stride = has_batch ? (k * n) : 0;
             size_t out_batch_stride = has_batch ? (m * n) : 0;
 
-            // Naive batch matrix multiplication
-            for (int64_t batch = 0; batch < batch_size; batch++) {
+            // Use tiled SGEMM for each batch element
+            int batch_count = (int)batch_size;
+            int batch;
+            BOAT_OMP_PARALLEL_FOR
+            for (batch = 0; batch < batch_count; batch++) {
                 const float* a_batch_ptr = a_ptr + batch * a_batch_stride;
                 const float* b_batch_ptr = b_ptr + batch * b_batch_stride;
                 float* out_batch_ptr = out_ptr + batch * out_batch_stride;
 
-                for (int64_t i = 0; i < m; i++) {
-                    for (int64_t j = 0; j < n; j++) {
-                        float sum = 0.0f;
-                        for (int64_t l = 0; l < k; l++) {
-                            sum += a_batch_ptr[i * k + l] * b_batch_ptr[l * n + j];
-                        }
-                        out_batch_ptr[i * n + j] = sum;
-                    }
-                }
+                boat_sgemm(m, n, k, a_batch_ptr, b_batch_ptr, out_batch_ptr);
             }
             break;
         }
@@ -208,9 +206,21 @@ boat_tensor_t* boat_dot(const boat_tensor_t* a, const boat_tensor_t* b) {
             const float* a_ptr = (const float*)a_data;
             const float* b_ptr = (const float*)b_data;
             float* out_ptr = (float*)out_data;
+
+            // Use SIMD-accelerated dot product for large vectors
             float sum = 0.0f;
-            for (int64_t i = 0; i < n; i++) {
-                sum += a_ptr[i] * b_ptr[i];
+            if (n >= 16) {
+                // Compute elementwise product first, then sum
+                float* prod = (float*)malloc((size_t)n * sizeof(float));
+                if (prod) {
+                    boat_simd_mul_f32(a_ptr, b_ptr, prod, (size_t)n);
+                    sum = boat_simd_sum_reduce_f32(prod, (size_t)n);
+                    free(prod);
+                } else {
+                    for (int64_t i = 0; i < n; i++) sum += a_ptr[i] * b_ptr[i];
+                }
+            } else {
+                for (int64_t i = 0; i < n; i++) sum += a_ptr[i] * b_ptr[i];
             }
             out_ptr[0] = sum;
             break;
@@ -302,17 +312,19 @@ boat_tensor_t* boat_transpose(const boat_tensor_t* a, int dim0, int dim1) {
                 out_stride[i] = out_stride[i+1] * out_shape_ptr[i+1];
             }
 
+            // Pre-allocate coordinate buffer (avoids per-element malloc)
+            size_t* coords = boat_malloc(sizeof(size_t) * ndim, BOAT_DEVICE_CPU);
+            if (!coords) {
+                boat_free(in_stride);
+                boat_free(out_stride);
+                boat_tensor_unref(out);
+                return NULL;
+            }
+
             // Transpose by iterating through all elements
             for (size_t idx = 0; idx < total_elements; idx++) {
                 // Compute coordinates in input tensor
                 size_t temp = idx;
-                size_t* coords = boat_malloc(sizeof(size_t) * ndim, BOAT_DEVICE_CPU);
-                if (!coords) {
-                    boat_free(in_stride);
-                    boat_free(out_stride);
-                    boat_tensor_unref(out);
-                    return NULL;
-                }
                 for (int i = ndim-1; i >= 0; i--) {
                     coords[i] = temp % (size_t)shape[i];
                     temp /= (size_t)shape[i];
@@ -330,8 +342,8 @@ boat_tensor_t* boat_transpose(const boat_tensor_t* a, int dim0, int dim1) {
                 }
 
                 out_ptr[out_idx] = in_ptr[idx];
-                boat_free(coords);
             }
+            boat_free(coords);
             boat_free(in_stride);
             boat_free(out_stride);
             break;
@@ -362,17 +374,19 @@ boat_tensor_t* boat_transpose(const boat_tensor_t* a, int dim0, int dim1) {
                 out_stride[i] = out_stride[i+1] * out_shape_ptr[i+1];
             }
 
+            // Pre-allocate coordinate buffer
+            size_t* coords = boat_malloc(sizeof(size_t) * ndim, BOAT_DEVICE_CPU);
+            if (!coords) {
+                boat_free(in_stride);
+                boat_free(out_stride);
+                boat_tensor_unref(out);
+                return NULL;
+            }
+
             // Transpose by iterating through all elements
             for (size_t idx = 0; idx < total_elements; idx++) {
                 // Compute coordinates in input tensor
                 size_t temp = idx;
-                size_t* coords = boat_malloc(sizeof(size_t) * ndim, BOAT_DEVICE_CPU);
-                if (!coords) {
-                    boat_free(in_stride);
-                    boat_free(out_stride);
-                    boat_tensor_unref(out);
-                    return NULL;
-                }
                 for (int i = ndim-1; i >= 0; i--) {
                     coords[i] = temp % (size_t)shape[i];
                     temp /= (size_t)shape[i];
@@ -390,8 +404,8 @@ boat_tensor_t* boat_transpose(const boat_tensor_t* a, int dim0, int dim1) {
                 }
 
                 out_ptr[out_idx] = in_ptr[idx];
-                boat_free(coords);
             }
+            boat_free(coords);
             boat_free(in_stride);
             boat_free(out_stride);
             break;

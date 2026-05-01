@@ -4,6 +4,8 @@
 
 #include <boat/ops.h>
 #include <boat/memory.h>
+#include <boat/simd.h>
+#include "../core/openmp.h"
 #include <string.h>
 #include <math.h>
 #include <float.h>
@@ -61,33 +63,35 @@ BOAT_API boat_tensor_t* boat_softmax(const boat_tensor_t* a, int axis) {
             const float* a_ptr = (const float*)a_data;
             float* out_ptr = (float*)out_data;
 
-            for (size_t outer = 0; outer < outer_elements; outer++) {
-                for (size_t inner = 0; inner < inner_stride; inner++) {
-                    size_t base_idx = outer * axis_size * inner_stride + inner;
+            size_t inner_str = inner_stride;
+            size_t ax_sz = axis_size;
+            int outer_limit = (int)outer_elements;
+            int outer;
+            BOAT_OMP_PARALLEL_FOR
+            for (outer = 0; outer < outer_limit; outer++) {
+                for (size_t inner = 0; inner < inner_str; inner++) {
+                    size_t base_idx = (size_t)outer * ax_sz * inner_str + inner;
 
-                    // Find max for numerical stability
                     float max_val = a_ptr[base_idx];
-                    for (size_t k = 1; k < axis_size; k++) {
-                        size_t idx = base_idx + k * inner_stride;
+                    for (size_t k = 1; k < ax_sz; k++) {
+                        size_t idx = base_idx + k * inner_str;
                         float val = a_ptr[idx];
                         if (val > max_val) max_val = val;
                     }
 
-                    // Compute exp(x - max) and sum
                     float exp_sum = 0.0f;
-                    for (size_t k = 0; k < axis_size; k++) {
-                        size_t idx = base_idx + k * inner_stride;
+                    for (size_t k = 0; k < ax_sz; k++) {
+                        size_t idx = base_idx + k * inner_str;
                         float val = a_ptr[idx] - max_val;
                         float exp_val = expf(val);
                         out_ptr[idx] = exp_val;
                         exp_sum += exp_val;
                     }
 
-                    // Normalize
                     if (exp_sum != 0.0f) {
                         float inv_exp_sum = 1.0f / exp_sum;
-                        for (size_t k = 0; k < axis_size; k++) {
-                            size_t idx = base_idx + k * inner_stride;
+                        for (size_t k = 0; k < ax_sz; k++) {
+                            size_t idx = base_idx + k * inner_str;
                             out_ptr[idx] *= inv_exp_sum;
                         }
                     }
@@ -265,11 +269,9 @@ BOAT_API boat_tensor_t* boat_relu(const boat_tensor_t* a) {
 
     // Only implement FP32 version (MNIST uses FP32)
     if (dtype == BOAT_DTYPE_FLOAT32 && total_elements > 0) {
-        float* a_ptr = (float*)a_data;
+        const float* a_ptr = (const float*)a_data;
         float* out_ptr = (float*)out_data;
-        for (size_t i = 0; i < total_elements; i++) {
-            out_ptr[i] = a_ptr[i] > 0.0f ? a_ptr[i] : 0.0f;
-        }
+        boat_simd_relu_f32(a_ptr, out_ptr, total_elements);
         return out;
     }
 

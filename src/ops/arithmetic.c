@@ -3,6 +3,8 @@
 // Licensed under the Apache License, Version 2.0
 
 #include <boat.h>
+#include <boat/simd.h>
+#include "../core/openmp.h"
 #include <string.h>
 #include <math.h>
 #include <float.h>
@@ -182,10 +184,20 @@ boat_tensor_t* boat_##op_name(const boat_tensor_t* a, const boat_tensor_t* b) { 
             const float* a_ptr = (const float*)a_data; \
             const float* b_ptr = (const float*)b_data; \
             float* out_ptr = (float*)out_data; \
-            for (size_t i = 0; i < nelements; i++) { \
-                size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); \
-                size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); \
-                out_ptr[i] = a_ptr[a_idx] op b_ptr[b_idx]; \
+            \
+            /* Fast path: same-shape contiguous tensors (no broadcast_index overhead) */ \
+            if (boat_tensor_ndim(a) == boat_tensor_ndim(b) && \
+                boat_tensor_nelements(a) == nelements && \
+                boat_tensor_is_contiguous(a) && boat_tensor_is_contiguous(b)) { \
+                for (size_t _i = 0; _i < nelements; _i++) { \
+                    out_ptr[_i] = a_ptr[_i] op b_ptr[_i]; \
+                } \
+            } else { \
+                for (size_t i = 0; i < nelements; i++) { \
+                    size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); \
+                    size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); \
+                    out_ptr[i] = a_ptr[a_idx] op b_ptr[b_idx]; \
+                } \
             } \
             break; \
         } \
@@ -718,9 +730,12 @@ boat_tensor_t* boat_sum(const boat_tensor_t* a, const int64_t* dims, size_t n_di
     switch (dtype) {
         case BOAT_DTYPE_FLOAT32: {
             const float* ptr = (const float*)data;
-            float sum = 0.0f;
-            for (size_t i = 0; i < nelements; i++) {
-                sum += ptr[i];
+            float sum;
+            if (nelements >= 16) {
+                sum = boat_simd_sum_reduce_f32(ptr, nelements);
+            } else {
+                sum = 0.0f;
+                for (size_t i = 0; i < nelements; i++) sum += ptr[i];
             }
             *((float*)out_data) = sum;
             break;
