@@ -24,9 +24,7 @@ static boat_dtype_t torch_dtype_to_boat(torch::Dtype dtype) {
         case torch::kFloat32: return BOAT_DTYPE_FLOAT32;
         case torch::kFloat64: return BOAT_DTYPE_FLOAT64;
         case torch::kFloat16: return BOAT_DTYPE_FLOAT16;
-        case torch::kBFloat16:
-            // BFLOAT16 not yet supported in Boat, fall back to FLOAT32
-            return BOAT_DTYPE_FLOAT32;
+        case torch::kBFloat16:   return BOAT_DTYPE_BFLOAT16;
         case torch::kInt32:   return BOAT_DTYPE_INT32;
         case torch::kInt64:   return BOAT_DTYPE_INT64;
         case torch::kInt8:    return BOAT_DTYPE_INT8;

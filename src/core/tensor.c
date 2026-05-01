@@ -44,8 +44,9 @@ static size_t dtype_size(boat_dtype_t dtype) {
     switch (dtype) {
         case BOAT_DTYPE_FLOAT64: return sizeof(double);
         case BOAT_DTYPE_FLOAT32: return sizeof(float);
-        case BOAT_DTYPE_FLOAT16: return 2;  // 16 bits = 2 bytes
-        case BOAT_DTYPE_FLOAT8:  return 1;  // 8 bits = 1 byte
+        case BOAT_DTYPE_FLOAT16:  return 2;  // 16 bits = 2 bytes
+        case BOAT_DTYPE_BFLOAT16: return 2;  // 16 bits = 2 bytes
+        case BOAT_DTYPE_FLOAT8:   return 1;  // 8 bits = 1 byte
         case BOAT_DTYPE_FLOAT4:  return 1;  // 4 bits packed (2 per byte)
         case BOAT_DTYPE_INT64:   return sizeof(int64_t);
         case BOAT_DTYPE_INT32:   return sizeof(int32_t);
@@ -246,7 +247,8 @@ BOAT_API const char* boat_dtype_name(boat_dtype_t dtype) {
     switch (dtype) {
         case BOAT_DTYPE_FLOAT64: return "float64";
         case BOAT_DTYPE_FLOAT32: return "float32";
-        case BOAT_DTYPE_FLOAT16: return "float16";
+        case BOAT_DTYPE_FLOAT16:  return "float16";
+        case BOAT_DTYPE_BFLOAT16: return "bfloat16";
         case BOAT_DTYPE_FLOAT8:  return "float8";
         case BOAT_DTYPE_FLOAT4:  return "float4";
         case BOAT_DTYPE_INT64:   return "int64";

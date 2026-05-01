@@ -262,6 +262,19 @@ boat_tensor_t* boat_##op_name(const boat_tensor_t* a, const boat_tensor_t* b) { 
             boat_tensor_free(out); \
             return NULL; \
         } \
+        case BOAT_DTYPE_BFLOAT16: { \
+            const uint16_t* a_ptr = (const uint16_t*)a_data; \
+            const uint16_t* b_ptr = (const uint16_t*)b_data; \
+            uint16_t* out_ptr = (uint16_t*)out_data; \
+            for (size_t i = 0; i < nelements; i++) { \
+                size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); \
+                size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); \
+                float av = boat_bf16_to_f32(a_ptr[a_idx]); \
+                float bv = boat_bf16_to_f32(b_ptr[b_idx]); \
+                out_ptr[i] = boat_f32_to_bf16(av op bv); \
+            } \
+            break; \
+        } \
         case BOAT_DTYPE_FLOAT8:  /* Fall through */ \
         case BOAT_DTYPE_FLOAT4:  /* Fall through */ \
         case BOAT_DTYPE_BITS2:   /* Fall through */ \
@@ -406,6 +419,16 @@ void boat_##op_name##_(boat_tensor_t* const a, const boat_tensor_t* b) { \
             } \
             break; \
         } \
+        case BOAT_DTYPE_BFLOAT16: { \
+            uint16_t* a_ptr = (uint16_t*)a_data; \
+            const uint16_t* b_ptr = (const uint16_t*)b_data; \
+            for (size_t i = 0; i < a_nelements; i++) { \
+                float av = boat_bf16_to_f32(a_ptr[i]); \
+                float bv = boat_bf16_to_f32(b_ptr[i]); \
+                a_ptr[i] = boat_f32_to_bf16(av op bv); \
+            } \
+            break; \
+        } \
         case BOAT_DTYPE_INT32: { \
             int32_t* a_ptr = (int32_t*)a_data; \
             const int32_t* b_ptr = (const int32_t*)b_data; \
@@ -467,6 +490,16 @@ boat_tensor_t* boat_##op_name##_scalar(const boat_tensor_t* a, double scalar) { 
             double* out_ptr = (double*)out_data; \
             for (size_t i = 0; i < nelements; i++) { \
                 out_ptr[i] = a_ptr[i] op scalar; \
+            } \
+            break; \
+        } \
+        case BOAT_DTYPE_BFLOAT16: { \
+            float scalar_f = (float)scalar; \
+            const uint16_t* a_ptr = (const uint16_t*)a_data; \
+            uint16_t* out_ptr = (uint16_t*)out_data; \
+            for (size_t i = 0; i < nelements; i++) { \
+                float av = boat_bf16_to_f32(a_ptr[i]); \
+                out_ptr[i] = boat_f32_to_bf16(av op scalar_f); \
             } \
             break; \
         } \
@@ -534,6 +567,16 @@ boat_tensor_t* boat_pow_scalar(const boat_tensor_t* a, double scalar) {
             }
             break;
         }
+        case BOAT_DTYPE_BFLOAT16: {
+            float scalar_f = (float)scalar;
+            const uint16_t* a_ptr = (const uint16_t*)a_data;
+            uint16_t* out_ptr = (uint16_t*)out_data;
+            for (size_t i = 0; i < nelements; i++) {
+                float av = boat_bf16_to_f32(a_ptr[i]);
+                out_ptr[i] = boat_f32_to_bf16(powf(av, scalar_f));
+            }
+            break;
+        }
         default:
             boat_tensor_free(out);
             return NULL;
@@ -564,6 +607,15 @@ void boat_##op_name##_scalar_(boat_tensor_t* const a, double scalar) { \
             double* a_ptr = (double*)a_data; \
             for (size_t i = 0; i < nelements; i++) { \
                 a_ptr[i] = a_ptr[i] op scalar; \
+            } \
+            break; \
+        } \
+        case BOAT_DTYPE_BFLOAT16: { \
+            float scalar_f = (float)scalar; \
+            uint16_t* a_ptr = (uint16_t*)a_data; \
+            for (size_t i = 0; i < nelements; i++) { \
+                float av = boat_bf16_to_f32(a_ptr[i]); \
+                a_ptr[i] = boat_f32_to_bf16(av op scalar_f); \
             } \
             break; \
         } \
@@ -680,6 +732,15 @@ boat_tensor_t* boat_sum(const boat_tensor_t* a, const int64_t* dims, size_t n_di
                 sum += ptr[i];
             }
             *((double*)out_data) = sum;
+            break;
+        }
+        case BOAT_DTYPE_BFLOAT16: {
+            const uint16_t* ptr = (const uint16_t*)data;
+            float sum = 0.0f;
+            for (size_t i = 0; i < nelements; i++) {
+                sum += boat_bf16_to_f32(ptr[i]);
+            }
+            *((uint16_t*)out_data) = boat_f32_to_bf16(sum);
             break;
         }
         case BOAT_DTYPE_INT32: {

@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
+#include <math.h>
 
 int main() {
     printf("Testing tensor operations...\n");
@@ -64,10 +65,23 @@ int main() {
         assert(boat_dtype_size(BOAT_DTYPE_INT64) == sizeof(int64_t));
         assert(boat_dtype_size(BOAT_DTYPE_INT8) == sizeof(int8_t));
         assert(boat_dtype_size(BOAT_DTYPE_UINT8) == sizeof(uint8_t));
+        assert(boat_dtype_size(BOAT_DTYPE_BFLOAT16) == 2);
 
         const char* name = boat_dtype_name(BOAT_DTYPE_FLOAT32);
         assert(name != NULL);
         printf("Float32 dtype name: %s\n", name);
+
+        // BF16 conversion roundtrip
+        float orig = 3.14159f;
+        uint16_t bf16 = boat_f32_to_bf16(orig);
+        float back = boat_bf16_to_f32(bf16);
+        float rel_err = fabsf(back - orig) / orig;
+        assert(rel_err < 0.01f);
+        printf("BF16 roundtrip: %f -> %f (rel_err=%f)\n", orig, back, rel_err);
+
+        // BF16 of 1.0 and 2.0 should be exactly representable
+        assert(boat_bf16_to_f32(boat_f32_to_bf16(1.0f)) == 1.0f);
+        assert(boat_bf16_to_f32(boat_f32_to_bf16(2.0f)) == 2.0f);
     }
 
     // Test 5: Different data types
@@ -99,6 +113,21 @@ int main() {
         int8_data[0] = -42;
         assert(int8_data[0] == -42);
         boat_tensor_unref(int8_tensor);
+
+        // Test BFLOAT16
+        {
+            boat_tensor_t* bf16_tensor = boat_tensor_create(shape, 1, BOAT_DTYPE_BFLOAT16, BOAT_DEVICE_CPU);
+            assert(bf16_tensor != NULL);
+            assert(boat_tensor_nbytes(bf16_tensor) == 3 * 2);
+            uint16_t* bf16_data = (uint16_t*)boat_tensor_data(bf16_tensor);
+            bf16_data[0] = boat_f32_to_bf16(1.5f);
+            bf16_data[1] = boat_f32_to_bf16(-2.0f);
+            bf16_data[2] = boat_f32_to_bf16(0.0f);
+            assert(boat_bf16_to_f32(bf16_data[0]) == 1.5f);
+            assert(boat_bf16_to_f32(bf16_data[1]) == -2.0f);
+            assert(boat_bf16_to_f32(bf16_data[2]) == 0.0f);
+            boat_tensor_unref(bf16_tensor);
+        }
 
         // Test BOOL
         boat_tensor_t* bool_tensor = boat_tensor_create(shape, 1, BOAT_DTYPE_BOOL, BOAT_DEVICE_CPU);

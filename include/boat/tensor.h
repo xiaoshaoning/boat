@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "export.h"
 
@@ -43,6 +44,7 @@ typedef enum {
 
     // Future types (at end for backward compat with serialization)
     BOAT_DTYPE_INT8,      // 8-bit signed integer
+    BOAT_DTYPE_BFLOAT16,  // 16-bit brain floating point (BF16)
 
     BOAT_DTYPE_COUNT      // number of data types
 } boat_dtype_t;
@@ -110,6 +112,20 @@ BOAT_API const char* boat_dtype_name(boat_dtype_t dtype);
 BOAT_API float boat_tensor_get_scale(const boat_tensor_t* tensor);
 BOAT_API int32_t boat_tensor_get_zero_point(const boat_tensor_t* tensor);
 BOAT_API void boat_tensor_set_quant_params(boat_tensor_t* tensor, float scale, int32_t zero_point);
+
+// BF16 conversion utilities
+static inline uint16_t boat_f32_to_bf16(float f) {
+    uint32_t bits;
+    memcpy(&bits, &f, sizeof(bits));
+    return (uint16_t)(bits >> 16);
+}
+
+static inline float boat_bf16_to_f32(uint16_t bf16) {
+    uint32_t bits = (uint32_t)bf16 << 16;
+    float f;
+    memcpy(&f, &bits, sizeof(f));
+    return f;
+}
 
 #ifdef __cplusplus
 }
