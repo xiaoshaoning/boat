@@ -132,6 +132,431 @@ static uint8_t* build_test_onnx(size_t* out_size) {
 }
 
 // -----------------------------------------------------------------------
+// Helper: write ONNX attribute protos for test model building
+// -----------------------------------------------------------------------
+
+// Write an INT attribute { name, type: 2 (INT), i: val }
+static void write_int_attr(pb_builder_t* b, const char* name, int64_t val) {
+    size_t pos = pb_begin_submessage(b, 5);
+    pb_write_string(b, 1, name);
+    pb_write_tag(b, 5, 0); pb_write_varint(b, 2);
+    pb_write_tag(b, 3, 0); pb_write_varint(b, val);
+    pb_patch_length(b, pos);
+}
+
+// Write an INTS attribute { name, type: 7 (INTS), ints: [vals...] }
+static void write_ints_attr(pb_builder_t* b, const char* name, const int64_t* vals, int count) {
+    size_t pos = pb_begin_submessage(b, 5);
+    pb_write_string(b, 1, name);
+    pb_write_tag(b, 5, 0); pb_write_varint(b, 7);
+    for (int i = 0; i < count; i++) {
+        pb_write_tag(b, 7, 0); pb_write_varint(b, vals[i]);
+    }
+    pb_patch_length(b, pos);
+}
+
+// Write a FLOAT attribute { name, type: 1 (FLOAT), f: val }
+static void write_float_attr(pb_builder_t* b, const char* name, float val) {
+    size_t pos = pb_begin_submessage(b, 5);
+    pb_write_string(b, 1, name);
+    pb_write_tag(b, 5, 0); pb_write_varint(b, 1);
+    pb_write_tag(b, 2, 5);
+    pb_write_raw(b, &val, sizeof(float));
+    pb_patch_length(b, pos);
+}
+
+// -----------------------------------------------------------------------
+// Builder: Conv model (1 input channel, 2 output channels, 3x3 kernel)
+// Input: [1,1,4,4], Output: [1,2,2,2]
+// -----------------------------------------------------------------------
+static uint8_t* build_test_conv_model(size_t* out_size) {
+    pb_builder_t b;
+    pb_builder_init(&b);
+
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 4);
+
+    size_t opset_pos = pb_begin_submessage(&b, 8);
+    pb_write_string(&b, 1, ""); pb_write_tag(&b, 2, 0); pb_write_varint(&b, 9);
+    pb_patch_length(&b, opset_pos);
+
+    size_t graph_pos = pb_begin_submessage(&b, 7);
+    pb_write_string(&b, 2, "conv_test");
+
+    // Weight [2,1,3,3] = all 1.0
+    float wd[18]; for (int i = 0; i < 18; i++) wd[i] = 1.0f;
+    size_t iw = pb_begin_submessage(&b, 5);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 1);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
+    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 7, "conv_weight");
+    pb_write_bytes(&b, 10, wd, sizeof(wd));
+    pb_patch_length(&b, iw);
+
+    // Bias [2] = [1.0, 2.0]
+    float bd[2] = {1.0f, 2.0f};
+    size_t ib = pb_begin_submessage(&b, 5);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
+    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 7, "conv_bias");
+    pb_write_bytes(&b, 10, bd, sizeof(bd));
+    pb_patch_length(&b, ib);
+
+    // Conv node
+    size_t cn = pb_begin_submessage(&b, 1);
+    pb_write_string(&b, 1, "input");
+    pb_write_string(&b, 1, "conv_weight");
+    pb_write_string(&b, 1, "conv_bias");
+    pb_write_string(&b, 2, "conv_out");
+    pb_write_string(&b, 3, "conv");
+    pb_write_string(&b, 4, "Conv");
+    { int64_t ks[] = {3, 3}; write_ints_attr(&b, "kernel_shape", ks, 2);
+      int64_t st[] = {1, 1}; write_ints_attr(&b, "strides", st, 2);
+      int64_t pd[] = {0, 0}; write_ints_attr(&b, "pads", pd, 2); }
+    pb_patch_length(&b, cn);
+
+    size_t inp = pb_begin_submessage(&b, 11);
+    pb_write_string(&b, 1, "input"); pb_patch_length(&b, inp);
+    size_t out = pb_begin_submessage(&b, 12);
+    pb_write_string(&b, 1, "conv_out"); pb_patch_length(&b, out);
+
+    pb_patch_length(&b, graph_pos);
+    *out_size = b.size;
+    return b.data;
+}
+
+// -----------------------------------------------------------------------
+// Builder: Conv -> BatchNormalization -> Relu model
+// Input: [1,1,4,4], Output: [1,2,2,2]
+// -----------------------------------------------------------------------
+static uint8_t* build_test_batchnorm_model(size_t* out_size) {
+    pb_builder_t b;
+    pb_builder_init(&b);
+
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 4);
+
+    size_t opset_pos = pb_begin_submessage(&b, 8);
+    pb_write_string(&b, 1, ""); pb_write_tag(&b, 2, 0); pb_write_varint(&b, 9);
+    pb_patch_length(&b, opset_pos);
+
+    size_t graph_pos = pb_begin_submessage(&b, 7);
+    pb_write_string(&b, 2, "bn_test");
+
+    // Conv weight [2,1,3,3] = all 1.0
+    float cw[18]; for (int i = 0; i < 18; i++) cw[i] = 1.0f;
+    size_t iw = pb_begin_submessage(&b, 5);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 1);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
+    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 7, "conv_weight");
+    pb_write_bytes(&b, 10, cw, sizeof(cw));
+    pb_patch_length(&b, iw);
+
+    // Conv bias [2] = [1.0, 2.0]
+    float cb[2] = {1.0f, 2.0f};
+    size_t ib = pb_begin_submessage(&b, 5);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
+    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 7, "conv_bias");
+    pb_write_bytes(&b, 10, cb, sizeof(cb));
+    pb_patch_length(&b, ib);
+
+    // BN scale [2] = [1, 1]
+    float bs[2] = {1.0f, 1.0f};
+    size_t ibs = pb_begin_submessage(&b, 5);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
+    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 7, "bn_scale");
+    pb_write_bytes(&b, 10, bs, sizeof(bs));
+    pb_patch_length(&b, ibs);
+
+    // BN bias [2] = [0, 0]
+    float bb[2] = {0.0f, 0.0f};
+    size_t ibb = pb_begin_submessage(&b, 5);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
+    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 7, "bn_bias");
+    pb_write_bytes(&b, 10, bb, sizeof(bb));
+    pb_patch_length(&b, ibb);
+
+    // BN mean [2] = [0, 0]
+    float bm[2] = {0.0f, 0.0f};
+    size_t ibm = pb_begin_submessage(&b, 5);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
+    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 7, "bn_mean");
+    pb_write_bytes(&b, 10, bm, sizeof(bm));
+    pb_patch_length(&b, ibm);
+
+    // BN var [2] = [1, 1]
+    float bv[2] = {1.0f, 1.0f};
+    size_t ibv = pb_begin_submessage(&b, 5);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
+    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 7, "bn_var");
+    pb_write_bytes(&b, 10, bv, sizeof(bv));
+    pb_patch_length(&b, ibv);
+
+    // Conv node
+    size_t cn = pb_begin_submessage(&b, 1);
+    pb_write_string(&b, 1, "input");
+    pb_write_string(&b, 1, "conv_weight");
+    pb_write_string(&b, 1, "conv_bias");
+    pb_write_string(&b, 2, "conv_out");
+    pb_write_string(&b, 3, "conv");
+    pb_write_string(&b, 4, "Conv");
+    { int64_t ks[] = {3, 3}; write_ints_attr(&b, "kernel_shape", ks, 2);
+      int64_t st[] = {1, 1}; write_ints_attr(&b, "strides", st, 2);
+      int64_t pd[] = {0, 0}; write_ints_attr(&b, "pads", pd, 2); }
+    pb_patch_length(&b, cn);
+
+    // BN node
+    size_t bn = pb_begin_submessage(&b, 1);
+    pb_write_string(&b, 1, "conv_out");
+    pb_write_string(&b, 1, "bn_scale");
+    pb_write_string(&b, 1, "bn_bias");
+    pb_write_string(&b, 1, "bn_mean");
+    pb_write_string(&b, 1, "bn_var");
+    pb_write_string(&b, 2, "bn_out");
+    pb_write_string(&b, 3, "bn");
+    pb_write_string(&b, 4, "BatchNormalization");
+    write_float_attr(&b, "epsilon", 1e-5f);
+    pb_patch_length(&b, bn);
+
+    // Relu node
+    size_t rn = pb_begin_submessage(&b, 1);
+    pb_write_string(&b, 1, "bn_out");
+    pb_write_string(&b, 2, "output");
+    pb_write_string(&b, 3, "relu");
+    pb_write_string(&b, 4, "Relu");
+    pb_patch_length(&b, rn);
+
+    size_t inp = pb_begin_submessage(&b, 11);
+    pb_write_string(&b, 1, "input"); pb_patch_length(&b, inp);
+    size_t out = pb_begin_submessage(&b, 12);
+    pb_write_string(&b, 1, "output"); pb_patch_length(&b, out);
+
+    pb_patch_length(&b, graph_pos);
+    *out_size = b.size;
+    return b.data;
+}
+
+// -----------------------------------------------------------------------
+// Builder: MaxPool model (2x2, stride=2)
+// Input: [1,1,4,4], Output: [1,1,2,2]
+// -----------------------------------------------------------------------
+static uint8_t* build_test_maxpool_model(size_t* out_size) {
+    pb_builder_t b;
+    pb_builder_init(&b);
+
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 4);
+
+    size_t opset_pos = pb_begin_submessage(&b, 8);
+    pb_write_string(&b, 1, ""); pb_write_tag(&b, 2, 0); pb_write_varint(&b, 9);
+    pb_patch_length(&b, opset_pos);
+
+    size_t graph_pos = pb_begin_submessage(&b, 7);
+    pb_write_string(&b, 2, "pool_test");
+
+    size_t nn = pb_begin_submessage(&b, 1);
+    pb_write_string(&b, 1, "input");
+    pb_write_string(&b, 2, "output");
+    pb_write_string(&b, 3, "pool");
+    pb_write_string(&b, 4, "MaxPool");
+    { int64_t ks[] = {2, 2}; write_ints_attr(&b, "kernel_shape", ks, 2);
+      int64_t st[] = {2, 2}; write_ints_attr(&b, "strides", st, 2);
+      int64_t pd[] = {0, 0}; write_ints_attr(&b, "pads", pd, 2); }
+    pb_patch_length(&b, nn);
+
+    size_t inp = pb_begin_submessage(&b, 11);
+    pb_write_string(&b, 1, "input"); pb_patch_length(&b, inp);
+    size_t out = pb_begin_submessage(&b, 12);
+    pb_write_string(&b, 1, "output"); pb_patch_length(&b, out);
+
+    pb_patch_length(&b, graph_pos);
+    *out_size = b.size;
+    return b.data;
+}
+
+// -----------------------------------------------------------------------
+// Builder: Full CNN - Conv+BN+Relu+MaxPool+Flatten+Gemm+Softmax
+// Input: [1,1,4,4], Output: [1,3]
+// -----------------------------------------------------------------------
+static uint8_t* build_test_cnn_model(size_t* out_size) {
+    pb_builder_t b;
+    pb_builder_init(&b);
+
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 4);
+
+    size_t opset_pos = pb_begin_submessage(&b, 8);
+    pb_write_string(&b, 1, ""); pb_write_tag(&b, 2, 0); pb_write_varint(&b, 9);
+    pb_patch_length(&b, opset_pos);
+
+    size_t graph_pos = pb_begin_submessage(&b, 7);
+    pb_write_string(&b, 2, "cnn_test");
+
+    // Conv weight [2,1,3,3] = all 1.0
+    float cw[18]; for (int i = 0; i < 18; i++) cw[i] = 1.0f;
+    size_t iw = pb_begin_submessage(&b, 5);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 1);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
+    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 7, "conv_weight");
+    pb_write_bytes(&b, 10, cw, sizeof(cw));
+    pb_patch_length(&b, iw);
+
+    // Conv bias [2] = [0.0, 0.0]
+    float cb[2] = {0.0f, 0.0f};
+    size_t ib = pb_begin_submessage(&b, 5);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
+    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 7, "conv_bias");
+    pb_write_bytes(&b, 10, cb, sizeof(cb));
+    pb_patch_length(&b, ib);
+
+    // BN scale [2] = [1, 1]
+    float bs[2] = {1.0f, 1.0f};
+    size_t ibs = pb_begin_submessage(&b, 5);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
+    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 7, "bn_scale");
+    pb_write_bytes(&b, 10, bs, sizeof(bs));
+    pb_patch_length(&b, ibs);
+
+    // BN bias [2] = [0.0, 0.0]
+    float bb[2] = {0.0f, 0.0f};
+    size_t ibb = pb_begin_submessage(&b, 5);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
+    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 7, "bn_bias");
+    pb_write_bytes(&b, 10, bb, sizeof(bb));
+    pb_patch_length(&b, ibb);
+
+    // BN mean [2] = [0.0, 0.0]
+    float bm[2] = {0.0f, 0.0f};
+    size_t ibm = pb_begin_submessage(&b, 5);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
+    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 7, "bn_mean");
+    pb_write_bytes(&b, 10, bm, sizeof(bm));
+    pb_patch_length(&b, ibm);
+
+    // BN var [2] = [1.0, 1.0]
+    float bv[2] = {1.0f, 1.0f};
+    size_t ibv = pb_begin_submessage(&b, 5);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
+    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 7, "bn_var");
+    pb_write_bytes(&b, 10, bv, sizeof(bv));
+    pb_patch_length(&b, ibv);
+
+    // Gemm weight [3, 2] = all 1.0 (transB=1)
+    float gw[6]; for (int i = 0; i < 6; i++) gw[i] = 1.0f;
+    size_t igw = pb_begin_submessage(&b, 5);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
+    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 7, "gemm_weight");
+    pb_write_bytes(&b, 10, gw, sizeof(gw));
+    pb_patch_length(&b, igw);
+
+    // Gemm bias [3] = [0.0, 0.0, 0.0]
+    float gb[3] = {0.0f, 0.0f, 0.0f};
+    size_t igb = pb_begin_submessage(&b, 5);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
+    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 7, "gemm_bias");
+    pb_write_bytes(&b, 10, gb, sizeof(gb));
+    pb_patch_length(&b, igb);
+
+    // Conv node
+    size_t cn = pb_begin_submessage(&b, 1);
+    pb_write_string(&b, 1, "input");
+    pb_write_string(&b, 1, "conv_weight");
+    pb_write_string(&b, 1, "conv_bias");
+    pb_write_string(&b, 2, "conv_out");
+    pb_write_string(&b, 3, "conv");
+    pb_write_string(&b, 4, "Conv");
+    { int64_t ks[] = {3, 3}; write_ints_attr(&b, "kernel_shape", ks, 2);
+      int64_t st[] = {1, 1}; write_ints_attr(&b, "strides", st, 2);
+      int64_t pd[] = {0, 0}; write_ints_attr(&b, "pads", pd, 2); }
+    pb_patch_length(&b, cn);
+
+    // BN node
+    size_t bn = pb_begin_submessage(&b, 1);
+    pb_write_string(&b, 1, "conv_out");
+    pb_write_string(&b, 1, "bn_scale");
+    pb_write_string(&b, 1, "bn_bias");
+    pb_write_string(&b, 1, "bn_mean");
+    pb_write_string(&b, 1, "bn_var");
+    pb_write_string(&b, 2, "bn_out");
+    pb_write_string(&b, 3, "bn");
+    pb_write_string(&b, 4, "BatchNormalization");
+    write_float_attr(&b, "epsilon", 1e-5f);
+    pb_patch_length(&b, bn);
+
+    // Relu node
+    size_t rn = pb_begin_submessage(&b, 1);
+    pb_write_string(&b, 1, "bn_out");
+    pb_write_string(&b, 2, "relu_out");
+    pb_write_string(&b, 3, "relu");
+    pb_write_string(&b, 4, "Relu");
+    pb_patch_length(&b, rn);
+
+    // MaxPool node
+    size_t pn = pb_begin_submessage(&b, 1);
+    pb_write_string(&b, 1, "relu_out");
+    pb_write_string(&b, 2, "pool_out");
+    pb_write_string(&b, 3, "pool");
+    pb_write_string(&b, 4, "MaxPool");
+    { int64_t ks[] = {2, 2}; write_ints_attr(&b, "kernel_shape", ks, 2);
+      int64_t st[] = {2, 2}; write_ints_attr(&b, "strides", st, 2);
+      int64_t pd[] = {0, 0}; write_ints_attr(&b, "pads", pd, 2); }
+    pb_patch_length(&b, pn);
+
+    // Flatten node
+    size_t fn = pb_begin_submessage(&b, 1);
+    pb_write_string(&b, 1, "pool_out");
+    pb_write_string(&b, 2, "flat_out");
+    pb_write_string(&b, 3, "flatten");
+    pb_write_string(&b, 4, "Flatten");
+    pb_patch_length(&b, fn);
+
+    // Gemm node
+    size_t gn = pb_begin_submessage(&b, 1);
+    pb_write_string(&b, 1, "flat_out");
+    pb_write_string(&b, 1, "gemm_weight");
+    pb_write_string(&b, 1, "gemm_bias");
+    pb_write_string(&b, 2, "gemm_out");
+    pb_write_string(&b, 3, "gemm");
+    pb_write_string(&b, 4, "Gemm");
+    write_int_attr(&b, "transB", 1);
+    pb_patch_length(&b, gn);
+
+    // Softmax node
+    size_t sn = pb_begin_submessage(&b, 1);
+    pb_write_string(&b, 1, "gemm_out");
+    pb_write_string(&b, 2, "output");
+    pb_write_string(&b, 3, "softmax");
+    pb_write_string(&b, 4, "Softmax");
+    pb_patch_length(&b, sn);
+
+    size_t inp = pb_begin_submessage(&b, 11);
+    pb_write_string(&b, 1, "input"); pb_patch_length(&b, inp);
+    size_t out = pb_begin_submessage(&b, 12);
+    pb_write_string(&b, 1, "output"); pb_patch_length(&b, out);
+
+    pb_patch_length(&b, graph_pos);
+    *out_size = b.size;
+    return b.data;
+}
+
+// -----------------------------------------------------------------------
 // Tests
 // -----------------------------------------------------------------------
 
@@ -289,6 +714,396 @@ static int test_onnx_get_version(void) {
     PASS(); return 0;
 }
 
+static int test_onnx_load_conv(void) {
+    TEST("ONNX load + Conv forward");
+
+    size_t model_size;
+    uint8_t* model_bytes = build_test_conv_model(&model_size);
+    if (!model_bytes) FAIL("build_test_conv_model failed");
+
+    boat_model_t* model = boat_onnx_load_from_memory(model_bytes, model_size);
+    if (!model) { free(model_bytes); FAIL("onnx_load_from_memory failed"); }
+
+    int64_t in_shape[] = {1, 1, 4, 4};
+    float in_data[16];
+    for (int i = 0; i < 16; i++) in_data[i] = 1.0f;
+    boat_tensor_t* input = boat_tensor_from_data(in_shape, 4, BOAT_DTYPE_FLOAT32, in_data);
+    if (!input) { boat_model_free(model); free(model_bytes); FAIL("input failed"); }
+
+    boat_tensor_t* output = boat_model_forward(model, input);
+    if (!output) { boat_tensor_unref(input); boat_model_free(model); free(model_bytes); FAIL("forward failed"); }
+
+    // Expected shape: [1, 2, 2, 2]
+    const int64_t* os = boat_tensor_shape(output);
+    if (boat_tensor_ndim(output) != 4 || os[0] != 1 || os[1] != 2 || os[2] != 2 || os[3] != 2) {
+        boat_tensor_unref(input); boat_tensor_unref(output); boat_model_free(model); free(model_bytes);
+        FAIL("output shape mismatch");
+    }
+
+    // Conv(3x3, S=1, P=0) with all-1 input and all-1 weight: each output = sum(3x3) = 9. Bias [1,2]
+    // ch0 = 9+1 = 10, ch1 = 9+2 = 11
+    const float* od = (const float*)boat_tensor_const_data(output);
+    for (int i = 0; i < 4; i++) {
+        if (fabsf(od[i] - 10.0f) > 1e-5f) {
+            printf("FAIL: ch0[%d]=%f, expected 10.0\n", i, od[i]);
+            boat_tensor_unref(input); boat_tensor_unref(output); boat_model_free(model); free(model_bytes);
+            return 1;
+        }
+    }
+    for (int i = 4; i < 8; i++) {
+        if (fabsf(od[i] - 11.0f) > 1e-5f) {
+            printf("FAIL: ch1[%d]=%f, expected 11.0\n", i - 4, od[i]);
+            boat_tensor_unref(input); boat_tensor_unref(output); boat_model_free(model); free(model_bytes);
+            return 1;
+        }
+    }
+
+    boat_tensor_unref(input);
+    boat_tensor_unref(output);
+    boat_model_free(model);
+    free(model_bytes);
+    PASS(); return 0;
+}
+
+static int test_onnx_load_batchnorm(void) {
+    TEST("ONNX load + Conv+BN+Relu forward");
+
+    size_t model_size;
+    uint8_t* model_bytes = build_test_batchnorm_model(&model_size);
+    if (!model_bytes) FAIL("build_test_batchnorm_model failed");
+
+    boat_model_t* model = boat_onnx_load_from_memory(model_bytes, model_size);
+    if (!model) { free(model_bytes); FAIL("onnx_load_from_memory failed"); }
+
+    int64_t in_shape[] = {1, 1, 4, 4};
+    float in_data[16];
+    for (int i = 0; i < 16; i++) in_data[i] = 1.0f;
+    boat_tensor_t* input = boat_tensor_from_data(in_shape, 4, BOAT_DTYPE_FLOAT32, in_data);
+    if (!input) { boat_model_free(model); free(model_bytes); FAIL("input failed"); }
+
+    boat_tensor_t* output = boat_model_forward(model, input);
+    if (!output) { boat_tensor_unref(input); boat_model_free(model); free(model_bytes); FAIL("forward failed"); }
+
+    // Shape: [1, 2, 2, 2]
+    const int64_t* os = boat_tensor_shape(output);
+    if (boat_tensor_ndim(output) != 4 || os[0] != 1 || os[1] != 2 || os[2] != 2 || os[3] != 2) {
+        boat_tensor_unref(input); boat_tensor_unref(output); boat_model_free(model); free(model_bytes);
+        FAIL("output shape mismatch");
+    }
+
+    // All values should be positive (ReLU after BN)
+    const float* od = (const float*)boat_tensor_const_data(output);
+    for (int i = 0; i < 8; i++) {
+        if (od[i] < 0) {
+            boat_tensor_unref(input); boat_tensor_unref(output); boat_model_free(model); free(model_bytes);
+            FAIL("expected all positive after BN+Relu");
+        }
+    }
+
+    boat_tensor_unref(input);
+    boat_tensor_unref(output);
+    boat_model_free(model);
+    free(model_bytes);
+    PASS(); return 0;
+}
+
+static int test_onnx_load_maxpool(void) {
+    TEST("ONNX load + MaxPool forward");
+
+    size_t model_size;
+    uint8_t* model_bytes = build_test_maxpool_model(&model_size);
+    if (!model_bytes) FAIL("build_test_maxpool_model failed");
+
+    boat_model_t* model = boat_onnx_load_from_memory(model_bytes, model_size);
+    if (!model) { free(model_bytes); FAIL("onnx_load_from_memory failed"); }
+
+    int64_t in_shape[] = {1, 1, 4, 4};
+    float in_data[16];
+    for (int i = 0; i < 16; i++) in_data[i] = (float)(i + 1); // 1..16
+    boat_tensor_t* input = boat_tensor_from_data(in_shape, 4, BOAT_DTYPE_FLOAT32, in_data);
+    if (!input) { boat_model_free(model); free(model_bytes); FAIL("input failed"); }
+
+    boat_tensor_t* output = boat_model_forward(model, input);
+    if (!output) { boat_tensor_unref(input); boat_model_free(model); free(model_bytes); FAIL("forward failed"); }
+
+    // Shape: [1, 1, 2, 2]
+    const int64_t* os = boat_tensor_shape(output);
+    if (boat_tensor_ndim(output) != 4 || os[0] != 1 || os[1] != 1 || os[2] != 2 || os[3] != 2) {
+        boat_tensor_unref(input); boat_tensor_unref(output); boat_model_free(model); free(model_bytes);
+        FAIL("output shape mismatch");
+    }
+
+    // MaxPool(2x2, S=2): each window selects max
+    // windows: [1,2,5,6]=6, [3,4,7,8]=8, [9,10,13,14]=14, [11,12,15,16]=16
+    float expected[4] = {6.0f, 8.0f, 14.0f, 16.0f};
+    const float* od = (const float*)boat_tensor_const_data(output);
+    for (int i = 0; i < 4; i++) {
+        if (fabsf(od[i] - expected[i]) > 1e-5f) {
+            printf("FAIL: output[%d]=%f, expected %f\n", i, od[i], expected[i]);
+            boat_tensor_unref(input); boat_tensor_unref(output); boat_model_free(model); free(model_bytes);
+            return 1;
+        }
+    }
+
+    boat_tensor_unref(input);
+    boat_tensor_unref(output);
+    boat_model_free(model);
+    free(model_bytes);
+    PASS(); return 0;
+}
+
+static int test_onnx_load_softmax(void) {
+    TEST("ONNX load + Gemm+Softmax forward");
+
+    pb_builder_t b;
+    pb_builder_init(&b);
+
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 4);
+
+    size_t opset_pos = pb_begin_submessage(&b, 8);
+    pb_write_string(&b, 1, ""); pb_write_tag(&b, 2, 0); pb_write_varint(&b, 9);
+    pb_patch_length(&b, opset_pos);
+
+    size_t graph_pos = pb_begin_submessage(&b, 7);
+    pb_write_string(&b, 2, "softmax_test");
+
+    // Gemm weight [3, 4], all 0.1
+    float wd[12]; for (int i = 0; i < 12; i++) wd[i] = 0.1f;
+    size_t iw = pb_begin_submessage(&b, 5);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 4);
+    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 7, "weight");
+    pb_write_bytes(&b, 10, wd, sizeof(wd));
+    pb_patch_length(&b, iw);
+
+    // Gemm bias [3] = [0, 0, 0]
+    float bd[3] = {0, 0, 0};
+    size_t ib = pb_begin_submessage(&b, 5);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
+    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 7, "bias");
+    pb_write_bytes(&b, 10, bd, sizeof(bd));
+    pb_patch_length(&b, ib);
+
+    // Gemm node
+    size_t gn = pb_begin_submessage(&b, 1);
+    pb_write_string(&b, 1, "input");
+    pb_write_string(&b, 1, "weight");
+    pb_write_string(&b, 1, "bias");
+    pb_write_string(&b, 2, "gemm_out");
+    pb_write_string(&b, 3, "gemm");
+    pb_write_string(&b, 4, "Gemm");
+    write_int_attr(&b, "transB", 1);
+    pb_patch_length(&b, gn);
+
+    // Softmax node
+    size_t sn = pb_begin_submessage(&b, 1);
+    pb_write_string(&b, 1, "gemm_out");
+    pb_write_string(&b, 2, "output");
+    pb_write_string(&b, 3, "softmax");
+    pb_write_string(&b, 4, "Softmax");
+    pb_patch_length(&b, sn);
+
+    size_t inp = pb_begin_submessage(&b, 11);
+    pb_write_string(&b, 1, "input"); pb_patch_length(&b, inp);
+    size_t out = pb_begin_submessage(&b, 12);
+    pb_write_string(&b, 1, "output"); pb_patch_length(&b, out);
+
+    pb_patch_length(&b, graph_pos);
+
+    uint8_t* model_bytes = b.data;
+    size_t model_size = b.size;
+
+    boat_model_t* model = boat_onnx_load_from_memory(model_bytes, model_size);
+    if (!model) { free(model_bytes); FAIL("onnx_load_from_memory failed"); }
+
+    int64_t in_shape[] = {2, 4};
+    float in_data[] = {0.5f, 1.0f, 1.5f, 2.0f, -0.5f, -1.0f, -1.5f, -2.0f};
+    boat_tensor_t* input = boat_tensor_from_data(in_shape, 2, BOAT_DTYPE_FLOAT32, in_data);
+    if (!input) { boat_model_free(model); free(model_bytes); FAIL("input failed"); }
+
+    boat_tensor_t* output = boat_model_forward(model, input);
+    if (!output) { boat_tensor_unref(input); boat_model_free(model); free(model_bytes); FAIL("forward failed"); }
+
+    // Shape: [2, 3]
+    const int64_t* os = boat_tensor_shape(output);
+    if (boat_tensor_ndim(output) != 2 || os[0] != 2 || os[1] != 3) {
+        boat_tensor_unref(input); boat_tensor_unref(output); boat_model_free(model); free(model_bytes);
+        FAIL("output shape mismatch");
+    }
+
+    // Softmax should sum to ~1.0 along axis=1
+    const float* od = (const float*)boat_tensor_const_data(output);
+    for (int batch = 0; batch < 2; batch++) {
+        float sum = 0;
+        for (int j = 0; j < 3; j++) sum += od[batch * 3 + j];
+        if (fabsf(sum - 1.0f) > 1e-4f) {
+            printf("FAIL: batch %d softmax sum = %f\n", batch, sum);
+            boat_tensor_unref(input); boat_tensor_unref(output); boat_model_free(model); free(model_bytes);
+            return 1;
+        }
+    }
+
+    boat_tensor_unref(input);
+    boat_tensor_unref(output);
+    boat_model_free(model);
+    free(model_bytes);
+    PASS(); return 0;
+}
+
+static int test_onnx_load_flatten(void) {
+    TEST("ONNX load + Gemm+Flatten forward");
+
+    pb_builder_t b;
+    pb_builder_init(&b);
+
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 4);
+
+    size_t opset_pos = pb_begin_submessage(&b, 8);
+    pb_write_string(&b, 1, ""); pb_write_tag(&b, 2, 0); pb_write_varint(&b, 9);
+    pb_patch_length(&b, opset_pos);
+
+    size_t graph_pos = pb_begin_submessage(&b, 7);
+    pb_write_string(&b, 2, "flatten_test");
+
+    // Gemm weight [3, 4], all 0.1
+    float wd[12]; for (int i = 0; i < 12; i++) wd[i] = 0.1f;
+    size_t iw = pb_begin_submessage(&b, 5);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 4);
+    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 7, "weight");
+    pb_write_bytes(&b, 10, wd, sizeof(wd));
+    pb_patch_length(&b, iw);
+
+    // Bias [3] = [0.01, 0.02, 0.03]
+    float bd[3] = {0.01f, 0.02f, 0.03f};
+    size_t ib = pb_begin_submessage(&b, 5);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
+    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 7, "bias");
+    pb_write_bytes(&b, 10, bd, sizeof(bd));
+    pb_patch_length(&b, ib);
+
+    // Gemm node
+    size_t gn = pb_begin_submessage(&b, 1);
+    pb_write_string(&b, 1, "input");
+    pb_write_string(&b, 1, "weight");
+    pb_write_string(&b, 1, "bias");
+    pb_write_string(&b, 2, "gemm_out");
+    pb_write_string(&b, 3, "gemm");
+    pb_write_string(&b, 4, "Gemm");
+    write_int_attr(&b, "transB", 1);
+    pb_patch_length(&b, gn);
+
+    // Flatten node
+    size_t fn = pb_begin_submessage(&b, 1);
+    pb_write_string(&b, 1, "gemm_out");
+    pb_write_string(&b, 2, "output");
+    pb_write_string(&b, 3, "flatten");
+    pb_write_string(&b, 4, "Flatten");
+    pb_patch_length(&b, fn);
+
+    size_t inp = pb_begin_submessage(&b, 11);
+    pb_write_string(&b, 1, "input"); pb_patch_length(&b, inp);
+    size_t out = pb_begin_submessage(&b, 12);
+    pb_write_string(&b, 1, "output"); pb_patch_length(&b, out);
+
+    pb_patch_length(&b, graph_pos);
+
+    uint8_t* model_bytes = b.data;
+    size_t model_size = b.size;
+
+    boat_model_t* model = boat_onnx_load_from_memory(model_bytes, model_size);
+    if (!model) { free(model_bytes); FAIL("onnx_load_from_memory failed"); }
+
+    int64_t in_shape[] = {2, 4};
+    float in_data[] = {0.5f, 1.0f, 1.5f, 2.0f, -0.5f, -1.0f, -1.5f, -2.0f};
+    boat_tensor_t* input = boat_tensor_from_data(in_shape, 2, BOAT_DTYPE_FLOAT32, in_data);
+    if (!input) { boat_model_free(model); free(model_bytes); FAIL("input failed"); }
+
+    boat_tensor_t* output = boat_model_forward(model, input);
+    if (!output) { boat_tensor_unref(input); boat_model_free(model); free(model_bytes); FAIL("forward failed"); }
+
+    // Flatten from axis=1 on 2D: should be unchanged [2, 3]
+    const int64_t* os = boat_tensor_shape(output);
+    if (boat_tensor_ndim(output) != 2 || os[0] != 2 || os[1] != 3) {
+        boat_tensor_unref(input); boat_tensor_unref(output); boat_model_free(model); free(model_bytes);
+        FAIL("output shape mismatch");
+    }
+
+    // Gemm: weight=0.1, bias=[0.01,0.02,0.03]
+    // batch 0: sum(input)=0.5+1+1.5+2=5, y=5*0.1+bias = [0.51,0.52,0.53]
+    // batch 1: sum(input)=-0.5-1-1.5-2=-5, y=-5*0.1+bias = [-0.49,-0.48,-0.47]
+    float expected[] = {0.51f, 0.52f, 0.53f, -0.49f, -0.48f, -0.47f};
+    const float* od = (const float*)boat_tensor_const_data(output);
+    for (int i = 0; i < 6; i++) {
+        float diff = fabsf(od[i] - expected[i]);
+        if (diff > 1e-5f) {
+            printf("FAIL: output[%d]=%f, expected %f\n", i, od[i], expected[i]);
+            boat_tensor_unref(input); boat_tensor_unref(output); boat_model_free(model); free(model_bytes);
+            return 1;
+        }
+    }
+
+    boat_tensor_unref(input);
+    boat_tensor_unref(output);
+    boat_model_free(model);
+    free(model_bytes);
+    PASS(); return 0;
+}
+
+static int test_onnx_load_cnn(void) {
+    TEST("ONNX load + full CNN forward");
+
+    size_t model_size;
+    uint8_t* model_bytes = build_test_cnn_model(&model_size);
+    if (!model_bytes) FAIL("build_test_cnn_model failed");
+
+    boat_model_t* model = boat_onnx_load_from_memory(model_bytes, model_size);
+    if (!model) { free(model_bytes); FAIL("onnx_load_from_memory failed"); }
+
+    int64_t in_shape[] = {1, 1, 4, 4};
+    float in_data[16];
+    for (int i = 0; i < 16; i++) in_data[i] = 1.0f;
+    boat_tensor_t* input = boat_tensor_from_data(in_shape, 4, BOAT_DTYPE_FLOAT32, in_data);
+    if (!input) { boat_model_free(model); free(model_bytes); FAIL("input failed"); }
+
+    boat_tensor_t* output = boat_model_forward(model, input);
+    if (!output) { boat_tensor_unref(input); boat_model_free(model); free(model_bytes); FAIL("forward failed"); }
+
+    // Expected shape: [1, 3]
+    const int64_t* os = boat_tensor_shape(output);
+    if (boat_tensor_ndim(output) != 2 || os[0] != 1 || os[1] != 3) {
+        boat_tensor_unref(input); boat_tensor_unref(output); boat_model_free(model); free(model_bytes);
+        FAIL("output shape mismatch");
+    }
+
+    // Softmax output should be valid probabilities
+    const float* od = (const float*)boat_tensor_const_data(output);
+    float sum = 0;
+    for (int i = 0; i < 3; i++) {
+        if (!isfinite(od[i]) || od[i] < 0 || od[i] > 1) {
+            printf("FAIL: output[%d]=%f (invalid prob)\n", i, od[i]);
+            boat_tensor_unref(input); boat_tensor_unref(output); boat_model_free(model); free(model_bytes);
+            return 1;
+        }
+        sum += od[i];
+    }
+    if (fabsf(sum - 1.0f) > 1e-4f) {
+        printf("FAIL: softmax sum = %f\n", sum);
+        boat_tensor_unref(input); boat_tensor_unref(output); boat_model_free(model); free(model_bytes);
+        return 1;
+    }
+
+    boat_tensor_unref(input);
+    boat_tensor_unref(output);
+    boat_model_free(model);
+    free(model_bytes);
+    PASS(); return 0;
+}
+
 int main(void) {
     setvbuf(stdout, NULL, _IONBF, 0);
     printf("ONNX Loader Tests\n");
@@ -301,6 +1116,12 @@ int main(void) {
     fail |= test_onnx_load_and_forward();
     fail |= test_onnx_check();
     fail |= test_onnx_get_version();
+    fail |= test_onnx_load_conv();
+    fail |= test_onnx_load_batchnorm();
+    fail |= test_onnx_load_maxpool();
+    fail |= test_onnx_load_softmax();
+    fail |= test_onnx_load_flatten();
+    fail |= test_onnx_load_cnn();
 
     printf("\nResults: %d/%d passed\n", tests_passed, tests_total);
     return fail ? 1 : 0;

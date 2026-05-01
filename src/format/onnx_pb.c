@@ -209,6 +209,7 @@ void pb_patch_length(pb_builder_t* b, size_t pos) {
 #define ATTR_TYPE           5   // AttributeProto.type (int32)
 #define ATTR_F              2   // AttributeProto.f (float)
 #define ATTR_I              3   // AttributeProto.i (int64)
+#define ATTR_INTS           7   // AttributeProto.ints (repeated int64)
 
 // Read a string field from a reader (tag + len already consumed)
 static char* read_string_field(pb_reader_t* r, size_t len) {
@@ -275,9 +276,14 @@ static bool parse_node(pb_reader_t* r, onnx_node_t* node) {
                 uint64_t alen = pb_read_varint(r);
                 pb_reader_t attr;
                 if (!pb_read_submessage(r, &attr, (size_t)alen)) break;
-                // Parse AttributeProto: extract name and int value
+                // Parse AttributeProto: extract name, type, and value
                 char* attr_name = NULL;
+                int32_t attr_type = 0;
                 int64_t attr_int = 0;
+                float attr_float = 0.0f;
+                // Temp storage for INTS list (max 8 elements covers all our needs)
+                int64_t ints_list[8];
+                int num_ints = 0;
                 while (attr.pos < attr.size) {
                     uint32_t af, aw;
                     if (!pb_read_tag(&attr, &af, &aw)) break;
@@ -287,10 +293,35 @@ static bool parse_node(pb_reader_t* r, onnx_node_t* node) {
                             { uint64_t sl = pb_read_varint(&attr);
                               attr_name = read_string_field(&attr, (size_t)sl); }
                             break;
+                        case ATTR_TYPE:
+                            if (aw != 0) { pb_skip_field(&attr, aw); break; }
+                            attr_type = (int32_t)pb_read_varint(&attr);
+                            break;
+                        case ATTR_F:
+                            if (aw != 5) { pb_skip_field(&attr, aw); break; }
+                            memcpy(&attr_float, attr.data + attr.pos, 4);
+                            attr.pos += 4;
+                            break;
                         case ATTR_I:
                             if (aw != 0) { pb_skip_field(&attr, aw); break; }
                             attr_int = (int64_t)pb_read_varint(&attr);
                             break;
+                        case ATTR_INTS: {
+                            if (aw == 0) {
+                                // Non-packed repeated varint
+                                if (num_ints < 8) ints_list[num_ints++] = (int64_t)pb_read_varint(&attr);
+                            } else if (aw == 2) {
+                                // Packed repeated varints
+                                uint64_t list_len = pb_read_varint(&attr);
+                                size_t end = attr.pos + (size_t)list_len;
+                                while (attr.pos < end && num_ints < 8) {
+                                    ints_list[num_ints++] = (int64_t)pb_read_varint(&attr);
+                                }
+                            } else {
+                                pb_skip_field(&attr, aw);
+                            }
+                            break;
+                        }
                         default:
                             pb_skip_field(&attr, aw);
                             break;
@@ -303,12 +334,30 @@ static bool parse_node(pb_reader_t* r, onnx_node_t* node) {
                             node->attrs_cap * sizeof(char*));
                         int64_t* ti = (int64_t*)realloc(node->attr_ints,
                             node->attrs_cap * sizeof(int64_t));
-                        if (!tn || !ti) { free(attr_name); return false; }
+                        float* tf = (float*)realloc(node->attr_floats,
+                            node->attrs_cap * sizeof(float));
+                        int* ttyp = (int*)realloc(node->attr_types,
+                            node->attrs_cap * sizeof(int));
+                        if (!tn || !ti || !tf || !ttyp) { free(attr_name); return false; }
                         node->attr_names = tn;
                         node->attr_ints = ti;
+                        node->attr_floats = tf;
+                        node->attr_types = ttyp;
                     }
                     node->attr_names[node->num_attrs] = attr_name;
-                    node->attr_ints[node->num_attrs] = attr_int;
+                    node->attr_types[node->num_attrs] = attr_type;
+                    if (attr_type == ONNX_ATTR_FLOAT) {
+                        node->attr_floats[node->num_attrs] = attr_float;
+                        node->attr_ints[node->num_attrs] = 0;
+                    } else if (attr_type == ONNX_ATTR_INTS) {
+                        // Store first element; boat layers use scalar kernel/stride/padding
+                        node->attr_ints[node->num_attrs] = num_ints > 0 ? ints_list[0] : 0;
+                        node->attr_floats[node->num_attrs] = 0.0f;
+                    } else {
+                        // INT (default)
+                        node->attr_ints[node->num_attrs] = attr_int;
+                        node->attr_floats[node->num_attrs] = 0.0f;
+                    }
                     node->num_attrs++;
                 }
                 break;
@@ -515,6 +564,8 @@ void onnx_model_free(onnx_model_t* model) {
         for (int j = 0; j < node->num_attrs; j++) free(node->attr_names[j]);
         free(node->attr_names);
         free(node->attr_ints);
+        free(node->attr_floats);
+        free(node->attr_types);
     }
     free(model->graph.nodes);
 

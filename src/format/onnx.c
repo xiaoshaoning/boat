@@ -17,16 +17,6 @@
 // Helpers
 // -----------------------------------------------------------------------
 
-static boat_tensor_t* find_initializer(const onnx_graph_t* graph, const char* name) {
-    for (int i = 0; i < graph->num_initializers; i++) {
-        if (graph->initializers[i].name &&
-            strcmp(graph->initializers[i].name, name) == 0) {
-            return NULL; // returned via output param to avoid mixing types
-        }
-    }
-    return NULL;
-}
-
 static onnx_tensor_t* find_init_tensor(const onnx_graph_t* graph, const char* name) {
     for (int i = 0; i < graph->num_initializers; i++) {
         if (graph->initializers[i].name &&
@@ -79,6 +69,35 @@ static bool gemm_transB(const onnx_node_t* node) {
             return node->attr_ints[i] != 0;
     }
     return false; // ONNX default
+}
+
+// Attribute lookup helpers (return default if not found)
+static int64_t get_attr_int(const onnx_node_t* node, const char* name, int64_t def) {
+    for (int i = 0; i < node->num_attrs; i++) {
+        if (strcmp(node->attr_names[i], name) == 0)
+            return node->attr_ints[i];
+    }
+    return def;
+}
+
+static float get_attr_float(const onnx_node_t* node, const char* name, float def) {
+    for (int i = 0; i < node->num_attrs; i++) {
+        if (strcmp(node->attr_names[i], name) == 0)
+            return node->attr_floats[i];
+    }
+    return def;
+}
+
+// Get first element of an INTS attribute (used for kernel_shape, strides, pads)
+// Falls back to scalar INT if INTS not found
+static int64_t get_attr_ints_first(const onnx_node_t* node, const char* name, int64_t def) {
+    for (int i = 0; i < node->num_attrs; i++) {
+        if (strcmp(node->attr_names[i], name) == 0) {
+            // For INTS type, attr_ints stores the first element; for INT type, use directly
+            return node->attr_ints[i];
+        }
+    }
+    return def;
 }
 
 // Build a boat_model_t from a parsed onnx_model_t
@@ -152,6 +171,138 @@ static boat_model_t* build_model(const onnx_model_t* onnx) {
             if (!wrapper) { boat_relu_layer_free(relu); boat_model_free(model); return NULL; }
             wrapper->data = relu;
             wrapper->type = BOAT_LAYER_TYPE_RELU;
+            wrapper->ops = NULL;
+            boat_model_add_layer(model, wrapper);
+
+        } else if (strcmp(node->op_type, "Conv") == 0) {
+            // Conv: Y = Conv(X, W, B)
+            // ONNX weight shape: [M, C, kH, kW] (same as boat NCHW layout)
+            const onnx_tensor_t* w_init = (node->num_inputs > 1) ?
+                find_init_tensor(&onnx->graph, node->names[1]) : NULL;
+            const onnx_tensor_t* b_init = (node->num_inputs > 2) ?
+                find_init_tensor(&onnx->graph, node->names[2]) : NULL;
+
+            if (!w_init || w_init->data_type != ONNX_DTYPE_FLOAT || w_init->num_dims < 4) {
+                boat_model_free(model);
+                return NULL;
+            }
+
+            size_t in_channels = (size_t)w_init->dims[1];
+            size_t out_channels = (size_t)w_init->dims[0];
+            size_t kernel_size = (size_t)get_attr_ints_first(node, "kernel_shape", 1);
+            size_t stride = (size_t)get_attr_ints_first(node, "strides", 1);
+            size_t padding = (size_t)get_attr_ints_first(node, "pads", 0);
+
+            boat_conv_layer_t* conv = boat_conv_layer_create(
+                in_channels, out_channels, kernel_size, stride, padding);
+            if (!conv) { boat_model_free(model); return NULL; }
+
+            boat_tensor_t* w = onnx_tensor_to_boat(w_init);
+            if (!w) { boat_conv_layer_free(conv); boat_model_free(model); return NULL; }
+            boat_conv_layer_set_weight(conv, w);
+            boat_tensor_unref(w);
+
+            if (b_init && b_init->raw_data_size > 0) {
+                boat_tensor_t* b = onnx_tensor_to_boat(b_init);
+                if (b) {
+                    boat_conv_layer_set_bias(conv, b);
+                    boat_tensor_unref(b);
+                }
+            }
+
+            boat_layer_t* wrapper = (boat_layer_t*)malloc(sizeof(boat_layer_t));
+            if (!wrapper) { boat_conv_layer_free(conv); boat_model_free(model); return NULL; }
+            wrapper->data = conv;
+            wrapper->type = BOAT_LAYER_TYPE_CONV2D;
+            wrapper->ops = NULL;
+            boat_model_add_layer(model, wrapper);
+
+        } else if (strcmp(node->op_type, "BatchNormalization") == 0) {
+            // BatchNorm: y = gamma * (x - mean) / sqrt(var + eps) + beta
+            // Inputs: X (0), scale/gamma (1), B/beta (2), mean (3), var (4)
+            const onnx_tensor_t* scale_init = (node->num_inputs > 1) ?
+                find_init_tensor(&onnx->graph, node->names[1]) : NULL;
+            const onnx_tensor_t* b_init = (node->num_inputs > 2) ?
+                find_init_tensor(&onnx->graph, node->names[2]) : NULL;
+            const onnx_tensor_t* mean_init = (node->num_inputs > 3) ?
+                find_init_tensor(&onnx->graph, node->names[3]) : NULL;
+            const onnx_tensor_t* var_init = (node->num_inputs > 4) ?
+                find_init_tensor(&onnx->graph, node->names[4]) : NULL;
+
+            if (!scale_init || scale_init->num_dims < 1) {
+                boat_model_free(model);
+                return NULL;
+            }
+
+            size_t num_features = (size_t)scale_init->dims[0];
+            float eps = get_attr_float(node, "epsilon", 1e-5f);
+            float momentum = get_attr_float(node, "momentum", 0.9f);
+
+            boat_batchnorm2d_layer_t* bn = boat_batchnorm2d_layer_create(
+                num_features, eps, momentum, true);
+            if (!bn) { boat_model_free(model); return NULL; }
+
+            if (scale_init && scale_init->raw_data_size > 0) {
+                boat_tensor_t* t = onnx_tensor_to_boat(scale_init);
+                if (t) { boat_batchnorm2d_layer_set_weight(bn, t); boat_tensor_unref(t); }
+            }
+            if (b_init && b_init->raw_data_size > 0) {
+                boat_tensor_t* t = onnx_tensor_to_boat(b_init);
+                if (t) { boat_batchnorm2d_layer_set_bias(bn, t); boat_tensor_unref(t); }
+            }
+            if (mean_init && mean_init->raw_data_size > 0) {
+                boat_tensor_t* t = onnx_tensor_to_boat(mean_init);
+                if (t) { boat_batchnorm2d_layer_set_running_mean(bn, t); boat_tensor_unref(t); }
+            }
+            if (var_init && var_init->raw_data_size > 0) {
+                boat_tensor_t* t = onnx_tensor_to_boat(var_init);
+                if (t) { boat_batchnorm2d_layer_set_running_var(bn, t); boat_tensor_unref(t); }
+            }
+
+            boat_layer_t* wrapper = (boat_layer_t*)malloc(sizeof(boat_layer_t));
+            if (!wrapper) { boat_batchnorm2d_layer_free(bn); boat_model_free(model); return NULL; }
+            wrapper->data = bn;
+            wrapper->type = BOAT_LAYER_TYPE_BATCHNORM2D;
+            wrapper->ops = NULL;
+            boat_model_add_layer(model, wrapper);
+
+        } else if (strcmp(node->op_type, "MaxPool") == 0) {
+            // MaxPool: Y = MaxPool(X)
+            size_t pool_size = (size_t)get_attr_ints_first(node, "kernel_shape", 1);
+            size_t stride = (size_t)get_attr_ints_first(node, "strides", pool_size);
+            size_t padding = (size_t)get_attr_ints_first(node, "pads", 0);
+
+            boat_pool_layer_t* pool = boat_pool_layer_create(pool_size, stride, padding);
+            if (!pool) { boat_model_free(model); return NULL; }
+
+            boat_layer_t* wrapper = (boat_layer_t*)malloc(sizeof(boat_layer_t));
+            if (!wrapper) { boat_pool_layer_free(pool); boat_model_free(model); return NULL; }
+            wrapper->data = pool;
+            wrapper->type = BOAT_LAYER_TYPE_MAXPOOL2D;
+            wrapper->ops = NULL;
+            boat_model_add_layer(model, wrapper);
+
+        } else if (strcmp(node->op_type, "Softmax") == 0) {
+            // Softmax: hardcode axis=1 (standard for NCHW feature dim)
+            boat_softmax_layer_t* softmax = boat_softmax_layer_create(1);
+            if (!softmax) { boat_model_free(model); return NULL; }
+
+            boat_layer_t* wrapper = (boat_layer_t*)malloc(sizeof(boat_layer_t));
+            if (!wrapper) { boat_softmax_layer_free(softmax); boat_model_free(model); return NULL; }
+            wrapper->data = softmax;
+            wrapper->type = BOAT_LAYER_TYPE_SOFTMAX;
+            wrapper->ops = NULL;
+            boat_model_add_layer(model, wrapper);
+
+        } else if (strcmp(node->op_type, "Flatten") == 0) {
+            // Flatten: flatten from axis=1 (ONNX default)
+            boat_flatten_layer_t* flatten = boat_flatten_layer_create();
+            if (!flatten) { boat_model_free(model); return NULL; }
+
+            boat_layer_t* wrapper = (boat_layer_t*)malloc(sizeof(boat_layer_t));
+            if (!wrapper) { boat_flatten_layer_free(flatten); boat_model_free(model); return NULL; }
+            wrapper->data = flatten;
+            wrapper->type = BOAT_LAYER_TYPE_FLATTEN;
             wrapper->ops = NULL;
             boat_model_add_layer(model, wrapper);
 

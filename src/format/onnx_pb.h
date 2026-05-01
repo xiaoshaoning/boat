@@ -67,6 +67,11 @@ void pb_write_raw(pb_builder_t* b, const void* data, size_t len);
 // ONNX TensorProto data types we care about
 #define ONNX_DTYPE_FLOAT 1
 
+// ONNX AttributeProto types
+#define ONNX_ATTR_FLOAT 1
+#define ONNX_ATTR_INT   2
+#define ONNX_ATTR_INTS  7
+
 typedef struct {
     char** names;       // input names (string field 1, repeated)
     int num_inputs;
@@ -77,6 +82,8 @@ typedef struct {
     // Simple attribute dict (name->int64 mapping)
     char** attr_names;
     int64_t* attr_ints;
+    float* attr_floats;
+    int* attr_types;    // ONNX_ATTR_* values, parallel to attr_names
     int num_attrs;
     int attrs_cap;
 } onnx_node_t;
