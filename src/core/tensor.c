@@ -125,8 +125,8 @@ BOAT_API boat_tensor_t* boat_tensor_create(const int64_t* shape, size_t ndim,
     // Allocate data
     tensor->data = allocate_memory(tensor->nbytes, device);
     if (!tensor->data) {
-        free(tensor->shape);
-        free(tensor);
+        boat_free(tensor->shape);
+        boat_free(tensor);
         return NULL;
     }
 

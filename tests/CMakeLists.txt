@@ -105,3 +105,8 @@ target_link_libraries(test_quantize boat)
 add_executable(test_onnx test_onnx.c)
 target_include_directories(test_onnx PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(test_onnx boat)
+
+# Data pipeline tests (Dataset, DataLoader, Transforms)
+add_executable(test_data_pipeline test_data_pipeline.c)
+target_link_libraries(test_data_pipeline boat)
+

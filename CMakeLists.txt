@@ -141,6 +141,9 @@ set(BOAT_SOURCES
     src/schedulers/step_lr.c
     src/schedulers/cosine_annealing.c
     src/schedulers/lambda_lr.c
+    src/data/dataset.c
+    src/data/dataloader.c
+    src/data/transform.c
     src/loss/loss_common.c
     src/loss/mse.c
     src/loss/cross_entropy.c
