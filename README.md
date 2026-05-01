@@ -497,6 +497,7 @@ The repository includes several comprehensive examples:
 - **MNIST Classification**: Complete training pipeline for digit recognition
 - **CIFAR-10**: CNN image classification with data pipeline and transforms
 - **Transformer**: End-to-end transformer with tokenization, training, and autoregressive decoding
+- **Translator**: English-to-French MarianMT (Helsinki-NLP) inference engine using Safetensors weights
 - **Automatic Differentiation**: Gradient computation with dynamic computation graphs
 - **Scheduler Usage**: Learning rate scheduling with cosine annealing, step LR, and lambda LR
 - **ONNX Export**: Export trained boat models to ONNX format
@@ -535,7 +536,8 @@ boat/
 ├── examples/               # Example programs
 │   ├── mnist/             # MNIST classification
 │   ├── cifar10/           # CIFAR-10 image classification
-│   └── transformer/       # Transformer end-to-end example
+│   ├── transformer/       # Transformer end-to-end example
+│   └── translator/        # English-French MarianMT translator
 ├── tests/                 # Test suite
 │   ├── unit/              # Unit tests
 │   └── archive/           # Archived/legacy tests
@@ -566,6 +568,7 @@ For detailed API documentation and development guidelines, see [CLAUDE.md](CLAUD
 - MNIST training example (manual and autodiff, both >96% test accuracy)
 - CIFAR-10 CNN training example
 - Transformer end-to-end example
+- English-French MarianMT translator (Safetensors-based inference)
 - ONNX export (boat → ONNX serialization)
 
 ### Planned Features
