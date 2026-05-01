@@ -1,3 +1,6 @@
+# Claude Code project config
+.claude/
+
 # Build directories
 build*/
 build_*/
@@ -61,6 +64,7 @@ examples/mnist/*.csv
 
 # Data files (large binary files)
 examples/mnist/data/*.bin
+examples/cifar10/data_raw/
 examples/mnist/data/MNIST/
 
 # Coverage reports
