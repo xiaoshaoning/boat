@@ -1629,3 +1629,36 @@ BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_get_grad_bias_o(c
     if (!attn) return NULL;
     return attn->grad_bias_o;
 }
+
+// Weight setters for model loading
+BOAT_NOINLINE BOAT_API void BOAT_CALL boat_attention_set_weight_q(boat_attention_t* attention, boat_tensor_t* w) {
+    struct boat_attention_t* attn = (struct boat_attention_t*)attention;
+    if (!attn || !w) return;
+    if (attn->weight_q) boat_tensor_free(attn->weight_q);
+    attn->weight_q = w;
+    boat_tensor_ref(w);
+}
+
+BOAT_NOINLINE BOAT_API void BOAT_CALL boat_attention_set_weight_k(boat_attention_t* attention, boat_tensor_t* w) {
+    struct boat_attention_t* attn = (struct boat_attention_t*)attention;
+    if (!attn || !w) return;
+    if (attn->weight_k) boat_tensor_free(attn->weight_k);
+    attn->weight_k = w;
+    boat_tensor_ref(w);
+}
+
+BOAT_NOINLINE BOAT_API void BOAT_CALL boat_attention_set_weight_v(boat_attention_t* attention, boat_tensor_t* w) {
+    struct boat_attention_t* attn = (struct boat_attention_t*)attention;
+    if (!attn || !w) return;
+    if (attn->weight_v) boat_tensor_free(attn->weight_v);
+    attn->weight_v = w;
+    boat_tensor_ref(w);
+}
+
+BOAT_NOINLINE BOAT_API void BOAT_CALL boat_attention_set_weight_o(boat_attention_t* attention, boat_tensor_t* w) {
+    struct boat_attention_t* attn = (struct boat_attention_t*)attention;
+    if (!attn || !w) return;
+    if (attn->weight_o) boat_tensor_free(attn->weight_o);
+    attn->weight_o = w;
+    boat_tensor_ref(w);
+}

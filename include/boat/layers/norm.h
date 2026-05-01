@@ -74,6 +74,7 @@ BOAT_API boat_tensor_t* boat_rms_norm_grad(const boat_tensor_t* grad_output,
 // Parameter setting for model loading
 BOAT_API void boat_layernorm_set_weight(boat_layernorm_t* norm, boat_tensor_t* weight);
 BOAT_API void boat_layernorm_set_bias(boat_layernorm_t* norm, boat_tensor_t* bias);
+BOAT_API void boat_rmsnorm_set_weight(boat_rmsnorm_t* norm, boat_tensor_t* weight);
 
 #ifdef __cplusplus
 }

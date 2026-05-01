@@ -47,6 +47,7 @@ BOAT_API boat_tensor_t* boat_inverse(const boat_tensor_t* a);
 // Activation functions
 BOAT_API boat_tensor_t* boat_relu(const boat_tensor_t* a);
 BOAT_API boat_tensor_t* boat_sigmoid(const boat_tensor_t* a);
+BOAT_API boat_tensor_t* boat_silu(const boat_tensor_t* a);
 BOAT_API boat_tensor_t* boat_tanh(const boat_tensor_t* a);
 BOAT_API boat_tensor_t* boat_softmax(const boat_tensor_t* a, int axis);
 BOAT_API boat_tensor_t* boat_log_softmax(const boat_tensor_t* a, int axis);

@@ -289,6 +289,37 @@ boat_tensor_t* boat_sigmoid(const boat_tensor_t* a) {
     return NULL;
 }
 
+boat_tensor_t* boat_silu(const boat_tensor_t* a) {
+    if (!a) return NULL;
+
+    boat_tensor_t* out = boat_tensor_create_like(a);
+    if (!out) return NULL;
+
+    boat_dtype_t dtype = boat_tensor_dtype(a);
+    size_t n = boat_tensor_nelements(a);
+
+    if (dtype == BOAT_DTYPE_FLOAT32) {
+        const float* src = (const float*)boat_tensor_const_data(a);
+        float* dst = (float*)boat_tensor_data(out);
+        for (size_t i = 0; i < n; i++) {
+            dst[i] = src[i] / (1.0f + expf(-src[i]));
+        }
+        return out;
+    }
+
+    if (dtype == BOAT_DTYPE_FLOAT64) {
+        const double* src = (const double*)boat_tensor_const_data(a);
+        double* dst = (double*)boat_tensor_data(out);
+        for (size_t i = 0; i < n; i++) {
+            dst[i] = src[i] / (1.0 + exp(-src[i]));
+        }
+        return out;
+    }
+
+    boat_tensor_unref(out);
+    return NULL;
+}
+
 boat_tensor_t* boat_tanh(const boat_tensor_t* a) {
     // TODO: Implement tanh
     (void)a;

@@ -88,6 +88,12 @@ BOAT_API void BOAT_CALL boat_apply_rotary_embedding(boat_tensor_t* query,
                                   size_t head_size,
                                   float theta);
 
+// Weight setters for model loading
+BOAT_API void BOAT_CALL boat_attention_set_weight_q(boat_attention_t* attention, boat_tensor_t* w);
+BOAT_API void BOAT_CALL boat_attention_set_weight_k(boat_attention_t* attention, boat_tensor_t* w);
+BOAT_API void BOAT_CALL boat_attention_set_weight_v(boat_attention_t* attention, boat_tensor_t* w);
+BOAT_API void BOAT_CALL boat_attention_set_weight_o(boat_attention_t* attention, boat_tensor_t* w);
+
 // Accessor functions for testing (get weights and gradients)
 BOAT_API boat_tensor_t* BOAT_CALL boat_attention_get_weight_q(const boat_attention_t* attention);
 BOAT_API boat_tensor_t* BOAT_CALL boat_attention_get_weight_k(const boat_attention_t* attention);

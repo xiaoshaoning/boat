@@ -548,3 +548,18 @@ BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_norm_layer_backward(boat_no
 BOAT_NOINLINE BOAT_API void BOAT_CALL boat_norm_layer_update(boat_norm_layer_t* layer, float learning_rate) {
     boat_layernorm_update(layer, learning_rate);
 }
+
+BOAT_API void boat_rmsnorm_set_weight(boat_rmsnorm_t* norm, boat_tensor_t* weight) {
+    if (!norm || !weight) return;
+
+    const int64_t* ws = boat_tensor_shape(weight);
+    if (ws[0] != (int64_t)norm->config.normalized_shape) {
+        fprintf(stderr, "Error: RMSNorm weight shape [%lld] != normalized_shape %zu\n",
+                (long long)ws[0], norm->config.normalized_shape);
+        return;
+    }
+
+    if (norm->weight) boat_tensor_free(norm->weight);
+    norm->weight = weight;
+    boat_tensor_ref(weight);
+}

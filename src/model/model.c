@@ -8,6 +8,7 @@
 #include <boat/tensor.h>
 #include <boat/graph.h>
 #include <boat/layers/norm.h>
+#include <boat/layers/attention.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -578,16 +579,56 @@ static const boat_layer_ops_t bn_ops = {
     .update = bn_update_op, .free = bn_free_op
 };
 
+// --- Attention ops ---
+static boat_tensor_t* attn_forward_op(const boat_layer_t* layer, const boat_tensor_t* input) {
+    return boat_attention_forward((boat_attention_t*)layer->data, input, input, input, NULL);
+}
+static boat_tensor_t* attn_backward_op(const boat_layer_t* layer, const boat_tensor_t* grad) {
+    boat_tensor_t* gq = NULL;
+    boat_attention_backward((boat_attention_t*)layer->data, grad, &gq, NULL, NULL);
+    return gq;
+}
+static void attn_update_op(const boat_layer_t* layer, float lr) {
+    boat_attention_update((boat_attention_t*)layer->data, lr);
+}
+static void attn_free_op(const boat_layer_t* layer) {
+    if (layer && layer->data) { boat_attention_free((boat_attention_t*)layer->data); free((void*)layer); }
+}
+static const boat_layer_ops_t attn_ops = {
+    .forward = attn_forward_op, .backward = attn_backward_op,
+    .update = attn_update_op, .free = attn_free_op
+};
+
+// --- RMSNorm ops ---
+static boat_tensor_t* rms_forward_op(const boat_layer_t* layer, const boat_tensor_t* input) {
+    return boat_rmsnorm_forward((boat_rmsnorm_t*)layer->data, input);
+}
+static boat_tensor_t* rms_backward_op(const boat_layer_t* layer, const boat_tensor_t* grad) {
+    return boat_rmsnorm_backward((boat_rmsnorm_t*)layer->data, grad);
+}
+static void rms_update_op(const boat_layer_t* layer, float lr) {
+    boat_rmsnorm_update((boat_rmsnorm_t*)layer->data, lr);
+}
+static void rms_free_op(const boat_layer_t* layer) {
+    if (layer && layer->data) { boat_rmsnorm_free((boat_rmsnorm_t*)layer->data); free((void*)layer); }
+}
+static const boat_layer_ops_t rms_ops = {
+    .forward = rms_forward_op, .backward = rms_backward_op,
+    .update = rms_update_op, .free = rms_free_op
+};
+
 static void set_layer_ops(boat_layer_t* wrapper) {
     switch (wrapper->type) {
-        case BOAT_LAYER_TYPE_DENSE:      wrapper->ops = &dense_ops; break;
-        case BOAT_LAYER_TYPE_CONV2D:     wrapper->ops = &conv_ops; break;
-        case BOAT_LAYER_TYPE_MAXPOOL2D:  wrapper->ops = &pool_ops; break;
-        case BOAT_LAYER_TYPE_RELU:       wrapper->ops = &relu_ops; break;
-        case BOAT_LAYER_TYPE_SOFTMAX:    wrapper->ops = &softmax_ops; break;
-        case BOAT_LAYER_TYPE_FLATTEN:    wrapper->ops = &flatten_ops; break;
+        case BOAT_LAYER_TYPE_DENSE:       wrapper->ops = &dense_ops; break;
+        case BOAT_LAYER_TYPE_CONV2D:      wrapper->ops = &conv_ops; break;
+        case BOAT_LAYER_TYPE_MAXPOOL2D:   wrapper->ops = &pool_ops; break;
+        case BOAT_LAYER_TYPE_RELU:        wrapper->ops = &relu_ops; break;
+        case BOAT_LAYER_TYPE_SOFTMAX:     wrapper->ops = &softmax_ops; break;
+        case BOAT_LAYER_TYPE_FLATTEN:     wrapper->ops = &flatten_ops; break;
         case BOAT_LAYER_TYPE_BATCHNORM2D: wrapper->ops = &bn_ops; break;
-        default:                         wrapper->ops = NULL; break;
+        case BOAT_LAYER_TYPE_ATTENTION:   wrapper->ops = &attn_ops; break;
+        case BOAT_LAYER_TYPE_RMSNORM:     wrapper->ops = &rms_ops; break;
+        default:                          wrapper->ops = NULL; break;
     }
 }
 

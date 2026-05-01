@@ -48,6 +48,7 @@ option(BOAT_WITH_ONNX "Enable ONNX support" OFF)
 option(BOAT_WITH_PYTORCH "Enable PyTorch support" OFF)
 option(BOAT_WITH_TENSORFLOW "Enable TensorFlow support" OFF)
 option(BOAT_WITH_HUGGINGFACE "Enable Hugging Face Transformers support" OFF)
+option(BOAT_WITH_GGUF "Enable GGUF format support" OFF)
 option(BOAT_DEBUG "Enable debug output (0=disabled, 1=enabled)" 0)
 
 # PyTorch path configuration
@@ -240,6 +241,10 @@ if(BOAT_WITH_TENSORFLOW)
     find_package(TensorFlow REQUIRED)
 endif()
 
+if(BOAT_WITH_GGUF)
+    list(APPEND BOAT_SOURCES src/format/gguf.c)
+endif()
+
 if(BOAT_WITH_HUGGINGFACE)
     list(APPEND BOAT_SOURCES src/format/huggingface.c)
 
@@ -327,6 +332,9 @@ endif()
 # ONNX format support (self-contained, no external dep)
 if(BOAT_NEEDS_ONNX_DEFINE)
     target_compile_definitions(boat PRIVATE BOAT_WITH_ONNX)
+endif()
+if(BOAT_WITH_GGUF)
+    target_compile_definitions(boat PRIVATE BOAT_WITH_GGUF)
 endif()
 
 # Set library properties

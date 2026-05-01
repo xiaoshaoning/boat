@@ -110,3 +110,9 @@ target_link_libraries(test_onnx boat)
 add_executable(test_data_pipeline test_data_pipeline.c)
 target_link_libraries(test_data_pipeline boat)
 
+# GGUF format loader tests
+if(BOAT_WITH_GGUF)
+    add_executable(test_gguf test_gguf.c)
+    target_link_libraries(test_gguf boat)
+endif()
+
