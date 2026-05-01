@@ -97,11 +97,9 @@ void boat_model_free(boat_model_t* model) {
         for (size_t i = 0; i < model->layer_count; i++) {
             boat_layer_t* layer = model->layers[i];
             if (layer) {
-                // Use layer operations if available
                 if (layer->ops && layer->ops->free) {
                     layer->ops->free(layer);
                 } else {
-                    // Fallback: free layer wrapper only
                     free(layer);
                 }
             }
@@ -392,9 +390,10 @@ static bool save_tensor_to_file(FILE* f, const boat_tensor_t* tensor, uint32_t v
     if (fwrite(data, 1, nbytes, f) != nbytes) return false;
 
     if (version >= 2) {
-        bool quantized = ((boat_tensor_dtype(tensor) == BOAT_DTYPE_UINT8 ||
-                           boat_tensor_dtype(tensor) == BOAT_DTYPE_INT8) &&
-                          boat_tensor_get_scale(tensor) != 0.0f);
+        boat_dtype_t dt = boat_tensor_dtype(tensor);
+        bool quantized = ((dt == BOAT_DTYPE_UINT8 || dt == BOAT_DTYPE_INT8 || dt == BOAT_DTYPE_BITS2) &&
+                          boat_tensor_get_scale(tensor) != 0.0f) ||
+                         dt == BOAT_DTYPE_FLOAT4;
         uint32_t quant_flag = quantized ? 1 : 0;
         if (fwrite(&quant_flag, sizeof(uint32_t), 1, f) != 1) return false;
         if (quantized) {
@@ -402,6 +401,21 @@ static bool save_tensor_to_file(FILE* f, const boat_tensor_t* tensor, uint32_t v
             int32_t zero_point = boat_tensor_get_zero_point(tensor);
             if (fwrite(&scale, sizeof(float), 1, f) != 1) return false;
             if (fwrite(&zero_point, sizeof(int32_t), 1, f) != 1) return false;
+        }
+    }
+    if (version >= 3) {
+        bool per_channel = boat_tensor_is_per_channel(tensor);
+        uint32_t pc_flag = per_channel ? 1 : 0;
+        if (fwrite(&pc_flag, sizeof(uint32_t), 1, f) != 1) return false;
+        if (per_channel) {
+            uint32_t n_channels = (uint32_t)boat_tensor_num_channels(tensor);
+            if (fwrite(&n_channels, sizeof(uint32_t), 1, f) != 1) return false;
+            const float* scales = boat_tensor_get_scales(tensor);
+            const int32_t* zero_points = boat_tensor_get_zero_points(tensor);
+            for (uint32_t i = 0; i < n_channels; i++) {
+                if (fwrite(&scales[i], sizeof(float), 1, f) != 1) return false;
+                if (fwrite(&zero_points[i], sizeof(int32_t), 1, f) != 1) return false;
+            }
         }
     }
     return true;
@@ -429,7 +443,13 @@ static boat_tensor_t* load_tensor_from_file(FILE* f, uint32_t version) {
 
     size_t total_elems = 1;
     for (uint32_t i = 0; i < ndim; i++) total_elems *= (size_t)shape[i];
-    size_t nbytes = total_elems * boat_dtype_size(dtype);
+    size_t nbytes;
+    switch (dtype) {
+        case BOAT_DTYPE_FLOAT4: nbytes = (total_elems + 1) / 2; break;
+        case BOAT_DTYPE_BITS2:  nbytes = (total_elems + 3) / 4; break;
+        case BOAT_DTYPE_BITS1:  nbytes = (total_elems + 7) / 8; break;
+        default:                nbytes = total_elems * boat_dtype_size(dtype); break;
+    }
 
     void* data = malloc(nbytes);
     if (!data) { free(shape); return NULL; }
@@ -452,6 +472,34 @@ static boat_tensor_t* load_tensor_from_file(FILE* f, uint32_t version) {
                 return NULL;
             }
             boat_tensor_set_quant_params(tensor, scale, zero_point);
+        }
+    }
+    if (version >= 3) {
+        uint32_t pc_flag;
+        if (fread(&pc_flag, sizeof(uint32_t), 1, f) != 1) { boat_tensor_unref(tensor); return NULL; }
+        if (pc_flag) {
+            uint32_t n_channels;
+            if (fread(&n_channels, sizeof(uint32_t), 1, f) != 1) { boat_tensor_unref(tensor); return NULL; }
+            float* scales = (float*)malloc(sizeof(float) * n_channels);
+            int32_t* zero_points = (int32_t*)malloc(sizeof(int32_t) * n_channels);
+            if (!scales || !zero_points) {
+                free(scales);
+                free(zero_points);
+                boat_tensor_unref(tensor);
+                return NULL;
+            }
+            for (uint32_t i = 0; i < n_channels; i++) {
+                if (fread(&scales[i], sizeof(float), 1, f) != 1 ||
+                    fread(&zero_points[i], sizeof(int32_t), 1, f) != 1) {
+                    free(scales);
+                    free(zero_points);
+                    boat_tensor_unref(tensor);
+                    return NULL;
+                }
+            }
+            boat_tensor_set_per_channel_quant_params(tensor, scales, zero_points, (size_t)n_channels);
+            free(scales);
+            free(zero_points);
         }
     }
     return tensor;
@@ -656,11 +704,19 @@ bool boat_model_save(const boat_model_t* model, const char* filename) {
             default:
                 break;
         }
-        if (w && (boat_tensor_dtype(w) == BOAT_DTYPE_UINT8 ||
-                   boat_tensor_dtype(w) == BOAT_DTYPE_INT8) &&
+        if (!w) continue;
+        // Check per-channel first (version 3)
+        if (boat_tensor_is_per_channel(w)) {
+            version = 3;
+            break;
+        }
+        // Check per-tensor quantized (version 2)
+        boat_dtype_t wdt = boat_tensor_dtype(w);
+        if ((wdt == BOAT_DTYPE_UINT8 || wdt == BOAT_DTYPE_INT8 || wdt == BOAT_DTYPE_BITS2) &&
             boat_tensor_get_scale(w) != 0.0f) {
             version = 2;
-            break;
+        } else if (wdt == BOAT_DTYPE_FLOAT4) {
+            version = 2;
         }
     }
 
@@ -812,7 +868,7 @@ boat_model_t* boat_model_load(const char* filename) {
     if (fread(&magic, sizeof(uint32_t), 1, f) != 1 ||
         fread(&version, sizeof(uint32_t), 1, f) != 1) { fclose(f); return NULL; }
     if (magic != 0x424F4154) { fclose(f); return NULL; }
-    if (version < 1 || version > 2) { fclose(f); return NULL; }
+    if (version < 1 || version > 3) { fclose(f); return NULL; }
 
     uint32_t layer_count_u32;
     if (fread(&layer_count_u32, sizeof(uint32_t), 1, f) != 1) { fclose(f); return NULL; }

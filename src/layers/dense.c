@@ -110,11 +110,11 @@ BOAT_API void BOAT_CALL boat_dense_layer_free(boat_dense_layer_t* layer) {
         return;
     }
 
-    if (layer->weight) boat_tensor_free(layer->weight);
-    if (layer->bias) boat_tensor_free(layer->bias);
-    if (layer->grad_weight) boat_tensor_free(layer->grad_weight);
-    if (layer->grad_bias) boat_tensor_free(layer->grad_bias);
-    if (layer->cache_input) boat_tensor_unref(layer->cache_input);
+    if (layer->weight) { boat_tensor_free(layer->weight); }
+    if (layer->bias) { boat_tensor_free(layer->bias); }
+    if (layer->grad_weight) { boat_tensor_free(layer->grad_weight); }
+    if (layer->grad_bias) { boat_tensor_free(layer->grad_bias); }
+    if (layer->cache_input) { boat_tensor_unref(layer->cache_input); }
     boat_free(layer);
 }
 
@@ -136,9 +136,14 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_forward(boat_dense_layer_t* l
     boat_tensor_t* dequantized_weight = NULL;
     const boat_tensor_t* effective_weight = layer->weight;
     boat_dtype_t wdt = boat_tensor_dtype(layer->weight);
-    if ((wdt == BOAT_DTYPE_UINT8 || wdt == BOAT_DTYPE_INT8) &&
-        boat_tensor_get_scale(layer->weight) != 0.0f) {
-        dequantized_weight = boat_dequantize_tensor(layer->weight);
+    bool is_quantized = (wdt == BOAT_DTYPE_UINT8 || wdt == BOAT_DTYPE_INT8 ||
+                         wdt == BOAT_DTYPE_BITS2 || wdt == BOAT_DTYPE_FLOAT4);
+    if (is_quantized && (wdt == BOAT_DTYPE_FLOAT4 || boat_tensor_get_scale(layer->weight) != 0.0f)) {
+        if (boat_tensor_is_per_channel(layer->weight)) {
+            dequantized_weight = boat_dequantize_tensor_per_channel(layer->weight);
+        } else {
+            dequantized_weight = boat_dequantize_tensor(layer->weight);
+        }
         if (!dequantized_weight) {
             boat_tensor_unref(layer->cache_input);
             layer->cache_input = NULL;

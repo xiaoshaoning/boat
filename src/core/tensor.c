@@ -28,6 +28,11 @@ struct boat_tensor_t {
     // Quantization parameters
     float scale;              // 0.0f means not quantized
     int32_t zero_point;       // meaningful only when scale != 0.0f
+
+    // Per-channel quantization (NULL/0 if per-tensor)
+    float* per_channel_scales;
+    int32_t* per_channel_zero_points;
+    size_t n_channels;
 };
 
 // Helper functions
@@ -137,6 +142,9 @@ BOAT_API boat_tensor_t* boat_tensor_create(const int64_t* shape, size_t ndim,
     tensor->is_view = false;
     tensor->scale = 0.0f;
     tensor->zero_point = 0;
+    tensor->per_channel_scales = NULL;
+    tensor->per_channel_zero_points = NULL;
+    tensor->n_channels = 0;
 
     // Zero out memory
     memset(tensor->data, 0, tensor->nbytes);
@@ -175,15 +183,17 @@ BOAT_API void boat_tensor_free(boat_tensor_t* tensor) {
     if (!tensor) return;
 
     if (--tensor->ref_count == 0) {
-        // If this tensor is a view, it shares data with parent
-        // Don't free the data, just free shape and structure
-        // Decrease parent reference count if exists
         if (tensor->parent) {
             boat_tensor_unref(tensor->parent);
         }
-        // Only free data if this tensor owns it (not a view)
         if (!tensor->is_view && tensor->data) {
             free_memory(tensor->data, tensor->device);
+        }
+        if (tensor->per_channel_scales) {
+            boat_free(tensor->per_channel_scales);
+        }
+        if (tensor->per_channel_zero_points) {
+            boat_free(tensor->per_channel_zero_points);
         }
         boat_free(tensor->shape);
         boat_free(tensor);
@@ -284,6 +294,7 @@ BOAT_API boat_tensor_t* boat_tensor_reshape(const boat_tensor_t* tensor, const i
     if (!new_tensor) {
         return NULL;
     }
+    memset(new_tensor, 0, sizeof(boat_tensor_t));
 
     // Copy shape array
     new_tensor->shape = (int64_t*)boat_malloc(sizeof(int64_t) * new_ndim, tensor->device);
@@ -426,6 +437,7 @@ BOAT_API boat_tensor_t* boat_tensor_slice(const boat_tensor_t* tensor, const siz
         boat_free(effective_step);
         return NULL;
     }
+    memset(new_tensor, 0, sizeof(boat_tensor_t));
 
     // Copy shape array
     new_tensor->shape = new_shape; // Already allocated
@@ -479,5 +491,49 @@ BOAT_API void boat_tensor_set_quant_params(boat_tensor_t* tensor, float scale, i
     if (tensor) {
         tensor->scale = scale;
         tensor->zero_point = zero_point;
+    }
+}
+
+// Per-channel quantization accessors
+BOAT_API bool boat_tensor_is_per_channel(const boat_tensor_t* tensor) {
+    return tensor ? (tensor->per_channel_scales != NULL && tensor->n_channels > 0) : false;
+}
+
+BOAT_API size_t boat_tensor_num_channels(const boat_tensor_t* tensor) {
+    return tensor ? tensor->n_channels : 0;
+}
+
+BOAT_API const float* boat_tensor_get_scales(const boat_tensor_t* tensor) {
+    return tensor ? tensor->per_channel_scales : NULL;
+}
+
+BOAT_API const int32_t* boat_tensor_get_zero_points(const boat_tensor_t* tensor) {
+    return tensor ? tensor->per_channel_zero_points : NULL;
+}
+
+BOAT_API void boat_tensor_set_per_channel_quant_params(boat_tensor_t* tensor, const float* scales, const int32_t* zero_points, size_t n_channels) {
+    if (!tensor) return;
+
+    // Free existing per-channel arrays
+    if (tensor->per_channel_scales) boat_free(tensor->per_channel_scales);
+    if (tensor->per_channel_zero_points) boat_free(tensor->per_channel_zero_points);
+
+    if (scales && zero_points && n_channels > 0) {
+        size_t arr_size = sizeof(float) * n_channels;
+        tensor->per_channel_scales = boat_malloc(arr_size, BOAT_DEVICE_CPU);
+        tensor->per_channel_zero_points = boat_malloc(sizeof(int32_t) * n_channels, BOAT_DEVICE_CPU);
+        if (tensor->per_channel_scales && tensor->per_channel_zero_points) {
+            memcpy(tensor->per_channel_scales, scales, arr_size);
+            memcpy(tensor->per_channel_zero_points, zero_points, sizeof(int32_t) * n_channels);
+            tensor->n_channels = n_channels;
+        } else {
+            if (tensor->per_channel_scales) { boat_free(tensor->per_channel_scales); tensor->per_channel_scales = NULL; }
+            if (tensor->per_channel_zero_points) { boat_free(tensor->per_channel_zero_points); tensor->per_channel_zero_points = NULL; }
+            tensor->n_channels = 0;
+        }
+    } else {
+        tensor->per_channel_scales = NULL;
+        tensor->per_channel_zero_points = NULL;
+        tensor->n_channels = 0;
     }
 }

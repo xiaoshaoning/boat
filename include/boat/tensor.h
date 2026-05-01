@@ -113,6 +113,13 @@ BOAT_API float boat_tensor_get_scale(const boat_tensor_t* tensor);
 BOAT_API int32_t boat_tensor_get_zero_point(const boat_tensor_t* tensor);
 BOAT_API void boat_tensor_set_quant_params(boat_tensor_t* tensor, float scale, int32_t zero_point);
 
+// Per-channel quantization accessors
+BOAT_API bool boat_tensor_is_per_channel(const boat_tensor_t* tensor);
+BOAT_API size_t boat_tensor_num_channels(const boat_tensor_t* tensor);
+BOAT_API const float* boat_tensor_get_scales(const boat_tensor_t* tensor);
+BOAT_API const int32_t* boat_tensor_get_zero_points(const boat_tensor_t* tensor);
+BOAT_API void boat_tensor_set_per_channel_quant_params(boat_tensor_t* tensor, const float* scales, const int32_t* zero_points, size_t n_channels);
+
 // BF16 conversion utilities
 static inline uint16_t boat_f32_to_bf16(float f) {
     uint32_t bits;

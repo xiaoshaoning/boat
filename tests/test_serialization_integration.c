@@ -470,6 +470,7 @@ static int test_edge_cases(void) {
 }
 
 int main(void) {
+    setvbuf(stdout, NULL, _IONBF, 0);
     printf("Serialization Integration Tests\n");
     printf("===============================\n\n");
 

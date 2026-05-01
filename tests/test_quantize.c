@@ -4,6 +4,7 @@
 #include <boat/layers.h>
 #include <boat/model.h>
 #include <boat/quantize.h>
+#include <boat/packed.h>
 #include <boat/memory.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -440,6 +441,324 @@ static int test_model_quantize_dense_int8(void) {
     PASS(); return 0;
 }
 
+// --- Test 16: BITS2 quantize-dequantize roundtrip ---
+static int test_bits2_roundtrip(void) {
+    TEST("BITS2 quantize-dequantize roundtrip");
+    int64_t shape[] = {8};
+    float data[] = {0.0f, 1.0f, 2.0f, 3.0f, 0.5f, 1.5f, 2.5f, 3.0f};
+    boat_tensor_t* fp32 = boat_tensor_from_data(shape, 1, BOAT_DTYPE_FLOAT32, data);
+
+    boat_quant_config_t cfg = boat_quant_config_default();
+    cfg.quant_dtype = BOAT_DTYPE_BITS2;
+    boat_tensor_t* q = boat_quantize_tensor(fp32, &cfg);
+    if (!q) FAIL("quantize returned NULL");
+    if (boat_tensor_dtype(q) != BOAT_DTYPE_BITS2) FAIL("dtype not BITS2");
+    if (boat_tensor_get_scale(q) == 0.0f) FAIL("scale is 0");
+
+    boat_tensor_t* deq = boat_dequantize_tensor(q);
+    if (!deq) FAIL("dequantize returned NULL");
+    // BITS2 has only 4 levels, so relative error can be large for halfway values
+    if (!tensors_allclose(fp32, deq, 0.5f)) FAIL("values out of tolerance");
+
+    boat_tensor_unref(fp32);
+    boat_tensor_unref(q);
+    boat_tensor_unref(deq);
+    PASS(); return 0;
+}
+
+// --- Test 17: BITS2 quantized bounds in [0, 3] ---
+static int test_bits2_bounds(void) {
+    TEST("BITS2 quantized values in [0, 3]");
+    float data[] = {-100.0f, 0.0f, 100.0f, 1000.0f};
+    int64_t shape[] = {4};
+    boat_tensor_t* fp32 = boat_tensor_from_data(shape, 1, BOAT_DTYPE_FLOAT32, data);
+
+    boat_quant_config_t cfg = boat_quant_config_default();
+    cfg.quant_dtype = BOAT_DTYPE_BITS2;
+    boat_tensor_t* q = boat_quantize_tensor(fp32, &cfg);
+    if (!q) FAIL("quantize returned NULL");
+
+    // Unpack and check bounds
+    const uint8_t* packed = (const uint8_t*)boat_tensor_const_data(q);
+    size_t n = boat_tensor_nelements(q);
+    uint8_t* unpacked = (uint8_t*)malloc(n);
+    boat_unpack_bits2(packed, unpacked, n);
+    for (size_t i = 0; i < n; i++) {
+        if (unpacked[i] > 3) FAIL("quantized value > 3");
+    }
+    free(unpacked);
+
+    boat_tensor_t* deq = boat_dequantize_tensor(q);
+    if (!deq) FAIL("dequantize returned NULL");
+
+    boat_tensor_unref(fp32);
+    boat_tensor_unref(q);
+    boat_tensor_unref(deq);
+    PASS(); return 0;
+}
+
+// --- Test 18: FLOAT4 quantize-dequantize roundtrip ---
+static int test_float4_roundtrip(void) {
+    TEST("FLOAT4 quantize-dequantize roundtrip");
+    int64_t shape[] = {6};
+    // FLOAT4 can represent: +/- 0.125, 0.25, 0.5, 1, 2, 4, 8, 16
+    float data[] = {1.0f, 2.0f, 0.5f, -1.0f, 4.0f, 0.0f};
+    boat_tensor_t* fp32 = boat_tensor_from_data(shape, 1, BOAT_DTYPE_FLOAT32, data);
+
+    boat_quant_config_t cfg = boat_quant_config_default();
+    cfg.quant_dtype = BOAT_DTYPE_FLOAT4;
+    boat_tensor_t* q = boat_quantize_tensor(fp32, &cfg);
+    if (!q) FAIL("quantize returned NULL");
+    if (boat_tensor_dtype(q) != BOAT_DTYPE_FLOAT4) FAIL("dtype not FLOAT4");
+
+    boat_tensor_t* deq = boat_dequantize_tensor(q);
+    if (!deq) FAIL("dequantize returned NULL");
+
+    // Check exact values for representable floats
+    const float* deq_data = (const float*)boat_tensor_const_data(deq);
+    if (fabsf(deq_data[0] - 1.0f) > 1e-6f) FAIL("1.0 not exact");
+    if (fabsf(deq_data[1] - 2.0f) > 1e-6f) FAIL("2.0 not exact");
+    if (fabsf(deq_data[3] + 1.0f) > 1e-6f) FAIL("-1.0 not exact");
+    if (fabsf(deq_data[5]) > 1e-6f) FAIL("0.0 not exact");
+
+    boat_tensor_unref(fp32);
+    boat_tensor_unref(q);
+    boat_tensor_unref(deq);
+    PASS(); return 0;
+}
+
+// --- Test 19: FLOAT4 params are default (scale=1, zp=0) ---
+static int test_float4_params(void) {
+    TEST("FLOAT4 quantization params");
+    float data[] = {1.0f, 2.0f, 3.0f};
+    int64_t shape[] = {3};
+    boat_tensor_t* fp32 = boat_tensor_from_data(shape, 1, BOAT_DTYPE_FLOAT32, data);
+
+    boat_quant_config_t cfg = boat_quant_config_default();
+    cfg.quant_dtype = BOAT_DTYPE_FLOAT4;
+    boat_tensor_t* q = boat_quantize_tensor(fp32, &cfg);
+    if (!q) FAIL("quantize returned NULL");
+
+    if (boat_tensor_get_scale(q) != 1.0f) FAIL("scale != 1.0");
+    if (boat_tensor_get_zero_point(q) != 0) FAIL("zp != 0");
+
+    boat_tensor_unref(fp32);
+    boat_tensor_unref(q);
+    PASS(); return 0;
+}
+
+// --- Test 20: Per-channel quantize-dequantize (Dense layout) ---
+static int test_per_channel_dense(void) {
+    TEST("Per-channel quantize Dense (dim=1)");
+    // Dense weight shape: [input_features, output_features], channel_dim = 1
+    int64_t shape[] = {3, 4};  // 3 input, 4 output features -> 4 channels
+    boat_tensor_t* fp32 = boat_tensor_create(shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    float* d = (float*)boat_tensor_data(fp32);
+    // Make each output feature have different range
+    // Channel 0: [0, 3], Channel 1: [10, 13], Channel 2: [20, 23], Channel 3: [30, 33]
+    for (size_t i = 0; i < 3; i++) {
+        for (size_t j = 0; j < 4; j++) {
+            d[i * 4 + j] = (float)(j * 10 + i);
+        }
+    }
+
+    boat_quant_config_t cfg = boat_quant_config_default();
+    cfg.per_channel = true;
+    boat_tensor_t* q = boat_quantize_tensor_per_channel(fp32, &cfg, 1);
+    if (!q) FAIL("quantize_per_channel returned NULL");
+    if (!boat_tensor_is_per_channel(q)) FAIL("per_channel flag not set");
+    if (boat_tensor_num_channels(q) != 4) FAIL("wrong n_channels");
+
+    boat_tensor_t* deq = boat_dequantize_tensor_per_channel(q);
+    if (!deq) FAIL("dequantize_per_channel returned NULL");
+    if (!tensors_allclose(fp32, deq, 0.05f)) FAIL("values out of tolerance");
+
+    boat_tensor_unref(fp32);
+    boat_tensor_unref(q);
+    boat_tensor_unref(deq);
+    PASS(); return 0;
+}
+
+// --- Test 21: Per-channel quantize-dequantize (Conv2D layout) ---
+static int test_per_channel_conv(void) {
+    TEST("Per-channel quantize Conv2D (dim=0)");
+    // Conv2D weight shape: [out_channels, in_channels, KH, KW], channel_dim = 0
+    int64_t shape[] = {2, 3, 2, 2};  // 2 out_channels -> 2 channels
+    boat_tensor_t* fp32 = boat_tensor_create(shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    float* d = (float*)boat_tensor_data(fp32);
+    // Channel 0: small range, Channel 1: large range
+    size_t n = 3 * 2 * 2;  // elements per channel
+    for (size_t i = 0; i < n; i++) d[i] = (float)i * 0.5f;
+    for (size_t i = n; i < 2 * n; i++) d[i] = (float)(i - n) * 10.0f + 100.0f;
+
+    boat_quant_config_t cfg = boat_quant_config_default();
+    cfg.per_channel = true;
+    boat_tensor_t* q = boat_quantize_tensor_per_channel(fp32, &cfg, 0);
+    if (!q) FAIL("quantize_per_channel returned NULL");
+    if (!boat_tensor_is_per_channel(q)) FAIL("per_channel flag not set");
+    if (boat_tensor_num_channels(q) != 2) FAIL("wrong n_channels");
+
+    boat_tensor_t* deq = boat_dequantize_tensor_per_channel(q);
+    if (!deq) FAIL("dequantize_per_channel returned NULL");
+    if (!tensors_allclose(fp32, deq, 0.1f)) FAIL("values out of tolerance");
+
+    boat_tensor_unref(fp32);
+    boat_tensor_unref(q);
+    boat_tensor_unref(deq);
+    PASS(); return 0;
+}
+
+// --- Test 22: Per-channel model quantize Dense ---
+static int test_model_quantize_per_channel(void) {
+    TEST("Per-channel model quantize Dense");
+    boat_model_t* m = boat_model_create();
+    boat_dense_layer_t* d = boat_dense_layer_create(4, 8, true);
+    fill_tensor(boat_dense_layer_get_weight(d), 1.0f);
+    fill_tensor(boat_dense_layer_get_bias(d), 0.1f);
+    boat_model_add_layer(m, wrap(d, BOAT_LAYER_TYPE_DENSE));
+
+    boat_quant_config_t cfg = boat_quant_config_default();
+    cfg.per_channel = true;
+    if (!boat_model_quantize(m, &cfg)) FAIL("model_quantize failed");
+
+    boat_tensor_t* w = boat_dense_layer_get_weight(d);
+    if (boat_tensor_dtype(w) != BOAT_DTYPE_UINT8) FAIL("weight dtype not UINT8");
+    if (!boat_tensor_is_per_channel(w)) FAIL("per_channel flag not set");
+    if (boat_tensor_num_channels(w) != 8) FAIL("wrong n_channels");
+
+    // Dequantize and check forward still works
+    if (!boat_model_dequantize(m)) FAIL("model_dequantize failed");
+    boat_tensor_t* w2 = boat_dense_layer_get_weight(d);
+    if (boat_tensor_dtype(w2) != BOAT_DTYPE_FLOAT32) FAIL("restored dtype not FLOAT32");
+
+    boat_model_free(m);
+    PASS(); return 0;
+}
+
+// --- Test 23: Fake quantize ---
+static int test_fake_quantize(void) {
+    TEST("QAT fake quantize");
+    int64_t shape[] = {3, 4};
+    boat_tensor_t* t = boat_tensor_create(shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    fill_tensor(t, 0.0f);
+    // Save original data
+    size_t n = boat_tensor_nelements(t);
+    float* orig = (float*)malloc(n * sizeof(float));
+    memcpy(orig, boat_tensor_const_data(t), n * sizeof(float));
+
+    boat_quant_config_t cfg = boat_quant_config_default();
+    if (!boat_fake_quantize(t, &cfg)) FAIL("fake_quantize failed");
+    if (boat_tensor_dtype(t) != BOAT_DTYPE_FLOAT32) FAIL("dtype changed from FLOAT32");
+
+    // Values should be close to original (quantization noise)
+    const float* after = (const float*)boat_tensor_const_data(t);
+    for (size_t i = 0; i < n; i++) {
+        float diff = fabsf(after[i] - orig[i]);
+        if (diff > 0.1f) { free(orig); FAIL("value changed too much"); }
+    }
+    free(orig);
+    boat_tensor_unref(t);
+    PASS(); return 0;
+}
+
+// --- Test 24: BITS2 model quantize + serialization ---
+static int test_bits2_model_serialize(void) {
+    TEST("BITS2 model quantize + serialization");
+    const char* tmpfile = "test_bits2_serialize.tmp";
+
+    boat_model_t* m = boat_model_create();
+    boat_dense_layer_t* d = boat_dense_layer_create(4, 8, true);
+    fill_tensor(boat_dense_layer_get_weight(d), 1.0f);
+    fill_tensor(boat_dense_layer_get_bias(d), 0.1f);
+    boat_model_add_layer(m, wrap(d, BOAT_LAYER_TYPE_DENSE));
+
+    boat_quant_config_t cfg = boat_quant_config_default();
+    cfg.quant_dtype = BOAT_DTYPE_BITS2;
+    if (!boat_model_quantize(m, &cfg)) FAIL("model_quantize failed");
+
+    if (!boat_model_save(m, tmpfile)) FAIL("save failed");
+    boat_model_free(m);
+
+    boat_model_t* loaded = boat_model_load(tmpfile);
+    if (!loaded) FAIL("load failed");
+
+    boat_layer_t* l = boat_model_get_layer(loaded, 0);
+    if (!l || l->type != BOAT_LAYER_TYPE_DENSE) FAIL("wrong layer type");
+    boat_tensor_t* w = boat_dense_layer_get_weight((boat_dense_layer_t*)l->data);
+    if (boat_tensor_dtype(w) != BOAT_DTYPE_BITS2) FAIL("weight dtype not BITS2 after load");
+    if (boat_tensor_get_scale(w) == 0.0f) FAIL("weight scale is 0 after load");
+
+    // Dequantize and verify forward works
+    if (!boat_model_dequantize(loaded)) FAIL("model_dequantize failed");
+
+    boat_model_free(loaded);
+    remove(tmpfile);
+    PASS(); return 0;
+}
+
+// --- Test 25: Per-channel model quantize + serialization ---
+static int test_per_channel_serialize(void) {
+    TEST("Per-channel model quantize + serialization");
+    const char* tmpfile = "test_per_channel_serialize.tmp";
+
+    boat_model_t* m = boat_model_create();
+    boat_dense_layer_t* d = boat_dense_layer_create(4, 8, true);
+    fill_tensor(boat_dense_layer_get_weight(d), 1.0f);
+    fill_tensor(boat_dense_layer_get_bias(d), 0.1f);
+    boat_model_add_layer(m, wrap(d, BOAT_LAYER_TYPE_DENSE));
+
+    boat_quant_config_t cfg = boat_quant_config_default();
+    cfg.per_channel = true;
+    if (!boat_model_quantize(m, &cfg)) FAIL("model_quantize failed");
+
+    if (!boat_model_save(m, tmpfile)) FAIL("save failed");
+    boat_model_free(m);
+
+    boat_model_t* loaded = boat_model_load(tmpfile);
+    if (!loaded) FAIL("load failed");
+
+    boat_layer_t* l = boat_model_get_layer(loaded, 0);
+    if (!l || l->type != BOAT_LAYER_TYPE_DENSE) FAIL("wrong layer type");
+    boat_tensor_t* w = boat_dense_layer_get_weight((boat_dense_layer_t*)l->data);
+    if (!boat_tensor_is_per_channel(w)) FAIL("per_channel flag lost after load");
+    if (boat_tensor_num_channels(w) != 8) FAIL("wrong n_channels after load");
+
+    if (!boat_model_dequantize(loaded)) FAIL("model_dequantize failed");
+
+    boat_model_free(loaded);
+    remove(tmpfile);
+    PASS(); return 0;
+}
+
+// --- Test 26: Per-channel BITS2 quantize-dequantize ---
+static int test_per_channel_bits2(void) {
+    TEST("Per-channel BITS2 quantize-dequantize");
+    int64_t shape[] = {3, 4};
+    boat_tensor_t* fp32 = boat_tensor_create(shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    float* d = (float*)boat_tensor_data(fp32);
+    // Values within 2-bit range per channel (max-min <= 3)
+    float data[] = {0.0f, 1.0f, 2.0f, 0.0f,
+                    0.5f, 1.5f, 2.5f, 1.5f,
+                    1.0f, 2.0f, 3.0f, 3.0f};
+    memcpy(d, data, 12 * sizeof(float));
+
+    boat_quant_config_t cfg = boat_quant_config_default();
+    cfg.quant_dtype = BOAT_DTYPE_BITS2;
+    cfg.per_channel = true;
+    boat_tensor_t* q = boat_quantize_tensor_per_channel(fp32, &cfg, 1);
+    if (!q) FAIL("quantize_per_channel returned NULL");
+    if (boat_tensor_dtype(q) != BOAT_DTYPE_BITS2) FAIL("dtype not BITS2");
+
+    boat_tensor_t* deq = boat_dequantize_tensor_per_channel(q);
+    if (!deq) FAIL("dequantize_per_channel returned NULL");
+    if (!tensors_allclose(fp32, deq, 0.5f)) FAIL("values out of tolerance");
+
+    boat_tensor_unref(fp32);
+    boat_tensor_unref(q);
+    boat_tensor_unref(deq);
+    PASS(); return 0;
+}
+
 int main(void) {
     setvbuf(stdout, NULL, _IONBF, 0);
     printf("Quantization Tests\n");
@@ -461,6 +780,17 @@ int main(void) {
     fail |= test_symmetric_int8();
     fail |= test_bounds_int8();
     fail |= test_model_quantize_dense_int8();
+    fail |= test_bits2_roundtrip();
+    fail |= test_bits2_bounds();
+    fail |= test_float4_roundtrip();
+    fail |= test_float4_params();
+    fail |= test_per_channel_dense();
+    fail |= test_per_channel_conv();
+    fail |= test_model_quantize_per_channel();
+    fail |= test_fake_quantize();
+    fail |= test_bits2_model_serialize();
+    fail |= test_per_channel_serialize();
+    fail |= test_per_channel_bits2();
 
     printf("\nResults: %d/%d passed\n", tests_passed, tests_total);
     return fail ? 1 : 0;
