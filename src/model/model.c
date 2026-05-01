@@ -972,6 +972,11 @@ void boat_model_add_layer(boat_model_t* model, boat_layer_t* layer) {
         return;
     }
 
+    // Auto-set ops if not already assigned
+    if (!layer->ops) {
+        set_layer_ops(layer);
+    }
+
     // Expand layers and nodes arrays if needed
     if (model->layer_count >= model->layer_capacity) {
         size_t new_capacity = model->layer_capacity == 0 ? 4 : model->layer_capacity * 2;

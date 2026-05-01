@@ -149,9 +149,9 @@ set(BOAT_SOURCES
 
 # Optional format loaders
 if(BOAT_WITH_ONNX)
-    list(APPEND BOAT_SOURCES src/format/onnx.c)
-    # Find ONNX runtime
-    find_package(ONNXRuntime REQUIRED)
+    list(APPEND BOAT_SOURCES src/format/onnx.c src/format/onnx_pb.c)
+    # Self-contained protobuf-based parser — no external dep needed
+    set(BOAT_NEEDS_ONNX_DEFINE ON)
 endif()
 
 if(BOAT_WITH_PYTORCH)
@@ -321,6 +321,11 @@ else()
     target_compile_definitions(boat PRIVATE BOAT_DEBUG=0)
 endif()
 
+# ONNX format support (self-contained, no external dep)
+if(BOAT_NEEDS_ONNX_DEFINE)
+    target_compile_definitions(boat PRIVATE BOAT_WITH_ONNX)
+endif()
+
 # Set library properties
 set_target_properties(boat PROPERTIES
     VERSION ${PROJECT_VERSION}
@@ -359,9 +364,10 @@ if(BOAT_WITH_CUDA)
     target_link_libraries(boat PUBLIC CUDA::cudart CUDA::cublas)
 endif()
 
-if(BOAT_WITH_ONNX)
-    target_link_libraries(boat PUBLIC ONNXRuntime::onnxruntime)
-endif()
+# Remove ONNX Runtime linking — no longer needed
+# if(BOAT_WITH_ONNX)
+#     target_link_libraries(boat PUBLIC ONNXRuntime::onnxruntime)
+# endif()
 
 if(BOAT_WITH_TENSORFLOW)
     target_link_libraries(boat PUBLIC TensorFlow::TensorFlow)

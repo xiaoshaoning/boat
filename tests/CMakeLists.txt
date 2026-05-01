@@ -100,3 +100,8 @@ target_link_libraries(test_loss_integration boat)
 # Quantization tests
 add_executable(test_quantize test_quantize.c)
 target_link_libraries(test_quantize boat)
+
+# ONNX loader tests (self-contained, no external dependency)
+add_executable(test_onnx test_onnx.c)
+target_include_directories(test_onnx PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_onnx boat)
