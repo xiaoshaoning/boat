@@ -1,8 +1,22 @@
-// version.c - Version information implementation for Boat Deep Learning Framework
+// version.c - Version information, library init/cleanup for Boat Deep Learning Framework
 // Copyright (c) 2026 Shaoning, Xiao 萧少宁
 // Licensed under the Apache License, Version 2.0
 
 #include <boat/version.h>
+#include <stdio.h>
+
+// Library initialization
+void boat_init(void) {
+    // Currently no global state to initialize.
+    // Reserved for future initialization of device backends,
+    // global thread pool, logging system, etc.
+}
+
+// Library cleanup
+void boat_cleanup(void) {
+    // Currently no global state to clean up.
+    // Reserved for future cleanup.
+}
 
 // Get version as string
 const char* boat_get_version_string(void) {

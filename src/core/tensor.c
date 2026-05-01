@@ -537,3 +537,65 @@ BOAT_API void boat_tensor_set_per_channel_quant_params(boat_tensor_t* tensor, co
         tensor->n_channels = 0;
     }
 }
+
+BOAT_API boat_tensor_t* boat_tensor_transpose(const boat_tensor_t* tensor, const size_t* perm, size_t nperm) {
+    if (!tensor || !perm) return NULL;
+
+    size_t ndim = tensor->ndim;
+    if (nperm != ndim) return NULL;
+
+    // Allocate output shape
+    int64_t* out_shape = boat_malloc(ndim * sizeof(int64_t), BOAT_DEVICE_CPU);
+    if (!out_shape) return NULL;
+
+    // Compute inverse permutation
+    size_t* inv_perm = boat_malloc(ndim * sizeof(size_t), BOAT_DEVICE_CPU);
+    if (!inv_perm) { boat_free(out_shape); return NULL; }
+
+    for (size_t i = 0; i < ndim; i++) {
+        if (perm[i] >= ndim) { boat_free(out_shape); boat_free(inv_perm); return NULL; }
+        out_shape[i] = tensor->shape[perm[i]];
+        inv_perm[perm[i]] = i;
+    }
+
+    boat_tensor_t* result = boat_tensor_create(out_shape, ndim, tensor->dtype, tensor->device);
+    boat_free(out_shape);
+    if (!result) { boat_free(inv_perm); return NULL; }
+
+    // Total elements
+    size_t total = 1;
+    for (size_t i = 0; i < ndim; i++) total *= (size_t)tensor->shape[i];
+    size_t elem_size = boat_dtype_size(tensor->dtype);
+
+    // Iterate over all elements using a flat index
+    size_t* out_idx = boat_malloc(ndim * sizeof(size_t), BOAT_DEVICE_CPU);
+    if (!out_idx) { boat_free(inv_perm); boat_tensor_unref(result); return NULL; }
+
+    const uint8_t* src = (const uint8_t*)tensor->data;
+    uint8_t* dst = (uint8_t*)result->data;
+
+    for (size_t flat = 0; flat < total; flat++) {
+        // Convert flat index to output indices
+        size_t rem = flat;
+        for (size_t i = ndim; i > 0; i--) {
+            size_t dim = i - 1;
+            out_idx[dim] = rem % (size_t)result->shape[dim];
+            rem /= (size_t)result->shape[dim];
+        }
+
+        // Map to input indices via inverse permutation
+        size_t src_flat = 0;
+        size_t stride = 1;
+        for (size_t i = ndim; i > 0; i--) {
+            size_t dim = i - 1;
+            src_flat += out_idx[inv_perm[dim]] * stride;
+            stride *= (size_t)tensor->shape[dim];
+        }
+
+        memcpy(dst + flat * elem_size, src + src_flat * elem_size, elem_size);
+    }
+
+    boat_free(out_idx);
+    boat_free(inv_perm);
+    return result;
+}

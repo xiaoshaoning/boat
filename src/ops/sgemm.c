@@ -302,7 +302,7 @@ void boat_sgemm(int64_t M, int64_t N, int64_t K,
                 int64_t kc_eff = (K - p < kc) ? (K - p) : kc;
 
                 // Pack B panel [p..p+kc_eff, j..j+nc_eff]
-                pack_b_nr(nc_eff, kc_eff, B + p * N, N, b_packed, BOAT_SGEMM_NR);
+                pack_b_nr(nc_eff, kc_eff, B + p * N + j, N, b_packed, BOAT_SGEMM_NR);
 
                 // Pack A panel [i..i+mc_eff, p..p+kc_eff] and run micro-kernel
                 pack_a_mr(mc_eff, kc_eff, A + i * K + p, K, a_packed, BOAT_SGEMM_MR);
