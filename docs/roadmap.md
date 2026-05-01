@@ -25,6 +25,11 @@
 | Quantized weight save/load | Done | 2026-04 |
 | On-the-fly dequant in dense/conv forward | Done | 2026-04 |
 | INT8 signed quantization | Done | 2026-05 |
+| BITS2 (2-bit) packed quantization | Done | 2026-05 |
+| FLOAT4 (4-bit custom float) quantization | Done | 2026-05 |
+| Per-channel quantization (per-axis scale/zero-point) | Done | 2026-05 |
+| Quantization-aware training (QAT) fake quantization | Done | 2026-05 |
+| Serialization v3 (per-channel metadata in model files) | Done | 2026-05 |
 
 ### Phase 3: Model Format Support ✅
 
@@ -36,6 +41,7 @@
 | Custom binary serialization (boat_model_save/load) | Done | 2026-04 |
 | PyTorch loader (via LibTorch C++ API) | Done | 2026-04 |
 | HuggingFace Safetensors loader | Done | 2026-04 |
+| GGUF format support (Q4_0, Q4_1, Q5_0, Q8_0) | Done | 2026-05 |
 
 ### Phase 4: Examples ✅
 
@@ -46,97 +52,74 @@
 | Serialization roundtrip example | Done | 2026-04 |
 | Optimizer benchmarks | Done | 2026-04 |
 | Attention performance benchmark | Done | 2026-04 |
+| Transformer end-to-end (tokenization, training, decoding) | Done | 2026-05 |
+
+### Phase 5: Data Pipeline ✅
+
+| Feature | Status | Date |
+|---|---|---|
+| Dataset abstraction with image/label loading | Done | 2026-05 |
+| DataLoader with batching, shuffling, iteration | Done | 2026-05 |
+| Common transforms (Normalize, RandomCrop, RandomHorizontalFlip) | Done | 2026-05 |
+| Multi-threaded prefetch via thread pool | Done | 2026-05 |
+
+### Phase 6: Performance Optimization ✅
+
+| Feature | Status | Date |
+|---|---|---|
+| SIMD vectorization (AVX2 x86, NEON ARM) for dense/conv inner loops | Done | 2026-05 |
+| SGEMM micro-kernel for matrix multiplication | Done | 2026-05 |
+| OpenMP parallelism for batch-independent operations | Done | 2026-05 |
+| Memory pool to reduce allocation overhead | Done | 2026-05 |
+
+### Phase 7: Data Type Extensions ✅
+
+| Feature | Status | Date |
+|---|---|---|
+| BFLOAT16 (brain floating point) — F32↔BF16 conversion | Done | 2026-05 |
+| INT8 signed 8-bit integer data type | Done | 2026-05 |
 
 ---
 
 ## Short-term (1-2 months)
 
-### 1. BFLOAT16 data type
+### 1. CUDA backend — tensor operations
 
-BFLOAT16 (brain floating point) is the standard ML training dtype, used by most modern models. It has the same exponent range as FLOAT32 but reduced mantissa precision, making it a drop-in replacement in many cases.
+GPU acceleration is the largest remaining performance lever. Start with the tensor foundation.
 
-- Add `BOAT_DTYPE_BFLOAT16` to enum (at end for backward compat, before INT8)
-- Implement FLOAT32 ↔ BFLOAT16 conversion routines
-- No new arithmetic kernels needed — promote to FLOAT32 for compute, store as BFLOAT16
-- Enables loading BF16 weights from HuggingFace models without F32 conversion
+- CUDA memory management (cudaMalloc/cudaFree wrappers in memory.c)
+- CUDA tensor copy between host and device
+- CUDA kernel launch infrastructure (block/grid sizing, error checking)
+- Basic element-wise CUDA kernels (add, mul, relu)
+- Automatic tensor migration based on device field
 
-**Files:** `include/boat/tensor.h`, `src/core/tensor.c`, `src/format/huggingface.c`
+**Files:** `src/core/tensor.c`, `src/core/memory.c`, `src/ops/*.cu`
 
-### 2. Data pipeline (Dataset/DataLoader)
+### 2. Conv2D depthwise / group convolution
 
-`src/data/` is empty. A proper data pipeline is essential for training at scale.
+Extend Conv2D to support groups > 1 for depthwise separable convolutions (used in MobileNet, EfficientNet).
 
-- `boat_dataset_t` abstraction with image/label loading
-- `boat_dataloader_t` with automatic batching, shuffling, and iteration
-- Common transforms (Normalize, RandomCrop, RandomHorizontalFlip)
-- Multi-threaded prefetch via a simple thread pool
+- Group-wise weight partitioning in forward/backward
+- Depthwise (groups = in_channels) fast path
+- unit tests with group > 1
 
-**Files:** `src/data/dataset.c`, `src/data/dataloader.c`, `include/boat/data.h`
-
-### 3. Transformer end-to-end example
-
-`examples/transformer/` exists but is empty. Implement a complete transformer training example.
-
-- Text tokenization and vocabulary handling
-- Embedding layer (token + positional)
-- Transformer block: Self-Attention → LayerNorm → FFN → LayerNorm
-- Training on a small translation or text generation task
-- Inference with autoregressive decoding
-
-**Files:** `examples/transformer/transformer.c`, `examples/transformer/CMakeLists.txt`
+**Files:** `src/layers/conv.c`, `tests/test_conv.c`
 
 ---
 
 ## Medium-term (3-6 months)
 
-### 4. GGUF/GGML format support
+### 3. CUDA backend — layer kernels
 
-GGUF is the standard format for running quantized LLMs locally (llama.cpp ecosystem). Supporting it opens boat to thousands of pre-trained community models.
+- CUDA kernels for dense layer (warp-level matrix multiply)
+- CUDA kernels for conv2d (implicit GEMM or shared memory tiling)
+- CUDA fused kernel: conv → batch norm → relu (reduce global memory roundtrips)
+- cuBLAS integration for large matrix operations
+- cuDNN integration (optional, for production conv/attention)
 
-- Implement GGUF container format parser (magic, metadata kv, tensors)
-- Support common quantization types (Q4_0, Q4_1, Q5_0, Q8_0)
-- Load and run inference with existing boat layers
+**Files:** `src/layers/*.cu`, `src/ops/*.cu`
 
-**Files:** `src/format/gguf.c`, `src/format/gguf.h`, `include/boat/format/gguf.h`
-
-### 5. Performance optimization
-
-CPU performance is a bottleneck — single-threaded FP32 is too slow for anything beyond demos.
-
-- SIMD vectorization (AVX2 on x86, NEON on ARM) for dense/conv inner loops
-- SGEMM micro-kernel for matrix multiplication
-- OpenMP parallelism for batch-independent operations
-- Memory pool to reduce allocation overhead
-
-**Files:** `src/ops/linear.c`, `src/layers/dense.c`, `src/layers/conv.c`, `src/core/memory.c`
-
-### 6. INT4 / INT2 quantization
-
-Extend PTQ to the more aggressive low-bit formats already defined in the enum.
-
-- `BOAT_DTYPE_BITS2` (2-bit, 4 values per byte) quantization
-- `BOAT_DTYPE_FLOAT4` (4-bit custom float) quantization
-- Per-channel quantization for better accuracy at low bit-widths
-- Quantization-aware training (QAT) support
-
-**Files:** `src/core/quantize.c`, `tests/test_quantize.c`
-
----
-
-## Long-term (6-12 months)
-
-### 7. CUDA backend
-
-GPU acceleration is the largest performance lever.
-
-- CUDA tensor operations (allocate, copy, free on device)
-- CUDA kernels for conv, dense, attention
-- cuBLAS integration for matrix multiplication
-- Automatic tensor migration between CPU and GPU
-
-**Files:** `src/core/tensor.c`, `src/ops/*.cu`, `src/layers/*.cu`
-
-### 8. Model pruning and compression
+### 4. Model pruning and compression
 
 Reduce model size and compute for deployment.
 
@@ -144,7 +127,7 @@ Reduce model size and compute for deployment.
 - Structured pruning (channel, filter)
 - Quantization-aware fine-tuning after pruning
 
-### 9. ONNX Runtime backend
+### 5. ONNX Runtime backend
 
 Use ONNX Runtime as an alternative execution provider for maximum inference performance.
 
@@ -154,19 +137,31 @@ Use ONNX Runtime as an alternative execution provider for maximum inference perf
 
 ---
 
+## Long-term (6-12 months)
+
+### 6. Distributed training (multi-node)
+
+Extend the optimizer and gradient sync for multi-node training. Requires a collective communication layer (NCCL for GPU, MPI for CPU). Ambitious — only justified if training at scale becomes a primary use case.
+
+### 7. WebAssembly backend
+
+Compile boat to WebAssembly for in-browser inference. Would enable client-side ML applications (privacy-preserving, no server cost). Targets ONNX and GGUF model formats.
+
+---
+
 ## Proposals for consideration
 
 ### A. TensorFlow SavedModel format
 
 Support loading TensorFlow 2.x SavedModel exports. Requires implementing the SavedModel protobuf structure and variable resolution. Lower priority than GGUF given the ML ecosystem shift toward ONNX and GGUF.
 
-### B. WebAssembly backend
+### B. GGUF quantization format alignment
 
-Compile boat to WebAssembly for in-browser inference. Would enable client-side ML applications (privacy-preserving, no server cost). Targets ONNX and GGUF model formats.
+Align boat's internal quantization types (BITS2, FLOAT4) with llama.cpp Q-series formats for interop. Would allow loading GGUF Q-quantized weights directly into boat's native types.
 
-### C. Distributed training (multi-node)
+### C. 1-bit (binary) network support
 
-Extend the optimizer and gradient sync for multi-node training. Requires a collective communication layer (NCCL for GPU, MPI for CPU). Ambitious — only justified if training at scale becomes a primary use case.
+BOAT_DTYPE_BITS1 already exists in the enum. Implement BNN-style binary convolution with XNOR-popcount kernels, opening the door for extreme compression.
 
 ---
 
