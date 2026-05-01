@@ -16,8 +16,8 @@ extern "C" {
 #define BOAT_VERSION_MINOR 1
 #define BOAT_VERSION_PATCH 0
 #define BOAT_VERSION_STRING "0.1.0"
-#define BOAT_GIT_HASH "fff03d4"
-#define BOAT_GIT_DESCRIBE "v0.1.0-3-gfff03d4-dirty"
+#define BOAT_GIT_HASH "de8f1b6"
+#define BOAT_GIT_DESCRIBE "v0.1.0-6-gde8f1b6-dirty"
 
 // Combined version string with git info
 #define BOAT_VERSION_FULL BOAT_VERSION_STRING "-" BOAT_GIT_HASH
