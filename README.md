@@ -7,13 +7,14 @@ Boat is a lightweight, high-performance deep learning framework written in pure 
 - **Pure C Implementation**: Minimal dependencies, easy integration into existing C/C++ projects
 - **Automatic Differentiation**: Computational graph-based autodiff with gradient tracking
 - **Comprehensive Data Type Support**:
-  - Floating point: FP64, FP32, FP16, FP8, FP4
-  - Integer: INT64, INT32, UINT8
-  - Low-bit quantization: BITS2 (2-bit), BITS1 (1-bit binary networks)
+  - Floating point: FP64, FP32, FP16, FP8, FP4, BFLOAT16
+  - Integer: INT64, INT32, INT8, UINT8
+  - Low-bit quantization: BITS2 (2-bit packed), BITS1 (1-bit binary networks)
   - Boolean: BOOL type
-- **Model Format Support**: ONNX, PyTorch, TensorFlow, HuggingFace Safetensors
-- **GPU Acceleration**: CUDA backend support (planned)
-- **Quantization Ready**: Native support for low-bit networks (1-bit, 2-bit, 4-bit, 8-bit)
+- **Quantization Pipeline**: UINT8/INT8 affine quantization, BITS2 (2-bit), FLOAT4 (4-bit), per-channel, and QAT fake quantization
+- **Model Format Support**: ONNX (load/export), PyTorch (via LibTorch), HuggingFace Safetensors, GGUF (Q4_0, Q4_1, Q5_0, Q8_0)
+- **Data Pipeline**: Dataset/DataLoader abstraction with batching, shuffling, multi-threaded prefetch, and transforms
+- **Performance Optimizations**: SIMD (AVX2/NEON), SGEMM micro-kernel, OpenMP parallelism, memory pooling
 - **Memory Efficient**: Explicit memory management with reference counting
 - **Cross-Platform**: Works on Linux, macOS, and Windows
 - **Extensible Architecture**: Modular design for adding new operations and layers
@@ -90,6 +91,15 @@ The Makefile automatically compiles all source files and creates a shared librar
 - `-DBOAT_WITH_TESTS=ON`: Build test suite
 - `-DBOAT_WITH_EXAMPLES=ON`: Build example programs
 - `-DBOAT_WITH_ONNX=ON`: Enable ONNX support (requires protobuf)
+
+### Build Configurations
+
+- **Debug**: Default build with debug symbols and assertions
+- **Release**: Optimized build (`-O2 -DNDEBUG`)
+- **MinSizeRel**: Size-optimized build
+- **RelWithDebInfo**: Release with debug symbols
+
+Tests are enabled by default in Debug builds and disabled in Release/MinSizeRel builds.
 
 ## Quick Start
 
@@ -447,18 +457,20 @@ For more details, see the [MNIST example documentation](examples/mnist/CLAUDE.md
 
 ## Data Types
 
-The framework supports a wide range of data types for efficient computation:
+The framework supports a comprehensive range of data types for efficient computation:
 
 ### Floating Point Types
 - **FP64** (double): 64-bit double precision floating point
 - **FP32** (float): 32-bit single precision floating point
 - **FP16**: 16-bit half precision floating point
+- **BFLOAT16**: 16-bit brain floating point (same exponent range as FP32)
 - **FP8**: 8-bit custom floating point format
 - **FP4**: 4-bit custom floating point format
 
 ### Integer Types
 - **INT64**: 64-bit signed integer
 - **INT32**: 32-bit signed integer
+- **INT8**: 8-bit signed integer
 - **UINT8**: 8-bit unsigned integer
 
 ### Low-Bit Quantization Types
@@ -468,15 +480,26 @@ The framework supports a wide range of data types for efficient computation:
 ### Special Types
 - **BOOL**: Boolean values (1 byte per element)
 
+### Quantization Capabilities
+
+| Feature | Bit-width | Type |
+|---|---|---|
+| Per-tensor affine | 8-bit | UINT8, INT8 |
+| Per-channel affine | 8-bit | UINT8, INT8 |
+| BITS2 packed | 2-bit | Asymmetric affine |
+| FLOAT4 custom float | 4-bit | Direct (no affine) |
+| QAT fake quantization | any | Simulates quantization noise during training |
+
 ## Examples
 
 The repository includes several comprehensive examples:
 
 - **MNIST Classification**: Complete training pipeline for digit recognition
-- **CIFAR-10**: Image classification example
-- **Transformer**: Attention mechanism implementation
-- **Automatic Differentiation**: Gradient computation examples
-- **Scheduler Usage**: Learning rate scheduling examples
+- **CIFAR-10**: CNN image classification with data pipeline and transforms
+- **Transformer**: End-to-end transformer with tokenization, training, and autoregressive decoding
+- **Automatic Differentiation**: Gradient computation with dynamic computation graphs
+- **Scheduler Usage**: Learning rate scheduling with cosine annealing, step LR, and lambda LR
+- **ONNX Export**: Export trained boat models to ONNX format
 
 ## Project Structure
 
@@ -510,7 +533,9 @@ boat/
 │   ├── model/              # Model management
 │   └── format/             # Model format loaders
 ├── examples/               # Example programs
-│   └── mnist/             # MNIST classification
+│   ├── mnist/             # MNIST classification
+│   ├── cifar10/           # CIFAR-10 image classification
+│   └── transformer/       # Transformer end-to-end example
 ├── tests/                 # Test suite
 │   ├── unit/              # Unit tests
 │   └── archive/           # Archived/legacy tests
@@ -526,24 +551,31 @@ For detailed API documentation and development guidelines, see [CLAUDE.md](CLAUD
 ### Current Features (Implemented)
 - Core tensor operations with multiple data types
 - Automatic differentiation with computational graph
-- Neural network layers (dense, conv, attention, etc.)
+- Neural network layers (dense, conv, attention, LSTM, GRU, etc.)
 - Optimizers (Adam, RMSprop, SGD, Adagrad)
 - Learning rate schedulers (cosine annealing, step LR, lambda LR)
 - Loss functions (MSE, cross-entropy, Huber)
-- Sequential model API
-- Model format loaders (ONNX, PyTorch, TensorFlow, HuggingFace)
+- Data pipeline (Dataset, DataLoader with multi-threaded prefetch)
+- Post-training quantization (UINT8, INT8, BITS2, FLOAT4, per-channel)
+- Quantization-aware training (QAT) with fake quantization
+- Model format loaders (ONNX, PyTorch, TensorFlow, HuggingFace, GGUF)
+- Model serialization (custom binary format, v3 with per-channel metadata)
+- Performance optimizations (SIMD, SGEMM, OpenMP, memory pool)
 - Cross-platform build with CMake
 - Comprehensive test suite
 - MNIST training example (manual and autodiff, both >96% test accuracy)
+- CIFAR-10 CNN training example
+- Transformer end-to-end example
+- ONNX export (boat → ONNX serialization)
 
 ### Planned Features
-- CUDA backend for GPU acceleration
-- Advanced quantization techniques
-- Distributed training support
+- CUDA backend for GPU acceleration (tensor ops, layer kernels)
+- Group/depthwise convolution
 - Model compression and pruning
-- Hardware acceleration (TensorRT, OpenVINO, CoreML)
-- More model format support
-- Advanced layers (transformer blocks, etc.)
+- ONNX Runtime integration
+- 1-bit binary network (BITS1) support
+- WebAssembly backend for in-browser inference
+- Distributed training support
 
 ## Code Quality
 
@@ -586,9 +618,11 @@ make test
 Or run specific tests:
 
 ```bash
-ctest -R test_tensor          # Run tensor tests
-ctest -R test_autodiff        # Run autodiff tests
-ctest -R test_layers          # Run layer tests
+ctest -R test_tensor                   # Run tensor tests
+ctest -R test_quantize                 # Run quantization tests
+ctest -R test_serialization_integration # Run serialization roundtrip tests
+ctest -R test_autodiff                 # Run autodiff tests
+ctest -R test_layers                   # Run layer tests
 ```
 
 ## Contributing
