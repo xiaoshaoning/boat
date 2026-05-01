@@ -132,9 +132,24 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_forward(boat_dense_layer_t* l
     layer->cache_input = (boat_tensor_t*)input;
     boat_tensor_ref(layer->cache_input);
 
+    // Handle quantized weights: dequantize to temporary FP32
+    boat_tensor_t* dequantized_weight = NULL;
+    const boat_tensor_t* effective_weight = layer->weight;
+    if (boat_tensor_dtype(layer->weight) == BOAT_DTYPE_UINT8 &&
+        boat_tensor_get_scale(layer->weight) != 0.0f) {
+        dequantized_weight = boat_dequantize_tensor(layer->weight);
+        if (!dequantized_weight) {
+            boat_tensor_unref(layer->cache_input);
+            layer->cache_input = NULL;
+            return NULL;
+        }
+        effective_weight = dequantized_weight;
+    }
+
     // Perform matrix multiplication: input @ weight
-    boat_tensor_t* output = boat_matmul(input, layer->weight);
+    boat_tensor_t* output = boat_matmul(input, effective_weight);
     if (!output) {
+        if (dequantized_weight) boat_tensor_free(dequantized_weight);
         return NULL;
     }
 
@@ -146,6 +161,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_forward(boat_dense_layer_t* l
         size_t out_ndim = boat_tensor_ndim(output);
         if (out_ndim != 2) {
             boat_tensor_free(output);
+            if (dequantized_weight) boat_tensor_free(dequantized_weight);
             return NULL;
         }
         int64_t batch = out_shape[0];
@@ -168,6 +184,11 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_forward(boat_dense_layer_t* l
                 out_data[i * out_features + j] += bias_data[j];
             }
         }
+    }
+
+    // Free temporary dequantized weight if any
+    if (dequantized_weight) {
+        boat_tensor_free(dequantized_weight);
     }
 
     return output;

@@ -24,6 +24,10 @@ struct boat_tensor_t {
     size_t ref_count;         // Reference count
     boat_tensor_t* parent;    // Parent tensor if this is a view (for reshape/slice)
     bool is_view;             // Whether this tensor is a view (shares data with parent)
+
+    // Quantization parameters
+    float scale;              // 0.0f means not quantized
+    int32_t zero_point;       // meaningful only when scale != 0.0f
 };
 
 // Helper functions
@@ -129,6 +133,8 @@ BOAT_API boat_tensor_t* boat_tensor_create(const int64_t* shape, size_t ndim,
     tensor->ref_count = 1;
     tensor->parent = NULL;
     tensor->is_view = false;
+    tensor->scale = 0.0f;
+    tensor->zero_point = 0;
 
     // Zero out memory
     memset(tensor->data, 0, tensor->nbytes);
@@ -455,4 +461,19 @@ BOAT_API boat_tensor_t* boat_tensor_slice(const boat_tensor_t* tensor, const siz
 #endif
 
     return new_tensor;
+}
+
+BOAT_API float boat_tensor_get_scale(const boat_tensor_t* tensor) {
+    return tensor ? tensor->scale : 0.0f;
+}
+
+BOAT_API int32_t boat_tensor_get_zero_point(const boat_tensor_t* tensor) {
+    return tensor ? tensor->zero_point : 0;
+}
+
+BOAT_API void boat_tensor_set_quant_params(boat_tensor_t* tensor, float scale, int32_t zero_point) {
+    if (tensor) {
+        tensor->scale = scale;
+        tensor->zero_point = zero_point;
+    }
 }

@@ -371,7 +371,7 @@ void boat_model_update(const boat_model_t* model, float learning_rate) {
 
 // --- Static tensor I/O helpers ---
 
-static bool save_tensor_to_file(FILE* f, const boat_tensor_t* tensor) {
+static bool save_tensor_to_file(FILE* f, const boat_tensor_t* tensor, uint32_t version) {
     uint32_t is_null = (tensor == NULL) ? 1 : 0;
     if (fwrite(&is_null, sizeof(uint32_t), 1, f) != 1) return false;
     if (is_null) return true;
@@ -389,10 +389,23 @@ static bool save_tensor_to_file(FILE* f, const boat_tensor_t* tensor) {
     size_t nbytes = boat_tensor_nbytes(tensor);
     const void* data = boat_tensor_const_data(tensor);
     if (fwrite(data, 1, nbytes, f) != nbytes) return false;
+
+    if (version >= 2) {
+        bool quantized = (boat_tensor_dtype(tensor) == BOAT_DTYPE_UINT8 &&
+                          boat_tensor_get_scale(tensor) != 0.0f);
+        uint32_t quant_flag = quantized ? 1 : 0;
+        if (fwrite(&quant_flag, sizeof(uint32_t), 1, f) != 1) return false;
+        if (quantized) {
+            float scale = boat_tensor_get_scale(tensor);
+            int32_t zero_point = boat_tensor_get_zero_point(tensor);
+            if (fwrite(&scale, sizeof(float), 1, f) != 1) return false;
+            if (fwrite(&zero_point, sizeof(int32_t), 1, f) != 1) return false;
+        }
+    }
     return true;
 }
 
-static boat_tensor_t* load_tensor_from_file(FILE* f) {
+static boat_tensor_t* load_tensor_from_file(FILE* f, uint32_t version) {
     uint32_t is_null;
     if (fread(&is_null, sizeof(uint32_t), 1, f) != 1) return NULL;
     if (is_null) return NULL;
@@ -423,6 +436,22 @@ static boat_tensor_t* load_tensor_from_file(FILE* f) {
     boat_tensor_t* tensor = boat_tensor_from_data(shape, (size_t)ndim, dtype, data);
     free(data);
     free(shape);
+    if (!tensor) return NULL;
+
+    if (version >= 2) {
+        uint32_t quant_flag;
+        if (fread(&quant_flag, sizeof(uint32_t), 1, f) != 1) { boat_tensor_unref(tensor); return NULL; }
+        if (quant_flag) {
+            float scale;
+            int32_t zero_point;
+            if (fread(&scale, sizeof(float), 1, f) != 1 ||
+                fread(&zero_point, sizeof(int32_t), 1, f) != 1) {
+                boat_tensor_unref(tensor);
+                return NULL;
+            }
+            boat_tensor_set_quant_params(tensor, scale, zero_point);
+        }
+    }
     return tensor;
 }
 
@@ -569,8 +598,30 @@ bool boat_model_save(const boat_model_t* model, const char* filename) {
     FILE* f = fopen(filename, "wb");
     if (!f) return false;
 
-    uint32_t magic = 0x424F4154;  // "BOAT"
+    // Determine format version: version 2 if any weight is quantized
     uint32_t version = 1;
+    for (size_t i = 0; i < model->layer_count; i++) {
+        const boat_layer_t* wrapper = model->layers[i];
+        if (!wrapper) continue;
+        boat_tensor_t* w = NULL;
+        switch (wrapper->type) {
+            case BOAT_LAYER_TYPE_DENSE:
+                w = boat_dense_layer_get_weight((const boat_dense_layer_t*)wrapper->data);
+                break;
+            case BOAT_LAYER_TYPE_CONV2D:
+                w = boat_conv_layer_get_weight((const boat_conv_layer_t*)wrapper->data);
+                break;
+            default:
+                break;
+        }
+        if (w && boat_tensor_dtype(w) == BOAT_DTYPE_UINT8 &&
+            boat_tensor_get_scale(w) != 0.0f) {
+            version = 2;
+            break;
+        }
+    }
+
+    uint32_t magic = 0x424F4154;  // "BOAT"
     uint32_t layer_count = (uint32_t)model->layer_count;
 
     if (fwrite(&magic, sizeof(uint32_t), 1, f) != 1 ||
@@ -606,7 +657,7 @@ bool boat_model_save(const boat_model_t* model, const char* filename) {
 
                 uint32_t tc = 2;
                 fwrite(&tc, sizeof(uint32_t), 1, f);
-                if (!save_tensor_to_file(f, w) || !save_tensor_to_file(f, b)) { fclose(f); return false; }
+                if (!save_tensor_to_file(f, w, version) || !save_tensor_to_file(f, b, version)) { fclose(f); return false; }
                 break;
             }
             case BOAT_LAYER_TYPE_CONV2D: {
@@ -630,7 +681,7 @@ bool boat_model_save(const boat_model_t* model, const char* filename) {
 
                 uint32_t tc = 2;
                 fwrite(&tc, sizeof(uint32_t), 1, f);
-                if (!save_tensor_to_file(f, w) || !save_tensor_to_file(f, b)) { fclose(f); return false; }
+                if (!save_tensor_to_file(f, w, version) || !save_tensor_to_file(f, b, version)) { fclose(f); return false; }
                 break;
             }
             case BOAT_LAYER_TYPE_BATCHNORM2D: {
@@ -655,8 +706,8 @@ bool boat_model_save(const boat_model_t* model, const char* filename) {
 
                 uint32_t tc = 4;
                 fwrite(&tc, sizeof(uint32_t), 1, f);
-                if (!save_tensor_to_file(f, w) || !save_tensor_to_file(f, b) ||
-                    !save_tensor_to_file(f, rm) || !save_tensor_to_file(f, rv)) { fclose(f); return false; }
+                if (!save_tensor_to_file(f, w, version) || !save_tensor_to_file(f, b, version) ||
+                    !save_tensor_to_file(f, rm, version) || !save_tensor_to_file(f, rv, version)) { fclose(f); return false; }
                 break;
             }
             case BOAT_LAYER_TYPE_MAXPOOL2D: {
@@ -718,7 +769,7 @@ boat_model_t* boat_model_load(const char* filename) {
     if (fread(&magic, sizeof(uint32_t), 1, f) != 1 ||
         fread(&version, sizeof(uint32_t), 1, f) != 1) { fclose(f); return NULL; }
     if (magic != 0x424F4154) { fclose(f); return NULL; }
-    if (version != 1) { fclose(f); return NULL; }
+    if (version < 1 || version > 2) { fclose(f); return NULL; }
 
     uint32_t layer_count_u32;
     if (fread(&layer_count_u32, sizeof(uint32_t), 1, f) != 1) { fclose(f); return NULL; }
@@ -755,8 +806,8 @@ boat_model_t* boat_model_load(const char* filename) {
 
                 uint32_t tc;
                 fread(&tc, sizeof(uint32_t), 1, f);
-                boat_tensor_t* wt = load_tensor_from_file(f);
-                boat_tensor_t* bt = load_tensor_from_file(f);
+                boat_tensor_t* wt = load_tensor_from_file(f, version);
+                boat_tensor_t* bt = load_tensor_from_file(f, version);
                 if (wt) { boat_dense_layer_set_weight(dense, wt); boat_tensor_unref(wt); }
                 if (bt) { boat_dense_layer_set_bias(dense, bt); boat_tensor_unref(bt); }
                 break;
@@ -780,8 +831,8 @@ boat_model_t* boat_model_load(const char* filename) {
 
                 uint32_t tc;
                 fread(&tc, sizeof(uint32_t), 1, f);
-                boat_tensor_t* wt = load_tensor_from_file(f);
-                boat_tensor_t* bt = load_tensor_from_file(f);
+                boat_tensor_t* wt = load_tensor_from_file(f, version);
+                boat_tensor_t* bt = load_tensor_from_file(f, version);
                 if (wt) { boat_conv_layer_set_weight(conv, wt); boat_tensor_unref(wt); }
                 if (bt) { boat_conv_layer_set_bias(conv, bt); boat_tensor_unref(bt); }
                 break;
@@ -804,10 +855,10 @@ boat_model_t* boat_model_load(const char* filename) {
 
                 uint32_t tc;
                 fread(&tc, sizeof(uint32_t), 1, f);
-                boat_tensor_t* wt = load_tensor_from_file(f);
-                boat_tensor_t* bt = load_tensor_from_file(f);
-                boat_tensor_t* rmt = load_tensor_from_file(f);
-                boat_tensor_t* rvt = load_tensor_from_file(f);
+                boat_tensor_t* wt = load_tensor_from_file(f, version);
+                boat_tensor_t* bt = load_tensor_from_file(f, version);
+                boat_tensor_t* rmt = load_tensor_from_file(f, version);
+                boat_tensor_t* rvt = load_tensor_from_file(f, version);
                 if (wt) { boat_batchnorm2d_layer_set_weight(bn, wt); boat_tensor_unref(wt); }
                 if (bt) { boat_batchnorm2d_layer_set_bias(bn, bt); boat_tensor_unref(bt); }
                 if (rmt) { boat_batchnorm2d_layer_set_running_mean(bn, rmt); boat_tensor_unref(rmt); }

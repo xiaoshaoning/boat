@@ -96,3 +96,7 @@ target_link_libraries(test_serialization_integration boat)
 # Loss function integration tests (forward, backward, training, edge cases)
 add_executable(test_loss_integration test_loss_integration.c)
 target_link_libraries(test_loss_integration boat)
+
+# Quantization tests
+add_executable(test_quantize test_quantize.c)
+target_link_libraries(test_quantize boat)

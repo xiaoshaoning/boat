@@ -445,13 +445,25 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Conv2d only supports FLOAT32 input tensors\n");
         return NULL;
     }
-    if (boat_tensor_dtype(layer->weight) != BOAT_DTYPE_FLOAT32) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Conv2d weight tensor must be FLOAT32\n");
+    // Allow quantized weights (UINT8 with scale != 0)
+    bool weight_quantized = (boat_tensor_dtype(layer->weight) == BOAT_DTYPE_UINT8 &&
+                             boat_tensor_get_scale(layer->weight) != 0.0f);
+    if (boat_tensor_dtype(layer->weight) != BOAT_DTYPE_FLOAT32 && !weight_quantized) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Conv2d weight tensor must be FLOAT32 or quantized UINT8\n");
         return NULL;
     }
     if (layer->use_bias && layer->bias && boat_tensor_dtype(layer->bias) != BOAT_DTYPE_FLOAT32) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Conv2d bias tensor must be FLOAT32\n");
         return NULL;
+    }
+
+    // Handle quantized weights: dequantize to temporary FP32
+    boat_tensor_t* dequantized_weight = NULL;
+    const boat_tensor_t* effective_weight = layer->weight;
+    if (weight_quantized) {
+        dequantized_weight = boat_dequantize_tensor(layer->weight);
+        if (!dequantized_weight) return NULL;
+        effective_weight = dequantized_weight;
     }
 
     // Calculate output dimensions
@@ -491,12 +503,13 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
     const int64_t output_shape[] = { batch, (int64_t)layer->out_channels, height_out, width_out };
     boat_tensor_t* output = boat_tensor_create(output_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!output) {
+        if (dequantized_weight) boat_tensor_free(dequantized_weight);
         return NULL;
     }
 
     // Get data pointers
     const float* input_data = (float*)boat_tensor_data(input);
-    const float* weight_data = (float*)boat_tensor_data(layer->weight);
+    const float* weight_data = (const float*)boat_tensor_const_data(effective_weight);
     const float* bias_data = layer->use_bias ? (float*)boat_tensor_data(layer->bias) : NULL;
     float* output_data = (float*)boat_tensor_data(output);
 
@@ -554,6 +567,11 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
                 }
             }
         }
+    }
+
+    // Free temporary dequantized weight if any
+    if (dequantized_weight) {
+        boat_tensor_free(dequantized_weight);
     }
 
     return output;

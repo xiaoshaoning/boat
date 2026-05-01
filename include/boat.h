@@ -36,6 +36,9 @@
 // Loss functions
 #include "boat/loss.h"
 
+// Quantization
+#include "boat/quantize.h"
+
 // Model management
 #include "boat/model.h"
 

@@ -103,6 +103,11 @@ BOAT_API bool boat_tensor_allclose(const boat_tensor_t* a, const boat_tensor_t* 
 BOAT_API size_t boat_dtype_size(boat_dtype_t dtype);
 BOAT_API const char* boat_dtype_name(boat_dtype_t dtype);
 
+// Quantization parameter access
+BOAT_API float boat_tensor_get_scale(const boat_tensor_t* tensor);
+BOAT_API int32_t boat_tensor_get_zero_point(const boat_tensor_t* tensor);
+BOAT_API void boat_tensor_set_quant_params(boat_tensor_t* tensor, float scale, int32_t zero_point);
+
 #ifdef __cplusplus
 }
 #endif
