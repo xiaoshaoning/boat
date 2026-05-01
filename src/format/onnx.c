@@ -8,6 +8,7 @@
 #include <boat/memory.h>
 #include <boat/tensor.h>
 #include <boat/graph.h>
+#include <boat/ops.h>
 #include "onnx_pb.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -458,7 +459,7 @@ bool boat_onnx_get_version(const char* filename, int* major, int* minor, int* pa
 static void write_int_attr(pb_builder_t* b, const char* name, int64_t val) {
     size_t pos = pb_begin_submessage(b, 5);
     pb_write_string(b, 1, name);
-    pb_write_tag(b, 5, 0); pb_write_varint(b, 2);
+    pb_write_tag(b, 20, 0); pb_write_varint(b, 2);
     pb_write_tag(b, 3, 0); pb_write_varint(b, val);
     pb_patch_length(b, pos);
 }
@@ -467,7 +468,7 @@ static void write_int_attr(pb_builder_t* b, const char* name, int64_t val) {
 static void write_ints_attr(pb_builder_t* b, const char* name, const int64_t* vals, int count) {
     size_t pos = pb_begin_submessage(b, 5);
     pb_write_string(b, 1, name);
-    pb_write_tag(b, 5, 0); pb_write_varint(b, 7);
+    pb_write_tag(b, 20, 0); pb_write_varint(b, 7);
     for (int i = 0; i < count; i++) {
         pb_write_tag(b, 7, 0); pb_write_varint(b, vals[i]);
     }
@@ -478,7 +479,7 @@ static void write_ints_attr(pb_builder_t* b, const char* name, const int64_t* va
 static void write_float_attr(pb_builder_t* b, const char* name, float val) {
     size_t pos = pb_begin_submessage(b, 5);
     pb_write_string(b, 1, name);
-    pb_write_tag(b, 5, 0); pb_write_varint(b, 1);
+    pb_write_tag(b, 20, 0); pb_write_varint(b, 1);
     pb_write_tag(b, 2, 5);
     pb_write_raw(b, &val, sizeof(val));
     pb_patch_length(b, pos);
@@ -496,14 +497,14 @@ static void write_tensor_initializer(pb_builder_t* b, const char* name, const bo
         pb_write_varint(b, (uint64_t)shape[d]);
     }
 
-    pb_write_tag(b, 5, 0);
+    pb_write_tag(b, 2, 0);
     pb_write_varint(b, 1);  // data_type = FLOAT
 
-    pb_write_string(b, 7, name);
+    pb_write_string(b, 8, name);
 
     const void* data = boat_tensor_const_data(t);
     size_t nbytes = boat_tensor_nbytes(t);
-    pb_write_bytes(b, 10, data, nbytes);
+    pb_write_bytes(b, 9, data, nbytes);
 
     pb_patch_length(b, pos);
 }
@@ -751,4 +752,501 @@ bool boat_onnx_save(const boat_model_t* model, const char* filename) {
 
     free(data);
     return true;
+}
+
+// -----------------------------------------------------------------------
+// ONNX Runtime: graph executor supporting residual connections
+// -----------------------------------------------------------------------
+
+#define ONNX_RT_MAX_TENSORS 1024
+#define ONNX_RT_MAX_INPUTS 4
+
+typedef enum {
+    ONNX_RT_CONV,
+    ONNX_RT_BATCHNORM,
+    ONNX_RT_PRELU,
+    ONNX_RT_ADD,
+    ONNX_RT_GEMM,
+    ONNX_RT_FLATTEN,
+} onnx_rt_op_t;
+
+typedef struct {
+    onnx_rt_op_t op;
+    boat_layer_t* layer;      // for ops that create boat layers (NULL for Add)
+    int output_id;
+    int input_ids[ONNX_RT_MAX_INPUTS];
+    int num_inputs;
+} onnx_rt_exec_node_t;
+
+typedef struct {
+    char name[64];
+    boat_tensor_t* tensor;
+    int is_initializer;  // non-zero = persistent, don't free between runs
+} onnx_rt_tensor_entry_t;
+
+struct boat_onnx_runtime_t {
+    onnx_rt_exec_node_t* nodes;
+    int num_nodes;
+    int node_capacity;
+
+    onnx_rt_tensor_entry_t tensors[ONNX_RT_MAX_TENSORS];
+    int num_tensors;
+
+    int input_tensor_id;   // ID of the model input tensor name
+    int output_tensor_id;  // ID of the model output tensor name
+
+    onnx_model_t onnx;  // owns parsed model data
+};
+
+// Find tensor ID by name, or register if not found
+static int onnx_rt_tensor_id(boat_onnx_runtime_t* rt, const char* name) {
+    if (!name) return -1;
+    for (int i = 0; i < rt->num_tensors; i++) {
+        if (strcmp(rt->tensors[i].name, name) == 0)
+            return i;
+    }
+    // Register new tensor
+    if (rt->num_tensors >= ONNX_RT_MAX_TENSORS) return -1;
+    int id = rt->num_tensors++;
+    snprintf(rt->tensors[id].name, sizeof(rt->tensors[id].name), "%s", name);
+    rt->tensors[id].tensor = NULL;
+    rt->tensors[id].is_initializer = 0;
+    return id;
+}
+
+// Free all non-initializer tensors in the runtime
+static void onnx_rt_clear_activations(boat_onnx_runtime_t* rt) {
+    for (int i = 0; i < rt->num_tensors; i++) {
+        if (!rt->tensors[i].is_initializer && rt->tensors[i].tensor) {
+            boat_tensor_unref(rt->tensors[i].tensor);
+            rt->tensors[i].tensor = NULL;
+        }
+    }
+}
+
+// Build execution graph from parsed ONNX model
+static bool onnx_rt_build(boat_onnx_runtime_t* rt) {
+    const onnx_graph_t* g = &rt->onnx.graph;
+
+    // Register initializer tensors first
+    for (int i = 0; i < g->num_initializers; i++) {
+        const onnx_tensor_t* init = &g->initializers[i];
+        if (!init->name || init->data_type != ONNX_DTYPE_FLOAT) continue;
+        int id = onnx_rt_tensor_id(rt, init->name);
+        if (id < 0) return false;
+        rt->tensors[id].tensor = onnx_tensor_to_boat(init);
+        if (!rt->tensors[id].tensor) return false;
+        rt->tensors[id].is_initializer = 1;
+    }
+
+    // Register the model input tensor (first graph input not an initializer)
+    // graph inputs are stored in the protobuf, but the parser doesn't store them separately.
+    // We'll discover it as the first node's first input that isn't an initializer.
+    // For now, just register "input.1" or the first non-initializer input we encounter.
+
+    // Build execution nodes from ONNX graph nodes
+    rt->node_capacity = g->num_nodes > 0 ? g->num_nodes : 64;
+    rt->nodes = (onnx_rt_exec_node_t*)calloc(rt->node_capacity, sizeof(onnx_rt_exec_node_t));
+    if (!rt->nodes) return false;
+
+    for (int i = 0; i < g->num_nodes; i++) {
+        const onnx_node_t* on = &g->nodes[i];
+        if (rt->num_nodes >= rt->node_capacity) {
+            rt->node_capacity *= 2;
+            onnx_rt_exec_node_t* tmp = (onnx_rt_exec_node_t*)realloc(
+                rt->nodes, rt->node_capacity * sizeof(onnx_rt_exec_node_t));
+            if (!tmp) return false;
+            rt->nodes = tmp;
+        }
+
+        onnx_rt_exec_node_t* en = &rt->nodes[rt->num_nodes];
+        memset(en, 0, sizeof(*en));
+        en->layer = NULL;
+
+        // Map output
+        if (on->num_outputs > 0 && on->outputs[0]) {
+            en->output_id = onnx_rt_tensor_id(rt, on->outputs[0]);
+        } else {
+            return false;
+        }
+
+        // Map inputs
+        en->num_inputs = 0;
+        for (int k = 0; k < on->num_inputs && k < ONNX_RT_MAX_INPUTS; k++) {
+            if (!on->names[k]) continue;
+            int tid = onnx_rt_tensor_id(rt, on->names[k]);
+            if (tid < 0) return false;
+            en->input_ids[en->num_inputs++] = tid;
+        }
+
+        if (strcmp(on->op_type, "Conv") == 0) {
+            en->op = ONNX_RT_CONV;
+            const onnx_tensor_t* w_init = (on->num_inputs > 1) ?
+                find_init_tensor(g, on->names[1]) : NULL;
+            const onnx_tensor_t* b_init = (on->num_inputs > 2) ?
+                find_init_tensor(g, on->names[2]) : NULL;
+            if (!w_init || w_init->data_type != ONNX_DTYPE_FLOAT || w_init->num_dims < 4) {
+                fprintf(stderr, "[ONNX] Conv node %d: invalid weight (data_type=%d, ndims=%d)\n",
+                    i, w_init ? w_init->data_type : 0, w_init ? w_init->num_dims : 0);
+                return false;
+            }
+
+            size_t in_channels = (size_t)w_init->dims[1];
+            size_t out_channels = (size_t)w_init->dims[0];
+            size_t kernel_size = (size_t)get_attr_ints_first(on, "kernel_shape", 1);
+            size_t stride = (size_t)get_attr_ints_first(on, "strides", 1);
+            size_t padding = (size_t)get_attr_ints_first(on, "pads", 0);
+            boat_conv_layer_t* conv = boat_conv_layer_create(
+                in_channels, out_channels, kernel_size, stride, padding);
+            if (!conv) return false;
+            boat_tensor_t* w = onnx_tensor_to_boat(w_init);
+            if (!w) { boat_conv_layer_free(conv); return false; }
+            boat_conv_layer_set_weight(conv, w);
+            boat_tensor_unref(w);
+
+            if (b_init && b_init->raw_data_size > 0) {
+                boat_tensor_t* b = onnx_tensor_to_boat(b_init);
+                if (b) { boat_conv_layer_set_bias(conv, b); boat_tensor_unref(b); }
+            }
+
+            boat_layer_t* wrapper = (boat_layer_t*)malloc(sizeof(boat_layer_t));
+            if (!wrapper) { boat_conv_layer_free(conv); return false; }
+            wrapper->data = conv;
+            wrapper->type = BOAT_LAYER_TYPE_CONV2D;
+            wrapper->ops = NULL;
+            en->layer = wrapper;
+
+        } else if (strcmp(on->op_type, "BatchNormalization") == 0) {
+            en->op = ONNX_RT_BATCHNORM;
+            const onnx_tensor_t* scale_init = (on->num_inputs > 1) ?
+                find_init_tensor(g, on->names[1]) : NULL;
+            const onnx_tensor_t* b_init = (on->num_inputs > 2) ?
+                find_init_tensor(g, on->names[2]) : NULL;
+            const onnx_tensor_t* mean_init = (on->num_inputs > 3) ?
+                find_init_tensor(g, on->names[3]) : NULL;
+            const onnx_tensor_t* var_init = (on->num_inputs > 4) ?
+                find_init_tensor(g, on->names[4]) : NULL;
+            if (!scale_init || scale_init->num_dims < 1) {
+                fprintf(stderr, "[ONNX] Batchnorm node %d: invalid scale (scale=%p ndims=%d)\n",
+                    i, (void*)scale_init, scale_init ? scale_init->num_dims : 0);
+                return false;
+            }
+
+            size_t num_features = (size_t)scale_init->dims[0];
+            float eps = get_attr_float(on, "epsilon", 1e-5f);
+
+            boat_batchnorm2d_layer_t* bn = boat_batchnorm2d_layer_create(
+                num_features, eps, 0.9f, true);
+            if (!bn) return false;
+
+            if (scale_init && scale_init->raw_data_size > 0) {
+                boat_tensor_t* t = onnx_tensor_to_boat(scale_init);
+                if (t) { boat_batchnorm2d_layer_set_weight(bn, t); boat_tensor_unref(t); }
+            }
+            if (b_init && b_init->raw_data_size > 0) {
+                boat_tensor_t* t = onnx_tensor_to_boat(b_init);
+                if (t) { boat_batchnorm2d_layer_set_bias(bn, t); boat_tensor_unref(t); }
+            }
+            if (mean_init && mean_init->raw_data_size > 0) {
+                boat_tensor_t* t = onnx_tensor_to_boat(mean_init);
+                if (t) { boat_batchnorm2d_layer_set_running_mean(bn, t); boat_tensor_unref(t); }
+            }
+            if (var_init && var_init->raw_data_size > 0) {
+                boat_tensor_t* t = onnx_tensor_to_boat(var_init);
+                if (t) { boat_batchnorm2d_layer_set_running_var(bn, t); boat_tensor_unref(t); }
+            }
+
+            boat_layer_t* wrapper = (boat_layer_t*)malloc(sizeof(boat_layer_t));
+            if (!wrapper) { boat_batchnorm2d_layer_free(bn); return false; }
+            wrapper->data = bn;
+            wrapper->type = BOAT_LAYER_TYPE_BATCHNORM2D;
+            wrapper->ops = NULL;
+            en->layer = wrapper;
+
+        } else if (strcmp(on->op_type, "PRelu") == 0) {
+            en->op = ONNX_RT_PRELU;
+            const onnx_tensor_t* slope_init = (on->num_inputs > 1) ?
+                find_init_tensor(g, on->names[1]) : NULL;
+            if (!slope_init || slope_init->num_dims < 1) {
+                fprintf(stderr, "[ONNX] PRelu node %d: invalid slope\n", i);
+                return false;
+            }
+
+            size_t num_params = (size_t)slope_init->dims[0];
+            boat_prelu_layer_t* prelu = boat_prelu_layer_create(0); // no default slope
+            if (!prelu) return false;
+
+            if (slope_init->raw_data_size > 0) {
+                boat_tensor_t* s = onnx_tensor_to_boat(slope_init);
+                if (s) { boat_prelu_layer_set_slope(prelu, s); boat_tensor_unref(s); }
+            }
+
+            boat_layer_t* wrapper = (boat_layer_t*)malloc(sizeof(boat_layer_t));
+            if (!wrapper) { boat_prelu_layer_free(prelu); return false; }
+            wrapper->data = prelu;
+            wrapper->type = BOAT_LAYER_TYPE_PRELU;
+            wrapper->ops = NULL;
+            en->layer = wrapper;
+
+        } else if (strcmp(on->op_type, "Add") == 0) {
+            en->op = ONNX_RT_ADD;
+            en->layer = NULL;
+
+        } else if (strcmp(on->op_type, "Gemm") == 0) {
+            en->op = ONNX_RT_GEMM;
+            const onnx_tensor_t* w_init = (on->num_inputs > 1) ?
+                find_init_tensor(g, on->names[1]) : NULL;
+            const onnx_tensor_t* b_init = (on->num_inputs > 2) ?
+                find_init_tensor(g, on->names[2]) : NULL;
+            if (!w_init || w_init->data_type != ONNX_DTYPE_FLOAT) {
+                fprintf(stderr, "[ONNX] Gemm node %d: invalid weight\n", i);
+                return false;
+            }
+
+            bool trans_b = gemm_transB(on);
+            int64_t out_features = trans_b ? w_init->dims[0] : w_init->dims[1];
+            int64_t in_features = trans_b ? w_init->dims[1] : w_init->dims[0];
+
+            boat_dense_layer_t* dense = boat_dense_layer_create(
+                (size_t)in_features, (size_t)out_features, b_init != NULL);
+            if (!dense) return false;
+
+            boat_tensor_t* w = onnx_tensor_to_boat(w_init);
+            if (!w) { boat_dense_layer_free(dense); return false; }
+
+            if (trans_b) {
+                boat_tensor_t* w_T = transpose_2d(w);
+                boat_tensor_unref(w);
+                if (!w_T) { boat_dense_layer_free(dense); return false; }
+                boat_dense_layer_set_weight(dense, w_T);
+                boat_tensor_unref(w_T);
+            } else {
+                boat_dense_layer_set_weight(dense, w);
+                boat_tensor_unref(w);
+            }
+
+            if (b_init && b_init->raw_data_size > 0) {
+                boat_tensor_t* b = onnx_tensor_to_boat(b_init);
+                if (b) { boat_dense_layer_set_bias(dense, b); boat_tensor_unref(b); }
+            }
+
+            boat_layer_t* wrapper = (boat_layer_t*)malloc(sizeof(boat_layer_t));
+            if (!wrapper) { boat_dense_layer_free(dense); return false; }
+            wrapper->data = dense;
+            wrapper->type = BOAT_LAYER_TYPE_DENSE;
+            wrapper->ops = NULL;
+            en->layer = wrapper;
+
+        } else if (strcmp(on->op_type, "Flatten") == 0) {
+            en->op = ONNX_RT_FLATTEN;
+            boat_flatten_layer_t* flatten = boat_flatten_layer_create();
+            if (!flatten) return false;
+
+            boat_layer_t* wrapper = (boat_layer_t*)malloc(sizeof(boat_layer_t));
+            if (!wrapper) { boat_flatten_layer_free(flatten); return false; }
+            wrapper->data = flatten;
+            wrapper->type = BOAT_LAYER_TYPE_FLATTEN;
+            wrapper->ops = NULL;
+            en->layer = wrapper;
+
+        } else {
+            // Unsupported op type
+            fprintf(stderr, "[ONNX] Unsupported op: %s\n", on->op_type);
+            return false;
+        }
+
+        rt->num_nodes++;
+    }
+
+    // The first non-initializer input to the first node is the model input
+    if (rt->num_nodes > 0 && rt->nodes[0].num_inputs > 0) {
+        rt->input_tensor_id = rt->nodes[0].input_ids[0];
+    }
+    // The last node's output is the model output
+    if (rt->num_nodes > 0) {
+        rt->output_tensor_id = rt->nodes[rt->num_nodes - 1].output_id;
+    }
+
+    return true;
+}
+
+boat_onnx_runtime_t* boat_onnx_runtime_load(const char* filename) {
+    if (!filename) { fprintf(stderr, "[ONNX] NULL filename\n"); return NULL; }
+
+    FILE* f = fopen(filename, "rb");
+    if (!f) { fprintf(stderr, "[ONNX] Cannot open file: %s\n", filename); return NULL; }
+
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    if (size <= 0) { fprintf(stderr, "[ONNX] Empty file\n"); fclose(f); return NULL; }
+    fseek(f, 0, SEEK_SET);
+
+    void* data = malloc((size_t)size);
+    if (!data) { fclose(f); return NULL; }
+    fread(data, 1, (size_t)size, f);
+    fclose(f);
+
+    pb_reader_t reader;
+    pb_reader_init(&reader, data, (size_t)size);
+
+    boat_onnx_runtime_t* rt = (boat_onnx_runtime_t*)calloc(1, sizeof(boat_onnx_runtime_t));
+    if (!rt) { free(data); return NULL; }
+
+    if (!onnx_parse(&reader, &rt->onnx)) {
+        fprintf(stderr, "[ONNX] onnx_parse failed\n");
+        onnx_model_free(&rt->onnx);
+        free(rt);
+        free(data);
+        return NULL;
+    }
+    free(data);
+
+    if (!onnx_rt_build(rt)) {
+        fprintf(stderr, "[ONNX] onnx_rt_build failed\n");
+        boat_onnx_runtime_free(rt);
+        return NULL;
+    }
+
+    return rt;
+}
+
+void boat_onnx_runtime_free(boat_onnx_runtime_t* rt) {
+    if (!rt) return;
+
+    // Free all tensors
+    for (int i = 0; i < rt->num_tensors; i++) {
+        if (rt->tensors[i].tensor) {
+            boat_tensor_unref(rt->tensors[i].tensor);
+        }
+    }
+
+    // Free execution nodes with layers
+    for (int i = 0; i < rt->num_nodes; i++) {
+        if (rt->nodes[i].layer) {
+            boat_layer_t* wrapper = rt->nodes[i].layer;
+            if (wrapper) {
+                // Free layer-specific data and the wrapper
+                switch (rt->nodes[i].op) {
+                    case ONNX_RT_CONV:
+                        if (wrapper->data) boat_conv_layer_free((boat_conv_layer_t*)wrapper->data);
+                        break;
+                    case ONNX_RT_BATCHNORM:
+                        if (wrapper->data) boat_batchnorm2d_layer_free((boat_batchnorm2d_layer_t*)wrapper->data);
+                        break;
+                    case ONNX_RT_PRELU:
+                        if (wrapper->data) boat_prelu_layer_free((boat_prelu_layer_t*)wrapper->data);
+                        break;
+                    case ONNX_RT_GEMM:
+                        if (wrapper->data) boat_dense_layer_free((boat_dense_layer_t*)wrapper->data);
+                        break;
+                    case ONNX_RT_FLATTEN:
+                        if (wrapper->data) boat_flatten_layer_free((boat_flatten_layer_t*)wrapper->data);
+                        break;
+                    default:
+                        break;
+                }
+                free(wrapper);
+            }
+        }
+    }
+
+    free(rt->nodes);
+    onnx_model_free(&rt->onnx);
+    free(rt);
+}
+
+boat_tensor_t* boat_onnx_runtime_run(boat_onnx_runtime_t* rt, const boat_tensor_t* input) {
+    if (!rt || !input) return NULL;
+
+    // Clear activation tensors from previous run
+    onnx_rt_clear_activations(rt);
+
+    // Set input tensor (clone it so we own our copy)
+    if (rt->input_tensor_id < 0 || rt->input_tensor_id >= rt->num_tensors)
+        return NULL;
+    rt->tensors[rt->input_tensor_id].tensor = boat_tensor_create_like(input);
+    if (!rt->tensors[rt->input_tensor_id].tensor) return NULL;
+    memcpy(boat_tensor_data(rt->tensors[rt->input_tensor_id].tensor),
+           boat_tensor_const_data(input), boat_tensor_nbytes(input));
+
+    // Execute nodes in order
+    for (int i = 0; i < rt->num_nodes; i++) {
+        onnx_rt_exec_node_t* en = &rt->nodes[i];
+
+        // Gather input tensors
+        boat_tensor_t* in0 = NULL;
+        boat_tensor_t* in1 = NULL;
+        if (en->num_inputs > 0 && en->input_ids[0] >= 0)
+            in0 = rt->tensors[en->input_ids[0]].tensor;
+        if (en->num_inputs > 1 && en->input_ids[1] >= 0)
+            in1 = rt->tensors[en->input_ids[1]].tensor;
+
+        if (!in0) return NULL;
+
+        boat_tensor_t* output = NULL;
+
+        switch (en->op) {
+            case ONNX_RT_CONV: {
+                boat_conv_layer_t* conv = (boat_conv_layer_t*)en->layer->data;
+                output = boat_conv_layer_forward(conv, in0);
+                break;
+            }
+            case ONNX_RT_BATCHNORM: {
+                // Some models apply Batchnorm after Gemm (2D input).
+                // Reshape to 4D [N, C, 1, 1] if needed, then reshape back.
+                boat_tensor_t* bn_in = (boat_tensor_t*)in0;
+                int bn_ndim = (int)boat_tensor_ndim(in0);
+                if (bn_ndim != 4) {
+                    int64_t n = 1, c = (int64_t)boat_tensor_nelements(in0);
+                    if (bn_ndim == 2) {
+                        const int64_t* s = boat_tensor_shape(in0);
+                        n = s[0]; c = s[1];
+                    }
+                    int64_t bn_shape[] = {n, c, 1, 1};
+                    bn_in = boat_tensor_reshape(in0, bn_shape, 4);
+                    if (!bn_in) return NULL;
+                }
+                boat_batchnorm2d_layer_t* bn = (boat_batchnorm2d_layer_t*)en->layer->data;
+                output = boat_batchnorm2d_layer_forward(bn, bn_in);
+                if (bn_in != in0) boat_tensor_unref(bn_in);
+                if (output && bn_ndim != 4) {
+                    // Reshape output back to original ndim
+                    boat_tensor_t* reshaped = boat_tensor_reshape(output, boat_tensor_shape(in0), (size_t)bn_ndim);
+                    if (reshaped) { boat_tensor_unref(output); output = reshaped; }
+                }
+                break;
+            }
+            case ONNX_RT_PRELU: {
+                boat_prelu_layer_t* prelu = (boat_prelu_layer_t*)en->layer->data;
+                output = boat_prelu_layer_forward(prelu, in0);
+                break;
+            }
+            case ONNX_RT_ADD: {
+                if (!in1) return NULL;
+                output = boat_add(in0, in1);
+                break;
+            }
+            case ONNX_RT_GEMM: {
+                boat_dense_layer_t* dense = (boat_dense_layer_t*)en->layer->data;
+                output = boat_dense_layer_forward(dense, in0);
+                break;
+            }
+            case ONNX_RT_FLATTEN: {
+                boat_flatten_layer_t* flatten = (boat_flatten_layer_t*)en->layer->data;
+                output = boat_flatten_layer_forward(flatten, in0);
+                break;
+            }
+        }
+
+        if (!output) return NULL;
+        rt->tensors[en->output_id].tensor = output;
+    }
+
+    // Detach output tensor from runtime (caller owns it)
+    if (rt->output_tensor_id < 0 || rt->output_tensor_id >= rt->num_tensors)
+        return NULL;
+    boat_tensor_t* result = rt->tensors[rt->output_tensor_id].tensor;
+    rt->tensors[rt->output_tensor_id].tensor = NULL;
+
+    return result;
 }

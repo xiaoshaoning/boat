@@ -65,12 +65,12 @@ static uint8_t* build_test_onnx(size_t* out_size) {
     pb_write_tag(&b, 1, 0);
     pb_write_varint(&b, 4);
     // data_type = 1 (field 5, int32)
-    pb_write_tag(&b, 5, 0);
+    pb_write_tag(&b, 2, 0);
     pb_write_varint(&b, 1);
     // name = "weight" (field 7, string)
-    pb_write_string(&b, 7, "weight");
+    pb_write_string(&b, 8, "weight");
     // raw_data (field 10, bytes)
-    pb_write_bytes(&b, 10, weight_data, sizeof(weight_data));
+    pb_write_bytes(&b, 9,weight_data, sizeof(weight_data));
     pb_patch_length(&b, init_w_pos);
 
     // --- Bias initializer ---
@@ -80,10 +80,10 @@ static uint8_t* build_test_onnx(size_t* out_size) {
     size_t init_b_pos = pb_begin_submessage(&b, 5);  // initializer[1]
     pb_write_tag(&b, 1, 0);
     pb_write_varint(&b, 3);
-    pb_write_tag(&b, 5, 0);
+    pb_write_tag(&b, 2, 0);
     pb_write_varint(&b, 1);
-    pb_write_string(&b, 7, "bias");
-    pb_write_bytes(&b, 10, bias_data, sizeof(bias_data));
+    pb_write_string(&b, 8, "bias");
+    pb_write_bytes(&b, 9,bias_data, sizeof(bias_data));
     pb_patch_length(&b, init_b_pos);
 
     // --- Gemm node ---
@@ -99,7 +99,7 @@ static uint8_t* build_test_onnx(size_t* out_size) {
     // AttributeProto { name: "transB", type: 2 (INT), i: 1 }
     size_t attr_pos = pb_begin_submessage(&b, 5);
     pb_write_string(&b, 1, "transB");
-    pb_write_tag(&b, 5, 0);
+    pb_write_tag(&b, 20, 0);
     pb_write_varint(&b, 2);  // type = INT
     pb_write_tag(&b, 3, 0);
     pb_write_varint(&b, 1);  // i = 1 (true)
@@ -139,7 +139,7 @@ static uint8_t* build_test_onnx(size_t* out_size) {
 static void write_int_attr(pb_builder_t* b, const char* name, int64_t val) {
     size_t pos = pb_begin_submessage(b, 5);
     pb_write_string(b, 1, name);
-    pb_write_tag(b, 5, 0); pb_write_varint(b, 2);
+    pb_write_tag(b, 20, 0); pb_write_varint(b, 2);
     pb_write_tag(b, 3, 0); pb_write_varint(b, val);
     pb_patch_length(b, pos);
 }
@@ -148,7 +148,7 @@ static void write_int_attr(pb_builder_t* b, const char* name, int64_t val) {
 static void write_ints_attr(pb_builder_t* b, const char* name, const int64_t* vals, int count) {
     size_t pos = pb_begin_submessage(b, 5);
     pb_write_string(b, 1, name);
-    pb_write_tag(b, 5, 0); pb_write_varint(b, 7);
+    pb_write_tag(b, 20, 0); pb_write_varint(b, 7);
     for (int i = 0; i < count; i++) {
         pb_write_tag(b, 7, 0); pb_write_varint(b, vals[i]);
     }
@@ -159,7 +159,7 @@ static void write_ints_attr(pb_builder_t* b, const char* name, const int64_t* va
 static void write_float_attr(pb_builder_t* b, const char* name, float val) {
     size_t pos = pb_begin_submessage(b, 5);
     pb_write_string(b, 1, name);
-    pb_write_tag(b, 5, 0); pb_write_varint(b, 1);
+    pb_write_tag(b, 20, 0); pb_write_varint(b, 1);
     pb_write_tag(b, 2, 5);
     pb_write_raw(b, &val, sizeof(float));
     pb_patch_length(b, pos);
@@ -189,18 +189,18 @@ static uint8_t* build_test_conv_model(size_t* out_size) {
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 1);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
-    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
-    pb_write_string(&b, 7, "conv_weight");
-    pb_write_bytes(&b, 10, wd, sizeof(wd));
+    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 8, "conv_weight");
+    pb_write_bytes(&b, 9,wd, sizeof(wd));
     pb_patch_length(&b, iw);
 
     // Bias [2] = [1.0, 2.0]
     float bd[2] = {1.0f, 2.0f};
     size_t ib = pb_begin_submessage(&b, 5);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
-    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
-    pb_write_string(&b, 7, "conv_bias");
-    pb_write_bytes(&b, 10, bd, sizeof(bd));
+    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 8, "conv_bias");
+    pb_write_bytes(&b, 9,bd, sizeof(bd));
     pb_patch_length(&b, ib);
 
     // Conv node
@@ -250,54 +250,54 @@ static uint8_t* build_test_batchnorm_model(size_t* out_size) {
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 1);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
-    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
-    pb_write_string(&b, 7, "conv_weight");
-    pb_write_bytes(&b, 10, cw, sizeof(cw));
+    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 8, "conv_weight");
+    pb_write_bytes(&b, 9,cw, sizeof(cw));
     pb_patch_length(&b, iw);
 
     // Conv bias [2] = [1.0, 2.0]
     float cb[2] = {1.0f, 2.0f};
     size_t ib = pb_begin_submessage(&b, 5);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
-    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
-    pb_write_string(&b, 7, "conv_bias");
-    pb_write_bytes(&b, 10, cb, sizeof(cb));
+    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 8, "conv_bias");
+    pb_write_bytes(&b, 9,cb, sizeof(cb));
     pb_patch_length(&b, ib);
 
     // BN scale [2] = [1, 1]
     float bs[2] = {1.0f, 1.0f};
     size_t ibs = pb_begin_submessage(&b, 5);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
-    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
-    pb_write_string(&b, 7, "bn_scale");
-    pb_write_bytes(&b, 10, bs, sizeof(bs));
+    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 8, "bn_scale");
+    pb_write_bytes(&b, 9,bs, sizeof(bs));
     pb_patch_length(&b, ibs);
 
     // BN bias [2] = [0, 0]
     float bb[2] = {0.0f, 0.0f};
     size_t ibb = pb_begin_submessage(&b, 5);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
-    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
-    pb_write_string(&b, 7, "bn_bias");
-    pb_write_bytes(&b, 10, bb, sizeof(bb));
+    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 8, "bn_bias");
+    pb_write_bytes(&b, 9,bb, sizeof(bb));
     pb_patch_length(&b, ibb);
 
     // BN mean [2] = [0, 0]
     float bm[2] = {0.0f, 0.0f};
     size_t ibm = pb_begin_submessage(&b, 5);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
-    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
-    pb_write_string(&b, 7, "bn_mean");
-    pb_write_bytes(&b, 10, bm, sizeof(bm));
+    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 8, "bn_mean");
+    pb_write_bytes(&b, 9,bm, sizeof(bm));
     pb_patch_length(&b, ibm);
 
     // BN var [2] = [1, 1]
     float bv[2] = {1.0f, 1.0f};
     size_t ibv = pb_begin_submessage(&b, 5);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
-    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
-    pb_write_string(&b, 7, "bn_var");
-    pb_write_bytes(&b, 10, bv, sizeof(bv));
+    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 8, "bn_var");
+    pb_write_bytes(&b, 9,bv, sizeof(bv));
     pb_patch_length(&b, ibv);
 
     // Conv node
@@ -405,54 +405,54 @@ static uint8_t* build_test_cnn_model(size_t* out_size) {
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 1);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
-    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
-    pb_write_string(&b, 7, "conv_weight");
-    pb_write_bytes(&b, 10, cw, sizeof(cw));
+    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 8, "conv_weight");
+    pb_write_bytes(&b, 9,cw, sizeof(cw));
     pb_patch_length(&b, iw);
 
     // Conv bias [2] = [0.0, 0.0]
     float cb[2] = {0.0f, 0.0f};
     size_t ib = pb_begin_submessage(&b, 5);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
-    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
-    pb_write_string(&b, 7, "conv_bias");
-    pb_write_bytes(&b, 10, cb, sizeof(cb));
+    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 8, "conv_bias");
+    pb_write_bytes(&b, 9,cb, sizeof(cb));
     pb_patch_length(&b, ib);
 
     // BN scale [2] = [1, 1]
     float bs[2] = {1.0f, 1.0f};
     size_t ibs = pb_begin_submessage(&b, 5);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
-    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
-    pb_write_string(&b, 7, "bn_scale");
-    pb_write_bytes(&b, 10, bs, sizeof(bs));
+    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 8, "bn_scale");
+    pb_write_bytes(&b, 9,bs, sizeof(bs));
     pb_patch_length(&b, ibs);
 
     // BN bias [2] = [0.0, 0.0]
     float bb[2] = {0.0f, 0.0f};
     size_t ibb = pb_begin_submessage(&b, 5);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
-    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
-    pb_write_string(&b, 7, "bn_bias");
-    pb_write_bytes(&b, 10, bb, sizeof(bb));
+    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 8, "bn_bias");
+    pb_write_bytes(&b, 9,bb, sizeof(bb));
     pb_patch_length(&b, ibb);
 
     // BN mean [2] = [0.0, 0.0]
     float bm[2] = {0.0f, 0.0f};
     size_t ibm = pb_begin_submessage(&b, 5);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
-    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
-    pb_write_string(&b, 7, "bn_mean");
-    pb_write_bytes(&b, 10, bm, sizeof(bm));
+    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 8, "bn_mean");
+    pb_write_bytes(&b, 9,bm, sizeof(bm));
     pb_patch_length(&b, ibm);
 
     // BN var [2] = [1.0, 1.0]
     float bv[2] = {1.0f, 1.0f};
     size_t ibv = pb_begin_submessage(&b, 5);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
-    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
-    pb_write_string(&b, 7, "bn_var");
-    pb_write_bytes(&b, 10, bv, sizeof(bv));
+    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 8, "bn_var");
+    pb_write_bytes(&b, 9,bv, sizeof(bv));
     pb_patch_length(&b, ibv);
 
     // Gemm weight [3, 2] = all 1.0 (transB=1)
@@ -460,18 +460,18 @@ static uint8_t* build_test_cnn_model(size_t* out_size) {
     size_t igw = pb_begin_submessage(&b, 5);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
-    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
-    pb_write_string(&b, 7, "gemm_weight");
-    pb_write_bytes(&b, 10, gw, sizeof(gw));
+    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 8, "gemm_weight");
+    pb_write_bytes(&b, 9,gw, sizeof(gw));
     pb_patch_length(&b, igw);
 
     // Gemm bias [3] = [0.0, 0.0, 0.0]
     float gb[3] = {0.0f, 0.0f, 0.0f};
     size_t igb = pb_begin_submessage(&b, 5);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
-    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
-    pb_write_string(&b, 7, "gemm_bias");
-    pb_write_bytes(&b, 10, gb, sizeof(gb));
+    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 8, "gemm_bias");
+    pb_write_bytes(&b, 9,gb, sizeof(gb));
     pb_patch_length(&b, igb);
 
     // Conv node
@@ -872,18 +872,18 @@ static int test_onnx_load_softmax(void) {
     size_t iw = pb_begin_submessage(&b, 5);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 4);
-    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
-    pb_write_string(&b, 7, "weight");
-    pb_write_bytes(&b, 10, wd, sizeof(wd));
+    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 8, "weight");
+    pb_write_bytes(&b, 9,wd, sizeof(wd));
     pb_patch_length(&b, iw);
 
     // Gemm bias [3] = [0, 0, 0]
     float bd[3] = {0, 0, 0};
     size_t ib = pb_begin_submessage(&b, 5);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
-    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
-    pb_write_string(&b, 7, "bias");
-    pb_write_bytes(&b, 10, bd, sizeof(bd));
+    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 8, "bias");
+    pb_write_bytes(&b, 9,bd, sizeof(bd));
     pb_patch_length(&b, ib);
 
     // Gemm node
@@ -972,18 +972,18 @@ static int test_onnx_load_flatten(void) {
     size_t iw = pb_begin_submessage(&b, 5);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 4);
-    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
-    pb_write_string(&b, 7, "weight");
-    pb_write_bytes(&b, 10, wd, sizeof(wd));
+    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 8, "weight");
+    pb_write_bytes(&b, 9,wd, sizeof(wd));
     pb_patch_length(&b, iw);
 
     // Bias [3] = [0.01, 0.02, 0.03]
     float bd[3] = {0.01f, 0.02f, 0.03f};
     size_t ib = pb_begin_submessage(&b, 5);
     pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
-    pb_write_tag(&b, 5, 0); pb_write_varint(&b, 1);
-    pb_write_string(&b, 7, "bias");
-    pb_write_bytes(&b, 10, bd, sizeof(bd));
+    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);
+    pb_write_string(&b, 8, "bias");
+    pb_write_bytes(&b, 9,bd, sizeof(bd));
     pb_patch_length(&b, ib);
 
     // Gemm node

@@ -3,6 +3,7 @@
 // Licensed under the Apache License, Version 2.0
 
 #include "onnx_pb.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -197,16 +198,16 @@ void pb_patch_length(pb_builder_t* b, size_t pos) {
 #define NODE_OP_TYPE        4   // NodeProto.op_type (string)
 
 #define TENSOR_DIMS         1   // TensorProto.dims (repeated int64, packed)
-#define TENSOR_DATA_TYPE    5   // TensorProto.data_type (int32)
-#define TENSOR_NAME         7   // TensorProto.name (string)
-#define TENSOR_RAW_DATA     10  // TensorProto.raw_data (bytes)
+#define TENSOR_DATA_TYPE    2   // TensorProto.data_type (int32)
+#define TENSOR_NAME         8   // TensorProto.name (string)
+#define TENSOR_RAW_DATA     9   // TensorProto.raw_data (bytes)
 
 #define OPSET_DOMAIN        1   // OperatorSetIdProto.domain (string)
 #define OPSET_VERSION       2   // OperatorSetIdProto.version (int64)
 
 // Attribute proto fields we care about
 #define ATTR_NAME           1   // AttributeProto.name (string)
-#define ATTR_TYPE           5   // AttributeProto.type (int32)
+#define ATTR_TYPE           20  // AttributeProto.type (int32)
 #define ATTR_F              2   // AttributeProto.f (float)
 #define ATTR_I              3   // AttributeProto.i (int64)
 #define ATTR_INTS           7   // AttributeProto.ints (repeated int64)
@@ -306,10 +307,20 @@ static bool parse_node(pb_reader_t* r, onnx_node_t* node) {
                             if (aw != 0) { pb_skip_field(&attr, aw); break; }
                             attr_int = (int64_t)pb_read_varint(&attr);
                             break;
+                        case 8: { // Some models use field 8 for integer array values (instead of field 7)
+                            if (aw == 0) {
+                                if (num_ints < 8) ints_list[num_ints++] = (int64_t)pb_read_varint(&attr);
+                            } else {
+                                pb_skip_field(&attr, aw);
+                            }
+                            break;
+                        }
                         case ATTR_INTS: {
                             if (aw == 0) {
                                 // Non-packed repeated varint
-                                if (num_ints < 8) ints_list[num_ints++] = (int64_t)pb_read_varint(&attr);
+                                if (num_ints < 8) {
+                                    ints_list[num_ints++] = (int64_t)pb_read_varint(&attr);
+                                }
                             } else if (aw == 2) {
                                 // Packed repeated varints
                                 uint64_t list_len = pb_read_varint(&attr);

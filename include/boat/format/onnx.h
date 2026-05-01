@@ -29,6 +29,24 @@ bool boat_onnx_check(const char* filename);
 // Get ONNX model version information
 bool boat_onnx_get_version(const char* filename, int* major, int* minor, int* patch);
 
+// -----------------------------------------------------------------------
+// ONNX Runtime: executes arbitrary ONNX graphs (including residual adds)
+// -----------------------------------------------------------------------
+
+// Opaque runtime handle
+typedef struct boat_onnx_runtime_t boat_onnx_runtime_t;
+
+// Load an ONNX model into a runtime executor.
+// Supports: Conv, BatchNormalization, PRelu, Add, Gemm, Flatten.
+boat_onnx_runtime_t* boat_onnx_runtime_load(const char* filename);
+
+// Free the runtime and all associated resources.
+void boat_onnx_runtime_free(boat_onnx_runtime_t* rt);
+
+// Run inference: feed input tensor (name from ONNX graph.input[0]),
+// returns a new tensor (caller owns).
+boat_tensor_t* boat_onnx_runtime_run(boat_onnx_runtime_t* rt, const boat_tensor_t* input);
+
 #ifdef __cplusplus
 }
 #endif

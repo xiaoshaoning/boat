@@ -12,7 +12,7 @@ Boat is a lightweight, high-performance deep learning framework written in pure 
   - Low-bit quantization: BITS2 (2-bit packed), BITS1 (1-bit binary networks)
   - Boolean: BOOL type
 - **Quantization Pipeline**: UINT8/INT8 affine quantization, BITS2 (2-bit), FLOAT4 (4-bit), per-channel, and QAT fake quantization
-- **Model Format Support**: ONNX (load/export), PyTorch (via LibTorch), HuggingFace Safetensors, GGUF (Q4_0, Q4_1, Q5_0, Q8_0)
+- **Model Format Support**: ONNX (load/export/runtime executor), PyTorch (via LibTorch), HuggingFace Safetensors, GGUF (Q4_0, Q4_1, Q5_0, Q8_0)
 - **Data Pipeline**: Dataset/DataLoader abstraction with batching, shuffling, multi-threaded prefetch, and transforms
 - **Performance Optimizations**: SIMD (AVX2/NEON), SGEMM micro-kernel, OpenMP parallelism, memory pooling
 - **Memory Efficient**: Explicit memory management with reference counting
@@ -435,7 +435,7 @@ For more details, see the [MNIST example documentation](examples/mnist/CLAUDE.md
 - **Conv2D**: 2D convolutional layer
 - **Pooling**: MaxPool2D, AvgPool2D
 - **Normalization**: BatchNorm, LayerNorm
-- **Activation**: ReLU, Sigmoid, Tanh, Softmax
+- **Activation**: ReLU, PReLU, Sigmoid, Tanh, Softmax
 - **Attention**: Multi-head self-attention
 - **RNN Layers**: LSTM, GRU
 
@@ -498,6 +498,7 @@ The repository includes several comprehensive examples:
 - **CIFAR-10**: CNN image classification with data pipeline and transforms
 - **Transformer**: End-to-end transformer with tokenization, training, and autoregressive decoding
 - **Translator**: English-to-French MarianMT (Helsinki-NLP) inference engine using Safetensors weights
+- **InsightFace**: Face recognition model (ResNet50-based) inference via ONNX runtime executor, producing 512-dim embeddings
 - **Automatic Differentiation**: Gradient computation with dynamic computation graphs
 - **Scheduler Usage**: Learning rate scheduling with cosine annealing, step LR, and lambda LR
 - **ONNX Export**: Export trained boat models to ONNX format
@@ -561,6 +562,9 @@ For detailed API documentation and development guidelines, see [CLAUDE.md](CLAUD
 - Post-training quantization (UINT8, INT8, BITS2, FLOAT4, per-channel)
 - Quantization-aware training (QAT) with fake quantization
 - Model format loaders (ONNX, PyTorch, TensorFlow, HuggingFace, GGUF)
+- ONNX runtime executor (graph-based direct inference for complex ONNX models)
+- PReLU activation layer (Parametric ReLU for modern CNN architectures)
+- InsightFace face recognition model inference (ResNet50, 512-dim embeddings)
 - Model serialization (custom binary format, v3 with per-channel metadata)
 - Performance optimizations (SIMD, SGEMM, OpenMP, memory pool)
 - Cross-platform build with CMake
@@ -575,8 +579,6 @@ For detailed API documentation and development guidelines, see [CLAUDE.md](CLAUD
 - CUDA backend for GPU acceleration (tensor ops, layer kernels)
 - Group/depthwise convolution
 - Model compression and pruning
-- ONNX Runtime integration
-- 1-bit binary network (BITS1) support
 - WebAssembly backend for in-browser inference
 - Distributed training support
 

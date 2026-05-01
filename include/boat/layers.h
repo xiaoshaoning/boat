@@ -27,6 +27,7 @@ typedef enum {
     BOAT_LAYER_TYPE_LSTM,
     BOAT_LAYER_TYPE_GRU,
     BOAT_LAYER_TYPE_ATTENTION,
+    BOAT_LAYER_TYPE_PRELU,
     BOAT_LAYER_TYPE_COUNT
 } boat_layer_type_t;
 
@@ -128,6 +129,14 @@ BOAT_API void BOAT_CALL boat_relu_layer_free(boat_relu_layer_t* layer);
 BOAT_API boat_tensor_t* BOAT_CALL boat_relu_layer_forward(const boat_relu_layer_t* layer, const boat_tensor_t* input);
 BOAT_API boat_tensor_t* BOAT_CALL boat_relu_layer_backward(boat_relu_layer_t* layer, const boat_tensor_t* grad_output);
 BOAT_API void BOAT_CALL boat_relu_layer_update(boat_relu_layer_t* layer, float learning_rate);
+
+typedef struct boat_prelu_layer_t boat_prelu_layer_t;
+// PReLU layer (Parametric ReLU): f(x) = max(0,x) + slope * min(0,x)
+BOAT_API boat_prelu_layer_t* BOAT_CALL boat_prelu_layer_create(size_t num_params);
+BOAT_API void BOAT_CALL boat_prelu_layer_free(boat_prelu_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_prelu_layer_forward(const boat_prelu_layer_t* layer, const boat_tensor_t* input);
+BOAT_API void BOAT_CALL boat_prelu_layer_set_slope(boat_prelu_layer_t* layer, const boat_tensor_t* slope);
+BOAT_API boat_tensor_t* BOAT_CALL boat_prelu_layer_get_slope(const boat_prelu_layer_t* layer);
 
 typedef struct boat_softmax_layer_t boat_softmax_layer_t;
 BOAT_API boat_softmax_layer_t* BOAT_CALL boat_softmax_layer_create(int axis);
