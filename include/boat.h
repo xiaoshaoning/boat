@@ -58,6 +58,10 @@
 #include "boat/format/tensorflow.h"
 #endif
 
+#ifdef BOAT_WITH_ONNXRUNTIME
+#include "boat/format/onnxruntime.h"
+#endif
+
 // Utility functions
 #ifdef __cplusplus
 extern "C" {

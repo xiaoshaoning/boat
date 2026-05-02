@@ -122,11 +122,32 @@ void boat_cuda_conv2d_cudnn_forward_f32(const float* input, const float* weight,
                                           size_t N, size_t C, size_t H, size_t W,
                                           size_t OC, size_t KH, size_t KW,
                                           size_t pad, size_t stride, size_t groups);
+void boat_cuda_conv2d_cudnn_backward_input_f32(const float* grad_output,
+                                                  const float* weight, float* grad_input,
+                                                  size_t N, size_t C, size_t H, size_t W,
+                                                  size_t OC, size_t KH, size_t KW,
+                                                  size_t pad, size_t stride, size_t groups);
+void boat_cuda_conv2d_cudnn_backward_filter_f32(const float* input,
+                                                  const float* grad_output,
+                                                  float* grad_weight, float* grad_bias,
+                                                  size_t N, size_t C, size_t H, size_t W,
+                                                  size_t OC, size_t KH, size_t KW,
+                                                  size_t pad, size_t stride, size_t groups);
 void boat_cuda_batchnorm_cudnn_forward_f32(const float* input, float* output,
                                              const float* gamma, const float* beta,
                                              float* mean, float* var,
                                              size_t N, size_t C, size_t H, size_t W,
                                              float eps);
+void boat_cuda_batchnorm_cudnn_backward_f32(const float* input,
+                                              const float* grad_output,
+                                              float* grad_input,
+                                              const float* gamma,
+                                              float* grad_gamma, float* grad_beta,
+                                              const float* save_mean,
+                                              const float* save_inv_var,
+                                              size_t N, size_t C, size_t H, size_t W,
+                                              float eps);
+void boat_cuda_var_to_inv_var_f32(float* data, size_t C, float eps);
 #endif
 
 // ---------------------------------------------------------------------------

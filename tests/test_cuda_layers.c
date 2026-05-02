@@ -96,6 +96,142 @@ static void cpu_batchnorm_forward(const float* input, float* output,
     }
 }
 
+// CPU reference for conv2d backward — input gradient
+// Uses the standard formula: grad_input[ih][iw] += weight[kh][kw] * grad_output[oh][ow]
+// where ih = oh*stride - pad + kh, iw = ow*stride - pad + kw (no weight flipping)
+static void cpu_conv2d_backward_input(const float* grad_output, const float* weight,
+                                       float* grad_input,
+                                       size_t N, size_t C, size_t H, size_t W,
+                                       size_t OC, size_t KH, size_t KW,
+                                       size_t pad, size_t stride, size_t groups) {
+    size_t CG = C / groups;
+    size_t OCG = OC / groups;
+    size_t OH = (H + 2*pad - KH) / stride + 1;
+    size_t OW = (W + 2*pad - KW) / stride + 1;
+    memset(grad_input, 0, N * C * H * W * sizeof(float));
+
+    for (size_t n = 0; n < N; n++) {
+        for (size_t g = 0; g < groups; g++) {
+            for (size_t oc = 0; oc < OCG; oc++) {
+                size_t out_c = g * OCG + oc;
+                for (size_t ic = 0; ic < CG; ic++) {
+                    size_t in_c = g * CG + ic;
+                    for (size_t kh = 0; kh < KH; kh++) {
+                        for (size_t kw = 0; kw < KW; kw++) {
+                            size_t widx = ((out_c * CG + ic) * KH + kh) * KW + kw;
+                            for (size_t oh = 0; oh < OH; oh++) {
+                                int ih = (int)(oh * stride - pad + kh);
+                                if (ih < 0 || ih >= (int)H) continue;
+                                for (size_t ow = 0; ow < OW; ow++) {
+                                    int iw = (int)(ow * stride - pad + kw);
+                                    if (iw < 0 || iw >= (int)W) continue;
+                                    size_t go_idx = ((n * OC + out_c) * OH + oh) * OW + ow;
+                                    size_t gi_idx = ((n * C + in_c) * H + ih) * W + iw;
+                                    grad_input[gi_idx] += weight[widx] * grad_output[go_idx];
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// CPU reference for conv2d backward — weight gradient
+static void cpu_conv2d_backward_weight(const float* input, const float* grad_output,
+                                        float* grad_weight, float* grad_bias,
+                                        size_t N, size_t C, size_t H, size_t W,
+                                        size_t OC, size_t KH, size_t KW,
+                                        size_t pad, size_t stride, size_t groups) {
+    size_t CG = C / groups;
+    size_t OCG = OC / groups;
+    size_t OH = (H + 2*pad - KH) / stride + 1;
+    size_t OW = (W + 2*pad - KW) / stride + 1;
+    memset(grad_weight, 0, OC * CG * KH * KW * sizeof(float));
+    if (grad_bias) memset(grad_bias, 0, OC * sizeof(float));
+
+    for (size_t n = 0; n < N; n++) {
+        for (size_t g = 0; g < groups; g++) {
+            for (size_t oc = 0; oc < OCG; oc++) {
+                size_t out_c = g * OCG + oc;
+                // bias grad: sum of grad_output over batch/spatial
+                if (grad_bias) {
+                    float sum = 0.0f;
+                    for (size_t oh = 0; oh < OH; oh++)
+                        for (size_t ow = 0; ow < OW; ow++)
+                            sum += grad_output[((n * OC + out_c) * OH + oh) * OW + ow];
+                    grad_bias[out_c] += sum;
+                }
+                for (size_t ic = 0; ic < CG; ic++) {
+                    size_t in_c = g * CG + ic;
+                    for (size_t kh = 0; kh < KH; kh++) {
+                        for (size_t kw = 0; kw < KW; kw++) {
+                            float sum = 0.0f;
+                            for (size_t oh = 0; oh < OH; oh++) {
+                                int ih = (int)(oh * stride - pad + kh);
+                                if (ih < 0 || ih >= (int)H) continue;
+                                for (size_t ow = 0; ow < OW; ow++) {
+                                    int iw = (int)(ow * stride - pad + kw);
+                                    if (iw < 0 || iw >= (int)W) continue;
+                                    sum += input[((n * C + in_c) * H + ih) * W + iw]
+                                         * grad_output[((n * OC + out_c) * OH + oh) * OW + ow];
+                                }
+                            }
+                            grad_weight[(out_c * CG + ic) * KH * KW + kh * KW + kw] += sum;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// CPU reference for batchnorm backward
+static void cpu_batchnorm_backward(const float* input, const float* grad_output,
+                                    float* grad_input,
+                                    const float* gamma,
+                                    float* grad_gamma, float* grad_beta,
+                                    const float* save_mean, const float* save_inv_var,
+                                    size_t N, size_t C, size_t H, size_t W, float eps) {
+    size_t spatial = N * H * W;
+    size_t hw_stride = H * W;
+    float inv_nelem = 1.0f / (float)spatial;
+
+    for (size_t c = 0; c < C; c++) {
+        float mu = save_mean[c];
+        float inv_std = save_inv_var[c];
+        float g = gamma[c];
+
+        // dbeta = sum(grad_output) over spatial+batch
+        float sum_beta = 0.0f;
+        float sum_gamma = 0.0f;
+        for (size_t n = 0; n < N; n++) {
+            size_t base = n * C * hw_stride + c * hw_stride;
+            for (size_t hw = 0; hw < hw_stride; hw++) {
+                size_t idx = base + hw;
+                float go = grad_output[idx];
+                float x_norm = (input[idx] - mu) * inv_std;
+                sum_beta += go;
+                sum_gamma += go * x_norm;
+            }
+        }
+        grad_beta[c] = sum_beta;
+        grad_gamma[c] = sum_gamma;
+
+        // dx = (g * inv_std / N) * (N * grad_output - dbeta - x_norm * dgamma)
+        float factor = g * inv_std;
+        for (size_t n = 0; n < N; n++) {
+            size_t base = n * C * hw_stride + c * hw_stride;
+            for (size_t hw = 0; hw < hw_stride; hw++) {
+                size_t idx = base + hw;
+                float x_norm = (input[idx] - mu) * inv_std;
+                grad_input[idx] = factor * (grad_output[idx] - sum_beta * inv_nelem - x_norm * sum_gamma * inv_nelem);
+            }
+        }
+    }
+}
+
 static int check_error(const float* cpu, const float* gpu, size_t n, float tol, const char* name) {
     for (size_t i = 0; i < n; i++) {
         float diff = fabsf(cpu[i] - gpu[i]);
@@ -584,6 +720,143 @@ int main() {
         free_host(h_in); free_host(h_gamma); free_host(h_beta);
         free_host(h_out_cpu); free_host(h_out_gpu);
         free_host(h_mean_cpu); free_host(h_var_cpu); free_host(h_mean_gpu); free_host(h_var_gpu);
+    }
+    printf("  %s\n", errors == 0 ? "PASS" : "FAIL");
+    fflush(stdout);
+
+    // =========================================================================
+    // Test 13: cuDNN Conv2D backward — input + weight + bias gradient
+    // =========================================================================
+    printf("[Test 13] cuDNN Conv2D backward...\n");
+    {
+        size_t N=1, C=2, H=4, W=4, OC=2, KH=3, KW=3, pad=0, stride=1, groups=1;
+        size_t OH = (H + 2*pad - KH) / stride + 1;
+        size_t OW = (W + 2*pad - KW) / stride + 1;
+
+        float* h_in = make_host(N * C * H * W);
+        float* h_w = make_host(OC * C * KH * KW);
+        float* h_go = make_host(N * OC * OH * OW);
+        float* h_gi_cpu = make_host(N * C * H * W);
+        float* h_gi_gpu = make_host(N * C * H * W);
+        float* h_gw_cpu = make_host(OC * C * KH * KW);
+        float* h_gw_gpu = make_host(OC * C * KH * KW);
+        float* h_gb_cpu = make_host(OC);
+        float* h_gb_gpu = make_host(OC);
+
+        for (size_t i = 0; i < N*C*H*W; i++) h_in[i] = (float)(i % 7) * 0.1f;
+        for (size_t i = 0; i < OC*C*KH*KW; i++) h_w[i] = (float)((i+3) % 5) * 0.1f;
+        for (size_t i = 0; i < N*OC*OH*OW; i++) h_go[i] = (float)((i+5) % 3) * 0.1f;
+
+        // CPU reference
+        cpu_conv2d_backward_input(h_go, h_w, h_gi_cpu, N, C, H, W, OC, KH, KW, pad, stride, groups);
+        cpu_conv2d_backward_weight(h_in, h_go, h_gw_cpu, h_gb_cpu, N, C, H, W, OC, KH, KW, pad, stride, groups);
+
+        // GPU with cuDNN
+        float* d_in = (float*)boat_cuda_malloc(N * C * H * W * sizeof(float));
+        float* d_w = (float*)boat_cuda_malloc(OC * C * KH * KW * sizeof(float));
+        float* d_go = (float*)boat_cuda_malloc(N * OC * OH * OW * sizeof(float));
+        float* d_gi = (float*)boat_cuda_malloc(N * C * H * W * sizeof(float));
+        float* d_gw = (float*)boat_cuda_malloc(OC * C * KH * KW * sizeof(float));
+        float* d_gb = (float*)boat_cuda_malloc(OC * sizeof(float));
+        boat_cuda_memcpy_h2d(d_in, h_in, N * C * H * W * sizeof(float));
+        boat_cuda_memcpy_h2d(d_w, h_w, OC * C * KH * KW * sizeof(float));
+        boat_cuda_memcpy_h2d(d_go, h_go, N * OC * OH * OW * sizeof(float));
+        boat_cuda_memset(d_gi, 0, N * C * H * W * sizeof(float));
+        boat_cuda_memset(d_gw, 0, OC * C * KH * KW * sizeof(float));
+        boat_cuda_memset(d_gb, 0, OC * sizeof(float));
+
+        boat_cuda_conv2d_cudnn_backward_input_f32(d_go, d_w, d_gi, N, C, H, W, OC, KH, KW, pad, stride, groups);
+        boat_cuda_conv2d_cudnn_backward_filter_f32(d_in, d_go, d_gw, d_gb, N, C, H, W, OC, KH, KW, pad, stride, groups);
+
+        boat_cuda_memcpy_d2h(h_gi_gpu, d_gi, N * C * H * W * sizeof(float));
+        boat_cuda_memcpy_d2h(h_gw_gpu, d_gw, OC * C * KH * KW * sizeof(float));
+        boat_cuda_memcpy_d2h(h_gb_gpu, d_gb, OC * sizeof(float));
+
+        errors += check_error(h_gi_cpu, h_gi_gpu, N*C*H*W, 1e-4f, "Test 13 grad_input");
+        errors += check_error(h_gw_cpu, h_gw_gpu, OC*C*KH*KW, 1e-4f, "Test 13 grad_weight");
+        errors += check_error(h_gb_cpu, h_gb_gpu, OC, 1e-4f, "Test 13 grad_bias");
+
+        boat_cuda_free(d_in); boat_cuda_free(d_w); boat_cuda_free(d_go);
+        boat_cuda_free(d_gi); boat_cuda_free(d_gw); boat_cuda_free(d_gb);
+        free_host(h_in); free_host(h_w); free_host(h_go);
+        free_host(h_gi_cpu); free_host(h_gi_gpu);
+        free_host(h_gw_cpu); free_host(h_gw_gpu);
+        free_host(h_gb_cpu); free_host(h_gb_gpu);
+    }
+    printf("  %s\n", errors == 0 ? "PASS" : "FAIL");
+    fflush(stdout);
+
+    // =========================================================================
+    // Test 14: cuDNN BatchNorm backward
+    // =========================================================================
+    printf("[Test 14] cuDNN BatchNorm backward...\n");
+    {
+        size_t N=2, C=3, H=4, W=4;
+        float eps = 1e-5f;
+        size_t num_elem = N * C * H * W;
+        float* h_in = make_host(num_elem);
+        float* h_gamma = make_host(C);
+        float* h_beta = make_host(C);
+        float* h_go = make_host(num_elem);
+        float* h_gi_cpu = make_host(num_elem);
+        float* h_gi_gpu = make_host(num_elem);
+        float* h_gg_cpu = make_host(C);
+        float* h_gg_gpu = make_host(C);
+        float* h_gb_cpu = make_host(C);
+        float* h_gb_gpu = make_host(C);
+        float* h_mean = make_host(C);
+        float* h_inv_var = make_host(C);
+
+        for (size_t i = 0; i < num_elem; i++) h_in[i] = (float)(i % 11) * 0.1f;
+        for (size_t i = 0; i < C; i++) { h_gamma[i] = 1.0f + (float)i * 0.1f; h_beta[i] = 0.0f; }
+        for (size_t i = 0; i < num_elem; i++) h_go[i] = (float)((i+3) % 7) * 0.1f;
+
+        // Compute CPU mean + inv_var from forward
+        float* h_var = make_host(C);
+        float* h_fwd_out = make_host(num_elem);
+        cpu_batchnorm_forward(h_in, h_fwd_out, h_gamma, h_beta, h_mean, h_var, N, C, H, W, eps);
+        for (size_t c = 0; c < C; c++) h_inv_var[c] = 1.0f / sqrtf(h_var[c] + eps);
+
+        // CPU backward
+        cpu_batchnorm_backward(h_in, h_go, h_gi_cpu, h_gamma, h_gg_cpu, h_gb_cpu, h_mean, h_inv_var, N, C, H, W, eps);
+
+        // GPU with cuDNN
+        float* d_in = (float*)boat_cuda_malloc(num_elem * sizeof(float));
+        float* d_go = (float*)boat_cuda_malloc(num_elem * sizeof(float));
+        float* d_gi = (float*)boat_cuda_malloc(num_elem * sizeof(float));
+        float* d_gamma = (float*)boat_cuda_malloc(C * sizeof(float));
+        float* d_gg = (float*)boat_cuda_malloc(C * sizeof(float));
+        float* d_gb = (float*)boat_cuda_malloc(C * sizeof(float));
+        float* d_mean = (float*)boat_cuda_malloc(C * sizeof(float));
+        float* d_inv_var = (float*)boat_cuda_malloc(C * sizeof(float));
+        boat_cuda_memcpy_h2d(d_in, h_in, num_elem * sizeof(float));
+        boat_cuda_memcpy_h2d(d_go, h_go, num_elem * sizeof(float));
+        boat_cuda_memcpy_h2d(d_gamma, h_gamma, C * sizeof(float));
+        boat_cuda_memcpy_h2d(d_mean, h_mean, C * sizeof(float));
+        boat_cuda_memcpy_h2d(d_inv_var, h_inv_var, C * sizeof(float));
+        boat_cuda_memset(d_gi, 0, num_elem * sizeof(float));
+        boat_cuda_memset(d_gg, 0, C * sizeof(float));
+        boat_cuda_memset(d_gb, 0, C * sizeof(float));
+
+        boat_cuda_batchnorm_cudnn_backward_f32(d_in, d_go, d_gi, d_gamma, d_gg, d_gb,
+            d_mean, d_inv_var, N, C, H, W, eps);
+
+        boat_cuda_memcpy_d2h(h_gi_gpu, d_gi, num_elem * sizeof(float));
+        boat_cuda_memcpy_d2h(h_gg_gpu, d_gg, C * sizeof(float));
+        boat_cuda_memcpy_d2h(h_gb_gpu, d_gb, C * sizeof(float));
+
+        errors += check_error(h_gi_cpu, h_gi_gpu, num_elem, 1e-3f, "Test 14 grad_input");
+        errors += check_error(h_gg_cpu, h_gg_gpu, C, 1e-3f, "Test 14 grad_gamma");
+        errors += check_error(h_gb_cpu, h_gb_gpu, C, 1e-3f, "Test 14 grad_beta");
+
+        boat_cuda_free(d_in); boat_cuda_free(d_go); boat_cuda_free(d_gi);
+        boat_cuda_free(d_gamma); boat_cuda_free(d_gg); boat_cuda_free(d_gb);
+        boat_cuda_free(d_mean); boat_cuda_free(d_inv_var);
+        free_host(h_in); free_host(h_gamma); free_host(h_beta); free_host(h_go);
+        free_host(h_gi_cpu); free_host(h_gi_gpu);
+        free_host(h_gg_cpu); free_host(h_gg_gpu);
+        free_host(h_gb_cpu); free_host(h_gb_gpu);
+        free_host(h_mean); free_host(h_inv_var); free_host(h_var); free_host(h_fwd_out);
     }
     printf("  %s\n", errors == 0 ? "PASS" : "FAIL");
     fflush(stdout);

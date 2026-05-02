@@ -470,7 +470,7 @@ static void write_ints_attr(pb_builder_t* b, const char* name, const int64_t* va
     pb_write_string(b, 1, name);
     pb_write_tag(b, 20, 0); pb_write_varint(b, 7);
     for (int i = 0; i < count; i++) {
-        pb_write_tag(b, 7, 0); pb_write_varint(b, vals[i]);
+        pb_write_tag(b, 8, 0); pb_write_varint(b, vals[i]);
     }
     pb_patch_length(b, pos);
 }
@@ -714,14 +714,24 @@ bool boat_onnx_save_to_memory(const boat_model_t* model, void** out_data, size_t
         strcpy(prev_output, cur_output);
     }
 
-    // Input value info (field 11)
+    // Input value info (field 11) with TypeProto > TensorTypeProto > elem_type = FLOAT
     size_t inp_pos = pb_begin_submessage(&b, 11);
     pb_write_string(&b, 1, "input");
+    size_t inp_type = pb_begin_submessage(&b, 2);
+    size_t inp_tensor = pb_begin_submessage(&b, 1);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 1);  // elem_type = FLOAT
+    pb_patch_length(&b, inp_tensor);
+    pb_patch_length(&b, inp_type);
     pb_patch_length(&b, inp_pos);
 
-    // Output value info (field 12)
+    // Output value info (field 12) with TypeProto > TensorTypeProto > elem_type = FLOAT
     size_t out_pos = pb_begin_submessage(&b, 12);
     pb_write_string(&b, 1, prev_output);
+    size_t out_type = pb_begin_submessage(&b, 2);
+    size_t out_tensor = pb_begin_submessage(&b, 1);
+    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 1);
+    pb_patch_length(&b, out_tensor);
+    pb_patch_length(&b, out_type);
     pb_patch_length(&b, out_pos);
 
     pb_patch_length(&b, graph_pos);

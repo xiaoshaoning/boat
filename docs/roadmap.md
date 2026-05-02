@@ -97,7 +97,34 @@
 | Batch norm forward (two-moment shared memory reduction) | Done | 2026-05 |
 | Fused batch norm + ReLU kernel | Done | 2026-05 |
 
-**Files:** `cuda/kernels/basic.cu`, `cuda/kernels/dense.cu`, `cuda/kernels/conv.cu`, `cuda/kernels/fused.cu`, `cuda/cublas_handle.cu`, `src/ops/linear.cu`, `cuda/ops/*.cu`
+| cuDNN handle manager (lazy init + destroy) | Done | 2026-05 |
+| cuDNN Conv2D forward with bias + groups | Done | 2026-05 |
+| cuDNN BatchNorm forward training mode | Done | 2026-05 |
+| cuDNN Conv2D backward (input, weight, bias gradient) | Done | 2026-05 |
+| cuDNN BatchNorm backward | Done | 2026-05 |
+| cuDNN dispatch in conv layer backward | Done | 2026-05 |
+| cuDNN dispatch in batchnorm layer forward/backward | Done | 2026-05 |
+| CMake integration (`BOAT_WITH_CUDNN`) | Done | 2026-05 |
+
+**Files:** `cuda/kernels/basic.cu`, `cuda/kernels/dense.cu`, `cuda/kernels/conv.cu`, `cuda/kernels/fused.cu`, `cuda/cublas_handle.cu`, `cuda/cudnn_handle.cu`, `cuda/ops/*.cu`, `src/layers/conv.c`, `src/layers/batchnorm.c`
+
+### Phase 9: ONNX Runtime Backend ✅
+
+| Feature | Status | Date |
+|---|---|---|
+| ORT C API session wrapper (create, run, free) | Done | 2026-05 |
+| ONNX model loading from file and memory buffer | Done | 2026-05 |
+| Single-input/single-output inference (`boat_onnxruntime_run`) | Done | 2026-05 |
+| Multi-input/multi-output inference (`boat_onnxruntime_run_multi`) | Done | 2026-05 |
+| Model introspection (input/output count and names) | Done | 2026-05 |
+| CPU execution provider | Done | 2026-05 |
+| CUDA execution provider support (optional, auto-detect) | Done | 2026-05 |
+| Graph-level optimizations (constant folding, node fusion) | Done | 2026-05 |
+| Multi-threaded intra-op/inter-op parallelism | Done | 2026-05 |
+| ONNX save → ORT load round-trip consistency test | Done | 2026-05 |
+| CMake integration (`BOAT_WITH_ONNXRUNTIME`) | Done | 2026-05 |
+
+**Files:** `include/boat/format/onnxruntime.h`, `src/format/onnxruntime.c`, `tests/test_onnxruntime.c`
 
 ---
 
@@ -127,16 +154,7 @@ Implement a full inference and training pipeline for nanochat GPT models, follow
 
 ## Medium-term (3-6 months)
 
-### 2. cuDNN integration (optional)
-
-- Find cuDNN via CMake (`BOAT_WITH_CUDNN`)
-- Tensor descriptors, conv descriptors, activation descriptors
-- cuDNN conv forward/backward for production-grade performance
-- cuDNN batch norm / fused ops
-
-**Files:** `cuda/cudnn/*.cu`, `CMakeLists.txt`
-
-### 3. Model pruning and compression
+### 2. Model pruning and compression
 
 Reduce model size and compute for deployment.
 
@@ -144,23 +162,15 @@ Reduce model size and compute for deployment.
 - Structured pruning (channel, filter)
 - Quantization-aware fine-tuning after pruning
 
-### 4. ONNX Runtime backend
-
-Use ONNX Runtime as an alternative execution provider for maximum inference performance.
-
-- Replace manual layer-by-layer execution with ORT session
-- Supports all ONNX operators without per-op implementation
-- GPU acceleration via CUDA/TensorRT execution providers
-
 ---
 
 ## Long-term (6-12 months)
 
-### 5. Distributed training (multi-node)
+### 4. Distributed training (multi-node)
 
 Extend the optimizer and gradient sync for multi-node training. Requires a collective communication layer (NCCL for GPU, MPI for CPU). Ambitious — only justified if training at scale becomes a primary use case.
 
-### 6. WebAssembly backend
+### 5. WebAssembly backend
 
 Compile boat to WebAssembly for in-browser inference. Would enable client-side ML applications (privacy-preserving, no server cost). Targets ONNX and GGUF model formats.
 
@@ -182,4 +192,4 @@ BOAT_DTYPE_BITS1 already exists in the enum. Implement BNN-style binary convolut
 
 ---
 
-*Last updated: 2026-05-02*
+*Last updated: 2026-05-02* (cuDNN backward + layer dispatch completed)

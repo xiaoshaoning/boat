@@ -3,6 +3,7 @@
 // Licensed under the Apache License, Version 2.0
 
 #include <boat.h>
+#include <boat/cuda_runtime.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -93,10 +94,8 @@ static boat_tensor_t* compute_input_gradient(const boat_conv_layer_t* layer,
                                     int64_t iw = ow * layer->stride - layer->padding + kw;
                                     if (iw < 0 || iw >= width) continue;
 
-                                    // For input gradient, rotate weights 180 degrees
-                                    size_t kh_flipped = layer->kernel_size - 1 - kh;
-                                    size_t kw_flipped = layer->kernel_size - 1 - kw;
-                                    size_t weight_idx = ((oc * in_channels_per_group + ic_local) * layer->kernel_size + kh_flipped) * layer->kernel_size + kw_flipped;
+                                    // grad_input uses same weights as forward (no 180-degree rotation)
+                                    size_t weight_idx = ((oc * in_channels_per_group + ic_local) * layer->kernel_size + kh) * layer->kernel_size + kw;
                                     size_t grad_output_idx = ((b * out_channels + oc) * height_out + oh) * width_out + ow;
                                     size_t grad_input_idx = ((b * in_channels + ic) * height + ih) * width + iw;
 
@@ -667,7 +666,70 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* la
         return NULL;
     }
 
-    // Compute gradients using helper functions
+    // Dispatch to cuDNN backward for CUDA tensors
+#ifdef BOAT_WITH_CUDNN
+    if (boat_tensor_device(grad_output) == BOAT_DEVICE_CUDA &&
+        boat_tensor_device(layer->cache_input) == BOAT_DEVICE_CUDA &&
+        boat_tensor_device(layer->weight) == BOAT_DEVICE_CUDA) {
+
+        // Allocate grad_input on CUDA device
+        boat_tensor_t* grad_input = boat_tensor_create(
+            layer->cache_input_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CUDA);
+        if (!grad_input) {
+            boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[ConvLayer] conv backward: failed to create CUDA grad_input\n");
+            return NULL;
+        }
+
+        // Replace CPU grad_weight with CUDA version
+        size_t in_cpg = layer->in_channels / layer->groups;
+        const int64_t wshape[] = { (int64_t)layer->out_channels, (int64_t)in_cpg,
+                                   (int64_t)layer->kernel_size, (int64_t)layer->kernel_size };
+        if (layer->grad_weight) boat_tensor_free(layer->grad_weight);
+        layer->grad_weight = boat_tensor_create(wshape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CUDA);
+        if (!layer->grad_weight) {
+            boat_tensor_free(grad_input);
+            return NULL;
+        }
+
+        // Replace CPU grad_bias with CUDA version
+        if (layer->use_bias) {
+            if (layer->grad_bias) boat_tensor_free(layer->grad_bias);
+            const int64_t bshape[] = { (int64_t)layer->out_channels };
+            layer->grad_bias = boat_tensor_create(bshape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CUDA);
+            if (!layer->grad_bias) {
+                boat_tensor_free(grad_input);
+                return NULL;
+            }
+        }
+
+        // Get device pointers
+        const float* d_grad_output = (const float*)boat_tensor_data(grad_output);
+        const float* d_weight = (const float*)boat_tensor_const_data(layer->weight);
+        const float* d_input = (const float*)boat_tensor_const_data(layer->cache_input);
+        float* d_grad_input = (float*)boat_tensor_data(grad_input);
+        float* d_grad_weight = (float*)boat_tensor_data(layer->grad_weight);
+        float* d_grad_bias = layer->use_bias ? (float*)boat_tensor_data(layer->grad_bias) : NULL;
+
+        // Compute input gradient via cuDNN
+        boat_cuda_conv2d_cudnn_backward_input_f32(d_grad_output, d_weight, d_grad_input,
+            (size_t)layer->cache_input_shape[0], (size_t)layer->cache_input_shape[1],
+            (size_t)layer->cache_input_shape[2], (size_t)layer->cache_input_shape[3],
+            layer->out_channels, layer->kernel_size, layer->kernel_size,
+            layer->padding, layer->stride, layer->groups);
+
+        // Compute weight + bias gradients via cuDNN
+        boat_cuda_conv2d_cudnn_backward_filter_f32(d_input, d_grad_output,
+            d_grad_weight, d_grad_bias,
+            (size_t)layer->cache_input_shape[0], (size_t)layer->cache_input_shape[1],
+            (size_t)layer->cache_input_shape[2], (size_t)layer->cache_input_shape[3],
+            layer->out_channels, layer->kernel_size, layer->kernel_size,
+            layer->padding, layer->stride, layer->groups);
+
+        return grad_input;
+    }
+#endif
+
+    // CPU backward path: compute gradients using helper functions
     boat_tensor_t* grad_input = compute_input_gradient(layer, layer->cache_input,
                                                        layer->cache_input_shape,
                                                        layer->cache_output_shape,

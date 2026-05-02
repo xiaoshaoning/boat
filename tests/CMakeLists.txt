@@ -126,3 +126,11 @@ if(BOAT_WITH_CUDA)
     target_link_libraries(test_cuda_layers boat)
 endif()
 
+# ONNX Runtime backend tests (requires ONNX for protobuf builder used in test model construction)
+if(BOAT_WITH_ONNXRUNTIME AND BOAT_WITH_ONNX)
+    add_executable(test_onnxruntime test_onnxruntime.c)
+    target_include_directories(test_onnxruntime PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_compile_definitions(test_onnxruntime PRIVATE BOAT_STATIC_BUILD _CRT_NONSTDC_NO_DEPRECATE)
+    target_link_libraries(test_onnxruntime boat)
+endif()
+
