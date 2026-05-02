@@ -127,6 +127,19 @@
 
 **Files:** `include/boat/format/onnxruntime.h`, `src/format/onnxruntime.c`, `tests/test_onnxruntime.c`
 
+### Phase 10: Model Pruning and Compression ✅
+
+| Feature | Status | Date |
+|---|---|---|
+| Magnitude-based weight pruning (iterative, configurable sparsity) | Done | 2026-05 |
+| Structured pruning (channel/filter by L2 norm, min_keep_ratio) | Done | 2026-05 |
+| Mask-based pruning context with per-optimizer-step re-application | Done | 2026-05 |
+| QAT-aware fine-tuning after pruning (reuses boat_fake_quantize) | Done | 2026-05 |
+| Pruning threshold computation (sort abs weights, pick percentile) | Done | 2026-05 |
+| Sparsity metrics (element-wise and structured) | Done | 2026-05 |
+
+**Files:** `include/boat/prune.h`, `src/core/prune.c`, `tests/test_prune.c`
+
 ---
 
 ## Short-term (1-2 months)
@@ -153,16 +166,6 @@ Implement a full inference and training pipeline for nanochat GPT models, follow
 
 ---
 
-## Medium-term (3-6 months)
-
-### 2. Model pruning and compression
-
-Reduce model size and compute for deployment.
-
-- Weight pruning (magnitude-based, iterative)
-- Structured pruning (channel, filter)
-- Quantization-aware fine-tuning after pruning
-
 ---
 
 ## Long-term (6-12 months)
@@ -185,4 +188,4 @@ Support loading TensorFlow 2.x SavedModel exports. Requires implementing the Sav
 
 ---
 
-*Last updated: 2026-05-02* (BITS1 binary quantization added; cuDNN backward + layer dispatch completed)
+*Last updated: 2026-05-02* (Model pruning and compression added: magnitude, structured, QAT fine-tuning)

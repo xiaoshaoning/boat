@@ -149,6 +149,7 @@ set(BOAT_SOURCES
     src/core/version.c
     src/core/packed.c
     src/core/quantize.c
+    src/core/prune.c
     src/ops/arithmetic.c
     src/ops/linear.c
     src/ops/activation.c

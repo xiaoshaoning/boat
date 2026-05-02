@@ -39,6 +39,9 @@
 // Quantization
 #include "boat/quantize.h"
 
+// Pruning and compression
+#include "boat/prune.h"
+
 // Model management
 #include "boat/model.h"
 

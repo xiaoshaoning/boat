@@ -597,6 +597,56 @@ boat_tensor_t* boat_pow_scalar(const boat_tensor_t* a, double scalar) {
     return out;
 }
 
+// Element-wise absolute value
+boat_tensor_t* boat_abs(const boat_tensor_t* a) {
+    if (!a) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Null input in boat_abs\n");
+        return NULL;
+    }
+
+    boat_dtype_t dtype = boat_tensor_dtype(a);
+    boat_tensor_t* out = boat_tensor_create_like(a);
+    if (!out) return NULL;
+
+    size_t n = boat_tensor_nelements(a);
+    const void* a_data = boat_tensor_const_data(a);
+    void* out_data = boat_tensor_data(out);
+
+    switch (dtype) {
+        case BOAT_DTYPE_FLOAT32: {
+            const float* src = (const float*)a_data;
+            float* dst = (float*)out_data;
+            for (size_t i = 0; i < n; i++) dst[i] = fabsf(src[i]);
+            break;
+        }
+        case BOAT_DTYPE_FLOAT64: {
+            const double* src = (const double*)a_data;
+            double* dst = (double*)out_data;
+            for (size_t i = 0; i < n; i++) dst[i] = fabs(src[i]);
+            break;
+        }
+        case BOAT_DTYPE_INT32: {
+            const int32_t* src = (const int32_t*)a_data;
+            int32_t* dst = (int32_t*)out_data;
+            for (size_t i = 0; i < n; i++) dst[i] = src[i] < 0 ? -src[i] : src[i];
+            break;
+        }
+        case BOAT_DTYPE_INT64: {
+            const int64_t* src = (const int64_t*)a_data;
+            int64_t* dst = (int64_t*)out_data;
+            for (size_t i = 0; i < n; i++) dst[i] = src[i] < 0 ? -src[i] : src[i];
+            break;
+        }
+        default:
+            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                            "[Arithmetic] Unsupported dtype in boat_abs: %d\n", dtype);
+            boat_tensor_free(out);
+            return NULL;
+    }
+
+    return out;
+}
+
 // In-place scalar operations
 #define DEFINE_INPLACE_SCALAR_OP(op_name, op) \
 void boat_##op_name##_scalar_(boat_tensor_t* const a, double scalar) { \
