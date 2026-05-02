@@ -494,10 +494,11 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
     // Allow quantized weights (UINT8/INT8/BITS2/FLOAT4 with scale != 0)
     boat_dtype_t wdt = boat_tensor_dtype(layer->weight);
     bool weight_quantized = (wdt == BOAT_DTYPE_UINT8 || wdt == BOAT_DTYPE_INT8 ||
-                             wdt == BOAT_DTYPE_BITS2 || wdt == BOAT_DTYPE_FLOAT4) &&
+                             wdt == BOAT_DTYPE_BITS2 || wdt == BOAT_DTYPE_BITS1 ||
+                             wdt == BOAT_DTYPE_FLOAT4) &&
                             (wdt == BOAT_DTYPE_FLOAT4 || boat_tensor_get_scale(layer->weight) != 0.0f);
     if (wdt != BOAT_DTYPE_FLOAT32 && !weight_quantized) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Conv2d weight tensor must be FLOAT32 or quantized UINT8/INT8/BITS2/FLOAT4\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Conv2d weight tensor must be FLOAT32 or quantized UINT8/INT8/BITS2/BITS1/FLOAT4\n");
         return NULL;
     }
     if (layer->use_bias && layer->bias && boat_tensor_dtype(layer->bias) != BOAT_DTYPE_FLOAT32) {

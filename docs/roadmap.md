@@ -26,6 +26,7 @@
 | On-the-fly dequant in dense/conv forward | Done | 2026-04 |
 | INT8 signed quantization | Done | 2026-05 |
 | BITS2 (2-bit) packed quantization | Done | 2026-05 |
+| BITS1 (1-bit) binary quantization | Done | 2026-05 |
 | FLOAT4 (4-bit custom float) quantization | Done | 2026-05 |
 | Per-channel quantization (per-axis scale/zero-point) | Done | 2026-05 |
 | Quantization-aware training (QAT) fake quantization | Done | 2026-05 |
@@ -178,18 +179,10 @@ Compile boat to WebAssembly for in-browser inference. Would enable client-side M
 
 ## Proposals for consideration
 
-### A. TensorFlow SavedModel format
+### TensorFlow SavedModel format
 
 Support loading TensorFlow 2.x SavedModel exports. Requires implementing the SavedModel protobuf structure and variable resolution. Lower priority than GGUF given the ML ecosystem shift toward ONNX and GGUF.
 
-### B. GGUF quantization format alignment
-
-Align boat's internal quantization types (BITS2, FLOAT4) with llama.cpp Q-series formats for interop. Would allow loading GGUF Q-quantized weights directly into boat's native types.
-
-### C. 1-bit (binary) network support
-
-BOAT_DTYPE_BITS1 already exists in the enum. Implement BNN-style binary convolution with XNOR-popcount kernels, opening the door for extreme compression.
-
 ---
 
-*Last updated: 2026-05-02* (cuDNN backward + layer dispatch completed)
+*Last updated: 2026-05-02* (cuDNN backward + layer dispatch completed; GGUF proposal removed as already implemented)

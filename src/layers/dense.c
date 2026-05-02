@@ -137,7 +137,8 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_forward(boat_dense_layer_t* l
     const boat_tensor_t* effective_weight = layer->weight;
     boat_dtype_t wdt = boat_tensor_dtype(layer->weight);
     bool is_quantized = (wdt == BOAT_DTYPE_UINT8 || wdt == BOAT_DTYPE_INT8 ||
-                         wdt == BOAT_DTYPE_BITS2 || wdt == BOAT_DTYPE_FLOAT4);
+                         wdt == BOAT_DTYPE_BITS2 || wdt == BOAT_DTYPE_BITS1 ||
+                         wdt == BOAT_DTYPE_FLOAT4);
     if (is_quantized && (wdt == BOAT_DTYPE_FLOAT4 || boat_tensor_get_scale(layer->weight) != 0.0f)) {
         if (boat_tensor_is_per_channel(layer->weight)) {
             dequantized_weight = boat_dequantize_tensor_per_channel(layer->weight);
