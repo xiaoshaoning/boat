@@ -49,6 +49,7 @@ option(BOAT_WITH_PYTORCH "Enable PyTorch support" OFF)
 option(BOAT_WITH_TENSORFLOW "Enable TensorFlow support" OFF)
 option(BOAT_WITH_HUGGINGFACE "Enable Hugging Face Transformers support" OFF)
 option(BOAT_WITH_GGUF "Enable GGUF format support" OFF)
+option(BOAT_WITH_CUDNN "Enable cuDNN support" OFF)
 option(BOAT_WITH_SIMD "Enable SIMD optimizations (AVX2/NEON)" ON)
 option(BOAT_WITH_OPENMP "Enable OpenMP parallelism" ON)
 option(BOAT_DEBUG "Enable debug output (0=disabled, 1=enabled)" 0)
@@ -347,6 +348,32 @@ if(BOAT_WITH_CUDA)
 
     # Find CUDA
     find_package(CUDAToolkit REQUIRED)
+endif()
+
+# cuDNN support (optional)
+if(BOAT_WITH_CUDNN)
+    # cuDNN headers and lib typically reside inside the CUDA toolkit directory
+    find_path(CUDNN_INCLUDE_DIR cudnn.h
+        HINTS "${CUDAToolkit_INCLUDE_DIRS}"
+              "$ENV{CUDNN_PATH}/include"
+              "$ENV{CUDA_PATH}/include"
+    )
+    find_library(CUDNN_LIBRARY
+        NAMES cudnn cudnn64
+        HINTS "${CUDAToolkit_LIBRARY_DIR}"
+              "$ENV{CUDNN_PATH}/lib/x64"
+              "$ENV{CUDA_PATH}/lib/x64"
+    )
+
+    if(CUDNN_INCLUDE_DIR AND CUDNN_LIBRARY)
+        message(STATUS "Found cuDNN: ${CUDNN_LIBRARY}")
+        target_include_directories(boat PRIVATE ${CUDNN_INCLUDE_DIR})
+        target_link_libraries(boat PUBLIC ${CUDNN_LIBRARY})
+        target_compile_definitions(boat PRIVATE BOAT_WITH_CUDNN)
+        list(APPEND BOAT_CUDA_SOURCES cuda/cudnn_handle.cu)
+    else()
+        message(FATAL_ERROR "cuDNN not found. Install cuDNN or set BOAT_WITH_CUDNN=OFF.")
+    endif()
 endif()
 
 # Create library (shared or static based on option)

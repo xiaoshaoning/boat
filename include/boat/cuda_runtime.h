@@ -113,6 +113,23 @@ void boat_cuda_fused_bn_relu_f32(const float* input, float* output,
                                    float eps);
 
 // ---------------------------------------------------------------------------
+// cuDNN wrappers (only available when BOAT_WITH_CUDNN is defined)
+// ---------------------------------------------------------------------------
+#ifdef BOAT_WITH_CUDNN
+void boat_cuda_cudnn_destroy(void);
+void boat_cuda_conv2d_cudnn_forward_f32(const float* input, const float* weight,
+                                          const float* bias, float* output,
+                                          size_t N, size_t C, size_t H, size_t W,
+                                          size_t OC, size_t KH, size_t KW,
+                                          size_t pad, size_t stride, size_t groups);
+void boat_cuda_batchnorm_cudnn_forward_f32(const float* input, float* output,
+                                             const float* gamma, const float* beta,
+                                             float* mean, float* var,
+                                             size_t N, size_t C, size_t H, size_t W,
+                                             float eps);
+#endif
+
+// ---------------------------------------------------------------------------
 // Tensor device transfer
 // ---------------------------------------------------------------------------
 void* boat_cuda_clone_to_device(const void* src, size_t nbytes);

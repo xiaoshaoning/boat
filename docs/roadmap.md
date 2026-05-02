@@ -80,33 +80,30 @@
 | BFLOAT16 (brain floating point) — F32↔BF16 conversion | Done | 2026-05 |
 | INT8 signed 8-bit integer data type | Done | 2026-05 |
 
+### Phase 8: CUDA Backend ✅
+
+| Feature | Status | Date |
+|---|---|---|
+| CUDA memory management (cudaMalloc/cudaFree wrappers) | Done | 2026-05 |
+| CUDA tensor copy between host and device | Done | 2026-05 |
+| Basic element-wise CUDA kernels (add, mul, relu, sigmoid) | Done | 2026-05 |
+| cuBLAS handle manager with lazy initialization | Done | 2026-05 |
+| cuBLAS matmul (single + strided batched) | Done | 2026-05 |
+| boat_matmul dispatches to cuBLAS for CUDA tensors | Done | 2026-05 |
+| Dense forward: element-per-thread and warp-level kernels | Done | 2026-05 |
+| Conv2D via im2col + cuBLAS GEMM | Done | 2026-05 |
+| Group convolution (groups > 1) | Done | 2026-05 |
+| Depthwise convolution (groups = in_channels) | Done | 2026-05 |
+| Batch norm forward (two-moment shared memory reduction) | Done | 2026-05 |
+| Fused batch norm + ReLU kernel | Done | 2026-05 |
+
+**Files:** `cuda/kernels/basic.cu`, `cuda/kernels/dense.cu`, `cuda/kernels/conv.cu`, `cuda/kernels/fused.cu`, `cuda/cublas_handle.cu`, `src/ops/linear.cu`, `cuda/ops/*.cu`
+
 ---
 
 ## Short-term (1-2 months)
 
-### 1. CUDA backend — tensor operations
-
-GPU acceleration is the largest remaining performance lever. Start with the tensor foundation.
-
-- CUDA memory management (cudaMalloc/cudaFree wrappers in memory.c)
-- CUDA tensor copy between host and device
-- CUDA kernel launch infrastructure (block/grid sizing, error checking)
-- Basic element-wise CUDA kernels (add, mul, relu)
-- Automatic tensor migration based on device field
-
-**Files:** `src/core/tensor.c`, `src/core/memory.c`, `src/ops/*.cu`
-
-### 2. Conv2D depthwise / group convolution
-
-Extend Conv2D to support groups > 1 for depthwise separable convolutions (used in MobileNet, EfficientNet).
-
-- Group-wise weight partitioning in forward/backward
-- Depthwise (groups = in_channels) fast path
-- unit tests with group > 1
-
-**Files:** `src/layers/conv.c`, `tests/test_conv.c`
-
-### 3. NanoChat LLM inference + training
+### 1. NanoChat LLM inference + training
 
 Implement a full inference and training pipeline for nanochat GPT models, following the detailed plan at `docs/nanochat_plan.md`.
 
@@ -130,17 +127,16 @@ Implement a full inference and training pipeline for nanochat GPT models, follow
 
 ## Medium-term (3-6 months)
 
-### 3. CUDA backend — layer kernels
+### 2. cuDNN integration (optional)
 
-- CUDA kernels for dense layer (warp-level matrix multiply)
-- CUDA kernels for conv2d (implicit GEMM or shared memory tiling)
-- CUDA fused kernel: conv → batch norm → relu (reduce global memory roundtrips)
-- cuBLAS integration for large matrix operations
-- cuDNN integration (optional, for production conv/attention)
+- Find cuDNN via CMake (`BOAT_WITH_CUDNN`)
+- Tensor descriptors, conv descriptors, activation descriptors
+- cuDNN conv forward/backward for production-grade performance
+- cuDNN batch norm / fused ops
 
-**Files:** `src/layers/*.cu`, `src/ops/*.cu`
+**Files:** `cuda/cudnn/*.cu`, `CMakeLists.txt`
 
-### 4. Model pruning and compression
+### 3. Model pruning and compression
 
 Reduce model size and compute for deployment.
 
@@ -148,7 +144,7 @@ Reduce model size and compute for deployment.
 - Structured pruning (channel, filter)
 - Quantization-aware fine-tuning after pruning
 
-### 5. ONNX Runtime backend
+### 4. ONNX Runtime backend
 
 Use ONNX Runtime as an alternative execution provider for maximum inference performance.
 
@@ -160,11 +156,11 @@ Use ONNX Runtime as an alternative execution provider for maximum inference perf
 
 ## Long-term (6-12 months)
 
-### 6. Distributed training (multi-node)
+### 5. Distributed training (multi-node)
 
 Extend the optimizer and gradient sync for multi-node training. Requires a collective communication layer (NCCL for GPU, MPI for CPU). Ambitious — only justified if training at scale becomes a primary use case.
 
-### 7. WebAssembly backend
+### 6. WebAssembly backend
 
 Compile boat to WebAssembly for in-browser inference. Would enable client-side ML applications (privacy-preserving, no server cost). Targets ONNX and GGUF model formats.
 

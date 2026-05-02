@@ -495,7 +495,97 @@ int main() {
     printf("  %s\n", errors == 0 ? "PASS" : "FAIL");
     fflush(stdout);
 
+#ifdef BOAT_WITH_CUDNN
+    // =========================================================================
+    // Test 11: cuDNN Conv2D forward
+    // =========================================================================
+    printf("[Test 11] cuDNN Conv2D forward...\n");
+    {
+        size_t N=1, C=2, H=4, W=4, OC=2, KH=3, KW=3, pad=0, stride=1, groups=1;
+        size_t OH = (H + 2*pad - KH) / stride + 1;
+        size_t OW = (W + 2*pad - KW) / stride + 1;
+        float* h_in = make_host(N * C * H * W);
+        float* h_w = make_host(OC * C * KH * KW);
+        float* h_bias = make_host(OC);
+        float* h_out_cpu = make_host(N * OC * OH * OW);
+        float* h_out_gpu = make_host(N * OC * OH * OW);
+        for (size_t i = 0; i < N*C*H*W; i++) h_in[i] = (float)(i % 7) * 0.1f;
+        for (size_t i = 0; i < OC*C*KH*KW; i++) h_w[i] = (float)((i+3) % 5) * 0.1f;
+        for (size_t i = 0; i < OC; i++) h_bias[i] = (float)(i) * 0.1f;
+
+        cpu_conv2d_forward(h_in, h_w, h_bias, h_out_cpu, N, C, H, W, OC, KH, KW, pad, stride, groups);
+
+        float* d_in = (float*)boat_cuda_malloc(N * C * H * W * sizeof(float));
+        float* d_w = (float*)boat_cuda_malloc(OC * C * KH * KW * sizeof(float));
+        float* d_bias = (float*)boat_cuda_malloc(OC * sizeof(float));
+        float* d_out = (float*)boat_cuda_malloc(N * OC * OH * OW * sizeof(float));
+        boat_cuda_memcpy_h2d(d_in, h_in, N * C * H * W * sizeof(float));
+        boat_cuda_memcpy_h2d(d_w, h_w, OC * C * KH * KW * sizeof(float));
+        boat_cuda_memcpy_h2d(d_bias, h_bias, OC * sizeof(float));
+
+        boat_cuda_conv2d_cudnn_forward_f32(d_in, d_w, d_bias, d_out, N, C, H, W, OC, KH, KW, pad, stride, groups);
+        boat_cuda_memcpy_d2h(h_out_gpu, d_out, N * OC * OH * OW * sizeof(float));
+
+        errors += check_error(h_out_cpu, h_out_gpu, N*OC*OH*OW, 1e-4f, "Test 11");
+        boat_cuda_free(d_in); boat_cuda_free(d_w); boat_cuda_free(d_bias); boat_cuda_free(d_out);
+        free_host(h_in); free_host(h_w); free_host(h_bias); free_host(h_out_cpu); free_host(h_out_gpu);
+    }
+    printf("  %s\n", errors == 0 ? "PASS" : "FAIL");
+    fflush(stdout);
+
+    // =========================================================================
+    // Test 12: cuDNN BatchNorm forward
+    // =========================================================================
+    printf("[Test 12] cuDNN BatchNorm forward...\n");
+    {
+        size_t N=2, C=3, H=4, W=4;
+        float eps = 1e-5f;
+        float* h_in = make_host(N * C * H * W);
+        float* h_gamma = make_host(C);
+        float* h_beta = make_host(C);
+        float* h_out_cpu = make_host(N * C * H * W);
+        float* h_out_gpu = make_host(N * C * H * W);
+        float* h_mean_cpu = make_host(C);
+        float* h_var_cpu = make_host(C);
+        float* h_mean_gpu = make_host(C);
+        float* h_var_gpu = make_host(C);
+        for (size_t i = 0; i < N*C*H*W; i++) h_in[i] = (float)(i % 11) * 0.1f;
+        for (size_t i = 0; i < C; i++) { h_gamma[i] = 1.0f; h_beta[i] = 0.0f; }
+
+        cpu_batchnorm_forward(h_in, h_out_cpu, h_gamma, h_beta, h_mean_cpu, h_var_cpu, N, C, H, W, eps);
+
+        float* d_in = (float*)boat_cuda_malloc(N * C * H * W * sizeof(float));
+        float* d_out = (float*)boat_cuda_malloc(N * C * H * W * sizeof(float));
+        float* d_gamma = (float*)boat_cuda_malloc(C * sizeof(float));
+        float* d_beta = (float*)boat_cuda_malloc(C * sizeof(float));
+        float* d_mean = (float*)boat_cuda_malloc(C * sizeof(float));
+        float* d_var = (float*)boat_cuda_malloc(C * sizeof(float));
+        boat_cuda_memcpy_h2d(d_in, h_in, N * C * H * W * sizeof(float));
+        boat_cuda_memcpy_h2d(d_gamma, h_gamma, C * sizeof(float));
+        boat_cuda_memcpy_h2d(d_beta, h_beta, C * sizeof(float));
+
+        boat_cuda_batchnorm_cudnn_forward_f32(d_in, d_out, d_gamma, d_beta, d_mean, d_var, N, C, H, W, eps);
+        boat_cuda_memcpy_d2h(h_out_gpu, d_out, N * C * H * W * sizeof(float));
+        boat_cuda_memcpy_d2h(h_mean_gpu, d_mean, C * sizeof(float));
+        boat_cuda_memcpy_d2h(h_var_gpu, d_var, C * sizeof(float));
+
+        errors += check_error(h_out_cpu, h_out_gpu, N*C*H*W, 1e-4f, "Test 12");
+        errors += check_error(h_mean_cpu, h_mean_gpu, C, 1e-3f, "Test 12 mean");
+        errors += check_error(h_var_cpu, h_var_gpu, C, 1e-3f, "Test 12 var");
+        boat_cuda_free(d_in); boat_cuda_free(d_out); boat_cuda_free(d_gamma);
+        boat_cuda_free(d_beta); boat_cuda_free(d_mean); boat_cuda_free(d_var);
+        free_host(h_in); free_host(h_gamma); free_host(h_beta);
+        free_host(h_out_cpu); free_host(h_out_gpu);
+        free_host(h_mean_cpu); free_host(h_var_cpu); free_host(h_mean_gpu); free_host(h_var_gpu);
+    }
+    printf("  %s\n", errors == 0 ? "PASS" : "FAIL");
+    fflush(stdout);
+#endif
+
     boat_cuda_cublas_destroy();
+#ifdef BOAT_WITH_CUDNN
+    boat_cuda_cudnn_destroy();
+#endif
     printf("\n=== %s ===\n", errors == 0 ? "ALL TESTS PASSED" : "FAILED");
     return errors == 0 ? 0 : 1;
 }
