@@ -185,4 +185,4 @@ Support loading TensorFlow 2.x SavedModel exports. Requires implementing the Sav
 
 ---
 
-*Last updated: 2026-05-02* (cuDNN backward + layer dispatch completed; GGUF proposal removed as already implemented)
+*Last updated: 2026-05-02* (BITS1 binary quantization added; cuDNN backward + layer dispatch completed)
