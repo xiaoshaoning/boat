@@ -69,12 +69,16 @@ static void cpu_batchnorm_forward(const float* input, float* output,
                                    float* mean, float* var,
                                    size_t N, size_t C, size_t H, size_t W, float eps) {
     size_t spatial = N * H * W;
+    size_t hw_stride = H * W;
     for (size_t c = 0; c < C; c++) {
         double sum = 0.0, sum_sq = 0.0;
-        for (size_t i = 0; i < spatial; i++) {
-            float v = input[c * spatial + i];
-            sum += v;
-            sum_sq += v * v;
+        for (size_t n = 0; n < N; n++) {
+            size_t base = n * C * hw_stride + c * hw_stride;
+            for (size_t hw = 0; hw < hw_stride; hw++) {
+                float v = input[base + hw];
+                sum += v;
+                sum_sq += v * v;
+            }
         }
         float mu = (float)(sum / spatial);
         float variance = (float)(sum_sq / spatial - mu * mu);
@@ -82,9 +86,12 @@ static void cpu_batchnorm_forward(const float* input, float* output,
         mean[c] = mu;
         var[c] = variance;
         float inv_std = 1.0f / sqrtf(variance + eps);
-        for (size_t i = 0; i < spatial; i++) {
-            size_t idx = c * spatial + i;
-            output[idx] = gamma[c] * (input[idx] - mu) * inv_std + beta[c];
+        for (size_t n = 0; n < N; n++) {
+            size_t base = n * C * hw_stride + c * hw_stride;
+            for (size_t hw = 0; hw < hw_stride; hw++) {
+                size_t idx = base + hw;
+                output[idx] = gamma[c] * (input[idx] - mu) * inv_std + beta[c];
+            }
         }
     }
 }

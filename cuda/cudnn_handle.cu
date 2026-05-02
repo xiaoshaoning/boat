@@ -178,8 +178,8 @@ void boat_cuda_batchnorm_cudnn_forward_f32(const float* input, float* output,
     }
 
     // Run forward training: cuDNN computes mean and invVariance
-    double alpha = 1.0, beta_d = 0.0;
-    CUDNN_CHECK(cudnnBatchNormForwardTraining(handle,
+    float alpha = 1.0f, beta_d = 0.0f;
+    CUDNN_CHECK(cudnnBatchNormalizationForwardTraining(handle,
         CUDNN_BATCHNORM_SPATIAL,
         &alpha, &beta_d,
         data_desc, input,

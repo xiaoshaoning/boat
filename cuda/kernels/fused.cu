@@ -29,14 +29,18 @@ __global__ void batchnorm_mean_f32_kernel(const float* __restrict__ input,
     size_t c = blockIdx.x;
     if (c >= C) return;
 
-    size_t spatial = N * H * W;
+    size_t hw_stride = H * W;
+    size_t spatial = N * hw_stride;
     size_t tid = threadIdx.x;
     size_t stride = blockDim.x;
+    size_t chw = c * hw_stride;
 
-    // Each thread sums over a strided slice of the channel's data
+    // Each thread sums over a strided slice of the channel's data (NCHW layout)
     float sum = 0.0f;
     for (size_t i = tid; i < spatial; i += stride) {
-        sum += input[c * spatial + i];
+        size_t n = i / hw_stride;
+        size_t hw = i % hw_stride;
+        sum += input[n * C * hw_stride + chw + hw];
     }
 
     // Shared memory reduction
@@ -74,18 +78,22 @@ __global__ void batchnorm_norm_f32_kernel(const float* __restrict__ input,
     size_t c = blockIdx.x;
     if (c >= C) return;
 
-    size_t spatial = N * H * W;
+    size_t hw_stride = H * W;
+    size_t spatial = N * hw_stride;
     size_t tid = threadIdx.x;
     size_t stride = blockDim.x;
+    size_t chw = c * hw_stride;
 
     float mu = mean[c];
     float inv_std = 1.0f / sqrtf(var[c] + eps);
     float g = gamma ? gamma[c] : 1.0f;
     float b = beta ? beta[c] : 0.0f;
 
-    // Normalize each element assigned to this thread
+    // Normalize each element assigned to this thread (NCHW layout)
     for (size_t i = tid; i < spatial; i += stride) {
-        size_t idx = c * spatial + i;
+        size_t n = i / hw_stride;
+        size_t hw = i % hw_stride;
+        size_t idx = n * C * hw_stride + chw + hw;
         output[idx] = g * (input[idx] - mu) * inv_std + b;
     }
 }
@@ -110,9 +118,11 @@ __global__ void fused_bn_relu_f32_kernel(const float* __restrict__ input,
     size_t c = blockIdx.x;
     if (c >= C) return;
 
-    size_t spatial = N * H * W;
+    size_t hw_stride = H * W;
+    size_t spatial = N * hw_stride;
     size_t tid = threadIdx.x;
     size_t stride = blockDim.x;
+    size_t chw = c * hw_stride;
 
     float mu = mean[c];
     float inv_std = 1.0f / sqrtf(var[c] + eps);
@@ -120,7 +130,9 @@ __global__ void fused_bn_relu_f32_kernel(const float* __restrict__ input,
     float b = beta ? beta[c] : 0.0f;
 
     for (size_t i = tid; i < spatial; i += stride) {
-        size_t idx = c * spatial + i;
+        size_t n = i / hw_stride;
+        size_t hw = i % hw_stride;
+        size_t idx = n * C * hw_stride + chw + hw;
         float x = g * (input[idx] - mu) * inv_std + b;
         output[idx] = x > 0.0f ? x : 0.0f;  // ReLU
     }
@@ -140,14 +152,18 @@ __global__ void batchnorm_mean_var_f32_kernel(const float* __restrict__ input,
     size_t c = blockIdx.x;
     if (c >= C) return;
 
-    size_t spatial = N * H * W;
+    size_t hw_stride = H * W;
+    size_t spatial = N * hw_stride;
     size_t tid = threadIdx.x;
     size_t stride = blockDim.x;
+    size_t chw = c * hw_stride;
 
-    // Each thread accumulates sum and sum of squares
+    // Each thread accumulates sum and sum of squares over NCHW data
     float sum = 0.0f, sum_sq = 0.0f;
     for (size_t i = tid; i < spatial; i += stride) {
-        float val = input[c * spatial + i];
+        size_t n = i / hw_stride;
+        size_t hw = i % hw_stride;
+        float val = input[n * C * hw_stride + chw + hw];
         sum += val;
         sum_sq += val * val;
     }

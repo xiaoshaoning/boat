@@ -335,8 +335,6 @@ if(BOAT_WITH_CUDA)
         cuda/kernels/fused.cu
     )
 
-    list(APPEND BOAT_SOURCES ${BOAT_CUDA_SOURCES})
-
     # CUDA configuration
     set(CMAKE_CUDA_STANDARD 11)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
@@ -348,32 +346,40 @@ if(BOAT_WITH_CUDA)
 
     # Find CUDA
     find_package(CUDAToolkit REQUIRED)
-endif()
 
-# cuDNN support (optional)
-if(BOAT_WITH_CUDNN)
-    # cuDNN headers and lib typically reside inside the CUDA toolkit directory
-    find_path(CUDNN_INCLUDE_DIR cudnn.h
-        HINTS "${CUDAToolkit_INCLUDE_DIRS}"
-              "$ENV{CUDNN_PATH}/include"
-              "$ENV{CUDA_PATH}/include"
-    )
-    find_library(CUDNN_LIBRARY
-        NAMES cudnn cudnn64
-        HINTS "${CUDAToolkit_LIBRARY_DIR}"
-              "$ENV{CUDNN_PATH}/lib/x64"
-              "$ENV{CUDA_PATH}/lib/x64"
-    )
-
-    if(CUDNN_INCLUDE_DIR AND CUDNN_LIBRARY)
-        message(STATUS "Found cuDNN: ${CUDNN_LIBRARY}")
-        target_include_directories(boat PRIVATE ${CUDNN_INCLUDE_DIR})
-        target_link_libraries(boat PUBLIC ${CUDNN_LIBRARY})
-        target_compile_definitions(boat PRIVATE BOAT_WITH_CUDNN)
-        list(APPEND BOAT_CUDA_SOURCES cuda/cudnn_handle.cu)
-    else()
-        message(FATAL_ERROR "cuDNN not found. Install cuDNN or set BOAT_WITH_CUDNN=OFF.")
+    # cuDNN support (optional) — must come before BOAT_SOURCES append
+    if(BOAT_WITH_CUDNN)
+        set(CUDNN_ROOT "" CACHE PATH "Path to cuDNN installation (with include/ and lib/ or bin/)")
+        find_path(CUDNN_INCLUDE_DIR cudnn.h
+            HINTS "${CUDNN_ROOT}/include"
+                  "$ENV{CUDNN_PATH}/include"
+                  "${CUDAToolkit_INCLUDE_DIRS}"
+        )
+        find_library(CUDNN_LIBRARY
+            NAMES cudnn cudnn64
+            HINTS "${CUDNN_ROOT}/lib"
+                  "${CUDNN_ROOT}/bin"
+                  "${CUDNN_ROOT}/lib/x64"
+                  "$ENV{CUDNN_PATH}/lib"
+                  "$ENV{CUDNN_PATH}/bin"
+                  "${CUDAToolkit_LIBRARY_DIR}"
+        )
+        if(NOT CUDNN_LIBRARY)
+            find_library(CUDNN_LIBRARY
+                NAMES cudnn.lib cudnn64.lib
+                PATHS "$ENV{CUDNN_PATH}/bin"
+            )
+        endif()
+        if(CUDNN_INCLUDE_DIR AND CUDNN_LIBRARY)
+            message(STATUS "Found cuDNN: ${CUDNN_LIBRARY}")
+            message(STATUS "cuDNN include: ${CUDNN_INCLUDE_DIR}")
+            list(APPEND BOAT_CUDA_SOURCES cuda/cudnn_handle.cu)
+        else()
+            message(FATAL_ERROR "cuDNN not found. Install cuDNN or set BOAT_WITH_CUDNN=OFF.\n  Hint: pass -DCUDNN_ROOT=/path/to/cudnn or set CUDNN_PATH environment variable.")
+        endif()
     endif()
+
+    list(APPEND BOAT_SOURCES ${BOAT_CUDA_SOURCES})
 endif()
 
 # Create library (shared or static based on option)
@@ -464,6 +470,13 @@ target_include_directories(boat PUBLIC
 if(BOAT_WITH_CUDA)
     target_compile_definitions(boat PRIVATE BOAT_WITH_CUDA)
     target_link_libraries(boat PUBLIC CUDA::cudart CUDA::cublas)
+endif()
+
+# cuDNN include and link (must be after add_library)
+if(BOAT_WITH_CUDNN AND CUDNN_INCLUDE_DIR AND CUDNN_LIBRARY)
+    target_compile_definitions(boat PUBLIC BOAT_WITH_CUDNN)
+    target_include_directories(boat PUBLIC ${CUDNN_INCLUDE_DIR})
+    target_link_libraries(boat PUBLIC ${CUDNN_LIBRARY})
 endif()
 
 # Remove ONNX Runtime linking — no longer needed
