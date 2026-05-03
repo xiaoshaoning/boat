@@ -6,6 +6,7 @@ add_subdirectory(regression)
 add_subdirectory(serialization)
 add_subdirectory(transformer)
 add_subdirectory(translator)
+add_subdirectory(ocr)
 
 # InsightFace recognition test
 add_executable(test_insightface test_insightface.c)

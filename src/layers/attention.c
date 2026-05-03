@@ -1088,17 +1088,43 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_scaled_dot_product_attention(const boat_t
                                              attention_mask, causal_mask, dropout_prob, NULL);
 }
 
-// Rotary position encoding placeholder
+// Rotary position encoding
 BOAT_API boat_tensor_t* BOAT_CALL boat_rotary_position_encoding(const boat_tensor_t* tensor,
                                               size_t seq_len,
                                               size_t head_size,
                                               float theta) {
-    (void)tensor;
-    (void)seq_len;
-    (void)head_size;
-    (void)theta;
-    // TODO: Implement rotary position encoding
-    return NULL;
+    if (!tensor) return NULL;
+    // Create output with same shape
+    boat_tensor_t* out = boat_tensor_create_like(tensor);
+    if (!out) return NULL;
+
+    size_t n_heads = boat_tensor_shape(tensor)[1];
+    size_t n = boat_tensor_nelements(tensor);
+    float* src = (float*)boat_tensor_data(tensor);
+    float* dst = (float*)boat_tensor_data(out);
+    memcpy(dst, src, n * sizeof(float));
+
+    // Apply RoPE in-place on the output
+    size_t half = head_size / 2;
+    for (size_t b = 0; b < (size_t)boat_tensor_shape(tensor)[0]; b++) {
+        for (size_t h = 0; h < n_heads; h++) {
+            for (size_t p = 0; p < seq_len; p++) {
+                for (size_t i = 0; i < half; i++) {
+                    float freq = powf(theta, -2.0f * (float)i / (float)head_size);
+                    float cos_v = cosf((float)p * freq);
+                    float sin_v = sinf((float)p * freq);
+
+                    size_t idx = ((b * n_heads + h) * seq_len + p) * head_size;
+                    float x0 = dst[idx + 2 * i];
+                    float x1 = dst[idx + 2 * i + 1];
+                    dst[idx + 2 * i]     = x0 * cos_v - x1 * sin_v;
+                    dst[idx + 2 * i + 1] = x1 * cos_v + x0 * sin_v;
+                }
+            }
+        }
+    }
+
+    return out;
 }
 
 BOAT_API void BOAT_CALL boat_apply_rotary_embedding(boat_tensor_t* query,
@@ -1106,12 +1132,51 @@ BOAT_API void BOAT_CALL boat_apply_rotary_embedding(boat_tensor_t* query,
                                   size_t seq_len,
                                   size_t head_size,
                                   float theta) {
-    (void)query;
-    (void)key;
-    (void)seq_len;
-    (void)head_size;
-    (void)theta;
-    // TODO: Implement rotary embedding application
+    if (!query || !key) return;
+
+    size_t half = head_size / 2;
+    size_t q_heads = (size_t)boat_tensor_shape(query)[1];
+    size_t k_heads = (size_t)boat_tensor_shape(key)[1];
+
+    // Apply to query
+    float* q = (float*)boat_tensor_data(query);
+    for (size_t b = 0; b < (size_t)boat_tensor_shape(query)[0]; b++) {
+        for (size_t h = 0; h < q_heads; h++) {
+            for (size_t p = 0; p < seq_len; p++) {
+                for (size_t i = 0; i < half; i++) {
+                    float freq = powf(theta, -2.0f * (float)i / (float)head_size);
+                    float cos_v = cosf((float)p * freq);
+                    float sin_v = sinf((float)p * freq);
+
+                    size_t idx = ((b * q_heads + h) * seq_len + p) * head_size;
+                    float x0 = q[idx + 2 * i];
+                    float x1 = q[idx + 2 * i + 1];
+                    q[idx + 2 * i]     = x0 * cos_v - x1 * sin_v;
+                    q[idx + 2 * i + 1] = x1 * cos_v + x0 * sin_v;
+                }
+            }
+        }
+    }
+
+    // Apply to key
+    float* k = (float*)boat_tensor_data(key);
+    for (size_t b = 0; b < (size_t)boat_tensor_shape(key)[0]; b++) {
+        for (size_t h = 0; h < k_heads; h++) {
+            for (size_t p = 0; p < seq_len; p++) {
+                for (size_t i = 0; i < half; i++) {
+                    float freq = powf(theta, -2.0f * (float)i / (float)head_size);
+                    float cos_v = cosf((float)p * freq);
+                    float sin_v = sinf((float)p * freq);
+
+                    size_t idx = ((b * k_heads + h) * seq_len + p) * head_size;
+                    float x0 = k[idx + 2 * i];
+                    float x1 = k[idx + 2 * i + 1];
+                    k[idx + 2 * i]     = x0 * cos_v - x1 * sin_v;
+                    k[idx + 2 * i + 1] = x1 * cos_v + x0 * sin_v;
+                }
+            }
+        }
+    }
 }
 
 // Adapter for generic attention layer interface (layers.h)

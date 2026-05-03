@@ -7,10 +7,11 @@ project(translator_example C)
 if(TARGET boat)
     add_executable(translator
         translator.c
-        json.c
-        safetensors.c
         spm.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/../common/json.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/../common/safetensors.c
     )
+    target_include_directories(translator PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../common)
     target_link_libraries(translator PRIVATE boat)
     target_compile_definitions(translator PRIVATE BOAT_STATIC_BUILD _CRT_NONSTDC_NO_DEPRECATE)
     set_target_properties(translator PROPERTIES C_STANDARD 11)
@@ -49,15 +50,16 @@ endif()
 
 add_executable(translator
     translator.c
-    json.c
-    safetensors.c
     spm.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../common/json.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../common/safetensors.c
 )
 
 if(BOAT_INCLUDE_DIR)
     get_filename_component(BOAT_INCLUDE_DIR_ABS "${BOAT_INCLUDE_DIR}" ABSOLUTE)
     target_include_directories(translator PRIVATE ${BOAT_INCLUDE_DIR_ABS})
 endif()
+target_include_directories(translator PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../common)
 
 if(BOAT_LIB_DIR)
     target_link_directories(translator PRIVATE ${BOAT_LIB_DIR})
