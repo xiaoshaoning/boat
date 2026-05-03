@@ -87,58 +87,67 @@ static void gqa_attention(float* out, const float* x, int seq_len, int hidden_si
         v_ptr = (const float*)boat_tensor_const_data(kv_cache->v_cache);
     }
 
-    // GQA attention scores (per-head)
-    // scores layout: [seq_len, num_heads, total_seq_len]
+    // GQA attention scores using OpenBLAS sgemm
+    // scores layout: [seq_len, num_heads, total_seq_len] (row-major)
     float* scores = (float*)malloc(seq_len * num_heads * total_seq_len * sizeof(float));
 
-    for (int i = 0; i < seq_len; i++) {
-        for (int h = 0; h < num_heads; h++) {
-            int kv_h = h / groups;
-            for (int j = 0; j < total_seq_len; j++) {
-                float sum = 0.0f;
-                for (int d = 0; d < head_dim; d++) {
-                    sum += q[i * q_size + h * head_dim + d] * k_ptr[j * kv_size + kv_h * head_dim + d];
-                }
-                // Apply causal mask for prefill
-                if (use_kv_cache || i >= j) {
-                    scores[(i * num_heads + h) * total_seq_len + j] = sum / sqrtf((float)head_dim);
-                } else {
-                    scores[(i * num_heads + h) * total_seq_len + j] = -INFINITY;
-                }
+    // QK^T per head: scores[h, i, j] = Q_h[i] @ K_{kv_h}[j] / sqrt(head_dim)
+    // Q_h: [seq_len, head_dim] at offset h*head_dim, stride q_size
+    // K_{kv_h}: [total_seq_len, head_dim] at offset kv_h*head_dim, stride kv_size
+    // scores output at offset h*total_seq_len, stride num_heads*total_seq_len
+    for (int h = 0; h < num_heads; h++) {
+        int kv_h = h / groups;
+        cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans,
+                    seq_len, total_seq_len, head_dim,
+                    1.0f / sqrtf((float)head_dim),
+                    q + h * head_dim, q_size,
+                    k_ptr + kv_h * head_dim, kv_size,
+                    0.0f,
+                    scores + h * total_seq_len, num_heads * total_seq_len);
+    }
+
+    // Apply causal mask (only for prefill without KV cache)
+    if (!use_kv_cache) {
+        for (int i = 0; i < seq_len; i++) {
+            for (int h = 0; h < num_heads; h++) {
+                int base = (i * num_heads + h) * total_seq_len;
+                for (int j = i + 1; j < total_seq_len; j++)
+                    scores[base + j] = -INFINITY;
             }
         }
     }
 
-    // Softmax per head
+    // Softmax per (position, head)
     for (int i = 0; i < seq_len; i++) {
         for (int h = 0; h < num_heads; h++) {
             int base = (i * num_heads + h) * total_seq_len;
             float max_val = scores[base];
             for (int j = 1; j < total_seq_len; j++)
-                if (scores[base + j] > max_val)
-                    max_val = scores[base + j];
+                if (scores[base + j] > max_val) max_val = scores[base + j];
             float sum = 0.0f;
             for (int j = 0; j < total_seq_len; j++) {
                 scores[base + j] = expf(scores[base + j] - max_val);
                 sum += scores[base + j];
             }
+            float inv_sum = 1.0f / sum;
             for (int j = 0; j < total_seq_len; j++)
-                scores[base + j] /= sum;
+                scores[base + j] *= inv_sum;
         }
     }
 
-    // Weighted sum of values
+    // Weighted sum: context_h = softmax_scores @ V_{kv_h}
+    // context_h: [seq_len, head_dim] at offset h*head_dim, stride q_size
+    // V_{kv_h}: [total_seq_len, head_dim] at offset kv_h*head_dim, stride kv_size
     float* context = (float*)calloc(seq_len * q_size, sizeof(float));
-    for (int i = 0; i < seq_len; i++) {
-        for (int h = 0; h < num_heads; h++) {
-            int kv_h = h / groups;
-            for (int j = 0; j < total_seq_len; j++) {
-                float attn = scores[(i * num_heads + h) * total_seq_len + j];
-                for (int d = 0; d < head_dim; d++) {
-                    context[i * q_size + h * head_dim + d] += attn * v_ptr[j * kv_size + kv_h * head_dim + d];
-                }
-            }
-        }
+    for (int h = 0; h < num_heads; h++) {
+        int kv_h = h / groups;
+        cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+                    seq_len, head_dim, total_seq_len,
+                    1.0f,
+                    scores + h * total_seq_len, num_heads * total_seq_len,
+                    v_ptr + kv_h * head_dim, kv_size,
+                    0.0f,
+                    context + h * head_dim, q_size);
     }
 
     // Output projection: context [seq_len, q_size] @ o_w [hidden_size, q_size]^T → [seq_len, hidden_size]

@@ -96,7 +96,7 @@ static void attention_forward(float* out, const float* x, int N, int D,
         }
     }
 
-    // Process attention per head with full NxN attention matrix
+    // Process attention per head using OpenBLAS sgemm for QK^T and PV
     float scale = 1.0f / sqrtf((float)head_dim);
     float* context = (float*)calloc(N * D, sizeof(float));
     float* scores = (float*)malloc(N * N * sizeof(float));
@@ -104,22 +104,18 @@ static void attention_forward(float* out, const float* x, int N, int D,
     for (int h = 0; h < num_heads; h++) {
         int h_off = h * head_dim;
 
-        // Compute full attention scores: scores[i][j] = Q[i,h]·K[j,h] / sqrt(head_dim)
-        // Direct access from interleaved q_base/k_base (no head extraction needed).
-        // q_base/k_base/v_base already include the D offset for K and 2*D for V.
-        for (int i = 0; i < N; i++) {
-            int q_off = i * 3 * D + h_off;
-            float* si = scores + i * N;
-            for (int j = 0; j < N; j++) {
-                int k_off = j * 3 * D + h_off;
-                float sum = 0.0f;
-                for (int d = 0; d < head_dim; d++)
-                    sum += q_base[q_off + d] * k_base[k_off + d];
-                si[j] = sum * scale;
-            }
-        }
+        // scores[N,N] = (Q_h @ K_h^T) * scale
+        // Q_h: [N, head_dim] at stride 3*D, offset h_off
+        // K_h: [N, head_dim] at stride 3*D, offset h_off
+        cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans,
+                    N, N, head_dim,
+                    scale,
+                    q_base + h_off, 3 * D,
+                    k_base + h_off, 3 * D,
+                    0.0f,
+                    scores, N);
 
-        // Softmax each row and accumulate weighted context
+        // Softmax each row (manual loop — O(N²) with no dot products)
         for (int i = 0; i < N; i++) {
             float* si = scores + i * N;
             float max_val = si[0];
@@ -128,15 +124,19 @@ static void attention_forward(float* out, const float* x, int N, int D,
             float ssum = 0.0f;
             for (int j = 0; j < N; j++) { si[j] = expf(si[j] - max_val); ssum += si[j]; }
             float inv_ssum = 1.0f / ssum;
-            float* ci = context + i * D + h_off;
-            for (int d = 0; d < head_dim; d++) ci[d] = 0.0f;
-            for (int j = 0; j < N; j++) {
-                float attn = si[j] * inv_ssum;
-                int v_off = j * 3 * D + h_off;
-                for (int d = 0; d < head_dim; d++)
-                    ci[d] += attn * v_base[v_off + d];
-            }
+            for (int j = 0; j < N; j++) si[j] *= inv_ssum;
         }
+
+        // context_h = softmax_scores @ V_h
+        // V_h: [N, head_dim] at stride 3*D, offset h_off
+        // context_h: [N, head_dim] at stride D, offset h_off
+        cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+                    N, head_dim, N,
+                    1.0f,
+                    scores, N,
+                    v_base + h_off, 3 * D,
+                    0.0f,
+                    context + h_off, D);
     }
 
     // Output projection

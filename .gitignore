@@ -77,3 +77,10 @@ coverage/
 node_modules/
 *.dll
 external/
+
+# Auto-generated version header
+include/boat/version.h
+
+# OCR test artifacts
+examples/ocr/*.bat
+examples/ocr/ocr_output*.txt
