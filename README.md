@@ -14,7 +14,7 @@ Boat is a lightweight, high-performance deep learning framework written in pure 
 - **Quantization Pipeline**: UINT8/INT8 affine quantization, BITS2 (2-bit), FLOAT4 (4-bit), per-channel, and QAT fake quantization
 - **Model Format Support**: ONNX (load/export/runtime executor), PyTorch (via LibTorch), HuggingFace Safetensors, GGUF (Q4_0, Q4_1, Q5_0, Q8_0)
 - **Data Pipeline**: Dataset/DataLoader abstraction with batching, shuffling, multi-threaded prefetch, and transforms
-- **Performance Optimizations**: SIMD (AVX2/NEON), SGEMM micro-kernel, OpenMP parallelism, memory pooling
+- **Performance Optimizations**: SIMD (AVX2/NEON), SGEMM micro-kernel (hand-tuned with packing), OpenBLAS backend for accelerated matrix multiplication, OpenMP parallelism, memory pooling
 - **Memory Efficient**: Explicit memory management with reference counting
 - **Cross-Platform**: Works on Linux, macOS, and Windows
 - **Extensible Architecture**: Modular design for adding new operations and layers
@@ -91,6 +91,8 @@ The Makefile automatically compiles all source files and creates a shared librar
 - `-DBOAT_WITH_TESTS=ON`: Build test suite
 - `-DBOAT_WITH_EXAMPLES=ON`: Build example programs
 - `-DBOAT_WITH_ONNX=ON`: Enable ONNX support (requires protobuf)
+- `-DBOAT_WITH_OPENBLAS=ON`: Enable OpenBLAS for accelerated SGEMM (matrix multiply)
+  - Set `-DBOAT_OPENBLAS_ROOT=/path/to/openblas` if not in a standard location
 
 ### Build Configurations
 
@@ -566,7 +568,7 @@ For detailed API documentation and development guidelines, see [CLAUDE.md](CLAUD
 - PReLU activation layer (Parametric ReLU for modern CNN architectures)
 - InsightFace face recognition model inference (ResNet50, 512-dim embeddings)
 - Model serialization (custom binary format, v3 with per-channel metadata)
-- Performance optimizations (SIMD, SGEMM, OpenMP, memory pool)
+- Performance optimizations (SIMD, SGEMM with optional OpenBLAS backend, OpenMP, memory pool)
 - Cross-platform build with CMake
 - Comprehensive test suite
 - MNIST training example (manual and autodiff, both >96% test accuracy)

@@ -53,7 +53,31 @@ option(BOAT_WITH_ONNXRUNTIME "Enable ONNX Runtime inference backend" OFF)
 option(BOAT_WITH_CUDNN "Enable cuDNN support" OFF)
 option(BOAT_WITH_SIMD "Enable SIMD optimizations (AVX2/NEON)" ON)
 option(BOAT_WITH_OPENMP "Enable OpenMP parallelism" ON)
+option(BOAT_WITH_OPENBLAS "Enable OpenBLAS for accelerated SGEMM" OFF)
 option(BOAT_DEBUG "Enable debug output (0=disabled, 1=enabled)" 0)
+
+# OpenBLAS configuration
+if(BOAT_WITH_OPENBLAS)
+    set(BOAT_OPENBLAS_ROOT "" CACHE PATH "Path to OpenBLAS installation (with include/ and lib/)")
+    if(BOAT_OPENBLAS_ROOT)
+        set(BOAT_OPENBLAS_INCLUDE_DIR "${BOAT_OPENBLAS_ROOT}/include")
+        find_library(BOAT_OPENBLAS_LIBRARY
+            NAMES openblas libopenblas
+            PATHS "${BOAT_OPENBLAS_ROOT}/lib"
+            NO_DEFAULT_PATH
+        )
+    else()
+        # Default search paths
+        find_path(BOAT_OPENBLAS_INCLUDE_DIR cblas.h)
+        find_library(BOAT_OPENBLAS_LIBRARY NAMES openblas libopenblas)
+    endif()
+    if(BOAT_OPENBLAS_INCLUDE_DIR AND BOAT_OPENBLAS_LIBRARY)
+        message(STATUS "Found OpenBLAS: ${BOAT_OPENBLAS_LIBRARY}")
+        message(STATUS "OpenBLAS include: ${BOAT_OPENBLAS_INCLUDE_DIR}")
+    else()
+        message(FATAL_ERROR "OpenBLAS not found. Set BOAT_OPENBLAS_ROOT or install OpenBLAS.")
+    endif()
+endif()
 
 # PyTorch path configuration
 option(BOAT_PYTORCH_PATH "Path to LibTorch installation" "")
@@ -502,6 +526,13 @@ if(BOAT_WITH_CUDNN AND CUDNN_INCLUDE_DIR AND CUDNN_LIBRARY)
     target_compile_definitions(boat PUBLIC BOAT_WITH_CUDNN)
     target_include_directories(boat PUBLIC ${CUDNN_INCLUDE_DIR})
     target_link_libraries(boat PUBLIC ${CUDNN_LIBRARY})
+endif()
+
+# OpenBLAS include and link
+if(BOAT_WITH_OPENBLAS AND BOAT_OPENBLAS_INCLUDE_DIR AND BOAT_OPENBLAS_LIBRARY)
+    target_compile_definitions(boat PUBLIC BOAT_USE_OPENBLAS)
+    target_include_directories(boat PUBLIC ${BOAT_OPENBLAS_INCLUDE_DIR})
+    target_link_libraries(boat PUBLIC ${BOAT_OPENBLAS_LIBRARY})
 endif()
 
 # Remove ONNX Runtime linking — no longer needed

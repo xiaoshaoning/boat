@@ -3,6 +3,44 @@
 // Licensed under the Apache License, Version 2.0
 
 #include <boat/sgemm.h>
+
+#ifdef BOAT_USE_OPENBLAS
+#include <cblas.h>
+
+// ---------------------------------------------------------------------------
+// OpenBLAS backend: delegate boat_sgemm to cblas_sgemm
+// ---------------------------------------------------------------------------
+
+void boat_sgemm(int64_t M, int64_t N, int64_t K,
+                const float* A, const float* B, float* C)
+{
+    if (M <= 0 || N <= 0 || K <= 0) return;
+    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+                (int)M, (int)N, (int)K,
+                1.0f, A, (int)K, B, (int)N, 0.0f, C, (int)N);
+}
+
+void boat_sgemm_batched(int64_t batch,
+                         int64_t M, int64_t N, int64_t K,
+                         const float* A, int64_t stride_a,
+                         const float* B, int64_t stride_b,
+                         float* C, int64_t stride_c)
+{
+    if (batch <= 0 || M <= 0 || N <= 0 || K <= 0) return;
+    if (stride_a == 0) stride_a = M * K;
+    if (stride_b == 0) stride_b = K * N;
+    if (stride_c == 0) stride_c = M * N;
+
+    for (int64_t b = 0; b < batch; b++) {
+        boat_sgemm(M, N, K,
+                   A + b * stride_a,
+                   B + b * stride_b,
+                   C + b * stride_c);
+    }
+}
+
+#else // !BOAT_USE_OPENBLAS — hand-tuned SGEMM
+
 #include <boat/simd.h>
 #include <stdlib.h>
 #include <string.h>
@@ -340,3 +378,5 @@ void boat_sgemm_batched(int64_t batch,
                    C + b * stride_c);
     }
 }
+
+#endif // BOAT_USE_OPENBLAS
