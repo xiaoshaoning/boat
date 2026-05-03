@@ -30,7 +30,7 @@ boat_tensor_t* boat_cuda_tensor_clone(const boat_tensor_t* src) {
     size_t nbytes = boat_tensor_nbytes(src);
 
     // Create a new tensor on CUDA device
-    boat_tensor_t* dst = boat_tensor_create(shape, ndim, dtype, 1); // device=1 = CUDA
+    boat_tensor_t* dst = boat_tensor_create(shape, ndim, dtype, BOAT_DEVICE_CUDA);
     if (!dst) return NULL;
 
     // Copy data host→device or device→device

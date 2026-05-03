@@ -8,6 +8,9 @@ add_subdirectory(transformer)
 add_subdirectory(translator)
 add_subdirectory(ocr)
 
+# CUDA-accelerated OCR example (requires BOAT_WITH_CUDA=ON)
+add_subdirectory(ocr_cuda)
+
 # InsightFace recognition test
 add_executable(test_insightface test_insightface.c)
 target_link_libraries(test_insightface PRIVATE boat)

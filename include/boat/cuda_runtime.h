@@ -9,6 +9,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+/* Forward declaration needed for device transfer functions */
+typedef struct boat_tensor_t boat_tensor_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif

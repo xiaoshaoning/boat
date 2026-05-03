@@ -6,6 +6,7 @@
 #include <boat/cuda_runtime.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <float.h>
 
 #define CUDA_CHECK(call) do {                                         \
     cudaError_t err = call;                                           \
@@ -47,7 +48,7 @@ __global__ void maxpool2d_fwd_f32_kernel(
     h_start = max(h_start, (int64_t)0);
     w_start = max(w_start, (int64_t)0);
 
-    float max_val = -__FLT_MAX__;
+    float max_val = -FLT_MAX;
     int64_t max_idx = 0;
 
     for (int64_t kh = h_start; kh < h_end; kh++) {

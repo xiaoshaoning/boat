@@ -25,13 +25,23 @@ int sample_topk(const float* logits, int n_vocab, int k, float temp) {
 
     // Build array of (value, index) pairs
     val_idx_t* arr = (val_idx_t*)malloc(n_vocab * sizeof(val_idx_t));
-    for (int i = 0; i < n_vocab; i++) { arr[i].val = logits[i] / temp; arr[i].idx = i; }
+
+    // Find max logit first for numerical stability
+    float max_logit = logits[0];
+    for (int i = 1; i < n_vocab; i++)
+        if (logits[i] > max_logit) max_logit = logits[i];
+
+    // Subtract max, then divide by temp: ensures all scaled values <= 0,
+    // so expf() will not overflow regardless of temperature
+    for (int i = 0; i < n_vocab; i++) {
+        arr[i].val = (logits[i] - max_logit) / temp;
+        arr[i].idx = i;
+    }
     qsort(arr, n_vocab, sizeof(val_idx_t), cmp_desc);
 
-    // Softmax over top-k
-    float max_val = arr[0].val;
+    // Softmax over top-k (arr[0].val is 0, so exp(0)=1 for the max)
     float sum = 0;
-    for (int i = 0; i < k; i++) { arr[i].val = expf(arr[i].val - max_val); sum += arr[i].val; }
+    for (int i = 0; i < k; i++) { arr[i].val = expf(arr[i].val); sum += arr[i].val; }
 
     // Sample from distribution
     float r = (float)rand() / (float)RAND_MAX * sum;

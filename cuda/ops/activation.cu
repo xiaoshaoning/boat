@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <float.h>
 
 #define CUDA_CHECK(call) do {                                         \
     cudaError_t err = call;                                           \
@@ -38,7 +39,7 @@ __global__ void softmax_f32_kernel(const float* __restrict__ a,
     int tid = threadIdx.x;
 
     // Find max
-    float max_val = -__FLT_MAX__;
+    float max_val = -FLT_MAX;
     for (int k = tid; k < axis_size; k += blockDim.x) {
         float v = row_a[k * inner];
         if (v > max_val) max_val = v;
@@ -93,7 +94,7 @@ __global__ void log_softmax_f32_kernel(const float* __restrict__ a,
     int tid = threadIdx.x;
 
     // Max
-    float max_val = -__FLT_MAX__;
+    float max_val = -FLT_MAX;
     for (int k = tid; k < axis_size; k += blockDim.x) {
         float v = row_a[k * inner];
         if (v > max_val) max_val = v;

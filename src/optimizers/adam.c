@@ -215,7 +215,7 @@ static void adam_update_parameter(boat_adam_state_t* state, size_t idx) {
 #ifdef BOAT_WITH_CUDA
     if (boat_tensor_device(param) == BOAT_DEVICE_CUDA) {
         boat_cuda_adam_update_f32(param_data, grad_data, m_data, v_data,
-                                   lr, state->beta1, state->beta2,
+                                   state->learning_rate, state->beta1, state->beta2,
                                    beta1_pow_t, beta2_pow_t, state->epsilon,
                                    num_elements);
         return;
