@@ -7,6 +7,10 @@
 #include <string.h>
 #include <math.h>
 
+#ifdef BOAT_WITH_CUDA
+#include <boat/cuda_runtime.h>
+#endif
+
 // Dense layer structure
 struct boat_dense_layer_t {
     size_t input_features;
@@ -285,20 +289,24 @@ BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_backward(boat_d
         }
 
         // grad_bias = sum(grad_output, axis=0)
-        // For simplicity, we'll compute sum manually
         const float* grad_output_data = (const float*)boat_tensor_data(grad_output);
         float* grad_bias_data = (float*)boat_tensor_data(layer->grad_bias);
         size_t bias_elements = boat_tensor_nelements(layer->grad_bias);
 
-        // Zero before accumulation. Gradients are zeroed by the optimizer
-        // between batches, but we zero here too for correctness when
-        // backward is the first thing called on this layer.
+        // Zero before accumulation
         memset(grad_bias_data, 0, bias_elements * sizeof(float));
 
-        // Accumulate gradients across batch dimension
-        for (int64_t b = 0; b < batch; b++) {
-            for (int64_t of = 0; of < output_features; of++) {
-                grad_bias_data[of] += grad_output_data[b * output_features + of];
+#ifdef BOAT_WITH_CUDA
+        if (boat_tensor_device(grad_output) == BOAT_DEVICE_CUDA) {
+            boat_cuda_sum_axis_f32(grad_output_data, grad_bias_data, batch, output_features);
+        } else
+#endif
+        {
+            // Accumulate gradients across batch dimension (CPU)
+            for (int64_t b = 0; b < batch; b++) {
+                for (int64_t of = 0; of < output_features; of++) {
+                    grad_bias_data[of] += grad_output_data[b * output_features + of];
+                }
             }
         }
     }

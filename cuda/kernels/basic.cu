@@ -323,4 +323,20 @@ void boat_cuda_copy_device_to_device(void* dst, const void* src, size_t nbytes) 
     CUDA_CHECK(cudaMemcpy(dst, src, nbytes, cudaMemcpyDeviceToDevice));
 }
 
+// ReLU backward: dX = dY * (X > 0)
+__global__ void relu_backward_f32_kernel(const float* __restrict__ x,
+                                          const float* __restrict__ dy,
+                                          float* __restrict__ dx, size_t n) {
+    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < n) dx[idx] = x[idx] > 0.0f ? dy[idx] : 0.0f;
+}
+
+void boat_cuda_relu_backward_f32(const float* x, const float* dy,
+                                  float* dx, size_t n) {
+    const unsigned int block = 256;
+    const unsigned int grid = (unsigned int)((n + block - 1) / block);
+    relu_backward_f32_kernel<<<grid, block>>>(x, dy, dx, n);
+    CUDA_CHECK(cudaGetLastError());
+}
+
 } // extern "C"

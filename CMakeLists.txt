@@ -377,6 +377,9 @@ if(BOAT_WITH_CUDA)
         cuda/kernels/dense.cu
         cuda/kernels/conv.cu
         cuda/kernels/fused.cu
+        cuda/kernels/pool.cu
+        cuda/kernels/norm.cu
+        cuda/kernels/optimizer.cu
     )
 
     # CUDA configuration

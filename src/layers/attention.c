@@ -900,10 +900,9 @@ static boat_tensor_t* scaled_dot_product_attention_impl(const boat_tensor_t* que
         return NULL;
     }
 
-    // For now, assume 4D tensors [batch, num_heads, seq_len, head_size]
-    // This is what attention layer passes after reshaping
+    // Expect 4D: [batch, num_heads, seq_len, head_size]
     if (q_ndim != 4 || k_ndim != 4 || v_ndim != 4) {
-        // Fallback to dummy tensor for compatibility
+        // Fallback for non-4D input
         const int64_t* value_shape = boat_tensor_shape(value);
         boat_tensor_t* output = boat_tensor_create(value_shape, v_ndim,
                                                    boat_tensor_dtype(value),
@@ -926,7 +925,7 @@ static boat_tensor_t* scaled_dot_product_attention_impl(const boat_tensor_t* que
     int64_t kv_seq_len = k_shape[2];
     int64_t head_size = q_shape[3];
 
-    // Validate shapes match (Q and K/V can have different seq_len for cross-attention)
+    // Validate shapes match
     if (k_shape[0] != batch || k_shape[1] != num_heads || k_shape[3] != head_size ||
         v_shape[0] != batch || v_shape[1] != num_heads || v_shape[2] != kv_seq_len || v_shape[3] != head_size) {
         return NULL;
@@ -934,145 +933,68 @@ static boat_tensor_t* scaled_dot_product_attention_impl(const boat_tensor_t* que
 
     boat_dtype_t dtype = boat_tensor_dtype(query);
     if (dtype != BOAT_DTYPE_FLOAT32) {
-        // Only support float32 for now
         return NULL;
     }
 
-    // Create cache for attention weights if requested
-    boat_tensor_t* weights_tensor = NULL;
+    // --- Op chain for scaled dot-product attention ---
+
+    // 1. scores = Q @ K^T * scale
+    // K^T: [batch, num_heads, kv_seq_len, head_size] -> [batch, num_heads, head_size, kv_seq_len]
+    boat_tensor_t* key_t = boat_transpose(key, 2, 3);
+    if (!key_t) return NULL;
+
+    boat_tensor_t* scores = boat_matmul(query, key_t);
+    boat_tensor_unref(key_t);
+    if (!scores) return NULL;
+
+    boat_tensor_t* scaled_scores = boat_mul_scalar(scores, (double)scale_factor);
+    boat_tensor_unref(scores);
+    if (!scaled_scores) return NULL;
+    scores = scaled_scores;
+
+    // 2. Apply causal mask (upper triangular set to -inf)
+    if (causal_mask && q_seq_len == kv_seq_len) {
+        float* scores_data = (float*)boat_tensor_data(scores);
+        for (int64_t b = 0; b < batch; b++) {
+            for (int64_t h = 0; h < num_heads; h++) {
+                for (int64_t i = 0; i < q_seq_len; i++) {
+                    for (int64_t j = i + 1; j < kv_seq_len; j++) {
+                        int64_t idx = ((b * num_heads + h) * q_seq_len + i) * kv_seq_len + j;
+                        scores_data[idx] = -INFINITY;
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Apply attention mask if provided
+    if (attention_mask) {
+        // Element-wise add mask to scores
+        boat_tensor_t* masked = boat_add(scores, attention_mask);
+        boat_tensor_unref(scores);
+        if (!masked) return NULL;
+        scores = masked;
+    }
+
+    // 4. Softmax over last dimension (kv_seq_len)
+    boat_tensor_t* weights = boat_softmax(scores, 3);
+    boat_tensor_unref(scores);
+    if (!weights) return NULL;
+
+    // Cache weights for backward pass if requested
     if (cache_weights) {
-        const int64_t weights_shape[] = {batch, num_heads, q_seq_len, kv_seq_len};
-        weights_tensor = boat_tensor_create(weights_shape, 4, dtype, boat_tensor_device(value));
-        if (!weights_tensor) {
-            return NULL;
-        }
-        *cache_weights = weights_tensor;
+        *cache_weights = weights;
+        boat_tensor_ref(weights);
     }
 
-    // Create output tensor with same shape as query (Q seq_len, head_size)
-    const int64_t out_shape[] = {batch, num_heads, q_seq_len, head_size};
-    boat_tensor_t* output = boat_tensor_create(out_shape, 4, dtype, boat_tensor_device(value));
-    if (!output) {
-        if (weights_tensor) boat_tensor_free(weights_tensor);
-        return NULL;
-    }
+    // 5. Dropout (skip for now)
 
-    float* q_data = (float*)boat_tensor_data(query);
-    float* k_data = (float*)boat_tensor_data(key);
-    float* v_data = (float*)boat_tensor_data(value);
-    float* out_data = (float*)boat_tensor_data(output);
+    // 6. output = weights @ V
+    boat_tensor_t* output = boat_matmul(weights, value);
 
-    // Compute strides
-    int64_t q_stride_batch = num_heads * q_seq_len * head_size;
-    int64_t q_stride_head = q_seq_len * head_size;
-    int64_t q_stride_seq = head_size;
-    int64_t k_stride_batch = num_heads * kv_seq_len * head_size;
-    int64_t k_stride_head = kv_seq_len * head_size;
-    int64_t k_stride_seq = head_size;
+    // Release our reference to weights (still alive if cached via cache_weights)
+    boat_tensor_unref(weights);
 
-    // Precompute scale factor
-    float scale = scale_factor;
-
-    // Temporary buffer for attention scores [q_seq_len, kv_seq_len]
-    float* scores = (float*)boat_malloc(q_seq_len * kv_seq_len * sizeof(float), BOAT_DEVICE_CPU);
-    if (!scores) {
-        boat_tensor_unref(output);
-        return NULL;
-    }
-
-    // Get weights tensor data pointer if caching
-    float* weights_data = NULL;
-    if (weights_tensor) {
-        weights_data = (float*)boat_tensor_data(weights_tensor);
-    }
-
-    for (int64_t b = 0; b < batch; b++) {
-        for (int64_t h = 0; h < num_heads; h++) {
-            // Pointers to current head
-            float* q_head = q_data + b * q_stride_batch + h * q_stride_head;
-            float* k_head = k_data + b * k_stride_batch + h * k_stride_head;
-            float* v_head = v_data + b * k_stride_batch + h * k_stride_head;
-            float* out_head = out_data + b * q_stride_batch + h * q_stride_head;
-
-            // Compute attention scores: Q * K^T * scale
-            for (int64_t i = 0; i < q_seq_len; i++) {
-                for (int64_t j = 0; j < kv_seq_len; j++) {
-                    float sum = 0.0f;
-                    const float* q_row = q_head + i * q_stride_seq;
-                    const float* k_row = k_head + j * k_stride_seq;
-                    for (int64_t d = 0; d < head_size; d++) {
-                        sum += q_row[d] * k_row[d];
-                    }
-                    scores[i * kv_seq_len + j] = sum * scale;
-                }
-            }
-
-            // Apply causal mask if needed (only for self-attention with same seq_len)
-            if (causal_mask && q_seq_len == kv_seq_len) {
-                for (int64_t i = 0; i < q_seq_len; i++) {
-                    for (int64_t j = 0; j < kv_seq_len; j++) {
-                        if (j > i) {
-                            scores[i * kv_seq_len + j] = -1e9f;
-                        }
-                    }
-                }
-            }
-
-            // Apply attention mask if provided (TODO)
-            if (attention_mask) {
-                // Not implemented yet
-            }
-
-            // Softmax over kv_seq_len dimension (j)
-            for (int64_t i = 0; i < q_seq_len; i++) {
-                float max_val = scores[i * kv_seq_len];
-                for (int64_t j = 1; j < kv_seq_len; j++) {
-                    if (scores[i * kv_seq_len + j] > max_val) {
-                        max_val = scores[i * kv_seq_len + j];
-                    }
-                }
-                float sum_exp = 0.0f;
-                for (int64_t j = 0; j < kv_seq_len; j++) {
-                    float val = scores[i * kv_seq_len + j] - max_val;
-                    scores[i * kv_seq_len + j] = expf(val);
-                    sum_exp += scores[i * kv_seq_len + j];
-                }
-                if (sum_exp != 0.0f) {
-                    for (int64_t j = 0; j < kv_seq_len; j++) {
-                        scores[i * kv_seq_len + j] /= sum_exp;
-                    }
-                }
-            }
-
-            // Store attention weights in cache if requested
-            if (weights_data) {
-                int64_t weights_stride_batch = num_heads * q_seq_len * kv_seq_len;
-                int64_t weights_stride_head = q_seq_len * kv_seq_len;
-                int64_t weights_stride_seq = kv_seq_len;
-                float* weights_ptr = weights_data + b * weights_stride_batch + h * weights_stride_head;
-                for (int64_t i = 0; i < q_seq_len; i++) {
-                    for (int64_t j = 0; j < kv_seq_len; j++) {
-                        weights_ptr[i * weights_stride_seq + j] = scores[i * kv_seq_len + j];
-                    }
-                }
-            }
-
-            // Apply dropout (TODO)
-
-            // Multiply scores * V
-            for (int64_t i = 0; i < q_seq_len; i++) {
-                for (int64_t d = 0; d < head_size; d++) {
-                    float sum = 0.0f;
-                    for (int64_t j = 0; j < kv_seq_len; j++) {
-                        sum += scores[i * kv_seq_len + j] * (v_head + j * k_stride_seq)[d];
-                    }
-                    out_head[i * q_stride_seq + d] = sum;
-                }
-            }
-        }
-    }
-
-    boat_free(scores);
     return output;
 }
 

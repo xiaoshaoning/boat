@@ -9,6 +9,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef BOAT_WITH_CUDA
+#include <boat/cuda_runtime.h>
+#endif
+
 // Layer normalization structure
 struct boat_layernorm_t {
     boat_layernorm_config_t config;
@@ -258,6 +262,21 @@ boat_tensor_t* boat_layernorm_forward(boat_layernorm_t* norm, const boat_tensor_
         return NULL;
     }
 
+#ifdef BOAT_WITH_CUDA
+    if (boat_tensor_device(input) == BOAT_DEVICE_CUDA) {
+        const float* gamma = norm->weight ? (const float*)boat_tensor_const_data(norm->weight) : NULL;
+        const float* beta = norm->bias ? (const float*)boat_tensor_const_data(norm->bias) : NULL;
+
+        boat_cuda_layernorm_forward_f32(
+            (const float*)boat_tensor_const_data(input),
+            gamma, beta,
+            (float*)boat_tensor_data(output),
+            (int64_t)outer_elements, (int64_t)hidden_size, norm->config.eps);
+
+        return output;
+    }
+#endif
+
     // Get data pointers
     const float* input_data = (const float*)boat_tensor_const_data(input);
     float* output_data = (float*)boat_tensor_data(output);
@@ -345,6 +364,20 @@ boat_tensor_t* boat_rmsnorm_forward(boat_rmsnorm_t* norm, const boat_tensor_t* i
     if (!output) {
         return NULL;
     }
+
+#ifdef BOAT_WITH_CUDA
+    if (boat_tensor_device(input) == BOAT_DEVICE_CUDA) {
+        const float* gamma = norm->weight ? (const float*)boat_tensor_const_data(norm->weight) : NULL;
+
+        boat_cuda_rmsnorm_forward_f32(
+            (const float*)boat_tensor_const_data(input),
+            gamma,
+            (float*)boat_tensor_data(output),
+            (int64_t)outer_elements, (int64_t)hidden_size, norm->config.eps);
+
+        return output;
+    }
+#endif
 
     // Get data pointers
     const float* input_data = (const float*)boat_tensor_const_data(input);

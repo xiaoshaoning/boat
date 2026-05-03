@@ -220,6 +220,14 @@ boat_tensor_t* boat_dot(const boat_tensor_t* a, const boat_tensor_t* b) {
     const void* b_data = boat_tensor_data(b);
     void* out_data = boat_tensor_data(out);
 
+#ifdef BOAT_WITH_CUDA
+    if (boat_tensor_device(a) == BOAT_DEVICE_CUDA && dtype == BOAT_DTYPE_FLOAT32) {
+        float result = boat_cuda_dot_f32((const float*)a_data, (const float*)b_data, (int64_t)n);
+        *((float*)out_data) = result;
+        return out;
+    }
+#endif
+
     switch (dtype) {
         case BOAT_DTYPE_FLOAT32: {
             const float* a_ptr = (const float*)a_data;
@@ -302,6 +310,37 @@ boat_tensor_t* boat_transpose(const boat_tensor_t* a, int dim0, int dim1) {
     for (size_t i = 0; i < ndim; i++) {
         total_elements *= shape[i];
     }
+
+#ifdef BOAT_WITH_CUDA
+    if (boat_tensor_device(a) == BOAT_DEVICE_CUDA && boat_tensor_dtype(a) == BOAT_DTYPE_FLOAT32) {
+        if (ndim == 2) {
+            // Fast 2D tiled transpose
+            boat_cuda_transpose_f32((const float*)in_data, (float*)out_data,
+                                     shape[0], shape[1]);
+        } else {
+            // N-D transpose: compute strides and dispatch
+            size_t* in_stride = (size_t*)malloc(ndim * sizeof(size_t));
+            size_t* out_stride = (size_t*)malloc(ndim * sizeof(size_t));
+            int64_t* dev_shape = (int64_t*)malloc(ndim * sizeof(int64_t));
+            if (in_stride && out_stride && dev_shape) {
+                in_stride[ndim-1] = 1;
+                for (int i = (int)ndim-2; i >= 0; i--)
+                    in_stride[i] = in_stride[i+1] * (size_t)shape[i+1];
+                out_stride[ndim-1] = 1;
+                for (int i = (int)ndim-2; i >= 0; i--)
+                    out_stride[i] = out_stride[i+1] * (size_t)out_shape_ptr[i+1];
+                for (size_t i = 0; i < ndim; i++) dev_shape[i] = shape[i];
+
+                boat_cuda_transpose_nd_f32((const float*)in_data, (float*)out_data,
+                                            (int64_t)total_elements,
+                                            dev_shape, in_stride, out_stride,
+                                            (int64_t)ndim, dim0, dim1);
+                free(in_stride); free(out_stride); free(dev_shape);
+            }
+        }
+        return out;
+    }
+#endif
 
     // Handle different data types
     switch (boat_tensor_dtype(a)) {

@@ -11,6 +11,10 @@
 #include <float.h>
 #include <stdlib.h>
 
+#ifdef BOAT_WITH_CUDA
+#include <boat/cuda_runtime.h>
+#endif
+
 // Helper function to compute stride for a given dimension
 static size_t compute_stride(const int64_t* shape, size_t ndim, size_t axis) {
     size_t stride = 1;
@@ -57,6 +61,15 @@ BOAT_API boat_tensor_t* boat_softmax(const boat_tensor_t* a, int axis) {
 
     const void* a_data = boat_tensor_data(a);
     void* out_data = boat_tensor_data(out);
+
+#ifdef BOAT_WITH_CUDA
+    if (boat_tensor_device(a) == BOAT_DEVICE_CUDA && dtype == BOAT_DTYPE_FLOAT32) {
+        boat_cuda_softmax_f32((const float*)boat_tensor_const_data(a),
+                               (float*)boat_tensor_data(out),
+                               (int64_t)outer_elements, (int64_t)axis_size, (int64_t)inner_stride);
+        return out;
+    }
+#endif
 
     switch (dtype) {
         case BOAT_DTYPE_FLOAT32: {
@@ -171,6 +184,14 @@ boat_tensor_t* boat_log_softmax(const boat_tensor_t* a, int axis) {
     const void* a_data = boat_tensor_data(a);
     void* out_data = boat_tensor_data(out);
 
+#ifdef BOAT_WITH_CUDA
+    if (boat_tensor_device(a) == BOAT_DEVICE_CUDA && dtype == BOAT_DTYPE_FLOAT32) {
+        boat_cuda_log_softmax_f32((const float*)a_data, (float*)out_data,
+                                   (int64_t)outer_elements, (int64_t)axis_size, (int64_t)inner_stride);
+        return out;
+    }
+#endif
+
     switch (dtype) {
         case BOAT_DTYPE_FLOAT32: {
             const float* a_ptr = (const float*)a_data;
@@ -266,6 +287,12 @@ BOAT_API boat_tensor_t* boat_relu(const boat_tensor_t* a) {
     const void* a_data = boat_tensor_data(a);
     void* out_data = boat_tensor_data(out);
 
+#ifdef BOAT_WITH_CUDA
+    if (boat_tensor_device(a) == BOAT_DEVICE_CUDA && dtype == BOAT_DTYPE_FLOAT32 && total_elements > 0) {
+        boat_cuda_relu_f32((const float*)a_data, (float*)out_data, total_elements);
+        return out;
+    }
+#endif
 
     // Only implement FP32 version (MNIST uses FP32)
     if (dtype == BOAT_DTYPE_FLOAT32 && total_elements > 0) {
@@ -300,6 +327,14 @@ boat_tensor_t* boat_silu(const boat_tensor_t* a) {
     boat_dtype_t dtype = boat_tensor_dtype(a);
     size_t n = boat_tensor_nelements(a);
 
+#ifdef BOAT_WITH_CUDA
+    if (boat_tensor_device(a) == BOAT_DEVICE_CUDA && dtype == BOAT_DTYPE_FLOAT32) {
+        boat_cuda_silu_f32((const float*)boat_tensor_const_data(a),
+                            (float*)boat_tensor_data(out), n);
+        return out;
+    }
+#endif
+
     if (dtype == BOAT_DTYPE_FLOAT32) {
         const float* src = (const float*)boat_tensor_const_data(a);
         float* dst = (float*)boat_tensor_data(out);
@@ -329,8 +364,35 @@ boat_tensor_t* boat_tanh(const boat_tensor_t* a) {
 }
 
 boat_tensor_t* boat_gelu(const boat_tensor_t* a) {
-    // TODO: Implement GELU
-    (void)a;
+    if (!a) return NULL;
+
+    boat_tensor_t* out = boat_tensor_create_like(a);
+    if (!out) return NULL;
+
+    boat_dtype_t dtype = boat_tensor_dtype(a);
+    size_t n = boat_tensor_nelements(a);
+
+#ifdef BOAT_WITH_CUDA
+    if (boat_tensor_device(a) == BOAT_DEVICE_CUDA && dtype == BOAT_DTYPE_FLOAT32) {
+        boat_cuda_gelu_f32((const float*)boat_tensor_const_data(a),
+                            (float*)boat_tensor_data(out), n);
+        return out;
+    }
+#endif
+
+    if (dtype == BOAT_DTYPE_FLOAT32) {
+        const float* src = (const float*)boat_tensor_const_data(a);
+        float* dst = (float*)boat_tensor_data(out);
+        for (size_t i = 0; i < n; i++) {
+            float x = src[i];
+            float x3 = x * x * x;
+            float inner = 0.7978845608028654f * (x + 0.044715f * x3);
+            dst[i] = 0.5f * x * (1.0f + tanhf(inner));
+        }
+        return out;
+    }
+
+    boat_tensor_unref(out);
     return NULL;
 }
 

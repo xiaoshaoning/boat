@@ -8,6 +8,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef BOAT_WITH_CUDA
+#include <boat/cuda_runtime.h>
+#endif
+
 // SGD optimizer state structure
 typedef struct boat_sgd_state_t {
     boat_optimizer_type_t type;
@@ -110,21 +114,19 @@ void sgd_optimizer_add_parameter(boat_optimizer_t* optimizer,
     state->params[idx] = param;
     state->grads[idx] = grad;
 
-    // Create velocity tensor with same shape as parameter
+    // Create velocity tensor with same shape and device as parameter
     const int64_t* shape = boat_tensor_shape(param);
     size_t ndim = boat_tensor_ndim(param);
     boat_dtype_t dtype = boat_tensor_dtype(param);
+    boat_device_t device = boat_tensor_device(param);
 
-    state->velocity[idx] = boat_tensor_create(shape, ndim, dtype, BOAT_DEVICE_CPU);
+    state->velocity[idx] = boat_tensor_create(shape, ndim, dtype, device);
 
     if (state->velocity[idx]) {
-        // Initialize velocity to zero
+        // Initialize velocity to zero (device-aware)
         float* vel_data = (float*)boat_tensor_data(state->velocity[idx]);
-        size_t num_elements = boat_tensor_nelements(state->velocity[idx]);
-
-        for (size_t i = 0; i < num_elements; i++) {
-            vel_data[i] = 0.0f;
-        }
+        size_t nbytes = boat_tensor_nbytes(state->velocity[idx]);
+        boat_memory_set(vel_data, 0, nbytes, device);
     }
 
     state->num_params++;
@@ -192,6 +194,18 @@ static void sgd_update_parameter(boat_sgd_state_t* state, size_t idx) {
     float lr = state->learning_rate;
     float momentum = state->momentum;
 
+#ifdef BOAT_WITH_CUDA
+    if (boat_tensor_device(param) == BOAT_DEVICE_CUDA) {
+        if (momentum > 0.0f) {
+            boat_cuda_sgd_momentum_f32(param_data, grad_data, vel_data, lr, momentum,
+                                        state->use_nesterov ? true : false, num_elements);
+        } else {
+            boat_cuda_sgd_update_f32(param_data, grad_data, lr, num_elements);
+        }
+        return;
+    }
+#endif
+
     if (momentum > 0.0f) {
         if (state->use_nesterov) {
             // Nesterov momentum update:
@@ -249,11 +263,9 @@ void sgd_optimizer_zero_grad(boat_optimizer_t* optimizer) {
         }
 
         float* grad_data = (float*)boat_tensor_data(grad);
-        size_t num_elements = boat_tensor_nelements(grad);
-
-        for (size_t j = 0; j < num_elements; j++) {
-            grad_data[j] = 0.0f;
-        }
+        size_t nbytes = boat_tensor_nbytes(grad);
+        boat_device_t device = boat_tensor_device(grad);
+        boat_memory_set(grad_data, 0, nbytes, device);
     }
 }
 

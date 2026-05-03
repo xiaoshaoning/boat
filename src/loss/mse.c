@@ -9,6 +9,10 @@
 #include <string.h>
 #include <stdlib.h>
 
+#ifdef BOAT_WITH_CUDA
+#include <boat/cuda_runtime.h>
+#endif
+
 // Forward declaration for dispatch
 float mse_loss_compute(boat_loss_t* loss_ptr, const void* predictions_ptr, const void* targets_ptr);
 
@@ -130,6 +134,13 @@ boat_tensor_t* mse_loss_backward(boat_loss_t* loss_ptr, const void* predictions_
 
     float* grad_data = (float*)boat_tensor_data(grad);
     float inv_n = 1.0f / (float)num_elements;
+
+#ifdef BOAT_WITH_CUDA
+    if (boat_tensor_device(predictions) == BOAT_DEVICE_CUDA) {
+        boat_cuda_mse_backward_f32(pred_data, target_data, grad_data, num_elements);
+        return grad;
+    }
+#endif
 
     for (size_t i = 0; i < num_elements; i++) {
         grad_data[i] = 2.0f * (pred_data[i] - target_data[i]) * inv_n;

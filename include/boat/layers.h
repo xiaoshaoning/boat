@@ -128,7 +128,7 @@ BOAT_API void BOAT_CALL boat_attention_layer_update(boat_attention_layer_t* laye
 typedef struct boat_relu_layer_t boat_relu_layer_t;
 BOAT_API boat_relu_layer_t* BOAT_CALL boat_relu_layer_create();
 BOAT_API void BOAT_CALL boat_relu_layer_free(boat_relu_layer_t* layer);
-BOAT_API boat_tensor_t* BOAT_CALL boat_relu_layer_forward(const boat_relu_layer_t* layer, const boat_tensor_t* input);
+BOAT_API boat_tensor_t* BOAT_CALL boat_relu_layer_forward(boat_relu_layer_t* layer, const boat_tensor_t* input);
 BOAT_API boat_tensor_t* BOAT_CALL boat_relu_layer_backward(boat_relu_layer_t* layer, const boat_tensor_t* grad_output);
 BOAT_API void BOAT_CALL boat_relu_layer_update(boat_relu_layer_t* layer, float learning_rate);
 

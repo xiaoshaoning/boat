@@ -9,6 +9,10 @@
 #include <string.h>
 #include <stdlib.h>
 
+#ifdef BOAT_WITH_CUDA
+#include <boat/cuda_runtime.h>
+#endif
+
 // Forward declaration for dispatch
 float cross_entropy_loss_compute(boat_loss_t* loss_ptr, const void* predictions_ptr, const void* targets_ptr);
 

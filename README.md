@@ -1,6 +1,6 @@
 # Boat: Deep Learning Framework in C
 
-Boat is a lightweight, high-performance deep learning framework written in pure C with eventual CUDA support. Designed for inference, training, and fine-tuning of neural networks with support for common model formats.
+Boat is a lightweight, high-performance deep learning framework written in pure C with CUDA GPU acceleration. Designed for inference, training, and fine-tuning of neural networks with support for common model formats.
 
 ## Key Features
 
@@ -15,6 +15,7 @@ Boat is a lightweight, high-performance deep learning framework written in pure 
 - **Model Format Support**: ONNX (load/export/runtime executor), PyTorch (via LibTorch), HuggingFace Safetensors, GGUF (Q4_0, Q4_1, Q5_0, Q8_0)
 - **Data Pipeline**: Dataset/DataLoader abstraction with batching, shuffling, multi-threaded prefetch, and transforms
 - **Performance Optimizations**: SIMD (AVX2/NEON), SGEMM micro-kernel (hand-tuned with packing), OpenBLAS backend for accelerated matrix multiplication, OpenMP parallelism, memory pooling
+- **CUDA GPU Acceleration**: cuBLAS matmul, cuDNN conv/batchnorm, custom CUDA kernels for element-wise ops, activations, pooling, normalization, and optimizers
 - **Memory Efficient**: Explicit memory management with reference counting
 - **Cross-Platform**: Works on Linux, macOS, and Windows
 - **Extensible Architecture**: Modular design for adding new operations and layers
@@ -91,7 +92,8 @@ The Makefile automatically compiles all source files and creates a shared librar
 - `-DBOAT_WITH_TESTS=ON`: Build test suite
 - `-DBOAT_WITH_EXAMPLES=ON`: Build example programs
 - `-DBOAT_WITH_ONNX=ON`: Enable ONNX support (requires protobuf)
-- `-DBOAT_WITH_OPENBLAS=ON`: Enable OpenBLAS for accelerated SGEMM (matrix multiply)
+- `-DBOAT_WITH_CUDA=ON`: Enable CUDA GPU acceleration (requires CUDA Toolkit and NVIDIA GPU)
+- `-DBOAT_WITH_OPENBLAS=ON`: Enable OpenBLAS backend for accelerated matrix multiplication
   - Set `-DBOAT_OPENBLAS_ROOT=/path/to/openblas` if not in a standard location
 
 ### Build Configurations
@@ -565,6 +567,7 @@ For detailed API documentation and development guidelines, see [CLAUDE.md](CLAUD
 - Quantization-aware training (QAT) with fake quantization
 - Model format loaders (ONNX, PyTorch, TensorFlow, HuggingFace, GGUF)
 - ONNX runtime executor (graph-based direct inference for complex ONNX models)
+- CUDA GPU acceleration (cuBLAS matmul, cuDNN conv/batchnorm, custom kernels for element-wise ops, activations, pooling, normalization, and optimizers)
 - PReLU activation layer (Parametric ReLU for modern CNN architectures)
 - InsightFace face recognition model inference (ResNet50, 512-dim embeddings)
 - Model serialization (custom binary format, v3 with per-channel metadata)
@@ -578,7 +581,6 @@ For detailed API documentation and development guidelines, see [CLAUDE.md](CLAUD
 - ONNX export (boat → ONNX serialization)
 
 ### Planned Features
-- CUDA backend for GPU acceleration (tensor ops, layer kernels)
 - Group/depthwise convolution
 - Model compression and pruning
 - WebAssembly backend for in-browser inference
