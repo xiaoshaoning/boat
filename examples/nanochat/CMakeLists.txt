@@ -56,13 +56,38 @@ if(TARGET boat AND BOAT_WITH_CUDA)
         BOAT_STATIC_BUILD BOAT_WITH_CUDA
         _CRT_NONSTDC_NO_DEPRECATE _CRT_SECURE_NO_WARNINGS)
     if(WIN32)
-        target_link_libraries(nanochat_server ws2_32)
+        target_link_libraries(nanochat_server PRIVATE ws2_32)
     endif()
     if(UNIX)
-        target_link_libraries(nanochat_server m)
+        target_link_libraries(nanochat_server PRIVATE m)
     endif()
     set_target_properties(nanochat_server PROPERTIES C_STANDARD 11)
     set_target_properties(nanochat_server PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+
+    # ---- NanoChat Training executable ----
+    add_executable(nanochat_train
+        nanochat_train.cu
+        tokenizer.c
+        weights.c
+        training.cu
+        model.cu
+        nanochat_kernels.cu
+        nanochat_kernels_bw.cu
+        ${NANOCHAT_COMMON_SOURCES}
+    )
+    target_include_directories(nanochat_train PRIVATE ${NANOCHAT_COMMON_INCLUDES})
+    target_link_libraries(nanochat_train PRIVATE boat)
+    target_compile_definitions(nanochat_train PRIVATE
+        BOAT_STATIC_BUILD BOAT_WITH_CUDA
+        _CRT_NONSTDC_NO_DEPRECATE _CRT_SECURE_NO_WARNINGS)
+    if(WIN32)
+        # No special libs needed beyond CUDA
+    endif()
+    if(UNIX)
+        target_link_libraries(nanochat_train PRIVATE m)
+    endif()
+    set_target_properties(nanochat_train PROPERTIES C_STANDARD 11)
+    set_target_properties(nanochat_train PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 
     return()
 endif()

@@ -124,6 +124,13 @@ void nanochat_cuda_model_free(nanochat_cuda_model_t* model) {
     FREE_GPU(model->d_pos);
     FREE_GPU(model->d_decode_tmp);
     FREE_GPU(model->d_decode_hidden);
+    // Free training buffers if allocated
+    FREE_GPU(model->d_grad_buf);
+    FREE_GPU(model->d_m_buf);
+    FREE_GPU(model->d_v_buf);
+    FREE_GPU(model->d_act_buf);
+    FREE_GPU(model->d_f32_buf);
+    FREE_GPU(model->d_train_tmp_bf16);
     #undef FREE_GPU
     memset(model, 0, sizeof(*model));
 }

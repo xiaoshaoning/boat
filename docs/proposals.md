@@ -68,20 +68,21 @@ Proposals for next-phase work, ordered by impact vs effort.
 
 ---
 
-## 4. FP8 Inference Kernels ⬜
+## 4. FP8 Inference Kernels ✅
 
 **Why:** FP8 (8-bit floating point, `BOAT_DTYPE_FLOAT8`) is already a registered dtype in the framework but has no CUDA kernels. Hopper GPUs (H100, H200) have native FP8 tensor core support, offering 2× throughput vs FP16/BF16. Blackwell (RTX 5090) also supports FP8.
 
 **What:**
-- FP8 quantization: FP32 → FP8 (E4M3 for weights, E5M2 for activations)
-- FP8 dequantization: FP8 → FP32
-- cuBLAS FP8 matmul (`cublasGemmEx` with `CUDA_R_8F_E4M3`)
-- FP8 element-wise kernels (add, mul, relu, residual)
-- Integration with NanoChat for FP8 inference pass
+- ✅ FP32 ↔ FP8 (E4M3) conversion CUDA kernels — see `cuda/kernels/fp8_conversion.cu`
+- ✅ FP8 element-wise CUDA kernels (add, mul, relu, residual add) — see `cuda/kernels/fp8_elemwise.cu`
+- ✅ FP8 matmul CUDA kernel (manual decode → FP32 compute) — see `cuda/kernels/fp8_matmul.cu`
+- ✅ Verified against CPU reference across 7 tests (conversion round-trip, add, mul, relu, residual add, matmul 16×16, matmul 32×32), all passing
+- cuBLAS FP8 tensor core path (`cublasGemmEx` with `CUDA_R_8F_E4M3`) deferred (not supported on CUDA 13.1 + Blackwell)
+- Integration with NanoChat for FP8 inference pass deferred
 
 **Effort:** Medium (1-2 weeks)
 **Impact:** High for Hopper/Blackwell users. Further halves memory vs BF16 (~2.2 GB for 2.2B model weights).
-**Status:** ⬜ Not started
+**Status:** ✅ Completed (conversion, element-wise, matmul). cuBLAS FP8 tensor core and NanoChat integration remain.
 
 ---
 
@@ -143,11 +144,11 @@ Completed:
 |---|----------|--------|
 | 1 | CI | ✅ Core matrix done |
 | 3 | Mixed Precision Training | ✅ CUDA kernels + optimizer dispatch done |
+| 4 | FP8 Inference Kernels | ✅ Conversion, element-wise, matmul done |
 | 6 | LLM Serving API | ✅ Basic server done |
 | 7 | Flash Attention CUDA Kernels | ✅ Warp shuffle + online softmax done |
 
 Remaining priorities (next 1-2 months):
 1. **Language bindings** ⬜ — TypeScript (differentiating, enables browser/Node.js) or Python (pragmatic)
-2. **FP8 inference kernels** ⬜ — next step for Blackwell/Hopper optimization
 
-FP8 and multi-GPU parallelism are worth pursuing once the single-GPU training pipeline is solid.
+Multi-GPU parallelism is worth pursuing once the single-GPU training pipeline is solid.
