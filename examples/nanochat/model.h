@@ -29,6 +29,10 @@ typedef struct {
     int* d_pos;
     int pos_buf_size;
 
+    // Pre-allocated decode buffers (reused per-token, avoids cudaMalloc/free)
+    float* d_decode_tmp;     // [hidden_size + q_size + kv_size + kv_size + ff_dim + hidden_size]
+    float* d_decode_hidden;  // [hidden_size]
+
     // Model config (copied from config for convenience)
     int n_layers;
     int vocab_size;

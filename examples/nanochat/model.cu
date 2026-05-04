@@ -82,6 +82,17 @@ int nanochat_cuda_model_init(nanochat_cuda_model_t* model,
     model->pos_buf_size = model->max_seq_len;
     CUDA_CHECK(cudaMalloc(&model->d_pos, model->max_seq_len * sizeof(int)));
 
+    // Pre-allocate decode temp buffer (one large alloc, reused per token)
+    // Layout: H + Q + KV + KV + FF + H (same as layer_decode layout)
+    size_t decode_per_row = (size_t)(model->hidden_size +
+        model->num_heads * model->head_dim +     // Q
+        model->num_heads * model->head_dim +     // K
+        model->num_heads * model->head_dim +     // V
+        model->intermediate_size +               // FF
+        model->hidden_size);                     // MLP out
+    CUDA_CHECK(cudaMalloc(&model->d_decode_tmp, decode_per_row * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&model->d_decode_hidden, (size_t)model->hidden_size * sizeof(float)));
+
     fprintf(stderr, "[NanoChat-CUDA] Model loaded: %d layers, %d hidden, %d heads\n",
             model->n_layers, model->hidden_size, model->num_heads);
     return 1;
@@ -107,6 +118,8 @@ void nanochat_cuda_model_free(nanochat_cuda_model_t* model) {
         model->kv_len[l] = 0;
     }
     FREE_GPU(model->d_pos);
+    FREE_GPU(model->d_decode_tmp);
+    FREE_GPU(model->d_decode_hidden);
     #undef FREE_GPU
     memset(model, 0, sizeof(*model));
 }
@@ -351,17 +364,11 @@ float* nanochat_cuda_model_decode(nanochat_cuda_model_t* model,
     CUDA_CHECK(cudaMemcpy(model->d_pos, &abs_pos, sizeof(int),
                            cudaMemcpyHostToDevice));
 
-    // Allocate temp buffer (S=1, small)
-    size_t per_row = (size_t)(hidden_size + num_heads * head_dim +
-                               num_heads * head_dim + num_heads * head_dim +
-                               ff_dim + hidden_size);
-    size_t tmp_size = per_row * sizeof(float);
-    float* d_tmp;
-    CUDA_CHECK(cudaMalloc(&d_tmp, tmp_size));
+    // Use pre-allocated decode buffers (no cudaMalloc/cudaFree)
+    float* d_tmp = model->d_decode_tmp;
 
     // Copy embedding to persistent hidden buffer
-    float* d_hidden;
-    CUDA_CHECK(cudaMalloc(&d_hidden, (size_t)hidden_size * sizeof(float)));
+    float* d_hidden = model->d_decode_hidden;
     CUDA_CHECK(cudaMemcpy(d_hidden, d_embed, (size_t)hidden_size * sizeof(float),
                            cudaMemcpyDeviceToDevice));
 
@@ -391,8 +398,7 @@ float* nanochat_cuda_model_decode(nanochat_cuda_model_t* model,
     // Logit softcap
     softcap_cuda(d_logits, model->vocab_size, NANOCHAT_SOFTCAP, stream);
 
-    CUDA_CHECK(cudaFree(d_tmp));
-    CUDA_CHECK(cudaFree(d_hidden));
+    // d_tmp and d_hidden are pre-allocated, freed in nanochat_cuda_model_free
     CUDA_CHECK(cudaStreamSynchronize(stream));
 
     return d_logits;
