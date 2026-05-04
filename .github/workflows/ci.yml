@@ -66,3 +66,59 @@ jobs:
       run: |
         cd build
         ctest --output-on-failure -C ${{ matrix.build_type }} -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+
+  # ---------------------------------------------------------------------------
+  # Code coverage (Linux only, gcovr + Codecov)
+  # ---------------------------------------------------------------------------
+  coverage:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential gcovr
+
+    - name: Configure CMake (coverage)
+      run: |
+        mkdir -p build
+        cd build
+        cmake .. \
+          -DBOAT_WITH_TESTS=ON \
+          -DBOAT_WITH_EXAMPLES=ON \
+          -DBOAT_WITH_HUGGINGFACE=ON \
+          -DBOAT_WITH_COVERAGE=ON \
+          -DCMAKE_BUILD_TYPE=Debug
+
+    - name: Build
+      run: |
+        cd build
+        cmake --build . --config Debug -j$(nproc)
+
+    - name: Run tests
+      run: |
+        cd build
+        ctest --output-on-failure -C Debug -j$(nproc)
+
+    - name: Generate coverage report
+      run: |
+        cd build
+        gcovr --root .. \
+              --filter 'src/' \
+              --filter 'include/' \
+              --exclude 'tests/' \
+              --exclude 'examples/' \
+              --xml coverage.xml \
+              --html coverage.html \
+              --html-details \
+              --print-summary
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        file: build/coverage.xml
+        fail_ci_if_error: false
