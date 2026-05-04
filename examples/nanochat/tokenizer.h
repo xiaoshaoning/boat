@@ -2,6 +2,10 @@
 #pragma once
 #include <stddef.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define NANOCHAT_VOCAB_SIZE 65536
 
 typedef struct {
@@ -39,3 +43,7 @@ int* nanochat_tokenizer_encode(const nanochat_tokenizer_t* tok,
 char* nanochat_tokenizer_decode(const nanochat_tokenizer_t* tok,
                                  const int* ids, int n_ids);
 int nanochat_tokenizer_eos_id(const nanochat_tokenizer_t* tok);
+
+#ifdef __cplusplus
+}
+#endif

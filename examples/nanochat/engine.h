@@ -2,11 +2,13 @@
 #pragma once
 #include "config.h"
 #include "tokenizer.h"
-#include "model.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* Forward declaration — full struct in model.h (CUDA-compiled only) */
+typedef struct nanochat_cuda_model_s nanochat_cuda_model_t;
 
 typedef struct {
     nanochat_cuda_model_t* model;

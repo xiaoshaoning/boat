@@ -1,4 +1,4 @@
-// engine.c - NanoChat inference engine (prefill + decode loop)
+// engine.cu - NanoChat inference engine (prefill + decode loop)
 #include "engine.h"
 #include "nanochat.h"
 #include "tokenizer.h"
@@ -112,16 +112,33 @@ char* nanochat_generate(nanochat_engine_t* eng,
     tokens = (int*)realloc(tokens, (size_t)(prompt_len + max_tokens) * sizeof(int));
     int total_tokens = prompt_len;
 
-    // 2. Embed all prompt tokens on GPU (FP16)
-    int* d_tokens; __half* d_embed;
+    // 2. Embed all prompt tokens on GPU (BF16)
+    int* d_tokens; __nv_bfloat16* d_embed;
     CUDA_CHECK(cudaMalloc(&d_tokens, (size_t)prompt_len * sizeof(int)));
-    CUDA_CHECK(cudaMalloc(&d_embed, (size_t)prompt_len * eng->model->hidden_size * sizeof(__half)));
+    CUDA_CHECK(cudaMalloc(&d_embed, (size_t)prompt_len * eng->model->hidden_size * sizeof(__nv_bfloat16)));
     CUDA_CHECK(cudaMemcpy(d_tokens, tokens, (size_t)prompt_len * sizeof(int), cudaMemcpyHostToDevice));
-    embed_gather_fp16_cuda(eng->model->d_embed_tokens, d_tokens, d_embed, prompt_len, eng->model->hidden_size, 0);
+    embed_gather_bf16_cuda(eng->model->d_embed_tokens, d_tokens, d_embed, prompt_len, eng->model->hidden_size, 0);
     CUDA_CHECK(cudaFree(d_tokens));
 
-    // 3. Run prefill (populates KV cache, returns logits for last position)
+    // 3. Run prefill (populates KV cache, returns FP32 logits for last position)
     float* d_logits = nanochat_cuda_model_forward(eng->model, d_embed, prompt_len);
+
+    // DIAGNOSTIC: check logits
+    {
+        float* diag = (float*)malloc(eng->model->vocab_size * sizeof(float));
+        CUDA_CHECK(cudaMemcpy(diag, d_logits, (size_t)eng->model->vocab_size * sizeof(float), cudaMemcpyDeviceToHost));
+        int nan_cnt = 0, inf_cnt = 0;
+        float max_v = -1e38f, min_v = 1e38f;
+        for (int i = 0; i < eng->model->vocab_size; i++) {
+            if (isnan(diag[i])) nan_cnt++;
+            if (isinf(diag[i])) inf_cnt++;
+            if (diag[i] > max_v) max_v = diag[i];
+            if (diag[i] < min_v) min_v = diag[i];
+        }
+        fprintf(stderr, "[DIAG] logits: first=%.4f last=%.4f max=%.4f min=%.4f nan=%d inf=%d\n",
+                diag[0], diag[eng->model->vocab_size-1], max_v, min_v, nan_cnt, inf_cnt);
+        free(diag);
+    }
     CUDA_CHECK(cudaFree(d_embed));
 
     // 4. Sample first generated token
@@ -133,11 +150,11 @@ char* nanochat_generate(nanochat_engine_t* eng,
 
     // 5. Decode loop
     int hidden_size = eng->model->hidden_size;
-    __half* d_single_embed = NULL;
+    __nv_bfloat16* d_single_embed = NULL;
     while (total_tokens < prompt_len + max_tokens) {
-        if (!d_single_embed) CUDA_CHECK(cudaMalloc(&d_single_embed, (size_t)hidden_size * sizeof(__half)));
+        if (!d_single_embed) CUDA_CHECK(cudaMalloc(&d_single_embed, (size_t)hidden_size * sizeof(__nv_bfloat16)));
         CUDA_CHECK(cudaMemcpy(d_single_embed, eng->model->d_embed_tokens + (size_t)next * hidden_size,
-                               (size_t)hidden_size * sizeof(__half), cudaMemcpyDeviceToDevice));
+                               (size_t)hidden_size * sizeof(__nv_bfloat16), cudaMemcpyDeviceToDevice));
         d_logits = nanochat_cuda_model_decode(eng->model, d_single_embed, total_tokens - 1);
         CUDA_CHECK(cudaMemcpy(h_logits, d_logits, (size_t)eng->model->vocab_size * sizeof(float), cudaMemcpyDeviceToHost));
         CUDA_CHECK(cudaFree(d_logits));

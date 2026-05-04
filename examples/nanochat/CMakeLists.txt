@@ -20,7 +20,7 @@ if(TARGET boat AND BOAT_WITH_CUDA)
         tokenizer.c
         weights.c
         sampling.c
-        engine.c
+        engine.cu
         model.cu
         nanochat_kernels.cu
         ${NANOCHAT_COMMON_SOURCES}

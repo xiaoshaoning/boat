@@ -3,6 +3,10 @@
 
 #include "config.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     float* embed_tokens;   // [vocab_size, hidden_size]
     float* lm_head;        // [vocab_size, hidden_size]
@@ -24,3 +28,7 @@ nanochat_weights_t* nanochat_weights_load(const char* model_dir);
 
 // Free all weight arrays.
 void nanochat_weights_free(nanochat_weights_t* w);
+
+#ifdef __cplusplus
+}
+#endif
