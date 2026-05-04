@@ -393,6 +393,11 @@ if(BOAT_WITH_CUDA)
         cuda/kernels/pool.cu
         cuda/kernels/norm.cu
         cuda/kernels/optimizer.cu
+        cuda/kernels/bf16_conversion.cu
+        cuda/kernels/bf16_optimizer.cu
+        cuda/kernels/fp8_conversion.cu
+        cuda/kernels/fp8_elemwise.cu
+        cuda/kernels/fp8_matmul.cu
     )
 
     # CUDA configuration

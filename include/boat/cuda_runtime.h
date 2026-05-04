@@ -243,6 +243,47 @@ void boat_cuda_cross_entropy_backward_f32(const float* pred, const float* target
                                            float* grad, size_t n);
 
 // ---------------------------------------------------------------------------
+// BF16 conversion kernels
+// ---------------------------------------------------------------------------
+void boat_cuda_fp32_to_bf16(const float* in, void* out, int n);
+void boat_cuda_bf16_to_fp32(const void* in, float* out, int n);
+
+// ---------------------------------------------------------------------------
+// Optimizer kernels (BF16 params via void*, FP32 grads + FP32 state)
+// ---------------------------------------------------------------------------
+void boat_cuda_sgd_update_bf16(void* param, const float* grad,
+                                float lr, size_t n);
+void boat_cuda_sgd_momentum_bf16(void* param, const float* grad,
+                                  float* velocity, float lr, float momentum,
+                                  bool use_nesterov, size_t n);
+void boat_cuda_adam_update_bf16(void* param, const float* grad,
+                                 float* m, float* v,
+                                 float lr, float beta1, float beta2,
+                                 float beta1_t, float beta2_t, float eps,
+                                 size_t n);
+
+// ---------------------------------------------------------------------------
+// FP8 conversion kernels (E4M3)
+// ---------------------------------------------------------------------------
+void boat_cuda_fp32_to_fp8(const float* in, void* out, int n);
+void boat_cuda_fp8_to_fp32(const void* in, float* out, int n);
+
+// ---------------------------------------------------------------------------
+// FP8 element-wise kernels (void* for FP8 data, C-compatible)
+// ---------------------------------------------------------------------------
+void boat_cuda_fp8_add(const void* a, const void* b, void* out, int n);
+void boat_cuda_fp8_mul(const void* a, const void* b, void* out, int n);
+void boat_cuda_fp8_relu(const void* a, void* out, int n);
+void boat_cuda_fp8_residual_add(void* y, const void* x, int n);
+
+// ---------------------------------------------------------------------------
+// FP8 matmul — cuBLAS tensor core via cublasGemmEx (CUDA_R_8F_E4M3)
+// C[M,N] = A[M,K] @ B[K,N], FP8 inputs, FP32 output
+// ---------------------------------------------------------------------------
+void boat_cuda_matmul_fp8_cublas(const void* A, const void* B, float* C,
+                                  int M, int N, int K);
+
+// ---------------------------------------------------------------------------
 // Tensor device transfer
 // ---------------------------------------------------------------------------
 void* boat_cuda_clone_to_device(const void* src, size_t nbytes);

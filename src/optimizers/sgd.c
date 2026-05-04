@@ -7,6 +7,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 #ifdef BOAT_WITH_CUDA
 #include <boat/cuda_runtime.h>
@@ -29,6 +30,20 @@ typedef struct boat_sgd_state_t {
     size_t num_params;
     size_t capacity;
 } boat_sgd_state_t;
+
+// BF16 ↔ FP32 conversion helpers for CPU fallback path
+static inline float bf16_to_float(uint16_t v) {
+    uint32_t bits = (uint32_t)v << 16;
+    float result;
+    memcpy(&result, &bits, sizeof(result));
+    return result;
+}
+
+static inline uint16_t float_to_bf16(float v) {
+    uint32_t bits;
+    memcpy(&bits, &v, sizeof(bits));
+    return (uint16_t)(bits >> 16);
+}
 
 // Internal function declarations
 static void sgd_expand_capacity(boat_sgd_state_t* state);
@@ -120,7 +135,9 @@ void sgd_optimizer_add_parameter(boat_optimizer_t* optimizer,
     boat_dtype_t dtype = boat_tensor_dtype(param);
     boat_device_t device = boat_tensor_device(param);
 
-    state->velocity[idx] = boat_tensor_create(shape, ndim, dtype, device);
+    // For BF16 params, keep velocity in FP32 for numerical stability
+    boat_dtype_t state_dtype = (dtype == BOAT_DTYPE_BFLOAT16) ? BOAT_DTYPE_FLOAT32 : dtype;
+    state->velocity[idx] = boat_tensor_create(shape, ndim, state_dtype, device);
 
     if (state->velocity[idx]) {
         // Initialize velocity to zero (device-aware)
@@ -196,6 +213,15 @@ static void sgd_update_parameter(boat_sgd_state_t* state, size_t idx) {
 
 #ifdef BOAT_WITH_CUDA
     if (boat_tensor_device(param) == BOAT_DEVICE_CUDA) {
+        if (boat_tensor_dtype(param) == BOAT_DTYPE_BFLOAT16) {
+            if (momentum > 0.0f) {
+                boat_cuda_sgd_momentum_bf16(param_data, grad_data, vel_data, lr, momentum,
+                                             state->use_nesterov ? true : false, num_elements);
+            } else {
+                boat_cuda_sgd_update_bf16(param_data, grad_data, lr, num_elements);
+            }
+            return;
+        }
         if (momentum > 0.0f) {
             boat_cuda_sgd_momentum_f32(param_data, grad_data, vel_data, lr, momentum,
                                         state->use_nesterov ? true : false, num_elements);
@@ -205,6 +231,35 @@ static void sgd_update_parameter(boat_sgd_state_t* state, size_t idx) {
         return;
     }
 #endif
+
+    // CPU fallback: BF16 param path
+    if (boat_tensor_dtype(param) == BOAT_DTYPE_BFLOAT16) {
+        uint16_t* bf16_param = (uint16_t*)param_data;
+        if (momentum > 0.0f) {
+            if (state->use_nesterov) {
+                for (size_t i = 0; i < num_elements; i++) {
+                    float g = grad_data[i];
+                    float v_prev = vel_data[i];
+                    vel_data[i] = momentum * v_prev + g;
+                    float p = bf16_to_float(bf16_param[i]);
+                    bf16_param[i] = float_to_bf16(p - lr * (g + momentum * vel_data[i]));
+                }
+            } else {
+                for (size_t i = 0; i < num_elements; i++) {
+                    float g = grad_data[i];
+                    vel_data[i] = momentum * vel_data[i] + g;
+                    float p = bf16_to_float(bf16_param[i]);
+                    bf16_param[i] = float_to_bf16(p - lr * vel_data[i]);
+                }
+            }
+        } else {
+            for (size_t i = 0; i < num_elements; i++) {
+                float p = bf16_to_float(bf16_param[i]);
+                bf16_param[i] = float_to_bf16(p - lr * grad_data[i]);
+            }
+        }
+        return;
+    }
 
     if (momentum > 0.0f) {
         if (state->use_nesterov) {

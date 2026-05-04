@@ -235,7 +235,7 @@ void rmsnorm_nw_bf16_cuda(const __nv_bfloat16* d_x, __nv_bfloat16* d_y,
 // ============================================================================
 // Fused MHA prefill attention — one block per (query_pos, head)
 // Grid: (seq_len, num_heads), Block: head_dim threads
-// Computes Q*K^T + causal softmax + PV in a single kernel
+// Flash-attention-style: warp shuffle dot product + online softmax
 // BF16 I/O, FP32 internal computation
 // ============================================================================
 __global__ void fused_prefill_attn_bf16_kernel(
@@ -251,44 +251,50 @@ __global__ void fused_prefill_attn_bf16_kernel(
     int t     = threadIdx.x;
     if (q_pos >= seq_len || h >= num_heads) return;
 
-    extern __shared__ float sh[];
-    float* scores  = sh;
-    float* scratch = sh + seq_len;
+    __shared__ float warp_sums[4];
+    __shared__ float shared_score;
 
     int stride = num_heads * head_dim;
     float qv = __bfloat162float(q[(size_t)q_pos * stride + h * head_dim + t]);
+    int lane = t & 31;
+    int warp_id = t >> 5;
+
+    // Online softmax state: running max, sum of exponentials, weighted V accumulator
+    float m = -1e38f;
+    float d = 0.0f;
+    float o = 0.0f;
 
     for (int kp = 0; kp <= q_pos; kp++) {
-        scratch[t] = qv * __bfloat162float(k[(size_t)kp * stride + h * head_dim + t]);
+        // Each thread: element-wise product Q_d * K_d
+        float prod = qv * __bfloat162float(k[(size_t)kp * stride + h * head_dim + t]);
+
+        // Warp shuffle tree reduction — 5 instructions, no shared memory
+        for (int offset = 16; offset > 0; offset >>= 1)
+            prod += __shfl_xor_sync(0xFFFFFFFF, prod, offset);
+        // prod now holds the sum of this warp's 32 threads
+
+        // Cross-warp: one thread per warp writes its partial sum
+        if (lane == 0) warp_sums[warp_id] = prod;
         __syncthreads();
-        for (int s = blockDim.x / 2; s > 0; s >>= 1) {
-            if (t < s) scratch[t] += scratch[t + s];
-            __syncthreads();
-        }
-        if (t == 0) scores[kp] = scratch[0] * scale;
+
+        // Thread 0 sums the 4 warp partials and applies scale
+        if (t == 0)
+            shared_score = (warp_sums[0] + warp_sums[1] + warp_sums[2] + warp_sums[3]) * scale;
         __syncthreads();
+
+        float score = shared_score;
+
+        // Online softmax update: rescale previous state if new max found
+        float m_old = m;
+        m = fmaxf(m, score);
+        float exp_old = expf(m_old - m);
+        float exp_cur = expf(score - m);
+
+        d = d * exp_old + exp_cur;
+        o = o * exp_old + exp_cur * __bfloat162float(v[(size_t)kp * stride + h * head_dim + t]);
     }
 
-    if (t == 0) {
-        float mx = -1e38f;
-        for (int i = 0; i <= q_pos; i++) mx = fmaxf(mx, scores[i]);
-        scratch[head_dim] = mx;
-        float sum = 0.0f;
-        for (int i = 0; i <= q_pos; i++) sum += __expf(scores[i] - mx);
-        scratch[head_dim + 1] = sum;
-    }
-    __syncthreads();
-
-    float mx   = scratch[head_dim];
-    float isum = 1.0f / scratch[head_dim + 1];
-
-    float ctxv = 0.0f;
-    for (int kp = 0; kp <= q_pos; kp++) {
-        float w = __expf(scores[kp] - mx) * isum;
-        ctxv += w * __bfloat162float(v[(size_t)kp * stride + h * head_dim + t]);
-    }
-
-    ctx[(size_t)q_pos * stride + h * head_dim + t] = __float2bfloat16(ctxv);
+    ctx[(size_t)q_pos * stride + h * head_dim + t] = __float2bfloat16(o / d);
 }
 
 void fused_prefill_attention_bf16_cuda(
@@ -298,8 +304,7 @@ void fused_prefill_attention_bf16_cuda(
     float scale, cudaStream_t stream)
 {
     dim3 grid((unsigned int)seq_len, (unsigned int)num_heads);
-    size_t shmem = (size_t)(seq_len + head_dim + 2) * sizeof(float);
-    fused_prefill_attn_bf16_kernel<<<grid, (unsigned int)head_dim, shmem, stream>>>(
+    fused_prefill_attn_bf16_kernel<<<grid, (unsigned int)head_dim, 0, stream>>>(
         d_q, d_k, d_v, d_ctx, seq_len, num_heads, head_dim, scale);
     CUDA_CHECK(cudaGetLastError());
 }
@@ -307,7 +312,7 @@ void fused_prefill_attention_bf16_cuda(
 // ============================================================================
 // Fused MHA decode attention — one block per head
 // Grid: num_heads, Block: head_dim threads
-// Computes Q*K_cache^T + softmax + PV in a single kernel
+// Flash-attention-style: warp shuffle dot product + online softmax
 // BF16 I/O, FP32 internal computation
 // ============================================================================
 __global__ void fused_decode_attn_bf16_kernel(
@@ -322,44 +327,47 @@ __global__ void fused_decode_attn_bf16_kernel(
     int t = threadIdx.x;
     if (h >= num_heads) return;
 
-    extern __shared__ float sh[];
-    float* scores  = sh;
-    float* scratch = sh + kv_len;
+    __shared__ float warp_sums[4];
+    __shared__ float shared_score;
 
     int stride = num_heads * head_dim;
     float qv = __bfloat162float(q[h * head_dim + t]);
+    int lane = t & 31;
+    int warp_id = t >> 5;
+
+    // Online softmax state: running max, sum of exponentials, weighted V accumulator
+    float m = -1e38f;
+    float d = 0.0f;
+    float o = 0.0f;
 
     for (int kp = 0; kp < kv_len; kp++) {
-        scratch[t] = qv * __bfloat162float(k_cache[(size_t)kp * stride + h * head_dim + t]);
+        float prod = qv * __bfloat162float(k_cache[(size_t)kp * stride + h * head_dim + t]);
+
+        // Warp shuffle tree reduction
+        for (int offset = 16; offset > 0; offset >>= 1)
+            prod += __shfl_xor_sync(0xFFFFFFFF, prod, offset);
+
+        // Cross-warp sum
+        if (lane == 0) warp_sums[warp_id] = prod;
         __syncthreads();
-        for (int s = blockDim.x / 2; s > 0; s >>= 1) {
-            if (t < s) scratch[t] += scratch[t + s];
-            __syncthreads();
-        }
-        if (t == 0) scores[kp] = scratch[0] * scale;
+
+        if (t == 0)
+            shared_score = (warp_sums[0] + warp_sums[1] + warp_sums[2] + warp_sums[3]) * scale;
         __syncthreads();
+
+        float score = shared_score;
+
+        // Online softmax
+        float m_old = m;
+        m = fmaxf(m, score);
+        float exp_old = expf(m_old - m);
+        float exp_cur = expf(score - m);
+
+        d = d * exp_old + exp_cur;
+        o = o * exp_old + exp_cur * __bfloat162float(v_cache[(size_t)kp * stride + h * head_dim + t]);
     }
 
-    if (t == 0) {
-        float mx = -1e38f;
-        for (int i = 0; i < kv_len; i++) mx = fmaxf(mx, scores[i]);
-        scratch[head_dim] = mx;
-        float sum = 0.0f;
-        for (int i = 0; i < kv_len; i++) sum += __expf(scores[i] - mx);
-        scratch[head_dim + 1] = sum;
-    }
-    __syncthreads();
-
-    float mx   = scratch[head_dim];
-    float isum = 1.0f / scratch[head_dim + 1];
-
-    float ctxv = 0.0f;
-    for (int kp = 0; kp < kv_len; kp++) {
-        float w = __expf(scores[kp] - mx) * isum;
-        ctxv += w * __bfloat162float(v_cache[(size_t)kp * stride + h * head_dim + t]);
-    }
-
-    ctx[h * head_dim + t] = __float2bfloat16(ctxv);
+    ctx[h * head_dim + t] = __float2bfloat16(o / d);
 }
 
 void fused_decode_attention_bf16_cuda(
@@ -370,8 +378,7 @@ void fused_decode_attention_bf16_cuda(
     cudaStream_t stream)
 {
     float scale = 1.0f / sqrtf((float)head_dim);
-    size_t shmem = (size_t)(kv_len + head_dim + 2) * sizeof(float);
-    fused_decode_attn_bf16_kernel<<<(unsigned int)num_heads, (unsigned int)head_dim, shmem, stream>>>(
+    fused_decode_attn_bf16_kernel<<<(unsigned int)num_heads, (unsigned int)head_dim, 0, stream>>>(
         d_q, d_k_cache, d_v_cache, d_ctx, kv_len, num_heads, head_dim, scale);
     CUDA_CHECK(cudaGetLastError());
 }
