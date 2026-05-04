@@ -42,27 +42,25 @@ void rmsnorm_nw_cuda(const float* d_x, float* d_y,
                      cudaStream_t stream);
 
 // ---------------------------------------------------------------------------
-// MHA prefill attention (causal, no GQA)
-// Q/K/V: [seq_len, num_heads * head_dim]
-// Context: [seq_len, num_heads * head_dim]
+// Fused MHA prefill attention — no cuBLAS, pure CUDA
+// Grid: (seq_len, num_heads), Block: head_dim threads
 // ---------------------------------------------------------------------------
-void prefill_attention_cuda(cublasHandle_t handle,
-                            const float* d_q, const float* d_k, const float* d_v,
-                            float* d_context,
-                            int seq_len, int num_heads, int head_dim,
-                            float scale, cudaStream_t stream);
+void fused_prefill_attention_cuda(
+    const float* d_q, const float* d_k, const float* d_v,
+    float* d_ctx,
+    int seq_len, int num_heads, int head_dim,
+    float scale, cudaStream_t stream);
 
 // ---------------------------------------------------------------------------
-// MHA decode attention (fused, with KV cache, no GQA)
-// Q: [1, num_heads * head_dim], K/V_cache: [kv_len, num_heads * head_dim]
-// Context: [1, num_heads * head_dim]
+// Fused MHA decode attention — no cuBLAS, pure CUDA
+// Grid: num_heads, Block: head_dim threads
 // ---------------------------------------------------------------------------
-void decode_attention_cuda(cublasHandle_t handle,
-                           const float* d_q,
-                           const float* d_k_cache, const float* d_v_cache,
-                           float* d_context,
-                           int kv_len, int num_heads, int head_dim,
-                           cudaStream_t stream);
+void fused_decode_attention_cuda(
+    const float* d_q,
+    const float* d_k_cache, const float* d_v_cache,
+    float* d_ctx,
+    int kv_len, int num_heads, int head_dim,
+    cudaStream_t stream);
 
 // ---------------------------------------------------------------------------
 // Embedding gather: out[i, :] = table[tokens[i], :]

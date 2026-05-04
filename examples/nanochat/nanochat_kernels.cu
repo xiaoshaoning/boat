@@ -177,177 +177,169 @@ void rmsnorm_nw_cuda(const float* d_x, float* d_y,
 }
 
 // ============================================================================
-// Prefill attention: per-head QK^T -> causal softmax -> PV (MHA, no GQA)
+// Fused MHA prefill attention — one block per (query_pos, head)
+// Grid: (seq_len, num_heads), Block: head_dim threads
+// Computes Q*K^T + causal softmax + PV in a single kernel
 // ============================================================================
-// Helper kernel for head extraction
-static __global__ void extract_head_kernel(float* dst, const float* src,
-                                            int rows, int cols,
-                                            int src_stride, int src_off) {
-    int r = blockIdx.x;
-    int c = threadIdx.x;
-    if (r >= rows || c >= cols) return;
-    dst[r * cols + c] = src[r * src_stride + src_off + c];
-}
+__global__ void fused_prefill_attn_kernel(
+    const float* __restrict__ q,
+    const float* __restrict__ k,
+    const float* __restrict__ v,
+    float* __restrict__ ctx,
+    int seq_len, int num_heads, int head_dim,
+    float scale)
+{
+    int q_pos = blockIdx.x;
+    int h     = blockIdx.y;
+    int t     = threadIdx.x;
 
-static __global__ void causal_softmax_kernel(float* scores, int seq_len) {
-    int i = blockIdx.x;  // query position
-    if (i >= seq_len) return;
-    // cuBLAS Sgemm output is column-major: scores[i + j*seq_len] = Q[i]·K[j]
-    // Mask future keys (j > i)
-    for (int j = i + 1; j < seq_len; j++)
-        scores[i + j * seq_len] = -1e38f;
-    // Find max over valid keys (j <= i)
-    float mx = scores[i];
-    for (int j = 1; j <= i; j++) {
-        float v = scores[i + j * seq_len];
-        if (v > mx) mx = v;
-    }
-    // Softmax numerator and sum
-    float sum = 0.0f;
-    for (int j = 0; j <= i; j++) {
-        float v = expf(scores[i + j * seq_len] - mx);
-        scores[i + j * seq_len] = v;
-        sum += v;
-    }
-    float inv = 1.0f / sum;
-    for (int j = 0; j <= i; j++)
-        scores[i + j * seq_len] *= inv;
-}
+    if (q_pos >= seq_len || h >= num_heads) return;
 
-static __global__ void pv_kernel(const float* __restrict__ scores,
-                                  const float* __restrict__ v,
-                                  float* __restrict__ context,
-                                  int seq_len, int head_dim,
-                                  int q_off, int kv_off, int q_size, int kv_size) {
-    int q = blockIdx.x;
-    int d = threadIdx.x;
-    if (q >= seq_len || d >= head_dim) return;
-    float sum = 0.0f;
-    for (int t = 0; t <= q; t++)
-        sum += scores[q + t * seq_len] * v[t * kv_size + kv_off + d];
-    context[q * q_size + q_off + d] = sum;
-}
-
-void prefill_attention_cuda(cublasHandle_t handle,
-                            const float* d_q, const float* d_k, const float* d_v,
-                            float* d_context,
-                            int seq_len, int num_heads, int head_dim,
-                            float scale, cudaStream_t stream) {
-    int q_size = num_heads * head_dim;
-    int kv_size = num_heads * head_dim; // MHA: same as q_size
-
-    float *d_q_h, *d_k_h, *d_scores;
-    CUDA_CHECK(cudaMalloc(&d_q_h, (size_t)seq_len * head_dim * sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&d_k_h, (size_t)seq_len * head_dim * sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&d_scores, (size_t)seq_len * seq_len * sizeof(float)));
-
-    for (int h = 0; h < num_heads; h++) {
-        // Extract Q_h, K_h from strided buffers (MHA: kv_h == h)
-        extract_head_kernel<<<seq_len, head_dim, 0, stream>>>(
-            d_q_h, d_q, seq_len, head_dim, q_size, h * head_dim);
-        extract_head_kernel<<<seq_len, head_dim, 0, stream>>>(
-            d_k_h, d_k, seq_len, head_dim, kv_size, h * head_dim);
-        CUDA_CHECK(cudaGetLastError());
-
-        // QK^T * scale (cuBLAS column-major)
-        float alpha = scale, beta = 0.0f;
-        CUBLAS_CHECK(cublasSgemm(handle, CUBLAS_OP_T, CUBLAS_OP_N,
-                    seq_len, seq_len, head_dim,
-                    &alpha, d_q_h, head_dim, d_k_h, head_dim,
-                    &beta, d_scores, seq_len));
-
-        // Causal mask + softmax
-        causal_softmax_kernel<<<seq_len, 1, 0, stream>>>(d_scores, seq_len);
-        CUDA_CHECK(cudaGetLastError());
-
-        // PV multiply
-        pv_kernel<<<seq_len, head_dim, 0, stream>>>(
-            d_scores, d_v, d_context,
-            seq_len, head_dim,
-            h * head_dim, h * head_dim, q_size, kv_size);
-        CUDA_CHECK(cudaGetLastError());
-    }
-
-    CUDA_CHECK(cudaFree(d_q_h));
-    CUDA_CHECK(cudaFree(d_k_h));
-    CUDA_CHECK(cudaFree(d_scores));
-}
-
-// ============================================================================
-// Softmax for 1D array (single block, cooperative reduction)
-// ============================================================================
-__global__ void softmax_1d_kernel(float* data, int n) {
     extern __shared__ float sh[];
-    int tid = threadIdx.x;
+    float* scores  = sh;                    // [0..seq_len-1]
+    float* scratch = sh + seq_len;          // [seq_len..seq_len+head_dim-1]
+    // sh[seq_len+head_dim] = max_val
+    // sh[seq_len+head_dim+1] = sum_val
 
-    // Find max (parallel reduction)
-    float mx = -1e38f;
-    for (int i = tid; i < n; i += blockDim.x) mx = fmaxf(mx, data[i]);
-    sh[tid] = mx;
-    for (int s = blockDim.x / 2; s > 0; s >>= 1) {
+    int stride = num_heads * head_dim;
+
+    float qv = q[(size_t)q_pos * stride + h * head_dim + t];
+
+    // Pass 1: compute scores for all key positions 0..q_pos
+    for (int kp = 0; kp <= q_pos; kp++) {
+        scratch[t] = qv * k[(size_t)kp * stride + h * head_dim + t];
         __syncthreads();
-        if (tid < s) sh[tid] = fmaxf(sh[tid], sh[tid + s]);
+
+        for (int s = blockDim.x / 2; s > 0; s >>= 1) {
+            if (t < s) scratch[t] += scratch[t + s];
+            __syncthreads();
+        }
+
+        if (t == 0) scores[kp] = scratch[0] * scale;
+        __syncthreads();
+    }
+
+    // Thread 0: find max, compute softmax sum
+    if (t == 0) {
+        float mx = -1e38f;
+        for (int i = 0; i <= q_pos; i++)
+            mx = fmaxf(mx, scores[i]);
+        scratch[head_dim] = mx;
+
+        float sum = 0.0f;
+        for (int i = 0; i <= q_pos; i++)
+            sum += __expf(scores[i] - mx);
+        scratch[head_dim + 1] = sum;
     }
     __syncthreads();
-    mx = sh[0];
 
-    // Sum exp
-    float sum = 0.0f;
-    for (int i = tid; i < n; i += blockDim.x) sum += expf(data[i] - mx);
-    sh[tid] = sum;
-    for (int s = blockDim.x / 2; s > 0; s >>= 1) {
-        __syncthreads();
-        if (tid < s) sh[tid] += sh[tid + s];
+    float mx   = scratch[head_dim];
+    float isum = 1.0f / scratch[head_dim + 1];
+
+    // Pass 2: accumulate context from V
+    float ctxv = 0.0f;
+    for (int kp = 0; kp <= q_pos; kp++) {
+        float w = __expf(scores[kp] - mx) * isum;
+        ctxv += w * v[(size_t)kp * stride + h * head_dim + t];
     }
-    __syncthreads();
-    float inv = 1.0f / sh[0];
 
-    // Apply softmax
-    for (int i = tid; i < n; i += blockDim.x) data[i] = expf(data[i] - mx) * inv;
+    ctx[(size_t)q_pos * stride + h * head_dim + t] = ctxv;
+}
+
+void fused_prefill_attention_cuda(
+    const float* d_q, const float* d_k, const float* d_v,
+    float* d_ctx,
+    int seq_len, int num_heads, int head_dim,
+    float scale, cudaStream_t stream)
+{
+    dim3 grid((unsigned int)seq_len, (unsigned int)num_heads);
+    size_t shmem = (size_t)(seq_len + head_dim + 2) * sizeof(float);
+    fused_prefill_attn_kernel<<<grid, (unsigned int)head_dim, shmem, stream>>>(
+        d_q, d_k, d_v, d_ctx, seq_len, num_heads, head_dim, scale);
+    CUDA_CHECK(cudaGetLastError());
 }
 
 // ============================================================================
-// MHA decode attention using cuBLAS (per-head Sgemv)
+// Fused MHA decode attention — one block per head
+// Grid: num_heads, Block: head_dim threads
+// Computes Q*K_cache^T + softmax + PV in a single kernel
 // ============================================================================
-void decode_attention_cuda(cublasHandle_t handle,
-                           const float* d_q,
-                           const float* d_k_cache, const float* d_v_cache,
-                           float* d_context,
-                           int kv_len, int num_heads, int head_dim,
-                           cudaStream_t stream) {
-    int q_size = num_heads * head_dim;
-    float* d_scores;
-    CUDA_CHECK(cudaMalloc(&d_scores, (size_t)kv_len * sizeof(float)));
+__global__ void fused_decode_attn_kernel(
+    const float* __restrict__ q,
+    const float* __restrict__ k_cache,
+    const float* __restrict__ v_cache,
+    float* __restrict__ ctx,
+    int kv_len, int num_heads, int head_dim,
+    float scale)
+{
+    int h = blockIdx.x;
+    int t = threadIdx.x;
 
-    for (int h = 0; h < num_heads; h++) {
-        // scores[t] = scale * sum_d Q[h,d] * K_cache[t,h,d]
-        float scale = 1.0f / sqrtf((float)head_dim);
-        float alpha = scale, beta = 0.0f;
-        CUBLAS_CHECK(cublasSgemv(handle, CUBLAS_OP_T,
-                    head_dim, kv_len,
-                    &alpha,
-                    d_k_cache + (size_t)h * head_dim, q_size,
-                    d_q + (size_t)h * head_dim, 1,
-                    &beta,
-                    d_scores, 1));
+    if (h >= num_heads) return;
 
-        // Softmax scores
-        softmax_1d_kernel<<<1, 256, 256 * sizeof(float), stream>>>(d_scores, kv_len);
-        CUDA_CHECK(cudaGetLastError());
+    extern __shared__ float sh[];
+    float* scores  = sh;                    // [0..kv_len-1]
+    float* scratch = sh + kv_len;           // [kv_len..kv_len+head_dim-1]
+    // sh[kv_len+head_dim] = max_val
+    // sh[kv_len+head_dim+1] = sum_val
 
-        // ctx[h,d] = sum_t scores[t] * V_cache[t,h,d]
-        // Uses cuBLAS Sgemv(OP_N): y[hd] = A[hd,kv_len] * x[kv_len]
-        alpha = 1.0f;
-        CUBLAS_CHECK(cublasSgemv(handle, CUBLAS_OP_N,
-                    head_dim, kv_len,
-                    &alpha,
-                    d_v_cache + (size_t)h * head_dim, q_size,
-                    d_scores, 1,
-                    &beta,
-                    d_context + (size_t)h * head_dim, 1));
+    int stride = num_heads * head_dim;
+
+    float qv = q[h * head_dim + t];
+
+    // Compute scores for all KV positions
+    for (int kp = 0; kp < kv_len; kp++) {
+        scratch[t] = qv * k_cache[(size_t)kp * stride + h * head_dim + t];
+        __syncthreads();
+
+        for (int s = blockDim.x / 2; s > 0; s >>= 1) {
+            if (t < s) scratch[t] += scratch[t + s];
+            __syncthreads();
+        }
+
+        if (t == 0) scores[kp] = scratch[0] * scale;
+        __syncthreads();
     }
 
-    CUDA_CHECK(cudaFree(d_scores));
+    // Thread 0: softmax normalization
+    if (t == 0) {
+        float mx = -1e38f;
+        for (int i = 0; i < kv_len; i++)
+            mx = fmaxf(mx, scores[i]);
+        scratch[head_dim] = mx;
+
+        float sum = 0.0f;
+        for (int i = 0; i < kv_len; i++)
+            sum += __expf(scores[i] - mx);
+        scratch[head_dim + 1] = sum;
+    }
+    __syncthreads();
+
+    float mx   = scratch[head_dim];
+    float isum = 1.0f / scratch[head_dim + 1];
+
+    // Accumulate context from V cache
+    float ctxv = 0.0f;
+    for (int kp = 0; kp < kv_len; kp++) {
+        float w = __expf(scores[kp] - mx) * isum;
+        ctxv += w * v_cache[(size_t)kp * stride + h * head_dim + t];
+    }
+
+    ctx[h * head_dim + t] = ctxv;
+}
+
+void fused_decode_attention_cuda(
+    const float* d_q,
+    const float* d_k_cache, const float* d_v_cache,
+    float* d_ctx,
+    int kv_len, int num_heads, int head_dim,
+    cudaStream_t stream)
+{
+    float scale = 1.0f / sqrtf((float)head_dim);
+    size_t shmem = (size_t)(kv_len + head_dim + 2) * sizeof(float);
+    fused_decode_attn_kernel<<<(unsigned int)num_heads, (unsigned int)head_dim, shmem, stream>>>(
+        d_q, d_k_cache, d_v_cache, d_ctx, kv_len, num_heads, head_dim, scale);
+    CUDA_CHECK(cudaGetLastError());
 }
 
 // ============================================================================

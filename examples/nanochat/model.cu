@@ -170,10 +170,10 @@ static void nanochat_layer_prefill_cuda(cublasHandle_t handle,
                                 cudaMemcpyDeviceToDevice, stream));
     *kv_len = seq_len;
 
-    // 6. MHA prefill attention (output to d_q, reusing d_q space)
+    // 6. Fused MHA prefill attention (output to d_q, reusing d_q space)
     float scale = 1.0f / sqrtf((float)head_dim);
-    prefill_attention_cuda(handle, d_q, d_k, d_v, d_q,
-                           seq_len, num_heads, head_dim, scale, stream);
+    fused_prefill_attention_cuda(d_q, d_k, d_v, d_q,
+                                 seq_len, num_heads, head_dim, scale, stream);
 
     // 7. Output projection (result to d_normed, reusing d_normed space)
     matmul_bt_cuda(handle, d_q, d_o_w, d_normed, seq_len, q_size, hidden_size);
@@ -246,15 +246,12 @@ static void nanochat_layer_decode_cuda(cublasHandle_t handle,
     (*h_kv_len)++;
     int new_kv_len = kv_len + 1;
 
-    // 5. Decode attention (fused MHA)
-    float* d_ctx;
-    CUDA_CHECK(cudaMalloc(&d_ctx, (size_t)q_size * sizeof(float)));
-    decode_attention_cuda(handle, d_q, d_k_cache, d_v_cache, d_ctx,
-                          new_kv_len, num_heads, head_dim, stream);
+    // 5. Fused MHA decode attention (output to d_q, reusing q buffer)
+    fused_decode_attention_cuda(d_q, d_k_cache, d_v_cache, d_q,
+                                new_kv_len, num_heads, head_dim, stream);
 
-    // 6. Output projection
-    matmul_bt_cuda(handle, d_ctx, d_o_w, d_normed, 1, q_size, hidden_size);
-    CUDA_CHECK(cudaFree(d_ctx));
+    // 6. Output projection (from d_q to d_normed)
+    matmul_bt_cuda(handle, d_q, d_o_w, d_normed, 1, q_size, hidden_size);
 
     // 7. Residual
     residual_add_cuda(d_hidden, d_normed, hidden_size, stream);
