@@ -18,6 +18,4 @@
 
 - **Numerical diff against HF**: Run full 34-layer forward pass comparing CUDA vs PyTorch tensor-by-tensor to verify no remaining subtle bugs (attention masking, scale, softmax precision).
 
-## Architecture
 
-- **Unified generate API**: Currently separate `model_forward` (prefill) + `model_decode` (decode) calls. Could provide a single `generate()` that handles both, plus `append_to_kv_cache` for multi-turn.
