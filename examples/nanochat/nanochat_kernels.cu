@@ -39,53 +39,53 @@ void matmul_bt_cuda(cublasHandle_t handle,
 }
 
 // ============================================================================
-// 1D Standard RoPE kernel
+// 1D Standard RoPE kernel (half-pair rotation)
+// Pairs (d, d+head_dim/2) for d in [0, head_dim/2), matching HuggingFace
 // ============================================================================
 __global__ void rope_1d_kernel(float* d_q, float* d_k,
                                 int seq_len, int num_heads, int num_kv_heads,
                                 int head_dim, float theta,
                                 const int* d_pos) {
-    // Treat each (position, head, dim_pair) as a thread
-    // We need 2 threads per dimension pair (d, d+1)
-    // Use 1 thread per dimension, paired by (dim / 2)
+    // One thread per (position, head, dim_pair) — only first half of dims
+    int half_dim = head_dim / 2;
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int total = seq_len * (num_heads + num_kv_heads) * head_dim;
+    int total = seq_len * (num_heads + num_kv_heads) * half_dim;
     if (idx >= total) return;
 
-    // Determine if we're in Q or K, and the position/head/dim
-    int q_elems = seq_len * num_heads * head_dim;
-    bool is_q = idx < q_elems;
+    int q_pairs = seq_len * num_heads * half_dim;
+    bool is_q = idx < q_pairs;
     int pos_idx, h, d;
     if (is_q) {
-        pos_idx = idx / (num_heads * head_dim);
-        int within_pos = idx % (num_heads * head_dim);
-        h = within_pos / head_dim;
-        d = within_pos % head_dim;
+        pos_idx = idx / (num_heads * half_dim);
+        int within_pos = idx % (num_heads * half_dim);
+        h = within_pos / half_dim;
+        d = within_pos % half_dim;
     } else {
-        int k_off = idx - q_elems;
-        pos_idx = k_off / (num_kv_heads * head_dim);
-        int within_pos = k_off % (num_kv_heads * head_dim);
-        h = within_pos / head_dim;
-        d = within_pos % head_dim;
+        int k_off = idx - q_pairs;
+        pos_idx = k_off / (num_kv_heads * half_dim);
+        int within_pos = k_off % (num_kv_heads * half_dim);
+        h = within_pos / half_dim;
+        d = within_pos % half_dim;
     }
-
-    // Only process even dimensions (the odd pair is skipped)
-    if (d % 2 != 0) return;
 
     float* data = is_q ? d_q : d_k;
     int stride = is_q ? (num_heads * head_dim) : (num_kv_heads * head_dim);
+    // Half-pair: v0 = first-half dim d, v1 = second-half dim d+half_dim
     float* v0 = &data[pos_idx * stride + h * head_dim + d];
-    float* v1 = &data[pos_idx * stride + h * head_dim + d + 1];
+    float* v1 = &data[pos_idx * stride + h * head_dim + d + half_dim];
 
     int pos = d_pos[pos_idx];
-    float freq = 1.0f / powf(theta, (float)d / (float)head_dim);
+    float freq = 1.0f / powf(theta, (float)(2 * d) / (float)head_dim);
     float cos_val = cosf(pos * freq);
     float sin_val = sinf(pos * freq);
 
     float x0 = *v0;
     float x1 = *v1;
-    *v0 = x0 * cos_val - x1 * sin_val;
-    *v1 = x0 * sin_val + x1 * cos_val;
+    // HuggingFace apply_rotary_pos_emb: q*cos + rotate_half(q)*sin
+    // rotate_half: [second_half, -first_half] → first_half' = q0*cos + q1*sin
+    //                                              second_half' = q1*cos - q0*sin
+    *v0 = x0 * cos_val + x1 * sin_val;
+    *v1 = x1 * cos_val - x0 * sin_val;
 }
 
 void apply_rope_cuda(float* d_q, float* d_k,
@@ -93,7 +93,8 @@ void apply_rope_cuda(float* d_q, float* d_k,
                      int head_dim, float theta,
                      const int* d_pos,
                      cudaStream_t stream) {
-    int total = seq_len * (num_heads + num_kv_heads) * head_dim;
+    int half_dim = head_dim / 2;
+    int total = seq_len * (num_heads + num_kv_heads) * half_dim;
     const int block = 256;
     unsigned int grid = (unsigned int)((total + block - 1) / block);
     rope_1d_kernel<<<grid, block, 0, stream>>>(

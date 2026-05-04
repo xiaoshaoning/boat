@@ -59,13 +59,9 @@ int nanochat_cuda_model_init(nanochat_cuda_model_t* model,
     size_t num_hidden_sq = (size_t)weights->hidden_size * weights->hidden_size;
     size_t num_ff_hidden = (size_t)weights->intermediate_size * weights->hidden_size;
 
-    // Embed tokens
     model->d_embed_tokens = upload_to_gpu(weights->embed_tokens, num_hidden);
-
-    // LM head
     model->d_lm_head = upload_to_gpu(weights->lm_head, num_hidden);
 
-    // Per-layer weights
     size_t layer_cache_bytes = (size_t)model->max_seq_len * model->num_kv_heads * model->head_dim * sizeof(float);
 
     for (int l = 0; l < model->n_layers; l++) {
@@ -76,7 +72,6 @@ int nanochat_cuda_model_init(nanochat_cuda_model_t* model,
         model->d_fc1[l] = upload_to_gpu(weights->fc1[l], num_ff_hidden);
         model->d_fc2[l] = upload_to_gpu(weights->fc2[l], num_ff_hidden);
 
-        // KV cache
         CUDA_CHECK(cudaMalloc(&model->d_k_cache[l], layer_cache_bytes));
         CUDA_CHECK(cudaMalloc(&model->d_v_cache[l], layer_cache_bytes));
         CUDA_CHECK(cudaMemset(model->d_k_cache[l], 0, layer_cache_bytes));
@@ -84,7 +79,6 @@ int nanochat_cuda_model_init(nanochat_cuda_model_t* model,
         model->kv_len[l] = 0;
     }
 
-    // RoPE position buffer
     model->pos_buf_size = model->max_seq_len;
     CUDA_CHECK(cudaMalloc(&model->d_pos, model->max_seq_len * sizeof(int)));
 
@@ -161,50 +155,44 @@ static void nanochat_layer_prefill_cuda(cublasHandle_t handle,
     matmul_bt_cuda(handle, d_normed, d_k_w, d_k, seq_len, hidden_size, kv_size);
     matmul_bt_cuda(handle, d_normed, d_v_w, d_v, seq_len, hidden_size, kv_size);
 
-    // 3. RoPE (1D standard)
+    // 3. RoPE (HF apply_rotary_pos_emb)
     apply_rope_cuda(d_q, d_k, seq_len, num_heads, num_heads,
                     head_dim, NANOCHAT_ROPE_THETA, d_pos, stream);
 
-    // 4. Store K,V in KV cache
+    // 4. QK norm after RoPE (HF: per-head RMSNorm on Q/K after rotary embeddings)
+    rmsnorm_nw_cuda(d_q, d_q, seq_len * num_heads, head_dim, NANOCHAT_RMS_EPS, stream);
+    rmsnorm_nw_cuda(d_k, d_k, seq_len * num_heads, head_dim, NANOCHAT_RMS_EPS, stream);
+
+    // 5. Store K,V in KV cache
     CUDA_CHECK(cudaMemcpyAsync(d_k_cache, d_k, (size_t)seq_len * kv_size * sizeof(float),
                                 cudaMemcpyDeviceToDevice, stream));
     CUDA_CHECK(cudaMemcpyAsync(d_v_cache, d_v, (size_t)seq_len * kv_size * sizeof(float),
                                 cudaMemcpyDeviceToDevice, stream));
     *kv_len = seq_len;
 
-    // 5. MHA prefill attention (output to d_q, reusing d_q space)
+    // 6. MHA prefill attention (output to d_q, reusing d_q space)
     float scale = 1.0f / sqrtf((float)head_dim);
     prefill_attention_cuda(handle, d_q, d_k, d_v, d_q,
                            seq_len, num_heads, head_dim, scale, stream);
 
-    // 6. Output projection (result to d_normed, reusing d_normed space)
+    // 7. Output projection (result to d_normed, reusing d_normed space)
     matmul_bt_cuda(handle, d_q, d_o_w, d_normed, seq_len, q_size, hidden_size);
 
-    // 7. Residual: d_hidden += d_normed
-    {
-        int total = seq_len * hidden_size;
-        residual_add_cuda(d_hidden, d_normed, total, stream);
-    }
+    // 8. Residual: d_hidden += d_normed
+    residual_add_cuda(d_hidden, d_normed, seq_len * hidden_size, stream);
 
     // ---- MLP phase ----
 
-    // 8. Pre-MLP RMSNorm
+    // 9. Pre-MLP RMSNorm
     rmsnorm_nw_cuda(d_hidden, d_normed, seq_len, hidden_size, NANOCHAT_RMS_EPS, stream);
 
-    // 9. FC1 (ReLU² MLP)
+    // 10. FC1 + ReLU² + FC2
     matmul_bt_cuda(handle, d_normed, d_fc1_w, d_ff, seq_len, hidden_size, ff_dim);
-
-    // 10. ReLU² activation
     relu2_cuda(d_ff, seq_len * ff_dim, stream);
-
-    // 11. FC2
     matmul_bt_cuda(handle, d_ff, d_fc2_w, d_mlp_out, seq_len, ff_dim, hidden_size);
 
-    // 12. Residual: d_hidden += d_mlp_out
-    {
-        int total = seq_len * hidden_size;
-        residual_add_cuda(d_hidden, d_mlp_out, total, stream);
-    }
+    // 11. Residual: d_hidden += d_mlp_out
+    residual_add_cuda(d_hidden, d_mlp_out, seq_len * hidden_size, stream);
 }
 
 // ============================================================================
@@ -243,6 +231,10 @@ static void nanochat_layer_decode_cuda(cublasHandle_t handle,
     // 3. RoPE
     apply_rope_cuda(d_q, d_k, 1, num_heads, num_heads,
                     head_dim, NANOCHAT_ROPE_THETA, d_pos, stream);
+
+    // QK norm after RoPE (per-head RMSNorm, HF style)
+    rmsnorm_nw_cuda(d_q, d_q, num_heads, head_dim, NANOCHAT_RMS_EPS, stream);
+    rmsnorm_nw_cuda(d_k, d_k, num_heads, head_dim, NANOCHAT_RMS_EPS, stream);
 
     // 4. Append to KV cache
     CUDA_CHECK(cudaMemcpyAsync(d_k_cache + (size_t)kv_len * kv_size, d_k,
@@ -310,6 +302,9 @@ float* nanochat_cuda_model_forward(nanochat_cuda_model_t* model,
     float* d_tmp;
     CUDA_CHECK(cudaMalloc(&d_tmp, tmp_size));
 
+    // Pre-layers RMSNorm (HF: apply norm before first decoder layer)
+    rmsnorm_nw_cuda(d_hidden, d_hidden, seq_len, hidden_size, NANOCHAT_RMS_EPS, stream);
+
     // Run layers
     for (int l = 0; l < model->n_layers; l++) {
         nanochat_layer_prefill_cuda(handle,
@@ -320,17 +315,6 @@ float* nanochat_cuda_model_forward(nanochat_cuda_model_t* model,
             model->d_fc1[l], model->d_fc2[l],
             model->d_k_cache[l], model->d_v_cache[l], &model->kv_len[l],
             model->d_pos, d_tmp, stream);
-
-        // NaN check after each layer
-        {
-            float check[2];
-            CUDA_CHECK(cudaMemcpy(check, d_hidden + (size_t)(seq_len - 1) * hidden_size,
-                                   sizeof(check), cudaMemcpyDeviceToHost));
-            if (isnan(check[0]) || isinf(check[0])) {
-                fprintf(stderr, "[NanoChat-CUDA] LAYER %d: NaN detected!\n", l + 1);
-                break;
-            }
-        }
     }
 
     // Final RMSNorm
@@ -384,11 +368,11 @@ float* nanochat_cuda_model_decode(nanochat_cuda_model_t* model,
     CUDA_CHECK(cudaMemcpy(d_hidden, d_embed, (size_t)hidden_size * sizeof(float),
                            cudaMemcpyDeviceToDevice));
 
+    // Pre-layers RMSNorm (HF: apply norm before first decoder layer)
+    rmsnorm_nw_cuda(d_hidden, d_hidden, 1, hidden_size, NANOCHAT_RMS_EPS, stream);
+
     // Run layers
     for (int l = 0; l < model->n_layers; l++) {
-        float chk[2];
-        CUDA_CHECK(cudaMemcpy(chk, d_hidden, sizeof(chk), cudaMemcpyDeviceToHost));
-        if (isnan(chk[0]) || isnan(chk[1])) fprintf(stderr, "[DBG] L%d HIDDEN NaN before!\n", l);
         nanochat_layer_decode_cuda(handle, d_hidden,
             hidden_size, num_heads, head_dim, ff_dim,
             model->d_q_proj[l], model->d_k_proj[l],

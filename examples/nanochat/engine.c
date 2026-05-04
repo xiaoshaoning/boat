@@ -108,19 +108,20 @@ char* nanochat_generate(nanochat_engine_t* eng,
     int prompt_len;
     int* tokens = nanochat_tokenizer_encode(eng->tokenizer, prompt, text_len, &prompt_len);
     if (!tokens || prompt_len == 0) { free(tokens); return NULL; }
-    int seq_len = prompt_len;
-    tokens = (int*)realloc(tokens, (size_t)(seq_len + max_tokens) * sizeof(int));
+
+    tokens = (int*)realloc(tokens, (size_t)(prompt_len + max_tokens) * sizeof(int));
+    int total_tokens = prompt_len;
 
     // 2. Embed all prompt tokens on GPU
     int* d_tokens; float* d_embed;
-    CUDA_CHECK(cudaMalloc(&d_tokens, (size_t)seq_len * sizeof(int)));
-    CUDA_CHECK(cudaMalloc(&d_embed, (size_t)seq_len * eng->model->hidden_size * sizeof(float)));
-    CUDA_CHECK(cudaMemcpy(d_tokens, tokens, (size_t)seq_len * sizeof(int), cudaMemcpyHostToDevice));
-    embed_gather_cuda(eng->model->d_embed_tokens, d_tokens, d_embed, seq_len, eng->model->hidden_size, 0);
+    CUDA_CHECK(cudaMalloc(&d_tokens, (size_t)prompt_len * sizeof(int)));
+    CUDA_CHECK(cudaMalloc(&d_embed, (size_t)prompt_len * eng->model->hidden_size * sizeof(float)));
+    CUDA_CHECK(cudaMemcpy(d_tokens, tokens, (size_t)prompt_len * sizeof(int), cudaMemcpyHostToDevice));
+    embed_gather_cuda(eng->model->d_embed_tokens, d_tokens, d_embed, prompt_len, eng->model->hidden_size, 0);
     CUDA_CHECK(cudaFree(d_tokens));
 
-    // 3. Run prefill
-    float* d_logits = nanochat_cuda_model_forward(eng->model, d_embed, seq_len);
+    // 3. Run prefill (populates KV cache, returns logits for last position)
+    float* d_logits = nanochat_cuda_model_forward(eng->model, d_embed, prompt_len);
     CUDA_CHECK(cudaFree(d_embed));
 
     // 4. Sample first generated token
@@ -128,13 +129,12 @@ char* nanochat_generate(nanochat_engine_t* eng,
     CUDA_CHECK(cudaMemcpy(h_logits, d_logits, (size_t)eng->model->vocab_size * sizeof(float), cudaMemcpyDeviceToHost));
     CUDA_CHECK(cudaFree(d_logits));
     int next = nanochat_sample_token(h_logits, eng->model->vocab_size, top_k, temperature);
-    int total_tokens = seq_len;
     tokens[total_tokens++] = next;
 
     // 5. Decode loop
     int hidden_size = eng->model->hidden_size;
     float* d_single_embed = NULL;
-    while (total_tokens < seq_len + max_tokens) {
+    while (total_tokens < prompt_len + max_tokens) {
         if (!d_single_embed) CUDA_CHECK(cudaMalloc(&d_single_embed, (size_t)hidden_size * sizeof(float)));
         CUDA_CHECK(cudaMemcpy(d_single_embed, eng->model->d_embed_tokens + (size_t)next * hidden_size,
                                (size_t)hidden_size * sizeof(float), cudaMemcpyDeviceToDevice));
@@ -143,13 +143,15 @@ char* nanochat_generate(nanochat_engine_t* eng,
         CUDA_CHECK(cudaFree(d_logits));
         next = nanochat_sample_token(h_logits, eng->model->vocab_size, top_k, temperature);
         tokens[total_tokens++] = next;
+
+        // Stop on EOS token (token 1 = eos_token_id)
+        if (next == 1) break;
     }
     if (d_single_embed) CUDA_CHECK(cudaFree(d_single_embed));
     free(h_logits);
 
     // 6. Decode tokens to text
     char* result = nanochat_tokenizer_decode(eng->tokenizer, tokens, total_tokens);
-
     free(tokens);
     return result;
 }

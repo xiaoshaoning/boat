@@ -35,13 +35,11 @@ int main(int argc, char** argv) {
     char* result = nanochat_generate(eng, prompt, max_tokens, temperature, top_k);
 
     if (result) {
-        fprintf(stderr, "%s\n", result);
+        printf("%s\n", result);
         free(result);
     } else {
         fprintf(stderr, "[NanoChat] Generation failed\n");
     }
-
-    fprintf(stderr, "----------------------------------------\n");
 
     nanochat_engine_free(eng);
     return 0;
