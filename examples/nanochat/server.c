@@ -425,6 +425,7 @@ static void handle_chat_completions(socket_t fd, const http_request_t* req,
                     json_skip_ws(&jctx);
                     if (jctx.pos >= jctx.len) break;
                     if (jctx.data[jctx.pos] == ']') { jctx.pos++; break; }
+                    if (jctx.data[jctx.pos] == ',') { jctx.pos++; continue; }
 
                     if (jctx.data[jctx.pos] == '{') {
                         json_next(&jctx); // skip {
@@ -449,6 +450,8 @@ static void handle_chat_completions(socket_t fd, const http_request_t* req,
                                 json_skip_value(&jctx);
                             }
                             free(mk);
+                            json_skip_ws(&jctx);
+                            if (jctx.pos < jctx.len && jctx.data[jctx.pos] == ',') jctx.pos++;
                         }
 
                         if (role && content && num_messages < 64) {
