@@ -2,21 +2,25 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, cuda-backend ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  build-and-test:
+  # ---------------------------------------------------------------------------
+  # CPU build + test across platforms
+  # ---------------------------------------------------------------------------
+  cpu:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         build_type: [Release, Debug]
+      fail-fast: false
     runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
 
@@ -24,72 +28,41 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         sudo apt-get update
-        sudo apt-get install -y cmake build-essential cppcheck ccache
+        sudo apt-get install -y cmake build-essential ccache
 
     - name: Install dependencies (macOS)
       if: runner.os == 'macOS'
       run: |
         brew update
-        brew install cmake cppcheck ccache
+        brew install cmake ccache
 
     - name: Install dependencies (Windows)
       if: runner.os == 'Windows'
+      shell: pwsh
       run: |
-        choco install cmake cppcheck ccache -y
+        choco install ccache -y --no-progress
 
     - name: Set up ccache
-      run: |
-        ccache --max-size=1G
-        ccache --show-stats
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ${{ runner.os }}-${{ matrix.build_type }}
 
     - name: Configure CMake
-      env:
-        CMAKE_C_COMPILER_LAUNCHER: ccache
-        CMAKE_CXX_COMPILER_LAUNCHER: ccache
       run: |
-        mkdir build
+        mkdir -p build
         cd build
-        cmake .. -DBOAT_WITH_TESTS=ON -DBOAT_WITH_EXAMPLES=ON -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-
-    - name: Record build start time
-      id: start_time
-      run: |
-        echo "BUILD_START=$(date +%s)" >> $GITHUB_ENV
+        cmake .. \
+          -DBOAT_WITH_TESTS=ON \
+          -DBOAT_WITH_EXAMPLES=ON \
+          -DBOAT_WITH_HUGGINGFACE=ON \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
 
     - name: Build
       run: |
         cd build
-        cmake --build . --config ${{ matrix.build_type }}
-
-    - name: Show ccache stats
-      run: |
-        ccache --show-stats
-        BUILD_END=$(date +%s)
-        BUILD_DURATION=$((BUILD_END - BUILD_START))
-        echo "Build duration: ${BUILD_DURATION} seconds"
+        cmake --build . --config ${{ matrix.build_type }} -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
     - name: Run tests
       run: |
         cd build
-        ctest --output-on-failure -C ${{ matrix.build_type }}
-
-    - name: Static analysis with cppcheck
-      run: |
-        cppcheck --enable=warning,style,performance,portability --suppress=missingInclude --error-exitcode=1 -I include src 2>&1 || true
-        # Note: using --error-exitcode=1 would fail on warnings, we use || true to continue
-        # In future, we can set a warning threshold
-
-    - name: Build and run MNIST example (if built)
-      run: |
-        cd build
-        # Check if MNIST example was built
-        if [ -f "examples/mnist/mnist" ] || [ -f "examples/mnist/mnist.exe" ]; then
-          echo "MNIST example found, running..."
-          if [ "${{ runner.os }}" == "Windows" ]; then
-            examples/mnist/mnist.exe --help || true
-          else
-            examples/mnist/mnist --help || true
-          fi
-        else
-          echo "MNIST example not built (might be disabled in this configuration)"
-        fi
+        ctest --output-on-failure -C ${{ matrix.build_type }} -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
