@@ -5,12 +5,32 @@
 #include <string.h>
 
 int main(int argc, char** argv) {
-    if (argc < 3) {
-        fprintf(stderr, "Usage: nanochat_cli <model_dir> <prompt> [max_tokens=256] [temperature=0.7] [top_k=40]\n");
+    if (argc < 2) {
+        fprintf(stderr, "Usage:\n");
+        fprintf(stderr, "  nanochat_cli <model_dir>                     Interactive chat mode\n");
+        fprintf(stderr, "  nanochat_cli <model_dir> <prompt>            Single generation\n");
+        fprintf(stderr, "  nanochat_cli <model_dir> <prompt> <max_tokens> [temperature] [top_k]\n");
         return 1;
     }
 
     const char* model_dir = argv[1];
+
+    fprintf(stderr, "[NanoChat] Initializing engine from: %s\n", model_dir);
+
+    nanochat_engine_t* eng = nanochat_engine_create(model_dir);
+    if (!eng) {
+        fprintf(stderr, "[NanoChat] Failed to create engine\n");
+        return 1;
+    }
+
+    // If only model_dir given, enter interactive chat mode
+    if (argc == 2) {
+        nanochat_chat(eng, 512, 0.7f, 40);
+        nanochat_engine_free(eng);
+        return 0;
+    }
+
+    // Single generation mode
     const char* prompt = argv[2];
     int max_tokens = (argc > 3) ? atoi(argv[3]) : 256;
     float temperature = (argc > 4) ? (float)atof(argv[4]) : 0.7f;
@@ -20,14 +40,6 @@ int main(int argc, char** argv) {
     if (max_tokens > 1024) max_tokens = 1024;
     if (temperature < 0.0f) temperature = 0.0f;
     if (top_k <= 0) top_k = 1;
-
-    fprintf(stderr, "[NanoChat] Initializing engine from: %s\n", model_dir);
-
-    nanochat_engine_t* eng = nanochat_engine_create(model_dir);
-    if (!eng) {
-        fprintf(stderr, "[NanoChat] Failed to create engine\n");
-        return 1;
-    }
 
     fprintf(stderr, "[NanoChat] Generating...\n");
     fprintf(stderr, "----------------------------------------\n");

@@ -35,6 +35,20 @@ typedef struct {
     int work_cap;
 } nanochat_tokenizer_t;
 
+// ---- Special token IDs (chat template tokens) ----
+#define NANOCHAT_TOKEN_PAD            1
+#define NANOCHAT_TOKEN_EOS            1
+#define NANOCHAT_TOKEN_BOS            0
+#define NANOCHAT_TOKEN_USER_START     65528
+#define NANOCHAT_TOKEN_USER_END       65529
+#define NANOCHAT_TOKEN_ASSISTANT_START 65530
+#define NANOCHAT_TOKEN_ASSISTANT_END  65531
+#define NANOCHAT_TOKEN_SPECIAL_START  65527  // <|bos|> and all above
+
+static inline int nanochat_token_is_special(int id) {
+    return id == 0 || (id >= 65527 && id <= 65535);
+}
+
 int nanochat_tokenizer_init(nanochat_tokenizer_t* tok, const char* vocab_path);
 void nanochat_tokenizer_free(nanochat_tokenizer_t* tok);
 
