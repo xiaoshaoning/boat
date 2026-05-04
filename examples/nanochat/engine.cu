@@ -97,7 +97,7 @@ void nanochat_engine_free(nanochat_engine_t* eng) {
 // Core generation from pre-tokenized input
 // Takes ownership of tokens (will realloc/free it internally).
 // ============================================================================
-static char* generate_from_tokens(nanochat_engine_t* eng,
+char* nanochat_generate_from_tokens(nanochat_engine_t* eng,
                                    int* tokens, int prompt_len,
                                    int max_new_tokens,
                                    float temperature, int top_k,
@@ -201,7 +201,7 @@ char* nanochat_generate_stream(nanochat_engine_t* eng,
     int* tokens = nanochat_tokenizer_encode(eng->tokenizer, prompt, text_len, &prompt_len);
     if (!tokens || prompt_len == 0) { free(tokens); return NULL; }
 
-    return generate_from_tokens(eng, tokens, prompt_len,
+    return nanochat_generate_from_tokens(eng, tokens, prompt_len,
                                 max_new_tokens, temperature, top_k,
                                 on_text, user_data);
 }
@@ -389,7 +389,7 @@ void nanochat_chat(nanochat_engine_t* eng,
         fprintf(stdout, "\033[36mAI: \033[0m");
         fflush(stdout);
 
-        char* reply = generate_from_tokens(eng, prompt_tokens, prompt_len,
+        char* reply = nanochat_generate_from_tokens(eng, prompt_tokens, prompt_len,
                                             max_new_tokens, temperature, top_k,
                                             chat_stream_callback, NULL);
 

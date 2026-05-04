@@ -39,6 +39,31 @@ if(TARGET boat AND BOAT_WITH_CUDA)
     set_target_properties(nanochat_cli PROPERTIES C_STANDARD 11)
     set_target_properties(nanochat_cli PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 
+    # ---- NanoChat LLM Server ----
+    add_executable(nanochat_server
+        server.c
+        tokenizer.c
+        weights.c
+        sampling.c
+        engine.cu
+        model.cu
+        nanochat_kernels.cu
+        ${NANOCHAT_COMMON_SOURCES}
+    )
+    target_include_directories(nanochat_server PRIVATE ${NANOCHAT_COMMON_INCLUDES})
+    target_link_libraries(nanochat_server PRIVATE boat)
+    target_compile_definitions(nanochat_server PRIVATE
+        BOAT_STATIC_BUILD BOAT_WITH_CUDA
+        _CRT_NONSTDC_NO_DEPRECATE _CRT_SECURE_NO_WARNINGS)
+    if(WIN32)
+        target_link_libraries(nanochat_server ws2_32)
+    endif()
+    if(UNIX)
+        target_link_libraries(nanochat_server m)
+    endif()
+    set_target_properties(nanochat_server PROPERTIES C_STANDARD 11)
+    set_target_properties(nanochat_server PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+
     return()
 endif()
 

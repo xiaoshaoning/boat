@@ -40,6 +40,16 @@ char* nanochat_generate_stream(nanochat_engine_t* eng,
                                 nanochat_stream_fn on_text,
                                 void* user_data);
 
+// Generate from pre-tokenized input (streaming variant).
+// Takes ownership of tokens (will realloc/free internally).
+// Returns full generated text (caller must free).
+char* nanochat_generate_from_tokens(nanochat_engine_t* eng,
+                                      int* tokens, int prompt_len,
+                                      int max_new_tokens,
+                                      float temperature, int top_k,
+                                      nanochat_stream_fn on_text,
+                                      void* user_data);
+
 // Interactive chat REPL — runs until user types exit/quit.
 void nanochat_chat(nanochat_engine_t* eng,
                     int max_new_tokens,
