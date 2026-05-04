@@ -97,7 +97,6 @@
 | Depthwise convolution (groups = in_channels) | Done | 2026-05 |
 | Batch norm forward (two-moment shared memory reduction) | Done | 2026-05 |
 | Fused batch norm + ReLU kernel | Done | 2026-05 |
-
 | cuDNN handle manager (lazy init + destroy) | Done | 2026-05 |
 | cuDNN Conv2D forward with bias + groups | Done | 2026-05 |
 | cuDNN BatchNorm forward training mode | Done | 2026-05 |
@@ -106,8 +105,18 @@
 | cuDNN dispatch in conv layer backward | Done | 2026-05 |
 | cuDNN dispatch in batchnorm layer forward/backward | Done | 2026-05 |
 | CMake integration (`BOAT_WITH_CUDNN`) | Done | 2026-05 |
+| Fill stub .cu files (arithmetic, activation, linear, tensor) | Done | 2026-05 |
+| Pooling and norm CUDA kernels (MaxPool2d, LayerNorm, RMSNorm) | Done | 2026-05 |
+| Device dispatch in all CPU ops (element-wise, activation, linear) | Done | 2026-05 |
+| Layer CUDA paths (attention refactored, pool, norm, relu, dense) | Done | 2026-05 |
+| Optimizer CUDA update kernels (SGD, Adam) with device-aware buffers | Done | 2026-05 |
+| Loss CUDA kernels (MSE forward/backward, cross-entropy backward) | Done | 2026-05 |
+| GLM-OCR inference example: CogViT + GLM decoder with custom CUDA kernels | Done | 2026-05 |
+| M-RoPE (3D rotary embeddings with T/H/W sections) | Done | 2026-05 |
+| Fused GQA decode attention with KV cache | Done | 2026-05 |
+| CogViT custom kernels (patch embed, 2D RoPE, downsample, merger) | Done | 2026-05 |
 
-**Files:** `cuda/kernels/basic.cu`, `cuda/kernels/dense.cu`, `cuda/kernels/conv.cu`, `cuda/kernels/fused.cu`, `cuda/cublas_handle.cu`, `cuda/cudnn_handle.cu`, `cuda/ops/*.cu`, `src/layers/conv.c`, `src/layers/batchnorm.c`
+**Files:** `cuda/kernels/basic.cu`, `cuda/kernels/dense.cu`, `cuda/kernels/conv.cu`, `cuda/kernels/fused.cu`, `cuda/cublas_handle.cu`, `cuda/cudnn_handle.cu`, `cuda/ops/*.cu`, `cuda/kernels/pool.cu`, `cuda/kernels/norm.cu`, `cuda/kernels/optimizer.cu`, `src/layers/conv.c`, `src/layers/batchnorm.c`, `examples/ocr_cuda/*`
 
 ### Phase 9: ONNX Runtime Backend ✅
 
@@ -188,4 +197,4 @@ Support loading TensorFlow 2.x SavedModel exports. Requires implementing the Sav
 
 ---
 
-*Last updated: 2026-05-02* (Model pruning and compression added: magnitude, structured, QAT fine-tuning)
+*Last updated: 2026-05-04* (CUDA backend extended: full ops dispatch, layer paths, optimizer/loss CUDA kernels, GLM-OCR inference example)

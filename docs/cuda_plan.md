@@ -1,109 +1,82 @@
 # CUDA/cuDNN Full Support
 
-## Context
+## Context ✅ ALL PHASES COMPLETE
 
-The boat framework has a well-designed CUDA infrastructure at the lower layers (memory copy/set, tensor allocation, kernel files in `cuda/kernels/`, cuBLAS/cuDNN handles), but the upper layers are entirely CPU. Six `.cu` stub files are empty, the ops layer lacks device dispatch for all but `boat_matmul`, and layers/optimizers/loss/autodiff have no CUDA paths.
+All 5 phases of the CUDA backend plan have been implemented:
+- **Phase 1**: All stub `.cu` files filled (arithmetic, activation, linear, tensor, pool, norm)
+- **Phase 2**: Device dispatch added to all CPU ops (arithmetic, activation, linear)
+- **Phase 3**: CUDA paths for all layers (attention refactored, pool/norm/relu/dense)
+- **Phase 4**: CUDA update kernels for SGD/Adam optimizers and MSE/cross-entropy loss
+- **Phase 5**: Build config fixed, all `.cu` files registered in CMakeLists.txt
 
-"Full support" means: fill the stubs, add device dispatch to all ops, wire up layer CUDA paths, add optimizer/loss CUDA kernels, and fix the cubLAS/cuDNN configuration for the existing build.
+Plus a CUDA-accelerated GLM-OCR inference example (`examples/ocr_cuda/`) with CogViT vision encoder and GLM decoder using M-RoPE, GQA attention, and custom CUDA kernels.
 
 ---
 
-## Phase 1 — Fill stub .cu files (core wiring)
+## Phase 1 — Fill stub .cu files (core wiring) ✅ DONE
 
-### 1. `cuda/ops/arithmetic.cu` (~300 lines)
-New kernels (following basic.cu grid-stride pattern):
-- `boat_cuda_exp_f32`, `boat_cuda_log_f32`, `boat_cuda_sqrt_f32`, `boat_cuda_rsqrt_f32`
-- `boat_cuda_neg_f32`, `boat_cuda_abs_f32`, `boat_cuda_mod_f32`
-- `boat_cuda_sub_scalar_f32`, `boat_cuda_div_scalar_f32`
-- `boat_cuda_fill_f32`, `boat_cuda_scale_f32`
+### 1. `cuda/ops/arithmetic.cu` ✅
+186 lines — all new kernels implemented (exp, log, sqrt, rsqrt, neg, abs, mod, sub_scalar, div_scalar, fill, scale).
 
-Note: add/sub/mul/div/relu/sigmoid/tanh/silu/add_scalar/mul_scalar wrappers ALREADY exist in `kernels/basic.cu` — arithmetic.cu only needs the NEW ones above.
+### 2. `cuda/ops/activation.cu` ✅
+177 lines — Softmax (shared memory reduction), LogSoftmax, GELU (tanh-approx) kernels implemented.
 
-### 2. `cuda/ops/activation.cu` (~400 lines)
-- Softmax kernel: one block per row, shared memory reduction for max→exp→sum→normalize
-- LogSoftmax kernel: same pattern with log
-- GELU kernel (tanh-approximation): element-wise
+### 3. `cuda/ops/linear.cu` ✅
+202 lines — Tiled 2D transpose (16×16 shared mem), general N-D fallback, dot product reduction.
 
-### 3. `cuda/ops/linear.cu` (~250 lines)
-- Transpose: tiled 2D (16×16 shared mem) + general N-D fallback
-- Dot product: 1D reduction
+### 4. `cuda/tensor.cu` ✅
+98 lines — `boat_cuda_tensor_clone`, `boat_cuda_tensor_to_host`, `boat_cuda_tensor_to_device`.
 
-### 4. `cuda/tensor.cu` (~100 lines)
-- `boat_cuda_tensor_clone`, `boat_cuda_tensor_to_host`, `boat_cuda_tensor_to_device`
+### 5. `cuda/kernels/pool.cu` ✅
+124 lines — MaxPool2d forward (one thread per output element) and backward (atomicAdd scatter).
 
-### 5. New: `cuda/kernels/pool.cu` (~250 lines)
-- MaxPool2d forward: one thread per output element
-- MaxPool2d backward: atomicAdd scatter from output to input positions
+### 6. `cuda/kernels/norm.cu` ✅
+320 lines — LayerNorm forward/backward, RMSNorm forward/backward (shared memory reductions).
 
-### 6. New: `cuda/kernels/norm.cu` (~400 lines)
-- LayerNorm forward: one block per row, shared-memory mean+var, normalize
-- LayerNorm backward: three shared-memory reductions for gradient computation
-- RMSNorm forward: simpler (no mean), one block per row
-- RMSNorm backward
+## Phase 2 — Device dispatch in CPU ops ✅ DONE
 
-## Phase 2 — Device dispatch in CPU ops
+### 7. `src/ops/arithmetic.c` ✅
+CUDA dispatch added to all element-wise ops (add/sub/mul/div, scalar variants, mod, exp/log/sqrt/rsqrt, abs/neg, clamp, sum/mean/var reductions).
 
-### 7. `src/ops/arithmetic.c` — Element-wise ops CUDA dispatch
-Add CUDA path to: add/sub/mul/div, all scalar variants, mod, exp/log/sqrt/rsqrt, abs/neg, clamp, sum/mean/var reductions. Pattern:
-```c
-#ifdef BOAT_WITH_CUDA
-    if (boat_tensor_device(a) == BOAT_DEVICE_CUDA) {
-        if (dtype == BOAT_DTYPE_FLOAT32) {
-            boat_cuda_add_f32(in1, in2, out, n);
-            return out;
-        }
-    }
-#endif
-```
+### 8. `src/ops/activation.c` ✅
+CUDA dispatch for softmax, relu, silu (via existing basic.cu kernels), and gelu.
 
-### 8. `src/ops/activation.c` — Softmax + activations CUDA dispatch
-- `boat_softmax`: dispatch to new CUDA kernel with (outer, axis_size, inner) signature
-- `boat_relu/silu`: dispatch to existing kernels in basic.cu
-- `boat_gelu`: dispatch to new kernel
+### 9. `src/ops/linear.c` ✅
+CUDA dispatch for transpose (tiled kernel) and dot (reduction kernel). `boat_matmul` already had cuBLAS path ✓.
 
-### 9. `src/ops/linear.c` — Transpose + dot CUDA dispatch
-- `boat_transpose`: dispatch to new tiled CUDA kernel
-- `boat_dot`: dispatch to reduction kernel
-- `boat_matmul`: already has cuBLAS path ✓
+## Phase 3 — Layer CUDA paths ✅ DONE
 
-## Phase 3 — Layer CUDA paths
+### 10. `src/layers/attention.c` ✅
+Refactored from manual 6-nested-loop to op chain: `matmul(Q, K^T) × scale → softmax → matmul(weights, V)`. Each op gets CUDA via existing dispatch + cuBLAS matmul.
 
-### 10. `src/layers/attention.c` — Decompose into ops (~100 lines refactor)
-Replace manual 6-nested-loop scaled_dot_product_attention with op chain:
-```
-scores = matmul(Q, transpose(K)) × scale → softmax → matmul(weights, V)
-```
-Each op in this chain gets CUDA from Phases 1-2 + existing cuBLAS matmul.
+### 11. `src/layers/pool.c` ✅
+MaxPool2d forward/backward CUDA dispatch (atomicAdd scatter for backward).
 
-### 11. `src/layers/pool.c` — MaxPool2d CUDA dispatch
-Forward: launch new kernel. Backward: atomicAdd scatter.
+### 12. `src/layers/norm.c` ✅
+LayerNorm/RMSNorm CUDA dispatch for forward and backward.
 
-### 12. `src/layers/norm.c` — LayerNorm/RMSNorm CUDA dispatch
-Forward/backward: launch new kernels from phase 1.
+### 13. `src/layers/relu.c` ✅
+Added `cache_input`, proper backward masking with `boat_cuda_relu_backward_f32`.
 
-### 13. `src/layers/relu.c` — Fix backward
-- Add cache_input, proper backward masking with `boat_cuda_relu_backward_f32`
+### 14. `src/layers/dense.c` ✅
+Bias gradient CUDA path (sum-axis reduction).
 
-### 14. `src/layers/dense.c` — Bias gradient CUDA path
-- Small CUDA sum-axis reduction for bias backward
+## Phase 4 — Optimizer + Loss CUDA paths ✅ DONE
 
-## Phase 4 — Optimizer + Loss CUDA paths
+### 15. `src/optimizers/sgd.c` + `adam.c` ✅
+- SGD update kernel (`param -= lr * grad`) with momentum/Nesterov.
+- Adam update kernel (fused m/v/param update).
+- Fixed: velocity/momentum buffers allocated on same device as params.
 
-### 15. `src/optimizers/sgd.c` + `adam.c`
-- SGD update kernel: `param -= lr * grad`
-- SGD momentum kernel: with Nesterov support
-- Adam update kernel: fused m/v/param update
-- **Fix:** velocity/momentum buffers should be created on same device as params (currently hardcoded CPU)
+### 16. `src/loss/mse.c` + `cross_entropy.c` ✅
+- MSE forward: device-side diff→square→sum, copy scalar to host.
+- MSE backward: `grad = 2*(pred-target)/N` element-wise kernel.
+- Cross-entropy backward: clip+div kernel.
 
-### 16. `src/loss/mse.c` + `cross_entropy.c`
-- MSE forward: device-side diff→square→sum, copy scalar to host
-- MSE backward: `grad = 2*(pred-target)/N` element-wise kernel
-- Cross-entropy backward: clip+div kernel
+## Phase 5 — Fix build config ✅ DONE
 
-## Phase 5 — Fix build config
-
-### 17. `CMakeLists.txt` CUDA architecture fix
-Current: `set(CMAKE_CUDA_ARCHITECTURES "100")` — Blackwell-only, should be `"89"` (Ada Lovelace / RTX 40xx) or `"75"` (Turing / RTX 20xx) for current hardware.
+### 17. `CMakeLists.txt` ✅
+CUDA architecture set, all new .cu files registered.
 
 ## Files to modify
 
