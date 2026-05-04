@@ -5,6 +5,10 @@
 #include <string.h>
 
 int main(int argc, char** argv) {
+#ifdef _WIN32
+    // Set console to UTF-8 so model Unicode output (em dash, etc.) displays correctly
+    system("chcp 65001 > nul");
+#endif
     if (argc < 2) {
         fprintf(stderr, "Usage:\n");
         fprintf(stderr, "  nanochat_cli <model_dir>                     Interactive chat mode\n");
