@@ -337,7 +337,7 @@ void nanochat_chat(nanochat_engine_t* eng,
     chat_history_t hist = {0};
     char input_buf[4096];
 
-    fprintf(stderr, "\n[NanoChat] Interactive chat \xe2\x80\x94 type 'exit' or 'quit' to end\n");
+    fprintf(stderr, "\n[NanoChat] Interactive chat -- type 'exit' or 'quit' to end\n");
     fprintf(stderr, "[NanoChat] Commands: /reset to clear history\n\n");
 
     while (1) {
