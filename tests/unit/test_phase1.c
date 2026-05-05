@@ -117,7 +117,7 @@ static bool test_attention_layer() {
     printf("Testing attention layer...\n");
 
     // Use generic API: boat_attention_layer_create(hidden_size, num_heads, dropout_prob, causal_mask)
-    boat_attention_layer_t* attention = boat_attention_layer_create(768, 12, 0.1f, false);
+    boat_attention_layer_t* attention = boat_attention_layer_create(768, 12, 12, 0.1f, false);
     if (!attention) {
         printf("  FAIL: Failed to create attention layer\n");
         return false;

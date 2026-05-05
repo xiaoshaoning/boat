@@ -48,6 +48,9 @@
 // Data handling
 #include "boat/data.h"
 
+// Sampling utilities
+#include "boat/sampling.h"
+
 // Model format loaders
 #ifdef BOAT_WITH_ONNX
 #include "boat/format/onnx.h"

@@ -228,6 +228,8 @@ set(BOAT_SOURCES
     src/loss/mse.c
     src/loss/cross_entropy.c
     src/loss/huber.c
+    src/layers/embedding.c
+    src/sampling.c
 )
 
 # Optional format loaders

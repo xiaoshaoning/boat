@@ -57,5 +57,28 @@ def main():
     print(f"\nDone: {len(weight_groups)} tensors, {total_mb:.0f}MB FP32 → {out_size:.0f}MB .npz")
     print(f"Saved to: {OUTPUT_PATH}")
 
+    # Also write safetensors for C/boat framework loader
+    st_path = os.path.join(MODEL_DIR, "qwen3_asr_weights.safetensors")
+    st_header = {}
+    st_data = b""
+    offset = 0
+    for name in sorted(weight_groups.keys()):
+        arr = weight_groups[name]
+        nbytes = arr.nbytes
+        st_header[name] = {
+            "dtype": "F32",
+            "shape": list(arr.shape),
+            "data_offsets": [offset, offset + nbytes]
+        }
+        st_data += arr.tobytes()
+        offset += nbytes
+    st_header_json = json.dumps(st_header, separators=(",", ":"))
+    with open(st_path, "wb") as f:
+        f.write(struct.pack("<Q", len(st_header_json)))
+        f.write(st_header_json.encode("utf-8"))
+        f.write(st_data)
+    st_size = os.path.getsize(st_path) / 1024 / 1024
+    print(f"Also saved safetensors: {st_size:.0f}MB → {st_path}")
+
 if __name__ == '__main__':
     main()

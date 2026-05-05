@@ -145,13 +145,18 @@ BOAT_API boat_attention_t* BOAT_CALL boat_attention_create(const boat_attention_
     if (config->head_size == 0) {
         attention->config.head_size = config->hidden_size / config->num_heads;
     }
+    // Default: GQA disabled (num_kv_heads = num_heads)
+    if (attention->config.num_kv_heads == 0) {
+        attention->config.num_kv_heads = attention->config.num_heads;
+    }
 
     // Create weight matrices
     size_t hidden_size = attention->config.hidden_size;
+    size_t kv_hidden = attention->config.num_kv_heads * attention->config.head_size;
 
     attention->weight_q = create_linear_weights(hidden_size, hidden_size, config->use_bias);
-    attention->weight_k = create_linear_weights(hidden_size, hidden_size, config->use_bias);
-    attention->weight_v = create_linear_weights(hidden_size, hidden_size, config->use_bias);
+    attention->weight_k = create_linear_weights(hidden_size, kv_hidden, config->use_bias);
+    attention->weight_v = create_linear_weights(hidden_size, kv_hidden, config->use_bias);
     attention->weight_o = create_linear_weights(hidden_size, hidden_size, config->use_bias);
 
     if (!attention->weight_q || !attention->weight_k || !attention->weight_v || !attention->weight_o) {
@@ -380,8 +385,6 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_attention_forward(boat_attention_t* atten
     boat_tensor_ref(v_proj);
 
     // Reshape for multi-head attention: [batch, seq_len, hidden] -> [batch, num_heads, seq_len, head_size]
-    size_t num_heads = attention->config.num_heads;
-    size_t head_size = attention->config.head_size;
 
     // Get shape of projected tensors
     const int64_t* q_shape = boat_tensor_shape(q_proj);
@@ -389,12 +392,18 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_attention_forward(boat_attention_t* atten
     int64_t seq_len = q_shape[1];
     int64_t hidden = q_shape[2];
 
-    // Reshape q_proj, k_proj, v_proj
-    const int64_t reshaped_shape[] = {batch, (int64_t)num_heads, seq_len, (int64_t)head_size};
+    size_t num_heads = attention->config.num_heads;
+    size_t num_kv_heads = attention->config.num_kv_heads;
+    size_t head_size = attention->config.head_size;
 
-    boat_tensor_t* q_reshaped = boat_tensor_reshape(q_proj, reshaped_shape, 4);
-    boat_tensor_t* k_reshaped = boat_tensor_reshape(k_proj, reshaped_shape, 4);
-    boat_tensor_t* v_reshaped = boat_tensor_reshape(v_proj, reshaped_shape, 4);
+    // Reshape Q to 4D: [batch, num_heads, seq_len, head_size]
+    const int64_t q_reshaped_shape[] = {batch, (int64_t)num_heads, seq_len, (int64_t)head_size};
+    boat_tensor_t* q_reshaped = boat_tensor_reshape(q_proj, q_reshaped_shape, 4);
+
+    // Reshape K/V to 4D: [batch, num_kv_heads, seq_len, head_size] (supports GQA)
+    const int64_t kv_reshaped_shape[] = {batch, (int64_t)num_kv_heads, seq_len, (int64_t)head_size};
+    boat_tensor_t* k_reshaped = boat_tensor_reshape(k_proj, kv_reshaped_shape, 4);
+    boat_tensor_t* v_reshaped = boat_tensor_reshape(v_proj, kv_reshaped_shape, 4);
 
     if (!q_reshaped || !k_reshaped || !v_reshaped) {
         if (q_reshaped) boat_tensor_free(q_reshaped);
@@ -407,17 +416,49 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_attention_forward(boat_attention_t* atten
     }
 
     // Replace original tensors with reshaped ones (keep reshaped views)
-    // Don't free original tensors as reshaped views depend on them
-    // boat_tensor_free(q_proj);
-    // boat_tensor_free(k_proj);
-    // boat_tensor_free(v_proj);
     q_proj = q_reshaped;
     k_proj = k_reshaped;
     v_proj = v_reshaped;
 
+    // GQA: repeat K/V heads to match Q head count
+    if (num_kv_heads != 0 && num_kv_heads < num_heads) {
+        int repeat = (int)(num_heads / num_kv_heads);
+        // k_proj shape: [batch, num_kv_heads, seq_len, head_size]
+        // output shape: [batch, num_heads, seq_len, head_size]
+        const int64_t* kv_shape = boat_tensor_shape(k_proj);
+        int64_t B = kv_shape[0], n_kv = kv_shape[1], T = kv_shape[2], hd = kv_shape[3];
+        const int64_t out_shape[] = {B, (int64_t)num_heads, T, hd};
+        boat_tensor_t* k_repeated = boat_tensor_create(out_shape, 4, boat_tensor_dtype(k_proj), boat_tensor_device(k_proj));
+        boat_tensor_t* v_repeated = boat_tensor_create(out_shape, 4, boat_tensor_dtype(v_proj), boat_tensor_device(v_proj));
+        if (!k_repeated || !v_repeated) {
+            if (k_repeated) boat_tensor_free(k_repeated);
+            if (v_repeated) boat_tensor_free(v_repeated);
+            return NULL;
+        }
+        size_t row_bytes = (size_t)(T * hd) * sizeof(float);
+        float* k_src = (float*)boat_tensor_data(k_proj);
+        float* v_src = (float*)boat_tensor_data(v_proj);
+        float* k_dst = (float*)boat_tensor_data(k_repeated);
+        float* v_dst = (float*)boat_tensor_data(v_repeated);
+        for (int64_t b = 0; b < B; b++) {
+            for (int r = 0; r < repeat; r++) {
+                for (int64_t h = 0; h < n_kv; h++) {
+                    size_t src_idx = ((size_t)(b * n_kv + h) * (size_t)T * (size_t)hd);
+                    size_t dst_idx = ((size_t)(b * num_heads + r * n_kv + h) * (size_t)T * (size_t)hd);
+                    memcpy(k_dst + dst_idx, k_src + src_idx, row_bytes);
+                    memcpy(v_dst + dst_idx, v_src + src_idx, row_bytes);
+                }
+            }
+        }
+        boat_tensor_free(k_proj);
+        boat_tensor_free(v_proj);
+        k_proj = k_repeated;
+        v_proj = v_repeated;
+    }
+
     // Apply rotary position encoding if enabled
     if (attention->config.use_rotary) {
-        // TODO: Implement rotary position encoding
+        boat_apply_rotary_embedding(q_proj, k_proj, (size_t)seq_len, head_size, attention->config.rotary_theta);
     }
 
     // Calculate scaled dot-product attention with cache for backward pass
@@ -863,8 +904,11 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_multihead_attention(const boat_tensor_t* 
         .rotary_theta = 10000.0f
     };
 
-    // Create temporary attention layer
+    // Create temporary attention layer (MHA, no GQA for multihead_attention)
+    // This simplified API always uses MHA (num_kv_heads = num_heads)
     boat_attention_t* attention = boat_attention_create(&config);
+    // Override weights after create since the simplified API creates MHA-sizes
+    // (weights will be loaded externally if needed)
     if (!attention) {
         return NULL;
     }
@@ -1104,21 +1148,38 @@ BOAT_API void BOAT_CALL boat_apply_rotary_embedding(boat_tensor_t* query,
 // Adapter for generic attention layer interface (layers.h)
 typedef boat_attention_t boat_attention_layer_t;
 
+BOAT_API boat_attention_t* BOAT_CALL boat_attention_create_gqa(size_t hidden_size, size_t num_heads,
+                                          size_t num_kv_heads, size_t head_size,
+                                          bool causal_mask, float rotary_theta) {
+    boat_attention_config_t config = {
+        .hidden_size = hidden_size,
+        .num_heads = num_heads,
+        .num_kv_heads = num_kv_heads,
+        .head_size = head_size,
+        .dropout_prob = 0.0f,
+        .causal_mask = causal_mask,
+        .use_bias = false,
+        .use_rotary = (rotary_theta > 0.0f),
+        .rotary_theta = rotary_theta > 0.0f ? rotary_theta : 10000.0f,
+    };
+    return boat_attention_create(&config);
+}
+
 BOAT_API boat_attention_layer_t* BOAT_CALL boat_attention_layer_create(size_t hidden_size, size_t num_heads,
+                                                              size_t num_kv_heads,
                                                               float dropout_prob, bool causal_mask) {
     boat_attention_config_t config = {
         .hidden_size = hidden_size,
         .num_heads = num_heads,
-        .head_size = hidden_size / num_heads,  // Assuming divisible
+        .num_kv_heads = num_kv_heads,
+        .head_size = hidden_size / num_heads,
         .dropout_prob = dropout_prob,
         .causal_mask = causal_mask,
-        .use_bias = true,           // Default to using bias
-        .use_rotary = false,        // Default no rotary encoding
-        .rotary_theta = 10000.0f    // Default theta
+        .use_bias = true,
+        .use_rotary = false,
+        .rotary_theta = 10000.0f
     };
-    // Ensure head_size calculation is valid
     if (hidden_size % num_heads != 0) {
-        // Adjust head_size to be divisible
         config.head_size = (hidden_size + num_heads - 1) / num_heads;
     }
     return boat_attention_create(&config);

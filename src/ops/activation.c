@@ -401,3 +401,30 @@ boat_tensor_t* boat_selu(const boat_tensor_t* a) {
     (void)a;
     return NULL;
 }
+
+boat_tensor_t* boat_sinusoidal_embedding(size_t seq_len, size_t embedding_dim, float theta) {
+    if (seq_len == 0 || embedding_dim == 0 || embedding_dim % 2 != 0) {
+        return NULL;
+    }
+
+    const int64_t shape[] = { (int64_t)seq_len, (int64_t)embedding_dim };
+    boat_tensor_t* out = boat_tensor_create(shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    if (!out) {
+        return NULL;
+    }
+
+    float* data = (float*)boat_tensor_data(out);
+    size_t half = embedding_dim / 2;
+    float log_theta = logf(theta);
+
+    for (size_t p = 0; p < seq_len; p++) {
+        for (size_t i = 0; i < half; i++) {
+            float freq = expf(-log_theta * (float)i / (float)(half - 1));
+            float angle = (float)p * freq;
+            data[p * embedding_dim + i] = sinf(angle);
+            data[p * embedding_dim + half + i] = cosf(angle);
+        }
+    }
+
+    return out;
+}

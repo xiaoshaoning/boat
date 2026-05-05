@@ -28,6 +28,7 @@ typedef enum {
     BOAT_LAYER_TYPE_GRU,
     BOAT_LAYER_TYPE_ATTENTION,
     BOAT_LAYER_TYPE_PRELU,
+    BOAT_LAYER_TYPE_EMBEDDING,
     BOAT_LAYER_TYPE_COUNT
 } boat_layer_type_t;
 
@@ -113,6 +114,7 @@ BOAT_API void BOAT_CALL boat_norm_layer_update(boat_norm_layer_t* layer, float l
 
 // Attention layer functions (simplified interface)
 BOAT_API boat_attention_layer_t* BOAT_CALL boat_attention_layer_create(size_t hidden_size, size_t num_heads,
+                                                              size_t num_kv_heads,
                                                               float dropout_prob, bool causal_mask);
 BOAT_API void BOAT_CALL boat_attention_layer_free(boat_attention_layer_t* layer);
 BOAT_API boat_tensor_t* BOAT_CALL boat_attention_layer_forward(boat_attention_layer_t* layer,
