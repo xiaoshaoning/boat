@@ -11,6 +11,11 @@
 #include <boat/layers/norm.h>
 #include <boat/sampling.h>
 
+#include <boat/sgemm.h>
+#ifdef BOAT_USE_OPENBLAS
+#include <cblas.h>
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -73,26 +78,7 @@ static void rope_1d(float *x, int T, int num_heads, int head_dim,
 // ---------------------------------------------------------------------------
 static void matmul_f32_scratch(float *result, const float *A, const float *B,
                                 int M, int K, int N) {
-    size_t n = (size_t)M * N;
-    size_t idx = 0;
-    while (idx < n) { result[idx] = 0.0f; idx++; }
-
-    int k = 0;
-    while (k < K) {
-        int i = 0;
-        while (i < M) {
-            float a_ik = A[(size_t)i * K + k];
-            float *row = result + (size_t)i * N;
-            const float *b_row = B + (size_t)k * N;
-            int j = 0;
-            while (j < N) {
-                row[j] += a_ik * b_row[j];
-                j++;
-            }
-            i++;
-        }
-        k++;
-    }
+    boat_sgemm(M, N, K, A, B, result);
 }
 
 static float* matmul_f32(const float *A, const float *B, int M, int K, int N) {
@@ -111,10 +97,33 @@ static float* matmul_f32(const float *A, const float *B, int M, int K, int N) {
 static float* gqa_attention(const float *Q, const float *K, const float *V,
                              int T, int num_heads, int num_kv_heads, int head_dim,
                              float scale) {
-    float *score = (float*)calloc((size_t)num_heads * T * T, sizeof(float));
+    int G = num_heads / num_kv_heads;
+
+#ifdef BOAT_USE_OPENBLAS
+    float *score = (float*)malloc((size_t)num_heads * T * T * sizeof(float));
     if (!score) return NULL;
 
-    int G = num_heads / num_kv_heads;
+    for (int h = 0; h < num_heads; h++) {
+        int kv_h = h / G;
+        cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans,
+                    T, T, head_dim, scale,
+                    Q + (size_t)h * head_dim, (size_t)num_heads * head_dim,
+                    K + (size_t)kv_h * head_dim, (size_t)num_kv_heads * head_dim,
+                    0.0f,
+                    score + (size_t)h * (size_t)T * T, T);
+    }
+
+    // Apply causal mask: upper triangle = -INFINITY (tj > ti)
+    for (int h = 0; h < num_heads; h++) {
+        for (int ti = 0; ti < T; ti++) {
+            for (int tj = ti + 1; tj < T; tj++) {
+                score[((size_t)h * T + ti) * T + tj] = -INFINITY;
+            }
+        }
+    }
+#else
+    float *score = (float*)calloc((size_t)num_heads * T * T, sizeof(float));
+    if (!score) return NULL;
 
     for (int h = 0; h < num_heads; h++) {
         int kv_h = h / G;
@@ -130,33 +139,47 @@ static float* gqa_attention(const float *Q, const float *K, const float *V,
             }
         }
     }
+#endif
 
-    // Softmax per (head, query_position)
+    // Softmax per (head, query_position) — iterate all T positions (masked entries are -INF)
     float *weights = (float*)malloc((size_t)num_heads * T * T * sizeof(float));
     if (!weights) { free(score); return NULL; }
     for (int h = 0; h < num_heads; h++) {
         for (int ti = 0; ti < T; ti++) {
             float max_val = -INFINITY;
-            for (int tj = 0; tj <= ti; tj++) {
+            for (int tj = 0; tj < T; tj++) {
                 float v = score[((size_t)h * T + ti) * T + tj];
                 if (v > max_val) max_val = v;
             }
             double sum = 0.0;
-            for (int tj = 0; tj <= ti; tj++) {
+            for (int tj = 0; tj < T; tj++) {
                 float v = score[((size_t)h * T + ti) * T + tj];
                 float e = expf(v - max_val);
                 weights[((size_t)h * T + ti) * T + tj] = e;
                 sum += e;
             }
             double inv_sum = 1.0 / sum;
-            for (int tj = 0; tj <= ti; tj++) {
+            for (int tj = 0; tj < T; tj++)
                 weights[((size_t)h * T + ti) * T + tj] *= (float)inv_sum;
-            }
         }
     }
     free(score);
 
     // Weighted sum: O_h[ti,d] = sum_{tj} W_h[ti,tj] * V_kv[tj,d]
+#ifdef BOAT_USE_OPENBLAS
+    float *output = (float*)malloc((size_t)T * num_heads * head_dim * sizeof(float));
+    if (!output) { free(weights); return NULL; }
+
+    for (int h = 0; h < num_heads; h++) {
+        int kv_h = h / G;
+        cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+                    T, head_dim, T, 1.0f,
+                    weights + (size_t)h * (size_t)T * T, T,
+                    V + (size_t)kv_h * head_dim, (size_t)num_kv_heads * head_dim,
+                    0.0f,
+                    output + (size_t)h * head_dim, (size_t)num_heads * head_dim);
+    }
+#else
     float *output = (float*)calloc((size_t)T * num_heads * head_dim, sizeof(float));
     if (!output) { free(weights); return NULL; }
 
@@ -174,6 +197,7 @@ static float* gqa_attention(const float *Q, const float *K, const float *V,
             }
         }
     }
+#endif
     free(weights);
     return output;
 }
@@ -190,6 +214,18 @@ static float* decode_attention(const float *q, const float *K_cache, const float
 
     float *scores_all = (float*)malloc((size_t)num_heads * cache_len * sizeof(float));
 
+#ifdef BOAT_USE_OPENBLAS
+    (void)G;
+    for (int h = 0; h < num_heads; h++) {
+        int kv_h = h / G;
+        cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans,
+                    1, cache_len, head_dim, scale,
+                    q + (size_t)h * head_dim, (size_t)num_heads * head_dim,
+                    K_cache + (size_t)kv_h * head_dim, (size_t)num_kv_heads * head_dim,
+                    0.0f,
+                    scores_all + (size_t)h * cache_len, cache_len);
+    }
+#else
     for (int h = 0; h < num_heads; h++) {
         int kv_h = h / G;
         for (int j = 0; j < cache_len; j++) {
@@ -202,6 +238,7 @@ static float* decode_attention(const float *q, const float *K_cache, const float
             scores_all[(size_t)h * cache_len + j] = (float)(sum * scale);
         }
     }
+#endif
 
     // Softmax
     double *softmax_vals = (double*)calloc((size_t)num_heads * cache_len, sizeof(double));

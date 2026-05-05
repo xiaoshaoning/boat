@@ -12,6 +12,11 @@
 #include <boat/layers/norm.h>
 #include <boat/layers/attention.h>
 
+#include <boat/sgemm.h>
+#ifdef BOAT_USE_OPENBLAS
+#include <cblas.h>
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -88,17 +93,9 @@ static void layernorm_2d(float *out, const float *x, int N, int D,
 
 // Matmul: C[M,N] = A[M,K] @ B[K,N] (row-major), returns raw float* buffer
 static float* matmul_f32_ptr(const float *A, const float *B, int M, int K, int N) {
-    float *result = (float*)calloc((size_t)M * N, sizeof(float));
+    float *result = (float*)malloc((size_t)M * N * sizeof(float));
     if (!result) return NULL;
-    for (int k = 0; k < K; k++) {
-        for (int i = 0; i < M; i++) {
-            float a_ik = A[(size_t)i * K + k];
-            float *row = result + (size_t)i * N;
-            const float *b_row = B + (size_t)k * N;
-            for (int j = 0; j < N; j++)
-                row[j] += a_ik * b_row[j];
-        }
-    }
+    boat_sgemm(M, N, K, A, B, result);
     return result;
 }
 
@@ -293,6 +290,17 @@ boat_tensor_t* qwen3asr_encoder_forward(qwen3asr_encoder_t *enc, const boat_tens
         float *score = (float*)malloc((size_t)NH * T * T * sizeof(float));
         float scale = 1.0f / sqrtf((float)HD);
 
+#ifdef BOAT_USE_OPENBLAS
+        // Q @ K^T per head via BLAS
+        for (int h = 0; h < NH; h++) {
+            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans,
+                        T, T, HD, scale,
+                        Q + (size_t)h * HD, NH * HD,
+                        K + (size_t)h * HD, NH * HD,
+                        0.0f,
+                        score + (size_t)h * (size_t)T * T, T);
+        }
+#else
         for (int h = 0; h < NH; h++) {
             for (int ti = 0; ti < T; ti++) {
                 for (int tj = 0; tj < T; tj++) {
@@ -305,6 +313,7 @@ boat_tensor_t* qwen3asr_encoder_forward(qwen3asr_encoder_t *enc, const boat_tens
                 }
             }
         }
+#endif
         free(Q);
         free(K);
 
@@ -331,7 +340,17 @@ boat_tensor_t* qwen3asr_encoder_forward(qwen3asr_encoder_t *enc, const boat_tens
         free(score);
 
         // Weighted sum of V
-        float *attn_out = (float*)calloc((size_t)T * 896, sizeof(float));
+        float *attn_out = (float*)malloc((size_t)T * 896 * sizeof(float));
+#ifdef BOAT_USE_OPENBLAS
+        for (int h = 0; h < NH; h++) {
+            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+                        T, HD, T, 1.0f,
+                        attn_w + (size_t)h * (size_t)T * T, T,
+                        V + (size_t)h * HD, NH * HD,
+                        0.0f,
+                        attn_out + (size_t)h * HD, NH * HD);
+        }
+#else
         for (int h = 0; h < NH; h++) {
             for (int ti = 0; ti < T; ti++) {
                 for (int d = 0; d < HD; d++) {
@@ -344,6 +363,7 @@ boat_tensor_t* qwen3asr_encoder_forward(qwen3asr_encoder_t *enc, const boat_tens
                 }
             }
         }
+#endif
         free(attn_w);
         free(V);
 

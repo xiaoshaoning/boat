@@ -32,6 +32,11 @@ target_include_directories(qwen3asr PRIVATE
     ${BOAT_INCLUDE_DIR}
 )
 target_link_libraries(qwen3asr PRIVATE boat)
+if(BOAT_WITH_OPENBLAS AND WIN32)
+    target_include_directories(qwen3asr PRIVATE "${BOAT_OPENBLAS_INCLUDE_DIR}")
+    target_link_directories(qwen3asr PRIVATE "${BOAT_OPENBLAS_ROOT}/lib")
+    target_link_libraries(qwen3asr PRIVATE ${BOAT_OPENBLAS_LIBRARY})
+endif()
 target_compile_definitions(qwen3asr PRIVATE
     BOAT_STATIC_BUILD
     _CRT_NONSTDC_NO_DEPRECATE _CRT_SECURE_NO_WARNINGS)
