@@ -284,90 +284,156 @@ static void layernorm_gpu(float* d_out, const float* d_x,
 }
 
 // ============================================================================
-// Encoder forward pass
+// Encoder forward pass (with chunked conv frontend, matching Python/C reference)
 // ============================================================================
 float* qwen3asr_cuda_encoder_forward(qwen3asr_cuda_model_t* model,
                                       const float* d_mel, int T_mel) {
     cublasHandle_t handle = boat_cuda_get_cublas_handle();
-    cudaStream_t stream = 0;  // default stream
+    cudaStream_t stream = 0;
 
     int D = QWEN3ASR_ENCODER_D_MODEL;      // 896
     int NH = QWEN3ASR_ENCODER_NUM_HEADS;    // 14
     int HD = QWEN3ASR_ENCODER_HEAD_DIM;     // 64
     int FF = QWEN3ASR_ENCODER_FFN_DIM;      // 3584
+    int CHUNK = QWEN3ASR_CONV_CHUNK_SIZE;   // 100
 
-    // ---- Step 1: Conv frontend ----
-    // Conv1: [1, 1, 128, T_mel] -> [1, 480, 64, W1]
-    int W1 = (T_mel + 1) / 2;
-    float *d_c1;
-    CUDA_CHECK(cudaMalloc(&d_c1, (size_t)480 * 64 * W1 * sizeof(float)));
-    boat_cuda_conv2d_forward_f32(d_mel, model->d_conv1_w, model->d_conv1_b,
-        d_c1, 1, 1, 128, (size_t)T_mel, 480, 3, 3, 1, 2, 1);
-    boat_cuda_gelu_f32(d_c1, d_c1, 480ULL * 64 * W1);
-
-    // Conv2: [1, 480, 64, W1] -> [1, 480, 32, W2]
-    int W2 = (W1 + 1) / 2;
-    float *d_c2;
-    CUDA_CHECK(cudaMalloc(&d_c2, (size_t)480 * 32 * W2 * sizeof(float)));
-    boat_cuda_conv2d_forward_f32(d_c1, model->d_conv2_w, model->d_conv2_b,
-        d_c2, 1, 480, 64, (size_t)W1, 480, 3, 3, 1, 2, 1);
-    boat_cuda_gelu_f32(d_c2, d_c2, 480ULL * 32 * W2);
-    CUDA_CHECK(cudaFree(d_c1));
-
-    // Conv3: [1, 480, 32, W2] -> [1, 480, 16, W3]
-    int W3 = (W2 + 1) / 2;
-    float *d_c3;
-    CUDA_CHECK(cudaMalloc(&d_c3, (size_t)480 * 16 * W3 * sizeof(float)));
-    boat_cuda_conv2d_forward_f32(d_c2, model->d_conv3_w, model->d_conv3_b,
-        d_c3, 1, 480, 32, (size_t)W2, 480, 3, 3, 1, 2, 1);
-    boat_cuda_gelu_f32(d_c3, d_c3, 480ULL * 16 * W3);
-    CUDA_CHECK(cudaFree(d_c2));
-
-    // Permute: [480, 16, W3] -> [W3, 7680]
-    int feat_dim = 480 * 16;  // 7680
-    float *d_reshaped;
-    CUDA_CHECK(cudaMalloc(&d_reshaped, (size_t)W3 * feat_dim * sizeof(float)));
-    {
-        const int block = 256;
-        unsigned int grid = (unsigned int)((480ULL * 16 * W3 + block - 1) / block);
-        permute_conv_out_kernel<<<grid, block>>>(
-            d_reshaped, d_c3, 480, 16, W3);
-        CUDA_CHECK(cudaGetLastError());
+    // Compute total valid frames from chunking
+    int num_chunks = (T_mel + CHUNK - 1) / CHUNK;
+    int total_valid = 0;
+    int chunk_valids[256];
+    for (int c = 0; c < num_chunks; c++) {
+        int start = c * CHUNK;
+        int input_len = (T_mel - start < CHUNK) ? (T_mel - start) : CHUNK;
+        int fl = (input_len - 1) / 2 + 1;
+        int t2 = (fl - 1) / 2 + 1;
+        int v = (t2 - 1) / 2 + 1;
+        chunk_valids[c] = v;
+        total_valid += v;
     }
 
-    // Linear: [W3, 7680] @ [7680, 896] -> [W3, 896]
-    float *d_proj;
-    CUDA_CHECK(cudaMalloc(&d_proj, (size_t)W3 * D * sizeof(float)));
-    matmul_f32_cuda(handle, d_reshaped, model->d_conv_out_w, d_proj,
-                    W3, feat_dim, D);
-    CUDA_CHECK(cudaFree(d_reshaped));
-    CUDA_CHECK(cudaFree(d_c3));
-
-    // Trim to valid frames
-    int feat_len = (T_mel - 1) / 2 + 1;
-    int temp = (feat_len - 1) / 2 + 1;
-    int valid = (temp - 1) / 2 + 1;
-    if (valid > W3) valid = W3;
-
-    // Add sinusoidal PE
-    float *d_pe;
-    CUDA_CHECK(cudaMalloc(&d_pe, (size_t)valid * D * sizeof(float)));
-    sinusoidal_pe_f32_cuda(d_pe, valid, D, 10000.0f, stream);
-
-    // d_enc_input = d_proj (trimmed) + d_pe
+    // Allocate full encoder output buffer
     float *d_enc_input;
-    CUDA_CHECK(cudaMalloc(&d_enc_input, (size_t)valid * D * sizeof(float)));
-    CUDA_CHECK(cudaMemcpy(d_enc_input, d_proj,
-                          (size_t)valid * D * sizeof(float), cudaMemcpyDeviceToDevice));
-    residual_add_f32_cuda(d_enc_input, d_pe, valid * D, stream);
-    CUDA_CHECK(cudaFree(d_pe));
+    CUDA_CHECK(cudaMalloc(&d_enc_input, (size_t)total_valid * D * sizeof(float)));
+
+    // Compute pad value: mean of first mel column
+    float h_pad_val = 0.0f;
+    {
+        float *h_first_col = (float*)malloc(128 * sizeof(float));
+        CUDA_CHECK(cudaMemcpy(h_first_col, d_mel, 128 * sizeof(float),
+                               cudaMemcpyDeviceToHost));
+        for (int i = 0; i < 128; i++) h_pad_val += h_first_col[i];
+        h_pad_val /= 128.0f;
+        free(h_first_col);
+    }
+
+    // Per-chunk conv temp buffers (reused)
+    int feat_dim = 480 * 16;  // 7680
+    float *d_chunk_buf = NULL;  // [128, CHUNK] padded input
+    float *d_c1 = NULL, *d_c2 = NULL, *d_c3 = NULL;
+    float *d_reshaped = NULL, *d_proj = NULL, *d_pe = NULL;
+
+    int out_offset = 0;
+    for (int c = 0; c < num_chunks; c++) {
+        int start = c * CHUNK;
+        int input_len = (T_mel - start < CHUNK) ? (T_mel - start) : CHUNK;
+        int actual_len = (input_len < CHUNK) ? CHUNK : input_len;
+
+        int W1 = (actual_len + 1) / 2;
+        int W2 = (W1 + 1) / 2;
+        int W3 = (W2 + 1) / 2;
+        int valid = chunk_valids[c];
+
+        // Lazily allocate temp buffers (max size across chunks)
+        if (!d_chunk_buf)
+            CUDA_CHECK(cudaMalloc(&d_chunk_buf, (size_t)128 * CHUNK * sizeof(float)));
+        if (!d_c1)
+            CUDA_CHECK(cudaMalloc(&d_c1, (size_t)480 * 64 * W1 * sizeof(float)));
+        if (!d_c2)
+            CUDA_CHECK(cudaMalloc(&d_c2, (size_t)480 * 32 * W2 * sizeof(float)));
+        if (!d_c3)
+            CUDA_CHECK(cudaMalloc(&d_c3, (size_t)480 * 16 * W3 * sizeof(float)));
+        if (!d_reshaped)
+            CUDA_CHECK(cudaMalloc(&d_reshaped, (size_t)W3 * feat_dim * sizeof(float)));
+        if (!d_proj)
+            CUDA_CHECK(cudaMalloc(&d_proj, (size_t)W3 * D * sizeof(float)));
+        if (!d_pe)
+            CUDA_CHECK(cudaMalloc(&d_pe, (size_t)valid * D * sizeof(float)));
+
+        // Extract chunk from d_mel [128, T_mel] -> d_chunk_buf [128, actual_len]
+        // For non-padded chunks: copy input_len columns
+        // For padded chunk: copy input_len columns + fill padding
+        for (int r = 0; r < 128; r++) {
+            CUDA_CHECK(cudaMemcpyAsync(
+                d_chunk_buf + (size_t)r * actual_len,
+                d_mel + (size_t)r * T_mel + start,
+                (size_t)input_len * sizeof(float),
+                cudaMemcpyDeviceToDevice, stream));
+        }
+        if (input_len < CHUNK) {
+            // Pad remaining columns with h_pad_val
+            // Fill each row's padding region
+            for (int r = 0; r < 128; r++)
+                boat_cuda_fill_f32(d_chunk_buf + (size_t)r * CHUNK + input_len,
+                                   h_pad_val, CHUNK - input_len);
+        }
+
+        // Conv1: [1, 1, 128, actual_len] -> [1, 480, 64, W1]
+        boat_cuda_conv2d_forward_f32(d_chunk_buf, model->d_conv1_w, model->d_conv1_b,
+            d_c1, 1, 1, 128, (size_t)actual_len, 480, 3, 3, 1, 2, 1);
+        boat_cuda_gelu_f32(d_c1, d_c1, 480ULL * 64 * W1);
+
+        // Conv2: [1, 480, 64, W1] -> [1, 480, 32, W2]
+        boat_cuda_conv2d_forward_f32(d_c1, model->d_conv2_w, model->d_conv2_b,
+            d_c2, 1, 480, 64, (size_t)W1, 480, 3, 3, 1, 2, 1);
+        boat_cuda_gelu_f32(d_c2, d_c2, 480ULL * 32 * W2);
+
+        // Conv3: [1, 480, 32, W2] -> [1, 480, 16, W3]
+        boat_cuda_conv2d_forward_f32(d_c2, model->d_conv3_w, model->d_conv3_b,
+            d_c3, 1, 480, 32, (size_t)W2, 480, 3, 3, 1, 2, 1);
+        boat_cuda_gelu_f32(d_c3, d_c3, 480ULL * 16 * W3);
+
+        // Permute: [480, 16, W3] -> [W3, 7680]
+        {
+            const int block = 256;
+            unsigned int grid = (unsigned int)((480ULL * 16 * W3 + block - 1) / block);
+            permute_conv_out_kernel<<<grid, block>>>(
+                d_reshaped, d_c3, 480, 16, W3);
+            CUDA_CHECK(cudaGetLastError());
+        }
+
+        // Linear: [W3, 7680] @ [7680, 896] -> [W3, 896]
+        matmul_f32_cuda(handle, d_reshaped, model->d_conv_out_w, d_proj,
+                        W3, feat_dim, D);
+
+        // Chunk-local sinusoidal PE (positions 0..valid-1)
+        sinusoidal_pe_f32_cuda(d_pe, valid, D, 10000.0f, stream);
+
+        // Copy trimmed proj to output, then add PE
+        CUDA_CHECK(cudaMemcpyAsync(
+            d_enc_input + (size_t)out_offset * D,
+            d_proj, (size_t)valid * D * sizeof(float),
+            cudaMemcpyDeviceToDevice, stream));
+        residual_add_f32_cuda(d_enc_input + (size_t)out_offset * D,
+                               d_pe, valid * D, stream);
+
+        out_offset += valid;
+    }
+
+    // Free conv temp buffers
+    CUDA_CHECK(cudaFree(d_chunk_buf));
+    CUDA_CHECK(cudaFree(d_c1));
+    CUDA_CHECK(cudaFree(d_c2));
+    CUDA_CHECK(cudaFree(d_c3));
+    CUDA_CHECK(cudaFree(d_reshaped));
     CUDA_CHECK(cudaFree(d_proj));
+    CUDA_CHECK(cudaFree(d_pe));
+
+    int T = total_valid;
 
     // ---- Step 2: Encoder transformer layers ----
     // Allocate temp buffer for one layer's compute
     // Max needed: normed[T,D] + Q[T,D] + K[T,D] + V[T,D] + residual[T,D] + ffn_norm[T,D] + fc1[T,FF]
     // = T * (6*D + FF) floats
-    int T = valid;
     size_t layer_tmp_size = (size_t)T * (6 * D + FF);
     float *d_layer_tmp;
     CUDA_CHECK(cudaMalloc(&d_layer_tmp, layer_tmp_size * sizeof(float)));

@@ -88,13 +88,19 @@ int main(int argc, char **argv) {
     CUDA_CHECK(cudaFree(d_mel));
     if (!d_audio) { fprintf(stderr, "ERROR: encoder forward failed\n"); return 1; }
 
-    // Get encoder output dimensions
+    // Get encoder output dimensions (matching chunked conv frontend)
     int T_audio;
     {
-        // Infer T_audio from valid frames calculation
-        int feat_len = (T_mel - 1) / 2 + 1;
-        int temp = (feat_len - 1) / 2 + 1;
-        T_audio = (temp - 1) / 2 + 1;
+        int chunk_size = QWEN3ASR_CONV_CHUNK_SIZE;
+        int num_chunks = (T_mel + chunk_size - 1) / chunk_size;
+        T_audio = 0;
+        for (int c = 0; c < num_chunks; c++) {
+            int start = c * chunk_size;
+            int input_len = (T_mel - start < chunk_size) ? (T_mel - start) : chunk_size;
+            int fl = (input_len - 1) / 2 + 1;
+            int t2 = (fl - 1) / 2 + 1;
+            T_audio += (t2 - 1) / 2 + 1;
+        }
     }
 
     // Download encoder output to CPU
@@ -169,8 +175,9 @@ int main(int argc, char **argv) {
     int current_pos = total_len;
 
     // Sampled first token
-    int next_token = boat_sample_token(h_logits, V, 10, 1.0f);
-    printf("  sampled first token: %d\n", next_token);
+    // Greedy decoding (argmax) — matches Python reference
+    int next_token = boat_sample_token(h_logits, V, 0, 0.0f);
+    printf("  first token: %d\n", next_token);
 
     while (next_token != QWEN3ASR_EOS_ID && next_token != 0
            && n_output < QWEN3ASR_MAX_NEW_TOKENS) {
@@ -193,7 +200,7 @@ int main(int argc, char **argv) {
                                cudaMemcpyDeviceToHost));
         CUDA_CHECK(cudaFree(d_logits));
 
-        next_token = boat_sample_token(h_logits, V, 10, 1.0f);
+        next_token = boat_sample_token(h_logits, V, 0, 0.0f);
     }
 
     printf("  generated %d tokens (%.2fs)\n", n_output, get_time_sec() - t0);
