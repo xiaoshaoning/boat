@@ -406,6 +406,9 @@ if(BOAT_WITH_CUDA)
     set(CMAKE_CUDA_STANDARD 11)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
+    # Allow unsupported host compiler (VS 2026 with CUDA 13.1)
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -allow-unsupported-compiler")
+
     # Default CUDA architectures (Blackwell+ — override with -DCMAKE_CUDA_ARCHITECTURES=)
     if(NOT CMAKE_CUDA_ARCHITECTURES)
         set(CMAKE_CUDA_ARCHITECTURES "100" CACHE STRING "CUDA architectures to target")

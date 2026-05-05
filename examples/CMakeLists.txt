@@ -17,6 +17,9 @@ add_subdirectory(nanochat)
 # Qwen3-ASR inference example (CPU only)
 add_subdirectory(qwen3-asr)
 
+# Qwen3-ASR CUDA inference example (requires BOAT_WITH_CUDA=ON)
+add_subdirectory(qwen3-asr-cuda)
+
 # InsightFace recognition test
 add_executable(test_insightface test_insightface.c)
 target_link_libraries(test_insightface PRIVATE boat)
