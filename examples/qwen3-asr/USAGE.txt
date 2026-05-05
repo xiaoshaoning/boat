@@ -1,0 +1,19 @@
+Qwen3-ASR Inference — Usage
+============================
+
+Prerequisites:
+  - qwen3asr executable (built from this directory)
+  - qwen3_asr_weights.safetensors in the model directory
+  - vocab.json in the model directory
+  - Python 3 with torch, numpy, soundfile for mel extraction
+
+Step 1 — Extract mel spectrogram from audio:
+  python extract_mel.py <input.wav> <output.mel>
+
+Step 2 — Run inference (set UTF-8 codepage first on Windows):
+  chcp 65001
+  qwen3asr <model_dir> <mel_binary>
+
+Example (from build directory):
+  python ../examples/qwen3-asr/extract_mel.py baicaoyuan.wav baicaoyuan.mel
+  examples/qwen3-asr/Release/qwen3asr ../examples/qwen3-asr baicaoyuan.mel
