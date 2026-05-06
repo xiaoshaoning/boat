@@ -17,7 +17,7 @@ extern "C" {
 
 // Quantization configuration
 typedef struct {
-    boat_dtype_t quant_dtype;   // Target dtype (BOAT_DTYPE_UINT8, INT8, BITS2, or FLOAT4)
+    boat_dtype_t quant_dtype;   // Target dtype (BOAT_DTYPE_UINT8, INT8, BITS2, BITS1, or FLOAT4)
     bool symmetric;             // true -> zero_point forced to 128 (UINT8) or 0 (INT8)
     bool per_channel;           // true -> per-channel quantization
 } boat_quant_config_t;
@@ -31,22 +31,25 @@ BOAT_API boat_quant_config_t boat_quant_config_default(void);
 // For INT8 symmetric:    scale = max(|max|,|min|) / 127, zp = 0
 // For INT8 asymmetric:   scale = (max - min) / 255, zp = round(-min / scale), clamped to [-128, 127]
 // For BITS2:            qmax=3, qmin=0, scale = (max - min) / 3, zp = round(-min / scale)
+// For BITS1:            qmax=1, qmin=0, scale = (max - min) / 1, zp = round(-min / scale)
 // For FLOAT4:           scale=1, zp=0 (no affine quantization, returns immediately)
 BOAT_API void boat_compute_quant_params(float min_val, float max_val,
                                          boat_dtype_t quant_dtype, bool symmetric,
                                          float* out_scale, int32_t* out_zero_point);
 
-// Quantize a FP32 tensor to quant_dtype (UINT8, INT8, BITS2, or FLOAT4) with per-tensor affine quantization.
+// Quantize a FP32 tensor to quant_dtype (UINT8, INT8, BITS2, BITS1, or FLOAT4) with per-tensor affine quantization.
 // For BITS2: quantize to [0,3] then pack 4 values per byte via boat_pack_bits2.
+// For BITS1: quantize to [0,1] then pack 8 values per byte via boat_pack_bits1.
 // For FLOAT4: pack directly via boat_pack_float4 (no affine quantization).
 // Returns a new tensor with dtype=config->quant_dtype, scale and zero_point set.
 // Caller owns the returned tensor.
 BOAT_API boat_tensor_t* boat_quantize_tensor(const boat_tensor_t* fp32_tensor,
                                               const boat_quant_config_t* config);
 
-// Dequantize a quantized tensor (UINT8, INT8, BITS2, or FLOAT4) back to FP32.
+// Dequantize a quantized tensor (UINT8, INT8, BITS2, BITS1, or FLOAT4) back to FP32.
 // The input tensor must have dtype one of the above and scale != 0 (or be FLOAT4).
 // For BITS2: unpack via boat_unpack_bits2 then apply affine dequantize.
+// For BITS1: unpack via boat_unpack_bits1 then apply affine dequantize.
 // For FLOAT4: unpack via boat_unpack_float4 (no affine dequantize).
 // Returns a new FP32 tensor. Caller owns the returned tensor.
 BOAT_API boat_tensor_t* boat_dequantize_tensor(const boat_tensor_t* quantized_tensor);

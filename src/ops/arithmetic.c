@@ -9,6 +9,10 @@
 #include <math.h>
 #include <float.h>
 
+#ifdef BOAT_WITH_CUDA
+#include <boat/cuda_runtime.h>
+#endif
+
 // Helper functions
 static size_t broadcast_index(const boat_tensor_t* tensor, size_t output_idx,
                               const int64_t* output_shape, size_t output_ndim) {
@@ -302,11 +306,308 @@ boat_tensor_t* boat_##op_name(const boat_tensor_t* a, const boat_tensor_t* b) { 
     return out; \
 }
 
-// Define arithmetic operations
-DEFINE_ELEMENTWISE_OP(add, +)
-DEFINE_ELEMENTWISE_OP(sub, -)
-DEFINE_ELEMENTWISE_OP(mul, *)
-DEFINE_ELEMENTWISE_OP(div, /)
+// ========== Element-wise ops with CUDA dispatch ==========
+
+#define ELEMWISE_CUDA_FAST_PATH(op_name, cuda_func_call) \
+    do { \
+        if (boat_tensor_device(a) == BOAT_DEVICE_CUDA) { \
+            if (dtype != BOAT_DTYPE_FLOAT32) { \
+                boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] CUDA only supports float32 in boat_%s\n", #op_name); \
+                boat_tensor_free(out); \
+                return NULL; \
+            } \
+            if (boat_tensor_ndim(a) == boat_tensor_ndim(b) && \
+                boat_tensor_nelements(a) == nelements) { \
+                cuda_func_call; \
+                return out; \
+            } \
+            /* For broadcast shapes on CUDA, need a broadcast kernel — fall through to CPU */ \
+        } \
+    } while(0)
+
+#define ELEMWISE_SCALAR_CUDA_FAST_PATH(cuda_func_call) \
+    do { \
+        if (boat_tensor_device(a) == BOAT_DEVICE_CUDA) { \
+            if (dtype != BOAT_DTYPE_FLOAT32) { \
+                boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] CUDA only supports float32 in scalar op\n"); \
+                boat_tensor_free(out); \
+                return NULL; \
+            } \
+            cuda_func_call; \
+            return out; \
+        } \
+    } while(0)
+
+// Define arithmetic operations (explicit for CUDA support)
+boat_tensor_t* boat_add(const boat_tensor_t* a, const boat_tensor_t* b) {
+    BOAT_DEBUG_PRINT("DEBUG boat_add: called, a=%p, b=%p\n", (void*)a, (void*)b);
+    if (!a || !b) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Null input in boat_add\n");
+        return NULL;
+    }
+
+    boat_dtype_t dtype = boat_tensor_dtype(a);
+    if (dtype != boat_tensor_dtype(b)) { return NULL; }
+
+    boat_tensor_t* out = create_broadcasted_output(a, b, dtype);
+    if (!out) { return NULL; }
+
+    size_t nelements = boat_tensor_nelements(out);
+    void* a_data = boat_tensor_data(a);
+    void* b_data = boat_tensor_data(b);
+    void* out_data = boat_tensor_data(out);
+
+#ifdef BOAT_WITH_CUDA
+    ELEMWISE_CUDA_FAST_PATH(add, boat_cuda_add_f32((const float*)a_data, (const float*)b_data, (float*)out_data, nelements));
+#endif
+
+    const int64_t* out_shape = boat_tensor_shape(out);
+    size_t out_ndim = boat_tensor_ndim(out);
+
+    switch (dtype) {
+        case BOAT_DTYPE_FLOAT32: {
+            const float* a_ptr = (const float*)a_data;
+            const float* b_ptr = (const float*)b_data;
+            float* out_ptr = (float*)out_data;
+            if (boat_tensor_ndim(a) == boat_tensor_ndim(b) &&
+                boat_tensor_nelements(a) == nelements &&
+                boat_tensor_is_contiguous(a) && boat_tensor_is_contiguous(b)) {
+                for (size_t _i = 0; _i < nelements; _i++) out_ptr[_i] = a_ptr[_i] + b_ptr[_i];
+            } else {
+                for (size_t i = 0; i < nelements; i++) {
+                    size_t a_idx = broadcast_index(a, i, out_shape, out_ndim);
+                    size_t b_idx = broadcast_index(b, i, out_shape, out_ndim);
+                    out_ptr[i] = a_ptr[a_idx] + b_ptr[b_idx];
+                }
+            }
+            break;
+        }
+        case BOAT_DTYPE_FLOAT64: {
+            const double* a_ptr = (const double*)a_data;
+            const double* b_ptr = (const double*)b_data;
+            double* out_ptr = (double*)out_data;
+            for (size_t i = 0; i < nelements; i++) {
+                size_t a_idx = broadcast_index(a, i, out_shape, out_ndim);
+                size_t b_idx = broadcast_index(b, i, out_shape, out_ndim);
+                out_ptr[i] = a_ptr[a_idx] + b_ptr[b_idx];
+            }
+            break;
+        }
+        case BOAT_DTYPE_INT32: {
+            const int32_t* a_ptr = (const int32_t*)a_data;
+            const int32_t* b_ptr = (const int32_t*)b_data;
+            int32_t* out_ptr = (int32_t*)out_data;
+            for (size_t i = 0; i < nelements; i++) {
+                size_t a_idx = broadcast_index(a, i, out_shape, out_ndim);
+                size_t b_idx = broadcast_index(b, i, out_shape, out_ndim);
+                out_ptr[i] = a_ptr[a_idx] + b_ptr[b_idx];
+            }
+            break;
+        }
+        case BOAT_DTYPE_INT64: {
+            const int64_t* a_ptr = (const int64_t*)a_data;
+            const int64_t* b_ptr = (const int64_t*)b_data;
+            int64_t* out_ptr = (int64_t*)out_data;
+            for (size_t i = 0; i < nelements; i++) {
+                size_t a_idx = broadcast_index(a, i, out_shape, out_ndim);
+                size_t b_idx = broadcast_index(b, i, out_shape, out_ndim);
+                out_ptr[i] = a_ptr[a_idx] + b_ptr[b_idx];
+            }
+            break;
+        }
+        case BOAT_DTYPE_UINT8: {
+            const uint8_t* a_ptr = (const uint8_t*)a_data;
+            const uint8_t* b_ptr = (const uint8_t*)b_data;
+            uint8_t* out_ptr = (uint8_t*)out_data;
+            for (size_t i = 0; i < nelements; i++) {
+                size_t a_idx = broadcast_index(a, i, out_shape, out_ndim);
+                size_t b_idx = broadcast_index(b, i, out_shape, out_ndim);
+                out_ptr[i] = a_ptr[a_idx] + b_ptr[b_idx];
+            }
+            break;
+        }
+        case BOAT_DTYPE_INT8: {
+            const int8_t* a_ptr = (const int8_t*)a_data;
+            const int8_t* b_ptr = (const int8_t*)b_data;
+            int8_t* out_ptr = (int8_t*)out_data;
+            for (size_t i = 0; i < nelements; i++) {
+                size_t a_idx = broadcast_index(a, i, out_shape, out_ndim);
+                size_t b_idx = broadcast_index(b, i, out_shape, out_ndim);
+                out_ptr[i] = a_ptr[a_idx] + b_ptr[b_idx];
+            }
+            break;
+        }
+        case BOAT_DTYPE_BOOL: {
+            const bool* a_ptr = (const bool*)a_data;
+            const bool* b_ptr = (const bool*)b_data;
+            bool* out_ptr = (bool*)out_data;
+            for (size_t i = 0; i < nelements; i++) {
+                size_t a_idx = broadcast_index(a, i, out_shape, out_ndim);
+                size_t b_idx = broadcast_index(b, i, out_shape, out_ndim);
+                out_ptr[i] = a_ptr[a_idx] + b_ptr[b_idx];
+            }
+            break;
+        }
+        case BOAT_DTYPE_FLOAT16:
+            boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Arithmetic] float16 not supported in boat_add\n");
+            boat_tensor_free(out);
+            return NULL;
+        case BOAT_DTYPE_BFLOAT16: {
+            const uint16_t* a_ptr = (const uint16_t*)a_data;
+            const uint16_t* b_ptr = (const uint16_t*)b_data;
+            uint16_t* out_ptr = (uint16_t*)out_data;
+            for (size_t i = 0; i < nelements; i++) {
+                size_t a_idx = broadcast_index(a, i, out_shape, out_ndim);
+                size_t b_idx = broadcast_index(b, i, out_shape, out_ndim);
+                float av = boat_bf16_to_f32(a_ptr[a_idx]);
+                float bv = boat_bf16_to_f32(b_ptr[b_idx]);
+                out_ptr[i] = boat_f32_to_bf16(av + bv);
+            }
+            break;
+        }
+        case BOAT_DTYPE_FLOAT8:
+        case BOAT_DTYPE_FLOAT4:
+        case BOAT_DTYPE_BITS2:
+        case BOAT_DTYPE_BITS1:
+        default:
+            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Unsupported dtype in boat_add: %d\n", dtype);
+            boat_tensor_free(out);
+            return NULL;
+    }
+    return out;
+}
+
+boat_tensor_t* boat_sub(const boat_tensor_t* a, const boat_tensor_t* b) {
+    if (!a || !b) { return NULL; }
+    boat_dtype_t dtype = boat_tensor_dtype(a);
+    if (dtype != boat_tensor_dtype(b)) { return NULL; }
+    boat_tensor_t* out = create_broadcasted_output(a, b, dtype);
+    if (!out) { return NULL; }
+    size_t nelements = boat_tensor_nelements(out);
+    void* a_data = boat_tensor_data(a);
+    void* b_data = boat_tensor_data(b);
+    void* out_data = boat_tensor_data(out);
+#ifdef BOAT_WITH_CUDA
+    ELEMWISE_CUDA_FAST_PATH(sub, boat_cuda_sub_f32((const float*)a_data, (const float*)b_data, (float*)out_data, nelements));
+#endif
+    const int64_t* out_shape = boat_tensor_shape(out);
+    size_t out_ndim = boat_tensor_ndim(out);
+    switch (dtype) {
+        case BOAT_DTYPE_FLOAT32: {
+            const float* a_ptr = (const float*)a_data;
+            const float* b_ptr = (const float*)b_data;
+            float* out_ptr = (float*)out_data;
+            if (boat_tensor_ndim(a) == boat_tensor_ndim(b) && boat_tensor_nelements(a) == nelements && boat_tensor_is_contiguous(a) && boat_tensor_is_contiguous(b)) {
+                for (size_t _i = 0; _i < nelements; _i++) out_ptr[_i] = a_ptr[_i] - b_ptr[_i];
+            } else {
+                for (size_t i = 0; i < nelements; i++) {
+                    size_t a_idx = broadcast_index(a, i, out_shape, out_ndim);
+                    size_t b_idx = broadcast_index(b, i, out_shape, out_ndim);
+                    out_ptr[i] = a_ptr[a_idx] - b_ptr[b_idx];
+                }
+            }
+            break;
+        }
+        case BOAT_DTYPE_FLOAT64: { const double* a_ptr = (const double*)a_data; const double* b_ptr = (const double*)b_data; double* out_ptr = (double*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] - b_ptr[b_idx]; } break; }
+        case BOAT_DTYPE_INT32: { const int32_t* a_ptr = (const int32_t*)a_data; const int32_t* b_ptr = (const int32_t*)b_data; int32_t* out_ptr = (int32_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] - b_ptr[b_idx]; } break; }
+        case BOAT_DTYPE_INT64: { const int64_t* a_ptr = (const int64_t*)a_data; const int64_t* b_ptr = (const int64_t*)b_data; int64_t* out_ptr = (int64_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] - b_ptr[b_idx]; } break; }
+        case BOAT_DTYPE_UINT8: { const uint8_t* a_ptr = (const uint8_t*)a_data; const uint8_t* b_ptr = (const uint8_t*)b_data; uint8_t* out_ptr = (uint8_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] - b_ptr[b_idx]; } break; }
+        case BOAT_DTYPE_INT8: { const int8_t* a_ptr = (const int8_t*)a_data; const int8_t* b_ptr = (const int8_t*)b_data; int8_t* out_ptr = (int8_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] - b_ptr[b_idx]; } break; }
+        case BOAT_DTYPE_BOOL: { const bool* a_ptr = (const bool*)a_data; const bool* b_ptr = (const bool*)b_data; bool* out_ptr = (bool*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] - b_ptr[b_idx]; } break; }
+        case BOAT_DTYPE_BFLOAT16: { const uint16_t* a_ptr = (const uint16_t*)a_data; const uint16_t* b_ptr = (const uint16_t*)b_data; uint16_t* out_ptr = (uint16_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = boat_f32_to_bf16(boat_bf16_to_f32(a_ptr[a_idx]) - boat_bf16_to_f32(b_ptr[b_idx])); } break; }
+        default: boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Unsupported dtype in boat_sub\n"); boat_tensor_free(out); return NULL;
+    }
+    return out;
+}
+
+boat_tensor_t* boat_mul(const boat_tensor_t* a, const boat_tensor_t* b) {
+    if (!a || !b) { return NULL; }
+    boat_dtype_t dtype = boat_tensor_dtype(a);
+    if (dtype != boat_tensor_dtype(b)) { return NULL; }
+    boat_tensor_t* out = create_broadcasted_output(a, b, dtype);
+    if (!out) { return NULL; }
+    size_t nelements = boat_tensor_nelements(out);
+    void* a_data = boat_tensor_data(a);
+    void* b_data = boat_tensor_data(b);
+    void* out_data = boat_tensor_data(out);
+#ifdef BOAT_WITH_CUDA
+    ELEMWISE_CUDA_FAST_PATH(mul, boat_cuda_mul_f32((const float*)a_data, (const float*)b_data, (float*)out_data, nelements));
+#endif
+    const int64_t* out_shape = boat_tensor_shape(out);
+    size_t out_ndim = boat_tensor_ndim(out);
+    switch (dtype) {
+        case BOAT_DTYPE_FLOAT32: {
+            const float* a_ptr = (const float*)a_data;
+            const float* b_ptr = (const float*)b_data;
+            float* out_ptr = (float*)out_data;
+            if (boat_tensor_ndim(a) == boat_tensor_ndim(b) && boat_tensor_nelements(a) == nelements && boat_tensor_is_contiguous(a) && boat_tensor_is_contiguous(b)) {
+                for (size_t _i = 0; _i < nelements; _i++) out_ptr[_i] = a_ptr[_i] * b_ptr[_i];
+            } else {
+                for (size_t i = 0; i < nelements; i++) {
+                    size_t a_idx = broadcast_index(a, i, out_shape, out_ndim);
+                    size_t b_idx = broadcast_index(b, i, out_shape, out_ndim);
+                    out_ptr[i] = a_ptr[a_idx] * b_ptr[b_idx];
+                }
+            }
+            break;
+        }
+        case BOAT_DTYPE_FLOAT64: { const double* a_ptr = (const double*)a_data; const double* b_ptr = (const double*)b_data; double* out_ptr = (double*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] * b_ptr[b_idx]; } break; }
+        case BOAT_DTYPE_INT32: { const int32_t* a_ptr = (const int32_t*)a_data; const int32_t* b_ptr = (const int32_t*)b_data; int32_t* out_ptr = (int32_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] * b_ptr[b_idx]; } break; }
+        case BOAT_DTYPE_INT64: { const int64_t* a_ptr = (const int64_t*)a_data; const int64_t* b_ptr = (const int64_t*)b_data; int64_t* out_ptr = (int64_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] * b_ptr[b_idx]; } break; }
+        case BOAT_DTYPE_UINT8: { const uint8_t* a_ptr = (const uint8_t*)a_data; const uint8_t* b_ptr = (const uint8_t*)b_data; uint8_t* out_ptr = (uint8_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] * b_ptr[b_idx]; } break; }
+        case BOAT_DTYPE_INT8: { const int8_t* a_ptr = (const int8_t*)a_data; const int8_t* b_ptr = (const int8_t*)b_data; int8_t* out_ptr = (int8_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] * b_ptr[b_idx]; } break; }
+        case BOAT_DTYPE_BOOL: { const bool* a_ptr = (const bool*)a_data; const bool* b_ptr = (const bool*)b_data; bool* out_ptr = (bool*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] * b_ptr[b_idx]; } break; }
+        case BOAT_DTYPE_BFLOAT16: { const uint16_t* a_ptr = (const uint16_t*)a_data; const uint16_t* b_ptr = (const uint16_t*)b_data; uint16_t* out_ptr = (uint16_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = boat_f32_to_bf16(boat_bf16_to_f32(a_ptr[a_idx]) * boat_bf16_to_f32(b_ptr[b_idx])); } break; }
+        default: boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Unsupported dtype in boat_mul\n"); boat_tensor_free(out); return NULL;
+    }
+    return out;
+}
+
+boat_tensor_t* boat_div(const boat_tensor_t* a, const boat_tensor_t* b) {
+    if (!a || !b) { return NULL; }
+    boat_dtype_t dtype = boat_tensor_dtype(a);
+    if (dtype != boat_tensor_dtype(b)) { return NULL; }
+    boat_tensor_t* out = create_broadcasted_output(a, b, dtype);
+    if (!out) { return NULL; }
+    size_t nelements = boat_tensor_nelements(out);
+    void* a_data = boat_tensor_data(a);
+    void* b_data = boat_tensor_data(b);
+    void* out_data = boat_tensor_data(out);
+#ifdef BOAT_WITH_CUDA
+    ELEMWISE_CUDA_FAST_PATH(div, boat_cuda_div_f32((const float*)a_data, (const float*)b_data, (float*)out_data, nelements));
+#endif
+    const int64_t* out_shape = boat_tensor_shape(out);
+    size_t out_ndim = boat_tensor_ndim(out);
+    switch (dtype) {
+        case BOAT_DTYPE_FLOAT32: {
+            const float* a_ptr = (const float*)a_data;
+            const float* b_ptr = (const float*)b_data;
+            float* out_ptr = (float*)out_data;
+            if (boat_tensor_ndim(a) == boat_tensor_ndim(b) && boat_tensor_nelements(a) == nelements && boat_tensor_is_contiguous(a) && boat_tensor_is_contiguous(b)) {
+                for (size_t _i = 0; _i < nelements; _i++) out_ptr[_i] = a_ptr[_i] / b_ptr[_i];
+            } else {
+                for (size_t i = 0; i < nelements; i++) {
+                    size_t a_idx = broadcast_index(a, i, out_shape, out_ndim);
+                    size_t b_idx = broadcast_index(b, i, out_shape, out_ndim);
+                    out_ptr[i] = a_ptr[a_idx] / b_ptr[b_idx];
+                }
+            }
+            break;
+        }
+        case BOAT_DTYPE_FLOAT64: { const double* a_ptr = (const double*)a_data; const double* b_ptr = (const double*)b_data; double* out_ptr = (double*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] / b_ptr[b_idx]; } break; }
+        case BOAT_DTYPE_INT32: { const int32_t* a_ptr = (const int32_t*)a_data; const int32_t* b_ptr = (const int32_t*)b_data; int32_t* out_ptr = (int32_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] / b_ptr[b_idx]; } break; }
+        case BOAT_DTYPE_INT64: { const int64_t* a_ptr = (const int64_t*)a_data; const int64_t* b_ptr = (const int64_t*)b_data; int64_t* out_ptr = (int64_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] / b_ptr[b_idx]; } break; }
+        case BOAT_DTYPE_UINT8: { const uint8_t* a_ptr = (const uint8_t*)a_data; const uint8_t* b_ptr = (const uint8_t*)b_data; uint8_t* out_ptr = (uint8_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] / b_ptr[b_idx]; } break; }
+        case BOAT_DTYPE_INT8: { const int8_t* a_ptr = (const int8_t*)a_data; const int8_t* b_ptr = (const int8_t*)b_data; int8_t* out_ptr = (int8_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] / b_ptr[b_idx]; } break; }
+        case BOAT_DTYPE_BOOL: { const bool* a_ptr = (const bool*)a_data; const bool* b_ptr = (const bool*)b_data; bool* out_ptr = (bool*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] / b_ptr[b_idx]; } break; }
+        case BOAT_DTYPE_BFLOAT16: { const uint16_t* a_ptr = (const uint16_t*)a_data; const uint16_t* b_ptr = (const uint16_t*)b_data; uint16_t* out_ptr = (uint16_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = boat_f32_to_bf16(boat_bf16_to_f32(a_ptr[a_idx]) / boat_bf16_to_f32(b_ptr[b_idx])); } break; }
+        default: boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Unsupported dtype in boat_div\n"); boat_tensor_free(out); return NULL;
+    }
+    return out;
+}
+
+// Note: DEFINE_ELEMENTWISE_OP is kept for reference but no longer used for add/sub/mul/div
+// (they are now explicit functions above for CUDA dispatch support)
 
 // Mod operation (special handling for floating point)
 boat_tensor_t* boat_mod(const boat_tensor_t* a, const boat_tensor_t* b) {
@@ -331,6 +632,15 @@ boat_tensor_t* boat_mod(const boat_tensor_t* a, const boat_tensor_t* b) {
     const void* a_data = boat_tensor_data(a);
     const void* b_data = boat_tensor_data(b);
     void* out_data = boat_tensor_data(out);
+
+#ifdef BOAT_WITH_CUDA
+    if (boat_tensor_device(a) == BOAT_DEVICE_CUDA && dtype == BOAT_DTYPE_FLOAT32) {
+        if (boat_tensor_ndim(a) == boat_tensor_ndim(b) && boat_tensor_nelements(a) == nelements) {
+            boat_cuda_mod_f32((const float*)a_data, (const float*)b_data, (float*)out_data, nelements);
+            return out;
+        }
+    }
+#endif
 
     /* Get output shape for broadcasting */
     const int64_t* out_shape = boat_tensor_shape(out);
@@ -597,6 +907,65 @@ boat_tensor_t* boat_pow_scalar(const boat_tensor_t* a, double scalar) {
     return out;
 }
 
+// Element-wise absolute value
+boat_tensor_t* boat_abs(const boat_tensor_t* a) {
+    if (!a) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Null input in boat_abs\n");
+        return NULL;
+    }
+
+    boat_dtype_t dtype = boat_tensor_dtype(a);
+    boat_tensor_t* out = boat_tensor_create_like(a);
+    if (!out) return NULL;
+
+    size_t n = boat_tensor_nelements(a);
+    const void* a_data = boat_tensor_const_data(a);
+    void* out_data = boat_tensor_data(out);
+
+#ifdef BOAT_WITH_CUDA
+    if (boat_tensor_device(a) == BOAT_DEVICE_CUDA) {
+        if (dtype == BOAT_DTYPE_FLOAT32) {
+            boat_cuda_abs_f32((const float*)a_data, (float*)out_data, n);
+            return out;
+        }
+    }
+#endif
+
+    switch (dtype) {
+        case BOAT_DTYPE_FLOAT32: {
+            const float* src = (const float*)a_data;
+            float* dst = (float*)out_data;
+            for (size_t i = 0; i < n; i++) dst[i] = fabsf(src[i]);
+            break;
+        }
+        case BOAT_DTYPE_FLOAT64: {
+            const double* src = (const double*)a_data;
+            double* dst = (double*)out_data;
+            for (size_t i = 0; i < n; i++) dst[i] = fabs(src[i]);
+            break;
+        }
+        case BOAT_DTYPE_INT32: {
+            const int32_t* src = (const int32_t*)a_data;
+            int32_t* dst = (int32_t*)out_data;
+            for (size_t i = 0; i < n; i++) dst[i] = src[i] < 0 ? -src[i] : src[i];
+            break;
+        }
+        case BOAT_DTYPE_INT64: {
+            const int64_t* src = (const int64_t*)a_data;
+            int64_t* dst = (int64_t*)out_data;
+            for (size_t i = 0; i < n; i++) dst[i] = src[i] < 0 ? -src[i] : src[i];
+            break;
+        }
+        default:
+            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                            "[Arithmetic] Unsupported dtype in boat_abs: %d\n", dtype);
+            boat_tensor_free(out);
+            return NULL;
+    }
+
+    return out;
+}
+
 // In-place scalar operations
 #define DEFINE_INPLACE_SCALAR_OP(op_name, op) \
 void boat_##op_name##_scalar_(boat_tensor_t* const a, double scalar) { \
@@ -726,6 +1095,16 @@ boat_tensor_t* boat_sum(const boat_tensor_t* a, const int64_t* dims, size_t n_di
     if (!out) return NULL;
 
     void* out_data = boat_tensor_data(out);
+
+#ifdef BOAT_WITH_CUDA
+    if (boat_tensor_device(a) == BOAT_DEVICE_CUDA) {
+        if (dtype == BOAT_DTYPE_FLOAT32) {
+            float result = boat_cuda_sum_f32((const float*)data, nelements);
+            *((float*)out_data) = result;
+            return out;
+        }
+    }
+#endif
 
     switch (dtype) {
         case BOAT_DTYPE_FLOAT32: {

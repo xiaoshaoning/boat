@@ -18,7 +18,8 @@ typedef struct boat_attention_t boat_attention_t;
 // Attention configuration
 typedef struct {
     size_t hidden_size;       // Hidden size (d_model)
-    size_t num_heads;         // Number of attention heads
+    size_t num_heads;         // Number of attention heads (Q heads)
+    size_t num_kv_heads;      // Number of key/value heads for GQA (0 = same as num_heads)
     size_t head_size;         // Size of each head (hidden_size / num_heads)
     float dropout_prob;       // Dropout probability (0.0 for no dropout)
     bool causal_mask;         // Whether to apply causal masking (for autoregressive models)
@@ -29,6 +30,11 @@ typedef struct {
 
 // Create attention layer
 BOAT_API boat_attention_t* BOAT_CALL boat_attention_create(const boat_attention_config_t* config);
+
+// Create attention layer with explicit GQA configuration (convenience wrapper)
+BOAT_API boat_attention_t* BOAT_CALL boat_attention_create_gqa(size_t hidden_size, size_t num_heads,
+                                          size_t num_kv_heads, size_t head_size,
+                                          bool causal_mask, float rotary_theta);
 
 // Free attention layer
 BOAT_API void BOAT_CALL boat_attention_free(boat_attention_t* attention);

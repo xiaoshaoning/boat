@@ -39,11 +39,17 @@
 // Quantization
 #include "boat/quantize.h"
 
+// Pruning and compression
+#include "boat/prune.h"
+
 // Model management
 #include "boat/model.h"
 
 // Data handling
 #include "boat/data.h"
+
+// Sampling utilities
+#include "boat/sampling.h"
 
 // Model format loaders
 #ifdef BOAT_WITH_ONNX
@@ -56,6 +62,10 @@
 
 #ifdef BOAT_WITH_TENSORFLOW
 #include "boat/format/tensorflow.h"
+#endif
+
+#ifdef BOAT_WITH_ONNXRUNTIME
+#include "boat/format/onnxruntime.h"
 #endif
 
 // Utility functions

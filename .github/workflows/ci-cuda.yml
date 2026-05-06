@@ -1,0 +1,68 @@
+name: CUDA CI
+
+on:
+  push:
+    branches: [ main, cuda-backend ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # CUDA build + test (Linux only, portable arch)
+  # ---------------------------------------------------------------------------
+  cuda:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install CUDA toolkit
+      run: |
+        wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+        sudo dpkg -i cuda-keyring_1.1-1_all.deb
+        sudo apt-get update -q
+        sudo apt-get install -y -q cuda-toolkit-12-6 ccache
+        echo "CUDA_HOME=/usr/local/cuda-12" >> $GITHUB_ENV
+
+    - name: Set up ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: cuda-${{ matrix.build_type || 'Release' }}
+
+    - name: Configure CMake (CUDA)
+      run: |
+        mkdir -p build
+        cd build
+        cmake .. \
+          -DBOAT_WITH_CUDA=ON \
+          -DBOAT_WITH_TESTS=ON \
+          -DBOAT_WITH_EXAMPLES=ON \
+          -DBOAT_WITH_HUGGINGFACE=ON \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_CUDA_ARCHITECTURES="86"
+
+    - name: Build
+      run: |
+        cd build
+        cmake --build . --config Release -j$(nproc)
+
+    - name: Check GPU availability
+      id: gpu_check
+      run: |
+        if command -v nvidia-smi &> /dev/null && nvidia-smi &> /dev/null; then
+          echo "GPU available"
+          echo "gpu=1" >> $GITHUB_OUTPUT
+          nvidia-smi
+        else
+          echo "No GPU available — build verified, tests require hardware"
+          echo "gpu=0" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Run tests
+      if: steps.gpu_check.outputs.gpu == '1'
+      run: |
+        cd build
+        ctest --output-on-failure -C Release -j$(nproc)

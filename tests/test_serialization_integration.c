@@ -128,7 +128,7 @@ static int test_dense_no_bias(void) {
 static int test_conv_roundtrip(void) {
     TEST("Conv2D round-trip");
     boat_model_t* m = boat_model_create();
-    boat_conv_layer_t* c = boat_conv_layer_create(1, 4, 3, 1, 1);
+    boat_conv_layer_t* c = boat_conv_layer_create(1, 4, 3, 1, 1, 1);
     fill_tensor(boat_conv_layer_get_weight(c), 3.0f);
     fill_tensor(boat_conv_layer_get_bias(c), 30.0f);
     boat_model_add_layer(m, wrap(c, BOAT_LAYER_TYPE_CONV2D));
@@ -192,10 +192,10 @@ static int test_paramless_roundtrip(void) {
 static int test_mnist_model_roundtrip(void) {
     TEST("MNIST architecture round-trip");
     boat_model_t* m = boat_model_create();
-    boat_conv_layer_t* c1 = boat_conv_layer_create(1, 32, 3, 1, 1);
+    boat_conv_layer_t* c1 = boat_conv_layer_create(1, 32, 3, 1, 1, 1);
     boat_relu_layer_t* r1 = boat_relu_layer_create();
     boat_pool_layer_t* p1 = boat_pool_layer_create(2, 2, 0);
-    boat_conv_layer_t* c2 = boat_conv_layer_create(32, 64, 3, 1, 1);
+    boat_conv_layer_t* c2 = boat_conv_layer_create(32, 64, 3, 1, 1, 1);
     boat_relu_layer_t* r2 = boat_relu_layer_create();
     boat_pool_layer_t* p2 = boat_pool_layer_create(2, 2, 0);
     boat_flatten_layer_t* f = boat_flatten_layer_create();

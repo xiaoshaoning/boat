@@ -21,9 +21,9 @@ Boat 使用 GitHub Actions 进行持续集成和持续部署，确保代码质�
 - 递归初始化子模块
 
 ### 2. 依赖安装
-**Ubuntu**: 安装 cmake, build-essential, cppcheck, ccache
-**macOS**: 安装 cmake, cppcheck, ccache (通过 Homebrew)
-**Windows**: 安装 cmake, cppcheck, ccache (通过 Chocolatey)
+**Ubuntu**: 安装 cmake, build-essential, clang-tidy, ccache
+**macOS**: 安装 cmake, clang-tidy, ccache (通过 Homebrew)
+**Windows**: 安装 cmake, clang-tidy, ccache (通过 Chocolatey)
 
 ### 3. 缓存配置
 - 使用 ccache 加速编译
@@ -51,8 +51,8 @@ run: |
 - 输出详细失败信息
 
 ### 7. 静态分析
-- 使用 cppcheck 进行代码质量检查
-- 启用警告、样式、性能、可移植性检查
+- C 代码: 使用 `clang-tidy` 进行代码质量检查 (结合 `clang-analyzer`)
+- CUDA 代码: 静态分析工具支持有限，依赖运行时测试和 code review
 - 目前不因警告而失败 (使用 `|| true`)
 
 ### 8. 示例验证
@@ -98,7 +98,7 @@ matrix:
 - 示例必须构建成功
 
 ### 计划改进
-- 设置 cppcheck 警告阈值
+- 设置 clang-tidy 警告阈值
 - 添加代码覆盖率要求
 - 添加性能基准测试
 
@@ -117,7 +117,7 @@ matrix:
 - 检查跨平台兼容性问题
 
 #### 3. 静态分析警告
-- 运行本地 cppcheck 验证
+- 运行本地 clang-tidy 验证
 - 参考 [Const 使用指南](const_usage_guide.md)
 - 逐步修复警告
 
@@ -131,13 +131,13 @@ matrix:
 ### 安装依赖
 ```bash
 # Ubuntu
-sudo apt-get install -y cmake build-essential cppcheck ccache
+sudo apt-get install -y cmake build-essential clang-tidy ccache
 
 # macOS
-brew install cmake cppcheck ccache
+brew install cmake clang-tidy ccache
 
 # Windows
-choco install cmake cppcheck ccache -y
+choco install cmake llvm ccache -y  # clang-tidy is part of LLVM
 ```
 
 ### 运行完整流程
@@ -147,7 +147,10 @@ cd build
 cmake .. -DBOAT_WITH_TESTS=ON -DBOAT_WITH_EXAMPLES=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build . --config Release
 ctest --output-on-failure -C Release
-cppcheck --enable=warning,style,performance,portability --suppress=missingInclude -I include src
+# C 代码静态分析
+clang-tidy src/**/*.c -- -Iinclude
+# 或使用扫描构建
+scan-build cmake --build . --config Release
 ```
 
 ## 自定义工作流

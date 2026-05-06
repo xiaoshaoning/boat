@@ -101,6 +101,10 @@ target_link_libraries(test_loss_integration boat)
 add_executable(test_quantize test_quantize.c)
 target_link_libraries(test_quantize boat)
 
+# Pruning tests
+add_executable(test_prune test_prune.c)
+target_link_libraries(test_prune boat)
+
 # ONNX loader tests (self-contained, no external dependency)
 add_executable(test_onnx test_onnx.c)
 target_include_directories(test_onnx PRIVATE ${CMAKE_SOURCE_DIR}/src)
@@ -114,5 +118,23 @@ target_link_libraries(test_data_pipeline boat)
 if(BOAT_WITH_GGUF)
     add_executable(test_gguf test_gguf.c)
     target_link_libraries(test_gguf boat)
+endif()
+
+# CUDA backend tests
+if(BOAT_WITH_CUDA)
+    add_executable(test_cuda_mini test_cuda_mini.c)
+    target_link_libraries(test_cuda_mini boat)
+    add_executable(test_cuda_basic test_cuda_basic.c)
+    target_link_libraries(test_cuda_basic boat)
+    add_executable(test_cuda_layers test_cuda_layers.c)
+    target_link_libraries(test_cuda_layers boat)
+endif()
+
+# ONNX Runtime backend tests (requires ONNX for protobuf builder used in test model construction)
+if(BOAT_WITH_ONNXRUNTIME AND BOAT_WITH_ONNX)
+    add_executable(test_onnxruntime test_onnxruntime.c)
+    target_include_directories(test_onnxruntime PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_compile_definitions(test_onnxruntime PRIVATE BOAT_STATIC_BUILD _CRT_NONSTDC_NO_DEPRECATE)
+    target_link_libraries(test_onnxruntime boat)
 endif()
 

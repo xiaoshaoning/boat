@@ -10,7 +10,7 @@ int main() {
     printf("Testing convolutional layer forward pass...\n");
 
     // Create a convolutional layer: in_channels=1, out_channels=1, kernel_size=2, stride=1, padding=0
-    boat_conv_layer_t* conv = boat_conv_layer_create(1, 1, 2, 1, 0);
+    boat_conv_layer_t* conv = boat_conv_layer_create(1, 1, 2, 1, 0, 1);
     if (!conv) {
         fprintf(stderr, "Failed to create convolutional layer\n");
         return 1;
@@ -94,7 +94,7 @@ int main() {
 
     // Test 2: With padding=1
     printf("\nTesting conv layer with padding=1...\n");
-    boat_conv_layer_t* conv_pad = boat_conv_layer_create(1, 1, 2, 1, 1);
+    boat_conv_layer_t* conv_pad = boat_conv_layer_create(1, 1, 2, 1, 1, 1);
     if (!conv_pad) {
         fprintf(stderr, "Failed to create convolutional layer with padding\n");
         boat_tensor_unref(output);
@@ -132,7 +132,7 @@ int main() {
 
     // Test 3: With stride=2
     printf("\nTesting conv layer with stride=2...\n");
-    boat_conv_layer_t* conv_stride = boat_conv_layer_create(1, 1, 2, 2, 0);
+    boat_conv_layer_t* conv_stride = boat_conv_layer_create(1, 1, 2, 2, 0, 1);
     if (!conv_stride) {
         fprintf(stderr, "Failed to create convolutional layer with stride\n");
     } else {
@@ -160,6 +160,131 @@ int main() {
             boat_tensor_unref(output_stride);
         }
         boat_conv_layer_free(conv_stride);
+    }
+
+    // Test 4: Group convolution with groups=2
+    printf("\nTesting group convolution (groups=2)...\n");
+    boat_conv_layer_t* conv_group = boat_conv_layer_create(4, 4, 2, 1, 0, 2);
+    if (!conv_group) {
+        fprintf(stderr, "Failed to create grouped convolutional layer\n");
+        errors++;
+    } else {
+        // Weight shape: [4, 2, 2, 2] — 4 out, 2 in per group, 2x2 kernel
+        int64_t gw_shape[] = {4, 2, 2, 2};
+        boat_tensor_t* gw = boat_tensor_create(gw_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+        float* gwd = (float*)boat_tensor_data(gw);
+        // Group 0 (oc=0,1): identity-like kernels
+        gwd[0] = 1.0f; gwd[1] = 0.0f; gwd[2] = 0.0f; gwd[3] = 1.0f;  // oc=0 kernel
+        gwd[4] = 1.0f; gwd[5] = 0.0f; gwd[6] = 0.0f; gwd[7] = 1.0f;  // oc=1 kernel
+        // Group 1 (oc=2,3): identity-like kernels
+        gwd[8] = 1.0f; gwd[9] = 0.0f; gwd[10] = 0.0f; gwd[11] = 1.0f; // oc=2 kernel
+        gwd[12] = 1.0f; gwd[13] = 0.0f; gwd[14] = 0.0f; gwd[15] = 1.0f; // oc=3 kernel
+        boat_conv_layer_set_weight(conv_group, gw);
+        boat_tensor_unref(gw);
+
+        // Input: batch=1, 4 channels, 3x3
+        int64_t g_in_shape[] = {1, 4, 3, 3};
+        boat_tensor_t* g_in = boat_tensor_create(g_in_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+        float* g_in_d = (float*)boat_tensor_data(g_in);
+        for (int c = 0; c < 4; c++) {
+            for (int i = 0; i < 9; i++) {
+                g_in_d[c * 9 + i] = (float)(c * 9 + i + 1);
+            }
+        }
+
+        boat_tensor_t* g_out = boat_conv_layer_forward(conv_group, g_in);
+        if (!g_out) {
+            fprintf(stderr, "Group conv forward failed\n");
+            errors++;
+        } else {
+            const int64_t* gs = boat_tensor_shape(g_out);
+            printf("Group conv output shape: [%lld, %lld, %lld, %lld]\n", gs[0], gs[1], gs[2], gs[3]);
+            if (gs[0] == 1 && gs[1] == 4 && gs[2] == 2 && gs[3] == 2) {
+                printf("Group conv: Output dimensions correct!\n");
+            } else {
+                fprintf(stderr, "Group conv: Wrong output dimensions\n");
+                errors++;
+            }
+            // Verify group 0 oc=0: channel 0 only (like the basic test above)
+            float* g_out_d = (float*)boat_tensor_data(g_out);
+            // oc=0 uses ic=0 with identity kernel, same as first test
+            float expected_g0[] = {30.0f, 34.0f, 42.0f, 46.0f};
+            bool g0_ok = 1;
+            for (int i = 0; i < 4; i++) {
+                if (fabsf(g_out_d[i] - expected_g0[i]) > 1e-5f) { g0_ok = 0; break; }
+            }
+            printf("Group conv oc=0: %s\n", g0_ok ? "PASS" : "FAIL");
+            if (!g0_ok) errors++;
+        }
+
+        boat_tensor_unref(g_out);
+        boat_tensor_unref(g_in);
+        boat_conv_layer_free(conv_group);
+    }
+
+    // Test 5: Depthwise convolution (groups = in_channels = out_channels)
+    printf("\nTesting depthwise convolution (groups=3)...\n");
+    boat_conv_layer_t* conv_dw = boat_conv_layer_create(3, 3, 3, 1, 1, 3);
+    if (!conv_dw) {
+        fprintf(stderr, "Failed to create depthwise convolutional layer\n");
+        errors++;
+    } else {
+        // Weight shape: [3, 1, 3, 3] — 3 out, 1 in per group (depthwise), 3x3 kernel
+        int64_t dw_shape[] = {3, 1, 3, 3};
+        boat_tensor_t* dw = boat_tensor_create(dw_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+        float* dwd = (float*)boat_tensor_data(dw);
+        for (int oc = 0; oc < 3; oc++) {
+            for (int i = 0; i < 9; i++) {
+                dwd[oc * 9 + i] = (float)(oc == 0 ? 1.0f : 0.0f); // only oc=0 kernel is all-1
+            }
+        }
+        // Set oc=0 kernel to identity-like (center=1, rest=0)
+        memset(dwd, 0, 3 * 9 * sizeof(float));
+        dwd[4] = 1.0f;  // oc=0, center pixel
+        dwd[13] = 1.0f; // oc=1, center pixel
+        dwd[22] = 1.0f; // oc=2, center pixel
+        boat_conv_layer_set_weight(conv_dw, dw);
+        boat_tensor_unref(dw);
+
+        // Input: batch=1, 3 channels, 3x3 with known values
+        int64_t dw_in_shape[] = {1, 3, 3, 3};
+        boat_tensor_t* dw_in = boat_tensor_create(dw_in_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+        float* dw_in_d = (float*)boat_tensor_data(dw_in);
+        for (int c = 0; c < 3; c++)
+            for (int i = 0; i < 9; i++)
+                dw_in_d[c * 9 + i] = (float)(c + 1); // ch0=all-1, ch1=all-2, ch2=all-3
+
+        boat_tensor_t* dw_out = boat_conv_layer_forward(conv_dw, dw_in);
+        if (!dw_out) {
+            fprintf(stderr, "Depthwise conv forward failed\n");
+            errors++;
+        } else {
+            const int64_t* ds = boat_tensor_shape(dw_out);
+            printf("Depthwise output shape: [%lld, %lld, %lld, %lld]\n", ds[0], ds[1], ds[2], ds[3]);
+            // With padding=1, 3x3 input → 3x3 output
+            if (ds[0] == 1 && ds[1] == 3 && ds[2] == 3 && ds[3] == 3) {
+                printf("Depthwise: Output dimensions correct!\n");
+            } else {
+                fprintf(stderr, "Depthwise: Wrong output dimensions\n");
+                errors++;
+            }
+            // Each output channel should equal the center pixel of its input
+            float* dw_out_d = (float*)boat_tensor_data(dw_out);
+            bool dw_ok = 1;
+            for (int c = 0; c < 3; c++) {
+                float center_val = dw_out_d[c * 9 + 4]; // center of 3x3
+                float expected = (float)(c + 1);
+                if (fabsf(center_val - expected) > 1e-5f) {
+                    printf("  ch%d center = %f (expected %f)\n", c, center_val, expected);
+                    dw_ok = 0;
+                }
+            }
+            printf("Depthwise: %s\n", dw_ok ? "PASS" : "FAIL");
+            if (!dw_ok) errors++;
+        }
+        boat_tensor_unref(dw_out);
+        boat_tensor_unref(dw_in);
+        boat_conv_layer_free(conv_dw);
     }
 
     // Cleanup

@@ -77,6 +77,10 @@ BOAT_API boat_tensor_t* boat_logical_or(const boat_tensor_t* a, const boat_tenso
 BOAT_API boat_tensor_t* boat_logical_not(const boat_tensor_t* a);
 BOAT_API boat_tensor_t* boat_logical_xor(const boat_tensor_t* a, const boat_tensor_t* b);
 
+// Sinusoidal positional encoding (used by transformer encoders)
+// Returns a 2D tensor [seq_len, embedding_dim] of float32
+BOAT_API boat_tensor_t* BOAT_CALL boat_sinusoidal_embedding(size_t seq_len, size_t embedding_dim, float theta);
+
 // Element-wise mathematical functions
 BOAT_API boat_tensor_t* boat_exp(const boat_tensor_t* a);
 BOAT_API boat_tensor_t* boat_log(const boat_tensor_t* a);

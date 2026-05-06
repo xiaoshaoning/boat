@@ -8,6 +8,29 @@
 #include <string.h>
 #include <stdio.h>
 
+#ifdef BOAT_WITH_CUDA
+#include <boat/cuda_runtime.h>
+#endif
+
+// Use Windows Heap API instead of CRT malloc to avoid heap corruption
+// from CUDA/cuBLAS runtime interactions on Windows.
+#ifdef _WIN32
+#include <windows.h>
+static void* heap_malloc(size_t size) {
+    return HeapAlloc(GetProcessHeap(), 0, size);
+}
+static void* heap_realloc(void* ptr, size_t size) {
+    return HeapReAlloc(GetProcessHeap(), 0, ptr, size);
+}
+static void heap_free(void* ptr) {
+    HeapFree(GetProcessHeap(), 0, ptr);
+}
+#else
+#define heap_malloc(sz)       malloc(sz)
+#define heap_realloc(ptr, sz) realloc(ptr, sz)
+#define heap_free(ptr)        free(ptr)
+#endif
+
 
 // Global memory statistics
 static boat_memory_stats_t g_memory_stats = {0};
@@ -52,7 +75,7 @@ void* boat_memory_allocate(size_t size, boat_device_t device,
     size_t total_size = sizeof(boat_memory_header_t) + size;
 
     // Allocate memory
-    boat_memory_header_t* header = malloc(total_size);
+    boat_memory_header_t* header = (boat_memory_header_t*)heap_malloc(total_size);
     if (!header) {
         boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[Memory] Allocation of %zu bytes failed at %s:%d\n",
                 size, file, line);
@@ -98,7 +121,7 @@ void* boat_memory_reallocate(void* ptr, size_t new_size, boat_device_t device,
 
     // Reallocate with new size
     size_t total_size = sizeof(boat_memory_header_t) + new_size;
-    boat_memory_header_t* new_header = realloc(old_header, total_size);
+    boat_memory_header_t* new_header = (boat_memory_header_t*)heap_realloc(old_header, total_size);
     if (!new_header) {
         boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[Memory] Reallocation of %zu bytes failed at %s:%d\n",
                 new_size, file, line);
@@ -130,7 +153,7 @@ void boat_memory_free(void* ptr) {
     update_free_stats(header->size);
 
     // Free memory
-    free(header);
+    heap_free(header);
 }
 
 void boat_memory_free_safe(void** ptr_ptr) {
@@ -169,18 +192,33 @@ void boat_memory_print_stats(FILE* stream) {
     }
 }
 
-// Device-specific memory allocation (stubs for now)
+// Device-specific memory allocation
 void* boat_memory_allocate_device(size_t size, boat_device_t device,
                                   const char* file, int line) {
-    // For now, just use CPU allocation
-    // TODO: Implement CUDA allocation when CUDA support is added
+    if (size == 0) return NULL;
+#ifdef BOAT_WITH_CUDA
+    if (device == BOAT_DEVICE_CUDA) {
+        void* ptr = boat_cuda_malloc(size);
+        if (!ptr) {
+            boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[Memory] CUDA allocation of %zu bytes failed at %s:%d\n",
+                    size, file, line);
+            return NULL;
+        }
+        return ptr;
+    }
+#endif
     return boat_memory_allocate(size, BOAT_DEVICE_CPU, file, line);
 }
 
 void boat_memory_free_device(void* ptr, boat_device_t device) {
-    // For now, just use CPU deallocation
-    // TODO: Implement CUDA deallocation when CUDA support is added
-    (void)device; // Unused parameter
+    if (!ptr) return;
+#ifdef BOAT_WITH_CUDA
+    if (device == BOAT_DEVICE_CUDA) {
+        boat_cuda_free(ptr);
+        return;
+    }
+#endif
+    (void)device;
     boat_memory_free(ptr);
 }
 
@@ -230,8 +268,15 @@ void boat_memory_copy(void* dest, const void* src, size_t size,
                       boat_device_t dest_device, boat_device_t src_device) {
     if (dest_device == BOAT_DEVICE_CPU && src_device == BOAT_DEVICE_CPU) {
         memcpy(dest, src, size);
+#ifdef BOAT_WITH_CUDA
+    } else if (dest_device == BOAT_DEVICE_CUDA && src_device == BOAT_DEVICE_CPU) {
+        boat_cuda_memcpy_h2d(dest, src, size);
+    } else if (dest_device == BOAT_DEVICE_CPU && src_device == BOAT_DEVICE_CUDA) {
+        boat_cuda_memcpy_d2h(dest, src, size);
+    } else if (dest_device == BOAT_DEVICE_CUDA && src_device == BOAT_DEVICE_CUDA) {
+        boat_cuda_memcpy_d2d(dest, src, size);
+#endif
     } else {
-        // TODO: Implement cross-device copying when CUDA support is added
         boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Memory] Cross-device memory copy not implemented yet\n");
     }
 }
@@ -239,8 +284,11 @@ void boat_memory_copy(void* dest, const void* src, size_t size,
 void boat_memory_set(void* dest, int value, size_t size, boat_device_t device) {
     if (device == BOAT_DEVICE_CPU) {
         memset(dest, value, size);
+#ifdef BOAT_WITH_CUDA
+    } else if (device == BOAT_DEVICE_CUDA) {
+        boat_cuda_memset(dest, value, size);
+#endif
     } else {
-        // TODO: Implement device-specific memset when CUDA support is added
         boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Memory] Device-specific memset not implemented yet\n");
     }
 }
@@ -294,7 +342,7 @@ boat_memory_pool_t* boat_memory_pool_create(size_t block_size, size_t initial_bl
     }
 
     // Allocate pool structure
-    boat_memory_pool_t* pool = (boat_memory_pool_t*)malloc(sizeof(boat_memory_pool_t));
+    boat_memory_pool_t* pool = (boat_memory_pool_t*)heap_malloc(sizeof(boat_memory_pool_t));
     if (!pool) {
         return NULL;
     }
@@ -307,9 +355,9 @@ boat_memory_pool_t* boat_memory_pool_create(size_t block_size, size_t initial_bl
 
     // Allocate memory area for all blocks
     size_t total_size = initial_blocks * (sizeof(boat_memory_block_t) + block_size);
-    pool->memory_area = malloc(total_size);
+    pool->memory_area = heap_malloc(total_size);
     if (!pool->memory_area) {
-        free(pool);
+        heap_free(pool);
         return NULL;
     }
 
@@ -333,8 +381,8 @@ void boat_memory_pool_free(boat_memory_pool_t* pool) {
         return;
     }
 
-    free(pool->memory_area);
-    free(pool);
+    heap_free(pool->memory_area);
+    heap_free(pool);
 }
 
 void* boat_memory_pool_alloc(boat_memory_pool_t* pool, size_t size) {
@@ -431,14 +479,14 @@ boat_memory_arena_t* boat_memory_arena_create(size_t initial_size) {
         initial_size = 1024 * 1024;  // Default 1MB
     }
 
-    boat_memory_arena_t* arena = (boat_memory_arena_t*)malloc(sizeof(boat_memory_arena_t));
+    boat_memory_arena_t* arena = (boat_memory_arena_t*)heap_malloc(sizeof(boat_memory_arena_t));
     if (!arena) {
         return NULL;
     }
 
-    arena->memory = (uint8_t*)malloc(initial_size);
+    arena->memory = (uint8_t*)heap_malloc(initial_size);
     if (!arena->memory) {
-        free(arena);
+        heap_free(arena);
         return NULL;
     }
 
@@ -454,8 +502,8 @@ void boat_memory_arena_free(boat_memory_arena_t* arena) {
         return;
     }
 
-    free(arena->memory);
-    free(arena);
+    heap_free(arena->memory);
+    heap_free(arena);
 }
 
 void* boat_memory_arena_alloc(boat_memory_arena_t* arena, size_t size) {
@@ -473,7 +521,7 @@ void* boat_memory_arena_alloc(boat_memory_arena_t* arena, size_t size) {
             new_capacity *= 2;
         }
 
-        uint8_t* new_memory = (uint8_t*)realloc(arena->memory, new_capacity);
+        uint8_t* new_memory = (uint8_t*)heap_realloc(arena->memory, new_capacity);
         if (!new_memory) {
             return NULL;
         }

@@ -110,11 +110,11 @@ mnist_model_t* create_mnist_model() {
     if (!model) return NULL;
 
     // Create layers
-    model->conv1 = boat_conv_layer_create(1, 32, 3, 1, 1);  // 1->32 channels, 3x3 kernel, stride=1, padding=1
+    model->conv1 = boat_conv_layer_create(1, 32, 3, 1, 1, 1);  // 1->32 channels, 3x3 kernel, stride=1, padding=1
     model->relu1 = boat_relu_layer_create();
     model->pool1 = boat_pool_layer_create(2, 2, 0);         // 2x2 max pool, stride=2
 
-    model->conv2 = boat_conv_layer_create(32, 64, 3, 1, 1); // 32->64 channels
+    model->conv2 = boat_conv_layer_create(32, 64, 3, 1, 1, 1); // 32->64 channels
     model->relu2 = boat_relu_layer_create();
     model->pool2 = boat_pool_layer_create(2, 2, 0);
 

@@ -4,7 +4,7 @@ A lightweight, high-performance deep learning framework written in C with eventu
 
 ## Design Principles
 
-- **Minimal dependencies**: Pure C with optional CUDA backend
+- **Minimal dependencies**: Pure C with optional CUDA backend. CUDA must always remain optional — the framework must compile and run correctly with all features on CPU alone. CUDA code is additive, never replaces CPU code paths.
 - **Memory efficient**: Explicit memory management with reference counting
 - **Extensible**: Modular architecture for adding new operations and layers
 - **Portable**: Works on Linux, macOS, and Windows

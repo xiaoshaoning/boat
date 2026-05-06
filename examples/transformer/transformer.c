@@ -505,7 +505,7 @@ int main(void) {
     for (int i = 0; i < n_layers; i++) {
         ln1[i] = manual_ln_create(d_model, 1e-5f);
         ln2[i] = manual_ln_create(d_model, 1e-5f);
-        attn_layers[i] = boat_attention_layer_create((size_t)d_model, (size_t)n_heads, 0.0f, true);
+        attn_layers[i] = boat_attention_layer_create((size_t)d_model, (size_t)n_heads, (size_t)n_heads, 0.0f, true);
         ffn1_layers[i] = boat_dense_layer_create((size_t)d_model, (size_t)d_ff, true);
         ffn2_layers[i] = boat_dense_layer_create((size_t)d_ff, (size_t)d_model, true);
         relu_layers[i] = boat_relu_layer_create();

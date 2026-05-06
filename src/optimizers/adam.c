@@ -10,6 +10,11 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+
+#ifdef BOAT_WITH_CUDA
+#include <boat/cuda_runtime.h>
+#endif
 #include <boat.h>
 
 // Adam optimizer state structure
@@ -33,6 +38,20 @@ typedef struct boat_adam_state_t {
     size_t num_params;
     size_t capacity;
 } boat_adam_state_t;
+
+// BF16 ↔ FP32 conversion helpers for CPU fallback path
+static inline float bf16_to_float(uint16_t v) {
+    uint32_t bits = (uint32_t)v << 16;
+    float result;
+    memcpy(&result, &bits, sizeof(result));
+    return result;
+}
+
+static inline uint16_t float_to_bf16(float v) {
+    uint32_t bits;
+    memcpy(&bits, &v, sizeof(bits));
+    return (uint16_t)(bits >> 16);
+}
 
 // Internal function declarations
 static void adam_expand_capacity(boat_adam_state_t* state);
@@ -119,24 +138,25 @@ void adam_optimizer_add_parameter(boat_optimizer_t* optimizer,
     state->params[idx] = param;
     state->grads[idx] = grad;
 
-    // Create moment estimate tensors with same shape as parameter
+    // Create moment estimate tensors with same shape and device as parameter
     const int64_t* shape = boat_tensor_shape(param);
     size_t ndim = boat_tensor_ndim(param);
     boat_dtype_t dtype = boat_tensor_dtype(param);
+    boat_device_t device = boat_tensor_device(param);
 
-    state->m[idx] = boat_tensor_create(shape, ndim, dtype, BOAT_DEVICE_CPU);
-    state->v[idx] = boat_tensor_create(shape, ndim, dtype, BOAT_DEVICE_CPU);
+    // For BF16 params, keep optimizer state in FP32 for numerical stability
+    boat_dtype_t state_dtype = (dtype == BOAT_DTYPE_BFLOAT16) ? BOAT_DTYPE_FLOAT32 : dtype;
+    state->m[idx] = boat_tensor_create(shape, ndim, state_dtype, device);
+    state->v[idx] = boat_tensor_create(shape, ndim, state_dtype, device);
 
     if (state->m[idx] && state->v[idx]) {
-        // Initialize moment estimates to zero
+        // Initialize moment estimates to zero (device-aware)
         float* m_data = (float*)boat_tensor_data(state->m[idx]);
+        size_t m_nbytes = boat_tensor_nbytes(state->m[idx]);
+        boat_memory_set(m_data, 0, m_nbytes, device);
         float* v_data = (float*)boat_tensor_data(state->v[idx]);
-        size_t num_elements = boat_tensor_nelements(state->m[idx]);
-
-        for (size_t i = 0; i < num_elements; i++) {
-            m_data[i] = 0.0f;
-            v_data[i] = 0.0f;
-        }
+        size_t v_nbytes = boat_tensor_nbytes(state->v[idx]);
+        boat_memory_set(v_data, 0, v_nbytes, device);
     }
 
     state->num_params++;
@@ -209,7 +229,40 @@ static void adam_update_parameter(boat_adam_state_t* state, size_t idx) {
     float beta1_pow_t = powf(state->beta1, (float)(state->timestep + 1));
     float beta2_pow_t = powf(state->beta2, (float)(state->timestep + 1));
 
-    // Update each element
+#ifdef BOAT_WITH_CUDA
+    if (boat_tensor_device(param) == BOAT_DEVICE_CUDA) {
+        if (boat_tensor_dtype(param) == BOAT_DTYPE_BFLOAT16) {
+            boat_cuda_adam_update_bf16(param_data, grad_data, m_data, v_data,
+                                       state->learning_rate, state->beta1, state->beta2,
+                                       beta1_pow_t, beta2_pow_t, state->epsilon,
+                                       num_elements);
+            return;
+        }
+        boat_cuda_adam_update_f32(param_data, grad_data, m_data, v_data,
+                                   state->learning_rate, state->beta1, state->beta2,
+                                   beta1_pow_t, beta2_pow_t, state->epsilon,
+                                   num_elements);
+        return;
+    }
+#endif
+
+    // CPU fallback: BF16 param path
+    if (boat_tensor_dtype(param) == BOAT_DTYPE_BFLOAT16) {
+        uint16_t* bf16_param = (uint16_t*)param_data;
+        for (size_t i = 0; i < num_elements; i++) {
+            float g = grad_data[i];
+            m_data[i] = state->beta1 * m_data[i] + (1.0f - state->beta1) * g;
+            v_data[i] = state->beta2 * v_data[i] + (1.0f - state->beta2) * g * g;
+            float m_hat = m_data[i] / (1.0f - beta1_pow_t);
+            float v_hat = v_data[i] / (1.0f - beta2_pow_t);
+            float p = bf16_to_float(bf16_param[i]);
+            p -= state->learning_rate * m_hat / (sqrtf(v_hat) + state->epsilon);
+            bf16_param[i] = float_to_bf16(p);
+        }
+        return;
+    }
+
+    // Update each element (CPU, FP32)
     for (size_t i = 0; i < num_elements; i++) {
         float g = grad_data[i];
 
@@ -260,11 +313,9 @@ void adam_optimizer_zero_grad(boat_optimizer_t* optimizer) {
         }
 
         float* grad_data = (float*)boat_tensor_data(grad);
-        size_t num_elements = boat_tensor_nelements(grad);
-
-        for (size_t j = 0; j < num_elements; j++) {
-            grad_data[j] = 0.0f;
-        }
+        size_t nbytes = boat_tensor_nbytes(grad);
+        boat_device_t device = boat_tensor_device(grad);
+        boat_memory_set(grad_data, 0, nbytes, device);
     }
 }
 

@@ -44,14 +44,41 @@ option(BOAT_BUILD_SHARED "Build shared library (DLL on Windows)" OFF)
 option(BOAT_WITH_CUDA "Enable CUDA support" OFF)
 option(BOAT_WITH_TESTS "Build tests" OFF)
 option(BOAT_WITH_EXAMPLES "Build examples" OFF)
+option(BOAT_WITH_COVERAGE "Enable code coverage instrumentation (GCC/Clang only)" OFF)
 option(BOAT_WITH_ONNX "Enable ONNX support" OFF)
 option(BOAT_WITH_PYTORCH "Enable PyTorch support" OFF)
 option(BOAT_WITH_TENSORFLOW "Enable TensorFlow support" OFF)
 option(BOAT_WITH_HUGGINGFACE "Enable Hugging Face Transformers support" OFF)
 option(BOAT_WITH_GGUF "Enable GGUF format support" OFF)
+option(BOAT_WITH_ONNXRUNTIME "Enable ONNX Runtime inference backend" OFF)
+option(BOAT_WITH_CUDNN "Enable cuDNN support" OFF)
 option(BOAT_WITH_SIMD "Enable SIMD optimizations (AVX2/NEON)" ON)
 option(BOAT_WITH_OPENMP "Enable OpenMP parallelism" ON)
+option(BOAT_WITH_OPENBLAS "Enable OpenBLAS for accelerated SGEMM" OFF)
 option(BOAT_DEBUG "Enable debug output (0=disabled, 1=enabled)" 0)
+
+# OpenBLAS configuration
+if(BOAT_WITH_OPENBLAS)
+    set(BOAT_OPENBLAS_ROOT "" CACHE PATH "Path to OpenBLAS installation (with include/ and lib/)")
+    if(BOAT_OPENBLAS_ROOT)
+        set(BOAT_OPENBLAS_INCLUDE_DIR "${BOAT_OPENBLAS_ROOT}/include")
+        find_library(BOAT_OPENBLAS_LIBRARY
+            NAMES openblas libopenblas
+            PATHS "${BOAT_OPENBLAS_ROOT}/lib"
+            NO_DEFAULT_PATH
+        )
+    else()
+        # Default search paths
+        find_path(BOAT_OPENBLAS_INCLUDE_DIR cblas.h)
+        find_library(BOAT_OPENBLAS_LIBRARY NAMES openblas libopenblas)
+    endif()
+    if(BOAT_OPENBLAS_INCLUDE_DIR AND BOAT_OPENBLAS_LIBRARY)
+        message(STATUS "Found OpenBLAS: ${BOAT_OPENBLAS_LIBRARY}")
+        message(STATUS "OpenBLAS include: ${BOAT_OPENBLAS_INCLUDE_DIR}")
+    else()
+        message(FATAL_ERROR "OpenBLAS not found. Set BOAT_OPENBLAS_ROOT or install OpenBLAS.")
+    endif()
+endif()
 
 # PyTorch path configuration
 option(BOAT_PYTORCH_PATH "Path to LibTorch installation" "")
@@ -72,6 +99,18 @@ if(BOAT_WITH_ASAN)
         set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -fsanitize=address")
     else()
         message(WARNING "AddressSanitizer not supported for compiler ${CMAKE_C_COMPILER_ID}")
+    endif()
+endif()
+
+# Code coverage instrumentation
+if(BOAT_WITH_COVERAGE)
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        message(STATUS "Enabling code coverage instrumentation")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --coverage -fprofile-arcs -ftest-coverage")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} --coverage")
+    else()
+        message(WARNING "Code coverage not supported for compiler ${CMAKE_C_COMPILER_ID}")
     endif()
 endif()
 
@@ -147,6 +186,7 @@ set(BOAT_SOURCES
     src/core/version.c
     src/core/packed.c
     src/core/quantize.c
+    src/core/prune.c
     src/ops/arithmetic.c
     src/ops/linear.c
     src/ops/activation.c
@@ -188,6 +228,8 @@ set(BOAT_SOURCES
     src/loss/mse.c
     src/loss/cross_entropy.c
     src/loss/huber.c
+    src/layers/embedding.c
+    src/sampling.c
 )
 
 # Optional format loaders
@@ -284,6 +326,24 @@ if(BOAT_WITH_GGUF)
     list(APPEND BOAT_SOURCES src/format/gguf.c)
 endif()
 
+if(BOAT_WITH_ONNXRUNTIME)
+    set(ONNXRUNTIME_ROOT "" CACHE PATH "Path to ONNX Runtime installation (with include/ and lib/)")
+    if(ONNXRUNTIME_ROOT)
+        set(ONNXRT_INCLUDE_DIR "${ONNXRUNTIME_ROOT}/include")
+        find_library(ONNXRT_LIBRARY NAMES onnxruntime PATHS "${ONNXRUNTIME_ROOT}/lib" NO_DEFAULT_PATH)
+    else()
+        set(ONNXRT_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/onnxruntime/include")
+        find_library(ONNXRT_LIBRARY NAMES onnxruntime PATHS "${CMAKE_SOURCE_DIR}/external/onnxruntime/lib")
+    endif()
+    if(ONNXRT_INCLUDE_DIR AND ONNXRT_LIBRARY)
+        message(STATUS "Found ONNX Runtime: ${ONNXRT_LIBRARY}")
+        list(APPEND BOAT_SOURCES src/format/onnxruntime.c)
+        set(BOAT_NEEDS_ONNXRUNTIME_DEFINE ON)
+    else()
+        message(FATAL_ERROR "ONNX Runtime not found. Install ONNX Runtime C/C++ package or set -DONNXRUNTIME_ROOT=...")
+    endif()
+endif()
+
 if(BOAT_WITH_HUGGINGFACE)
     list(APPEND BOAT_SOURCES src/format/huggingface.c)
 
@@ -322,22 +382,74 @@ if(BOAT_WITH_CUDA)
     # CUDA source files
     set(BOAT_CUDA_SOURCES
         cuda/tensor.cu
+        cuda/cublas_handle.cu
         cuda/ops/arithmetic.cu
         cuda/ops/linear.cu
         cuda/ops/activation.cu
         cuda/autodiff/grad.cu
         cuda/graph/executor.cu
         cuda/kernels/basic.cu
+        cuda/kernels/dense.cu
+        cuda/kernels/conv.cu
+        cuda/kernels/fused.cu
+        cuda/kernels/pool.cu
+        cuda/kernels/norm.cu
+        cuda/kernels/optimizer.cu
+        cuda/kernels/bf16_conversion.cu
+        cuda/kernels/bf16_optimizer.cu
+        cuda/kernels/fp8_conversion.cu
+        cuda/kernels/fp8_elemwise.cu
+        cuda/kernels/fp8_matmul.cu
     )
-
-    list(APPEND BOAT_SOURCES ${BOAT_CUDA_SOURCES})
 
     # CUDA configuration
     set(CMAKE_CUDA_STANDARD 11)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
+    # Allow unsupported host compiler (VS 2026 with CUDA 13.1)
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -allow-unsupported-compiler")
+
+    # Default CUDA architectures (Blackwell+ — override with -DCMAKE_CUDA_ARCHITECTURES=)
+    if(NOT CMAKE_CUDA_ARCHITECTURES)
+        set(CMAKE_CUDA_ARCHITECTURES "100" CACHE STRING "CUDA architectures to target")
+    endif()
+
     # Find CUDA
     find_package(CUDAToolkit REQUIRED)
+
+    # cuDNN support (optional) — must come before BOAT_SOURCES append
+    if(BOAT_WITH_CUDNN)
+        set(CUDNN_ROOT "" CACHE PATH "Path to cuDNN installation (with include/ and lib/ or bin/)")
+        find_path(CUDNN_INCLUDE_DIR cudnn.h
+            HINTS "${CUDNN_ROOT}/include"
+                  "$ENV{CUDNN_PATH}/include"
+                  "${CUDAToolkit_INCLUDE_DIRS}"
+        )
+        find_library(CUDNN_LIBRARY
+            NAMES cudnn cudnn64
+            HINTS "${CUDNN_ROOT}/lib"
+                  "${CUDNN_ROOT}/bin"
+                  "${CUDNN_ROOT}/lib/x64"
+                  "$ENV{CUDNN_PATH}/lib"
+                  "$ENV{CUDNN_PATH}/bin"
+                  "${CUDAToolkit_LIBRARY_DIR}"
+        )
+        if(NOT CUDNN_LIBRARY)
+            find_library(CUDNN_LIBRARY
+                NAMES cudnn.lib cudnn64.lib
+                PATHS "$ENV{CUDNN_PATH}/bin"
+            )
+        endif()
+        if(CUDNN_INCLUDE_DIR AND CUDNN_LIBRARY)
+            message(STATUS "Found cuDNN: ${CUDNN_LIBRARY}")
+            message(STATUS "cuDNN include: ${CUDNN_INCLUDE_DIR}")
+            list(APPEND BOAT_CUDA_SOURCES cuda/cudnn_handle.cu)
+        else()
+            message(FATAL_ERROR "cuDNN not found. Install cuDNN or set BOAT_WITH_CUDNN=OFF.\n  Hint: pass -DCUDNN_ROOT=/path/to/cudnn or set CUDNN_PATH environment variable.")
+        endif()
+    endif()
+
+    list(APPEND BOAT_SOURCES ${BOAT_CUDA_SOURCES})
 endif()
 
 # Create library (shared or static based on option)
@@ -370,10 +482,15 @@ endif()
 
 # ONNX format support (self-contained, no external dep)
 if(BOAT_NEEDS_ONNX_DEFINE)
-    target_compile_definitions(boat PRIVATE BOAT_WITH_ONNX)
+    target_compile_definitions(boat PUBLIC BOAT_WITH_ONNX)
 endif()
 if(BOAT_WITH_GGUF)
     target_compile_definitions(boat PRIVATE BOAT_WITH_GGUF)
+endif()
+if(BOAT_NEEDS_ONNXRUNTIME_DEFINE)
+    target_compile_definitions(boat PUBLIC BOAT_WITH_ONNXRUNTIME)
+    target_include_directories(boat PRIVATE ${ONNXRT_INCLUDE_DIR})
+    target_link_libraries(boat PUBLIC ${ONNXRT_LIBRARY})
 endif()
 
 # SIMD compile-time flag
@@ -426,7 +543,22 @@ target_include_directories(boat PUBLIC
 
 # Link libraries
 if(BOAT_WITH_CUDA)
+    target_compile_definitions(boat PRIVATE BOAT_WITH_CUDA)
     target_link_libraries(boat PUBLIC CUDA::cudart CUDA::cublas)
+endif()
+
+# cuDNN include and link (must be after add_library)
+if(BOAT_WITH_CUDNN AND CUDNN_INCLUDE_DIR AND CUDNN_LIBRARY)
+    target_compile_definitions(boat PUBLIC BOAT_WITH_CUDNN)
+    target_include_directories(boat PUBLIC ${CUDNN_INCLUDE_DIR})
+    target_link_libraries(boat PUBLIC ${CUDNN_LIBRARY})
+endif()
+
+# OpenBLAS include and link
+if(BOAT_WITH_OPENBLAS AND BOAT_OPENBLAS_INCLUDE_DIR AND BOAT_OPENBLAS_LIBRARY)
+    target_compile_definitions(boat PUBLIC BOAT_USE_OPENBLAS)
+    target_include_directories(boat PUBLIC ${BOAT_OPENBLAS_INCLUDE_DIR})
+    target_link_libraries(boat PUBLIC ${BOAT_OPENBLAS_LIBRARY})
 endif()
 
 # Remove ONNX Runtime linking — no longer needed

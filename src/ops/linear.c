@@ -11,6 +11,10 @@
 #include <math.h>
 #include <stdio.h>
 
+#ifdef BOAT_WITH_CUDA
+#include <boat/cuda_runtime.h>
+#endif
+
 // Matrix multiplication with batch support
 boat_tensor_t* boat_matmul(const boat_tensor_t* a, const boat_tensor_t* b) {
     if (!a || !b) {
@@ -105,9 +109,9 @@ boat_tensor_t* boat_matmul(const boat_tensor_t* a, const boat_tensor_t* b) {
             const float* b_ptr = (const float*)b_data;
             float* out_ptr = (float*)out_data;
 
-            // Initialize output to zero
+            // Initialize output to zero (device-aware — use cudaMemset for CUDA tensors)
             size_t out_elements = boat_tensor_nelements(out);
-            memset(out_ptr, 0, out_elements * sizeof(float));
+            boat_memory_set(out_ptr, 0, out_elements * sizeof(float), boat_tensor_device(a));
 
             // Compute strides for batch dimension (flattened batch dimensions)
             bool has_batch = (batch_dims > 0);
@@ -115,16 +119,31 @@ boat_tensor_t* boat_matmul(const boat_tensor_t* a, const boat_tensor_t* b) {
             size_t b_batch_stride = has_batch ? (k * n) : 0;
             size_t out_batch_stride = has_batch ? (m * n) : 0;
 
-            // Use tiled SGEMM for each batch element
+            // Dispatch to cuBLAS for CUDA tensors, CPU SGEMM otherwise
             int batch_count = (int)batch_size;
-            int batch;
-            BOAT_OMP_PARALLEL_FOR
-            for (batch = 0; batch < batch_count; batch++) {
-                const float* a_batch_ptr = a_ptr + batch * a_batch_stride;
-                const float* b_batch_ptr = b_ptr + batch * b_batch_stride;
-                float* out_batch_ptr = out_ptr + batch * out_batch_stride;
+#ifdef BOAT_WITH_CUDA
+            if (boat_tensor_device(a) == BOAT_DEVICE_CUDA) {
+                if (batch_count == 1) {
+                    boat_cuda_matmul_f32_cublas(a_ptr, b_ptr, out_ptr, (size_t)m, (size_t)n, (size_t)k);
+                } else {
+                    boat_cuda_matmul_f32_strided_batched(
+                        a_ptr, b_ptr, out_ptr,
+                        (size_t)m, (size_t)n, (size_t)k,
+                        (size_t)batch_count,
+                        a_batch_stride, b_batch_stride, out_batch_stride);
+                }
+            } else
+#endif
+            {
+                int batch;
+                BOAT_OMP_PARALLEL_FOR
+                for (batch = 0; batch < batch_count; batch++) {
+                    const float* a_batch_ptr = a_ptr + batch * a_batch_stride;
+                    const float* b_batch_ptr = b_ptr + batch * b_batch_stride;
+                    float* out_batch_ptr = out_ptr + batch * out_batch_stride;
 
-                boat_sgemm(m, n, k, a_batch_ptr, b_batch_ptr, out_batch_ptr);
+                    boat_sgemm(m, n, k, a_batch_ptr, b_batch_ptr, out_batch_ptr);
+                }
             }
             break;
         }
@@ -134,7 +153,7 @@ boat_tensor_t* boat_matmul(const boat_tensor_t* a, const boat_tensor_t* b) {
             double* out_ptr = (double*)out_data;
 
             size_t out_elements = boat_tensor_nelements(out);
-            memset(out_ptr, 0, out_elements * sizeof(double));
+            boat_memory_set(out_ptr, 0, out_elements * sizeof(double), boat_tensor_device(a));
 
             bool has_batch = (batch_dims > 0);
             size_t a_batch_stride = has_batch ? (m * k) : 0;
@@ -200,6 +219,14 @@ boat_tensor_t* boat_dot(const boat_tensor_t* a, const boat_tensor_t* b) {
     const void* a_data = boat_tensor_data(a);
     const void* b_data = boat_tensor_data(b);
     void* out_data = boat_tensor_data(out);
+
+#ifdef BOAT_WITH_CUDA
+    if (boat_tensor_device(a) == BOAT_DEVICE_CUDA && dtype == BOAT_DTYPE_FLOAT32) {
+        float result = boat_cuda_dot_f32((const float*)a_data, (const float*)b_data, (int64_t)n);
+        *((float*)out_data) = result;
+        return out;
+    }
+#endif
 
     switch (dtype) {
         case BOAT_DTYPE_FLOAT32: {
@@ -283,6 +310,37 @@ boat_tensor_t* boat_transpose(const boat_tensor_t* a, int dim0, int dim1) {
     for (size_t i = 0; i < ndim; i++) {
         total_elements *= shape[i];
     }
+
+#ifdef BOAT_WITH_CUDA
+    if (boat_tensor_device(a) == BOAT_DEVICE_CUDA && boat_tensor_dtype(a) == BOAT_DTYPE_FLOAT32) {
+        if (ndim == 2) {
+            // Fast 2D tiled transpose
+            boat_cuda_transpose_f32((const float*)in_data, (float*)out_data,
+                                     shape[0], shape[1]);
+        } else {
+            // N-D transpose: compute strides and dispatch
+            size_t* in_stride = (size_t*)malloc(ndim * sizeof(size_t));
+            size_t* out_stride = (size_t*)malloc(ndim * sizeof(size_t));
+            int64_t* dev_shape = (int64_t*)malloc(ndim * sizeof(int64_t));
+            if (in_stride && out_stride && dev_shape) {
+                in_stride[ndim-1] = 1;
+                for (int i = (int)ndim-2; i >= 0; i--)
+                    in_stride[i] = in_stride[i+1] * (size_t)shape[i+1];
+                out_stride[ndim-1] = 1;
+                for (int i = (int)ndim-2; i >= 0; i--)
+                    out_stride[i] = out_stride[i+1] * (size_t)out_shape_ptr[i+1];
+                for (size_t i = 0; i < ndim; i++) dev_shape[i] = shape[i];
+
+                boat_cuda_transpose_nd_f32((const float*)in_data, (float*)out_data,
+                                            (int64_t)total_elements,
+                                            dev_shape, in_stride, out_stride,
+                                            (int64_t)ndim, dim0, dim1);
+                free(in_stride); free(out_stride); free(dev_shape);
+            }
+        }
+        return out;
+    }
+#endif
 
     // Handle different data types
     switch (boat_tensor_dtype(a)) {

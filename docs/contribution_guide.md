@@ -41,7 +41,8 @@ git checkout -b feature/your-feature-name
    ```
 4. **静态分析**:
    ```bash
-   cppcheck --enable=warning,style --suppress=missingInclude -I include src
+   # C 代码静态分析 (clang-tidy, 而非 cppcheck, 后者主要针对 C++)
+   clang-tidy src/**/*.c -- -Iinclude
    ```
 
 ### 4. 提交更改
@@ -241,13 +242,13 @@ BOAT_API boat_tensor_t* boat_tensor_create(const int64_t* shape, size_t ndim,
 
 ### 开发工具
 - **代码格式化**: 遵循 CLAUDE.md 中的代码风格
-- **静态分析**: `cppcheck` 集成
+- **静态分析**: `clang-tidy` 集成 (C 代码; CUDA 静态分析工具有限)
 - **构建系统**: CMake
 
 ### 本地检查
 ```bash
 # run static analysis
-cppcheck --enable=warning,style --suppress=missingInclude -I include src
+clang-tidy src/**/*.c -- -Iinclude
 
 # run full test suite
 mkdir -p build && cd build
@@ -282,7 +283,7 @@ cmake .. -DBOAT_WITH_TESTS=ON -DCMAKE_BUILD_TYPE=Debug
 # daily development loop
 make                    # build
 ctest -V               # run tests
-cppcheck src          # static check
+clang-tidy src/*.c -- -Iinclude  # static check (C code only)
 
 # commit changes
 git add .

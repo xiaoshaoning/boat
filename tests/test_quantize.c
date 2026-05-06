@@ -225,7 +225,7 @@ static int test_model_dequantize_dense(void) {
 static int test_model_quantize_conv(void) {
     TEST("Model quantize Conv2D");
     boat_model_t* m = boat_model_create();
-    boat_conv_layer_t* c = boat_conv_layer_create(1, 4, 3, 1, 1);
+    boat_conv_layer_t* c = boat_conv_layer_create(1, 4, 3, 1, 1, 1);
     fill_tensor(boat_conv_layer_get_weight(c), 1.0f);
     fill_tensor(boat_conv_layer_get_bias(c), 0.1f);
     boat_model_add_layer(m, wrap(c, BOAT_LAYER_TYPE_CONV2D));
@@ -759,6 +759,125 @@ static int test_per_channel_bits2(void) {
     PASS(); return 0;
 }
 
+// --- Test 27: BITS1 quantize-dequantize roundtrip ---
+static int test_bits1_roundtrip(void) {
+    TEST("BITS1 quantize-dequantize roundtrip");
+    int64_t shape[] = {8};
+    float data[] = {0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f};
+    boat_tensor_t* fp32 = boat_tensor_from_data(shape, 1, BOAT_DTYPE_FLOAT32, data);
+
+    boat_quant_config_t cfg = boat_quant_config_default();
+    cfg.quant_dtype = BOAT_DTYPE_BITS1;
+    boat_tensor_t* q = boat_quantize_tensor(fp32, &cfg);
+    if (!q) FAIL("quantize returned NULL");
+    if (boat_tensor_dtype(q) != BOAT_DTYPE_BITS1) FAIL("dtype not BITS1");
+    if (boat_tensor_get_scale(q) == 0.0f) FAIL("scale is 0");
+
+    boat_tensor_t* deq = boat_dequantize_tensor(q);
+    if (!deq) FAIL("dequantize returned NULL");
+    // BITS1 has only 2 levels, max error is 1 full quantization step
+    if (!tensors_allclose(fp32, deq, 0.5f)) FAIL("values out of tolerance");
+
+    boat_tensor_unref(fp32);
+    boat_tensor_unref(q);
+    boat_tensor_unref(deq);
+    PASS(); return 0;
+}
+
+// --- Test 28: BITS1 quantized bounds in [0, 1] ---
+static int test_bits1_bounds(void) {
+    TEST("BITS1 quantized values in [0, 1]");
+    float data[] = {-100.0f, 0.0f, 100.0f, 1000.0f};
+    int64_t shape[] = {4};
+    boat_tensor_t* fp32 = boat_tensor_from_data(shape, 1, BOAT_DTYPE_FLOAT32, data);
+
+    boat_quant_config_t cfg = boat_quant_config_default();
+    cfg.quant_dtype = BOAT_DTYPE_BITS1;
+    boat_tensor_t* q = boat_quantize_tensor(fp32, &cfg);
+    if (!q) FAIL("quantize returned NULL");
+
+    // Unpack and check bounds
+    const uint8_t* packed = (const uint8_t*)boat_tensor_const_data(q);
+    size_t n = boat_tensor_nelements(q);
+    bool* unpacked = (bool*)malloc(n);
+    boat_unpack_bits1(packed, unpacked, n);
+    for (size_t i = 0; i < n; i++) {
+        if (unpacked[i] > 1) FAIL("quantized value > 1");
+    }
+    free(unpacked);
+
+    boat_tensor_t* deq = boat_dequantize_tensor(q);
+    if (!deq) FAIL("dequantize returned NULL");
+
+    boat_tensor_unref(fp32);
+    boat_tensor_unref(q);
+    boat_tensor_unref(deq);
+    PASS(); return 0;
+}
+
+// --- Test 29: BITS1 model quantize + serialization ---
+static int test_bits1_model_serialize(void) {
+    TEST("BITS1 model quantize + serialization");
+    const char* tmpfile = "test_bits1_serialize.tmp";
+
+    boat_model_t* m = boat_model_create();
+    boat_dense_layer_t* d = boat_dense_layer_create(4, 8, true);
+    fill_tensor(boat_dense_layer_get_weight(d), 1.0f);
+    fill_tensor(boat_dense_layer_get_bias(d), 0.1f);
+    boat_model_add_layer(m, wrap(d, BOAT_LAYER_TYPE_DENSE));
+
+    boat_quant_config_t cfg = boat_quant_config_default();
+    cfg.quant_dtype = BOAT_DTYPE_BITS1;
+    if (!boat_model_quantize(m, &cfg)) FAIL("model_quantize failed");
+
+    if (!boat_model_save(m, tmpfile)) FAIL("save failed");
+    boat_model_free(m);
+
+    boat_model_t* loaded = boat_model_load(tmpfile);
+    if (!loaded) FAIL("load failed");
+
+    boat_layer_t* l = boat_model_get_layer(loaded, 0);
+    if (!l || l->type != BOAT_LAYER_TYPE_DENSE) FAIL("wrong layer type");
+    boat_tensor_t* w = boat_dense_layer_get_weight((boat_dense_layer_t*)l->data);
+    if (boat_tensor_dtype(w) != BOAT_DTYPE_BITS1) FAIL("weight dtype not BITS1 after load");
+    if (boat_tensor_get_scale(w) == 0.0f) FAIL("weight scale is 0 after load");
+
+    // Dequantize and verify forward works
+    if (!boat_model_dequantize(loaded)) FAIL("model_dequantize failed");
+
+    boat_model_free(loaded);
+    remove(tmpfile);
+    PASS(); return 0;
+}
+
+// --- Test 30: Per-channel BITS1 quantize-dequantize ---
+static int test_per_channel_bits1(void) {
+    TEST("Per-channel BITS1 quantize-dequantize");
+    int64_t shape[] = {3, 4};
+    boat_tensor_t* fp32 = boat_tensor_create(shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    float* d = (float*)boat_tensor_data(fp32);
+    float data[] = {0.0f, 0.0f, 1.0f, 1.0f,
+                    1.0f, 0.0f, 0.0f, 1.0f,
+                    1.0f, 1.0f, 0.0f, 0.0f};
+    memcpy(d, data, 12 * sizeof(float));
+
+    boat_quant_config_t cfg = boat_quant_config_default();
+    cfg.quant_dtype = BOAT_DTYPE_BITS1;
+    cfg.per_channel = true;
+    boat_tensor_t* q = boat_quantize_tensor_per_channel(fp32, &cfg, 1);
+    if (!q) FAIL("quantize_per_channel returned NULL");
+    if (boat_tensor_dtype(q) != BOAT_DTYPE_BITS1) FAIL("dtype not BITS1");
+
+    boat_tensor_t* deq = boat_dequantize_tensor_per_channel(q);
+    if (!deq) FAIL("dequantize_per_channel returned NULL");
+    if (!tensors_allclose(fp32, deq, 0.5f)) FAIL("values out of tolerance");
+
+    boat_tensor_unref(fp32);
+    boat_tensor_unref(q);
+    boat_tensor_unref(deq);
+    PASS(); return 0;
+}
+
 int main(void) {
     setvbuf(stdout, NULL, _IONBF, 0);
     printf("Quantization Tests\n");
@@ -791,6 +910,10 @@ int main(void) {
     fail |= test_bits2_model_serialize();
     fail |= test_per_channel_serialize();
     fail |= test_per_channel_bits2();
+    fail |= test_bits1_roundtrip();
+    fail |= test_bits1_bounds();
+    fail |= test_bits1_model_serialize();
+    fail |= test_per_channel_bits1();
 
     printf("\nResults: %d/%d passed\n", tests_passed, tests_total);
     return fail ? 1 : 0;

@@ -116,7 +116,8 @@ static benchmark_result_t run_benchmark(const benchmark_config_t* config) {
     boat_attention_layer_t* attention = boat_attention_layer_create(
         config->hidden_size,
         config->num_heads,
-        0.0f,  // no dropout for benchmarking
+        config->num_heads,  // MHA
+        0.0f,
         config->causal_mask
     );
 

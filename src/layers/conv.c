@@ -3,6 +3,7 @@
 // Licensed under the Apache License, Version 2.0
 
 #include <boat.h>
+#include <boat/cuda_runtime.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -14,6 +15,7 @@ struct boat_conv_layer_t {
     size_t kernel_size;
     size_t stride;
     size_t padding;
+    size_t groups;
     bool use_bias;
     boat_tensor_t* weight;
     boat_tensor_t* bias;
@@ -62,33 +64,43 @@ static boat_tensor_t* compute_input_gradient(const boat_conv_layer_t* layer,
     size_t grad_input_elements = boat_tensor_nelements(grad_input);
     memset(grad_input_data, 0, grad_input_elements * sizeof(float));
 
+    // Group convolution parameters
+    size_t in_channels_per_group = layer->in_channels / layer->groups;
+    size_t out_channels_per_group = layer->out_channels / layer->groups;
+
     // For each batch
     for (int64_t b = 0; b < batch; b++) {
-        // For each output channel
-        for (int64_t oc = 0; oc < (int64_t)layer->out_channels; oc++) {
-            // For each input channel
-            for (int64_t ic = 0; ic < (int64_t)layer->in_channels; ic++) {
-                // For each kernel row
-                for (size_t kh = 0; kh < layer->kernel_size; kh++) {
-                    // For each kernel column
-                    for (size_t kw = 0; kw < layer->kernel_size; kw++) {
-                        // For each output height position
-                        for (int64_t oh = 0; oh < height_out; oh++) {
-                            int64_t ih = oh * layer->stride - layer->padding + kh;
-                            if (ih < 0 || ih >= height) continue;
-                            for (int64_t ow = 0; ow < width_out; ow++) {
-                                int64_t iw = ow * layer->stride - layer->padding + kw;
-                                if (iw < 0 || iw >= width) continue;
+        // For each group
+        for (size_t g = 0; g < layer->groups; g++) {
+            size_t oc_start = g * out_channels_per_group;
+            size_t oc_end = oc_start + out_channels_per_group;
+            size_t ic_start = g * in_channels_per_group;
+            size_t ic_end = ic_start + in_channels_per_group;
 
-                                // Compute indices
-                                // For input gradient, we need to rotate weights 180 degrees
-                                size_t kh_flipped = layer->kernel_size - 1 - kh;
-                                size_t kw_flipped = layer->kernel_size - 1 - kw;
-                                size_t weight_idx = ((oc * layer->in_channels + ic) * layer->kernel_size + kh_flipped) * layer->kernel_size + kw_flipped;
-                                size_t grad_output_idx = ((b * out_channels + oc) * height_out + oh) * width_out + ow;
-                                size_t grad_input_idx = ((b * in_channels + ic) * height + ih) * width + iw;
+            // For each output channel in this group
+            for (int64_t oc = (int64_t)oc_start; oc < (int64_t)oc_end; oc++) {
+                // For each input channel in this group
+                for (int64_t ic = (int64_t)ic_start; ic < (int64_t)ic_end; ic++) {
+                    size_t ic_local = (size_t)(ic - (int64_t)ic_start);
+                    // For each kernel row
+                    for (size_t kh = 0; kh < layer->kernel_size; kh++) {
+                        // For each kernel column
+                        for (size_t kw = 0; kw < layer->kernel_size; kw++) {
+                            // For each output height position
+                            for (int64_t oh = 0; oh < height_out; oh++) {
+                                int64_t ih = oh * layer->stride - layer->padding + kh;
+                                if (ih < 0 || ih >= height) continue;
+                                for (int64_t ow = 0; ow < width_out; ow++) {
+                                    int64_t iw = ow * layer->stride - layer->padding + kw;
+                                    if (iw < 0 || iw >= width) continue;
 
-                                grad_input_data[grad_input_idx] += weight_data[weight_idx] * grad_output_data[grad_output_idx];
+                                    // grad_input uses same weights as forward (no 180-degree rotation)
+                                    size_t weight_idx = ((oc * in_channels_per_group + ic_local) * layer->kernel_size + kh) * layer->kernel_size + kw;
+                                    size_t grad_output_idx = ((b * out_channels + oc) * height_out + oh) * width_out + ow;
+                                    size_t grad_input_idx = ((b * in_channels + ic) * height + ih) * width + iw;
+
+                                    grad_input_data[grad_input_idx] += weight_data[weight_idx] * grad_output_data[grad_output_idx];
+                                }
                             }
                         }
                     }
@@ -120,7 +132,8 @@ static boat_tensor_t* compute_weight_gradient(const boat_conv_layer_t* layer,
     int64_t width_out = output_shape[3];
 
     // Create gradient weight tensor with same shape as weights
-    const int64_t weight_shape[] = { (int64_t)layer->out_channels, (int64_t)layer->in_channels,
+    size_t in_channels_per_group = layer->in_channels / layer->groups;
+    const int64_t weight_shape[] = { (int64_t)layer->out_channels, (int64_t)in_channels_per_group,
                                      (int64_t)layer->kernel_size, (int64_t)layer->kernel_size };
     boat_tensor_t* grad_weight = boat_tensor_create(weight_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!grad_weight) {
@@ -136,30 +149,40 @@ static boat_tensor_t* compute_weight_gradient(const boat_conv_layer_t* layer,
     size_t grad_weight_elements = boat_tensor_nelements(grad_weight);
     memset(grad_weight_data, 0, grad_weight_elements * sizeof(float));
 
+    size_t out_channels_per_group = layer->out_channels / layer->groups;
+
     // For each batch
     for (int64_t b = 0; b < batch; b++) {
-        // For each output channel
-        for (int64_t oc = 0; oc < (int64_t)layer->out_channels; oc++) {
-            // For each input channel
-            for (int64_t ic = 0; ic < (int64_t)layer->in_channels; ic++) {
-                // For each kernel row
-                for (size_t kh = 0; kh < layer->kernel_size; kh++) {
-                    // For each kernel column
-                    for (size_t kw = 0; kw < layer->kernel_size; kw++) {
-                        // For each output height position
-                        for (int64_t oh = 0; oh < height_out; oh++) {
-                            int64_t ih = oh * layer->stride - layer->padding + kh;
-                            if (ih < 0 || ih >= height) continue;
-                            for (int64_t ow = 0; ow < width_out; ow++) {
-                                int64_t iw = ow * layer->stride - layer->padding + kw;
-                                if (iw < 0 || iw >= width) continue;
+        // For each group
+        for (size_t g = 0; g < layer->groups; g++) {
+            size_t oc_start = g * out_channels_per_group;
+            size_t oc_end = oc_start + out_channels_per_group;
+            size_t ic_start = g * in_channels_per_group;
+            size_t ic_end = ic_start + in_channels_per_group;
 
-                                // Compute indices
-                                size_t input_idx = ((b * in_channels + ic) * height + ih) * width + iw;
-                                size_t grad_output_idx = ((b * out_channels + oc) * height_out + oh) * width_out + ow;
-                                size_t weight_idx = ((oc * layer->in_channels + ic) * layer->kernel_size + kh) * layer->kernel_size + kw;
+            // For each output channel in this group
+            for (int64_t oc = (int64_t)oc_start; oc < (int64_t)oc_end; oc++) {
+                // For each input channel in this group
+                for (int64_t ic = (int64_t)ic_start; ic < (int64_t)ic_end; ic++) {
+                    size_t ic_local = (size_t)(ic - (int64_t)ic_start);
+                    // For each kernel row
+                    for (size_t kh = 0; kh < layer->kernel_size; kh++) {
+                        // For each kernel column
+                        for (size_t kw = 0; kw < layer->kernel_size; kw++) {
+                            // For each output height position
+                            for (int64_t oh = 0; oh < height_out; oh++) {
+                                int64_t ih = oh * layer->stride - layer->padding + kh;
+                                if (ih < 0 || ih >= height) continue;
+                                for (int64_t ow = 0; ow < width_out; ow++) {
+                                    int64_t iw = ow * layer->stride - layer->padding + kw;
+                                    if (iw < 0 || iw >= width) continue;
 
-                                grad_weight_data[weight_idx] += input_data[input_idx] * grad_output_data[grad_output_idx];
+                                    size_t input_idx = ((b * in_channels + ic) * height + ih) * width + iw;
+                                    size_t grad_output_idx = ((b * out_channels + oc) * height_out + oh) * width_out + ow;
+                                    size_t weight_idx = ((oc * in_channels_per_group + ic_local) * layer->kernel_size + kh) * layer->kernel_size + kw;
+
+                                    grad_weight_data[weight_idx] += input_data[input_idx] * grad_output_data[grad_output_idx];
+                                }
                             }
                         }
                     }
@@ -199,30 +222,42 @@ static bool compute_weight_gradient_into(const boat_conv_layer_t* layer,
     size_t grad_weight_elements = boat_tensor_nelements(grad_weight);
     memset(grad_weight_data, 0, grad_weight_elements * sizeof(float));
 
+    // Group convolution parameters
+    size_t in_channels_per_group = layer->in_channels / layer->groups;
+    size_t out_channels_per_group = layer->out_channels / layer->groups;
+
     // For each batch
     for (int64_t b = 0; b < batch; b++) {
-        // For each output channel
-        for (int64_t oc = 0; oc < (int64_t)layer->out_channels; oc++) {
-            // For each input channel
-            for (int64_t ic = 0; ic < (int64_t)layer->in_channels; ic++) {
-                // For each kernel row
-                for (size_t kh = 0; kh < layer->kernel_size; kh++) {
-                    // For each kernel column
-                    for (size_t kw = 0; kw < layer->kernel_size; kw++) {
-                        // For each output height position
-                        for (int64_t oh = 0; oh < height_out; oh++) {
-                            int64_t ih = oh * layer->stride - layer->padding + kh;
-                            if (ih < 0 || ih >= height) continue;
-                            for (int64_t ow = 0; ow < width_out; ow++) {
-                                int64_t iw = ow * layer->stride - layer->padding + kw;
-                                if (iw < 0 || iw >= width) continue;
+        // For each group
+        for (size_t g = 0; g < layer->groups; g++) {
+            size_t oc_start = g * out_channels_per_group;
+            size_t oc_end = oc_start + out_channels_per_group;
+            size_t ic_start = g * in_channels_per_group;
+            size_t ic_end = ic_start + in_channels_per_group;
 
-                                // Compute indices
-                                size_t input_idx = ((b * in_channels + ic) * height + ih) * width + iw;
-                                size_t grad_output_idx = ((b * out_channels + oc) * height_out + oh) * width_out + ow;
-                                size_t weight_idx = ((oc * layer->in_channels + ic) * layer->kernel_size + kh) * layer->kernel_size + kw;
+            // For each output channel in this group
+            for (int64_t oc = (int64_t)oc_start; oc < (int64_t)oc_end; oc++) {
+                // For each input channel in this group
+                for (int64_t ic = (int64_t)ic_start; ic < (int64_t)ic_end; ic++) {
+                    size_t ic_local = (size_t)(ic - (int64_t)ic_start);
+                    // For each kernel row
+                    for (size_t kh = 0; kh < layer->kernel_size; kh++) {
+                        // For each kernel column
+                        for (size_t kw = 0; kw < layer->kernel_size; kw++) {
+                            // For each output height position
+                            for (int64_t oh = 0; oh < height_out; oh++) {
+                                int64_t ih = oh * layer->stride - layer->padding + kh;
+                                if (ih < 0 || ih >= height) continue;
+                                for (int64_t ow = 0; ow < width_out; ow++) {
+                                    int64_t iw = ow * layer->stride - layer->padding + kw;
+                                    if (iw < 0 || iw >= width) continue;
 
-                                grad_weight_data[weight_idx] += input_data[input_idx] * grad_output_data[grad_output_idx];
+                                    size_t input_idx = ((b * in_channels + ic) * height + ih) * width + iw;
+                                    size_t grad_output_idx = ((b * out_channels + oc) * height_out + oh) * width_out + ow;
+                                    size_t weight_idx = ((oc * in_channels_per_group + ic_local) * layer->kernel_size + kh) * layer->kernel_size + kw;
+
+                                    grad_weight_data[weight_idx] += input_data[input_idx] * grad_output_data[grad_output_idx];
+                                }
                             }
                         }
                     }
@@ -325,11 +360,20 @@ static bool compute_bias_gradient_into(const boat_conv_layer_t* layer,
 }
 
 BOAT_API boat_conv_layer_t* BOAT_CALL boat_conv_layer_create(size_t in_channels, size_t out_channels,
-                                           size_t kernel_size, size_t stride, size_t padding) {
-    BOAT_DEBUG_PRINT("DEBUG conv_create called: in=%zu, out=%zu, k=%zu\n", in_channels, out_channels, kernel_size);
+                                           size_t kernel_size, size_t stride, size_t padding,
+                                           size_t groups) {
+    BOAT_DEBUG_PRINT("DEBUG conv_create called: in=%zu, out=%zu, k=%zu, groups=%zu\n", in_channels, out_channels, kernel_size, groups);
     boat_conv_layer_t* layer = (boat_conv_layer_t*)boat_malloc(sizeof(boat_conv_layer_t), BOAT_DEVICE_CPU);
     if (!layer) {
         BOAT_DEBUG_PRINT("DEBUG conv_create: malloc failed\n");
+        return NULL;
+    }
+
+    // Validate groups
+    if (groups == 0 || in_channels % groups != 0 || out_channels % groups != 0) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] groups=%zu must divide in_channels=%zu and out_channels=%zu\n",
+                groups, in_channels, out_channels);
+        boat_free(layer);
         return NULL;
     }
 
@@ -338,10 +382,12 @@ BOAT_API boat_conv_layer_t* BOAT_CALL boat_conv_layer_create(size_t in_channels,
     layer->kernel_size = kernel_size;
     layer->stride = stride;
     layer->padding = padding;
+    layer->groups = groups;
     layer->use_bias = true; // Default to using bias
 
-    // Create weight tensor: [out_channels, in_channels, kernel_size, kernel_size]
-    const int64_t weight_shape[] = { (int64_t)out_channels, (int64_t)in_channels, (int64_t)kernel_size, (int64_t)kernel_size };
+    // Create weight tensor: [out_channels, in_channels/groups, kernel_size, kernel_size]
+    size_t in_channels_per_group = in_channels / groups;
+    const int64_t weight_shape[] = { (int64_t)out_channels, (int64_t)in_channels_per_group, (int64_t)kernel_size, (int64_t)kernel_size };
     layer->weight = boat_tensor_create(weight_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!layer->weight) {
         boat_free(layer);
@@ -351,7 +397,7 @@ BOAT_API boat_conv_layer_t* BOAT_CALL boat_conv_layer_create(size_t in_channels,
     // Initialize weights using Kaiming/He initialization for ReLU activations
     float* weight_data = (float*)boat_tensor_data(layer->weight);
     size_t weight_elements = boat_tensor_nelements(layer->weight);
-    float scale = sqrtf(2.0f / (in_channels * kernel_size * kernel_size));
+    float scale = sqrtf(2.0f / (in_channels_per_group * kernel_size * kernel_size));
     for (size_t i = 0; i < weight_elements; i++) {
         weight_data[i] = ((float)rand() / RAND_MAX) * 2.0f * scale - scale;
     }
@@ -448,10 +494,11 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
     // Allow quantized weights (UINT8/INT8/BITS2/FLOAT4 with scale != 0)
     boat_dtype_t wdt = boat_tensor_dtype(layer->weight);
     bool weight_quantized = (wdt == BOAT_DTYPE_UINT8 || wdt == BOAT_DTYPE_INT8 ||
-                             wdt == BOAT_DTYPE_BITS2 || wdt == BOAT_DTYPE_FLOAT4) &&
+                             wdt == BOAT_DTYPE_BITS2 || wdt == BOAT_DTYPE_BITS1 ||
+                             wdt == BOAT_DTYPE_FLOAT4) &&
                             (wdt == BOAT_DTYPE_FLOAT4 || boat_tensor_get_scale(layer->weight) != 0.0f);
     if (wdt != BOAT_DTYPE_FLOAT32 && !weight_quantized) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Conv2d weight tensor must be FLOAT32 or quantized UINT8/INT8/BITS2/FLOAT4\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Conv2d weight tensor must be FLOAT32 or quantized UINT8/INT8/BITS2/BITS1/FLOAT4\n");
         return NULL;
     }
     if (layer->use_bias && layer->bias && boat_tensor_dtype(layer->bias) != BOAT_DTYPE_FLOAT32) {
@@ -523,52 +570,62 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
     size_t output_elements = boat_tensor_nelements(output);
     memset(output_data, 0, output_elements * sizeof(float));
 
-    // Perform convolution
+    // Perform convolution with group support
+    size_t out_channels_per_group = layer->out_channels / layer->groups;
+    size_t in_channels_per_group = layer->in_channels / layer->groups;
+
     // For each sample in batch
     for (int64_t b = 0; b < batch; b++) {
-        // For each output channel
-        for (size_t oc = 0; oc < layer->out_channels; oc++) {
-            // For each input channel
-            for (size_t ic = 0; ic < layer->in_channels; ic++) {
-                // For each output height position
-                for (int64_t oh = 0; oh < height_out; oh++) {
-                    int64_t ih_start = oh * layer->stride - layer->padding;
-                    // For each output width position
-                    for (int64_t ow = 0; ow < width_out; ow++) {
-                        int64_t iw_start = ow * layer->stride - layer->padding;
+        // For each group
+        for (size_t g = 0; g < layer->groups; g++) {
+            size_t oc_start = g * out_channels_per_group;
+            size_t oc_end = oc_start + out_channels_per_group;
+            size_t ic_start = g * in_channels_per_group;
+            size_t ic_end = ic_start + in_channels_per_group;
 
-                        // Convolve kernel with input patch
-                        float sum = 0.0f;
-                        for (size_t kh = 0; kh < layer->kernel_size; kh++) {
-                            int64_t ih = ih_start + kh;
-                            if (ih < 0 || ih >= height) continue;  // Padding handling
+            // For each output channel in this group
+            for (size_t oc = oc_start; oc < oc_end; oc++) {
+                // For each input channel in this group
+                for (size_t ic = ic_start; ic < ic_end; ic++) {
+                    size_t ic_local = ic - ic_start;
+                    // For each output height position
+                    for (int64_t oh = 0; oh < height_out; oh++) {
+                        int64_t ih_start = oh * layer->stride - layer->padding;
+                        // For each output width position
+                        for (int64_t ow = 0; ow < width_out; ow++) {
+                            int64_t iw_start = ow * layer->stride - layer->padding;
 
-                            for (size_t kw = 0; kw < layer->kernel_size; kw++) {
-                                int64_t iw = iw_start + kw;
-                                if (iw < 0 || iw >= width) continue;  // Padding handling
+                            // Convolve kernel with input patch
+                            float sum = 0.0f;
+                            for (size_t kh = 0; kh < layer->kernel_size; kh++) {
+                                int64_t ih = ih_start + kh;
+                                if (ih < 0 || ih >= height) continue;
 
-                                // Compute indices
-                                size_t input_idx = ((b * layer->in_channels + ic) * height + ih) * width + iw;
-                                size_t weight_idx = ((oc * layer->in_channels + ic) * layer->kernel_size + kh) * layer->kernel_size + kw;
+                                for (size_t kw = 0; kw < layer->kernel_size; kw++) {
+                                    int64_t iw = iw_start + kw;
+                                    if (iw < 0 || iw >= width) continue;
 
-                                sum += input_data[input_idx] * weight_data[weight_idx];
+                                    size_t input_idx = ((b * layer->in_channels + ic) * height + ih) * width + iw;
+                                    size_t weight_idx = ((oc * in_channels_per_group + ic_local) * layer->kernel_size + kh) * layer->kernel_size + kw;
+
+                                    sum += input_data[input_idx] * weight_data[weight_idx];
+                                }
                             }
-                        }
 
-                        // Accumulate to output
-                        size_t output_idx = ((b * layer->out_channels + oc) * height_out + oh) * width_out + ow;
-                        output_data[output_idx] += sum;
+                            size_t output_idx = ((b * layer->out_channels + oc) * height_out + oh) * width_out + ow;
+                            output_data[output_idx] += sum;
+                        }
                     }
                 }
-            }
 
-            // Add bias if present
-            if (layer->use_bias && bias_data) {
-                float bias = bias_data[oc];
-                for (int64_t oh = 0; oh < height_out; oh++) {
-                    for (int64_t ow = 0; ow < width_out; ow++) {
-                        size_t output_idx = ((b * layer->out_channels + oc) * height_out + oh) * width_out + ow;
-                        output_data[output_idx] += bias;
+                // Add bias if present
+                if (layer->use_bias && bias_data) {
+                    float bias = bias_data[oc];
+                    for (int64_t oh = 0; oh < height_out; oh++) {
+                        for (int64_t ow = 0; ow < width_out; ow++) {
+                            size_t output_idx = ((b * layer->out_channels + oc) * height_out + oh) * width_out + ow;
+                            output_data[output_idx] += bias;
+                        }
                     }
                 }
             }
@@ -610,7 +667,70 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* la
         return NULL;
     }
 
-    // Compute gradients using helper functions
+    // Dispatch to cuDNN backward for CUDA tensors
+#ifdef BOAT_WITH_CUDNN
+    if (boat_tensor_device(grad_output) == BOAT_DEVICE_CUDA &&
+        boat_tensor_device(layer->cache_input) == BOAT_DEVICE_CUDA &&
+        boat_tensor_device(layer->weight) == BOAT_DEVICE_CUDA) {
+
+        // Allocate grad_input on CUDA device
+        boat_tensor_t* grad_input = boat_tensor_create(
+            layer->cache_input_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CUDA);
+        if (!grad_input) {
+            boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[ConvLayer] conv backward: failed to create CUDA grad_input\n");
+            return NULL;
+        }
+
+        // Replace CPU grad_weight with CUDA version
+        size_t in_cpg = layer->in_channels / layer->groups;
+        const int64_t wshape[] = { (int64_t)layer->out_channels, (int64_t)in_cpg,
+                                   (int64_t)layer->kernel_size, (int64_t)layer->kernel_size };
+        if (layer->grad_weight) boat_tensor_free(layer->grad_weight);
+        layer->grad_weight = boat_tensor_create(wshape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CUDA);
+        if (!layer->grad_weight) {
+            boat_tensor_free(grad_input);
+            return NULL;
+        }
+
+        // Replace CPU grad_bias with CUDA version
+        if (layer->use_bias) {
+            if (layer->grad_bias) boat_tensor_free(layer->grad_bias);
+            const int64_t bshape[] = { (int64_t)layer->out_channels };
+            layer->grad_bias = boat_tensor_create(bshape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CUDA);
+            if (!layer->grad_bias) {
+                boat_tensor_free(grad_input);
+                return NULL;
+            }
+        }
+
+        // Get device pointers
+        const float* d_grad_output = (const float*)boat_tensor_data(grad_output);
+        const float* d_weight = (const float*)boat_tensor_const_data(layer->weight);
+        const float* d_input = (const float*)boat_tensor_const_data(layer->cache_input);
+        float* d_grad_input = (float*)boat_tensor_data(grad_input);
+        float* d_grad_weight = (float*)boat_tensor_data(layer->grad_weight);
+        float* d_grad_bias = layer->use_bias ? (float*)boat_tensor_data(layer->grad_bias) : NULL;
+
+        // Compute input gradient via cuDNN
+        boat_cuda_conv2d_cudnn_backward_input_f32(d_grad_output, d_weight, d_grad_input,
+            (size_t)layer->cache_input_shape[0], (size_t)layer->cache_input_shape[1],
+            (size_t)layer->cache_input_shape[2], (size_t)layer->cache_input_shape[3],
+            layer->out_channels, layer->kernel_size, layer->kernel_size,
+            layer->padding, layer->stride, layer->groups);
+
+        // Compute weight + bias gradients via cuDNN
+        boat_cuda_conv2d_cudnn_backward_filter_f32(d_input, d_grad_output,
+            d_grad_weight, d_grad_bias,
+            (size_t)layer->cache_input_shape[0], (size_t)layer->cache_input_shape[1],
+            (size_t)layer->cache_input_shape[2], (size_t)layer->cache_input_shape[3],
+            layer->out_channels, layer->kernel_size, layer->kernel_size,
+            layer->padding, layer->stride, layer->groups);
+
+        return grad_input;
+    }
+#endif
+
+    // CPU backward path: compute gradients using helper functions
     boat_tensor_t* grad_input = compute_input_gradient(layer, layer->cache_input,
                                                        layer->cache_input_shape,
                                                        layer->cache_output_shape,
@@ -623,7 +743,8 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* la
     // Compute gradients directly into layer's gradient tensors
     if (!layer->grad_weight) {
         // Create gradient weight tensor if it doesn't exist (should exist)
-        const int64_t weight_shape[] = { (int64_t)layer->out_channels, (int64_t)layer->in_channels,
+        size_t in_channels_per_group = layer->in_channels / layer->groups;
+        const int64_t weight_shape[] = { (int64_t)layer->out_channels, (int64_t)in_channels_per_group,
                                          (int64_t)layer->kernel_size, (int64_t)layer->kernel_size };
         layer->grad_weight = boat_tensor_create(weight_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
         if (!layer->grad_weight) {
@@ -707,15 +828,16 @@ BOAT_API void BOAT_CALL boat_conv_layer_set_weight(boat_conv_layer_t* layer, boa
     if (!layer || !weight) {
         return;
     }
-    // Check weight shape matches layer dimensions
+    // Check weight shape matches layer dimensions (with groups)
     const int64_t* weight_shape = boat_tensor_shape(weight);
+    size_t in_channels_per_group = layer->in_channels / layer->groups;
     if (weight_shape[0] != (int64_t)layer->out_channels ||
-        weight_shape[1] != (int64_t)layer->in_channels ||
+        weight_shape[1] != (int64_t)in_channels_per_group ||
         weight_shape[2] != (int64_t)layer->kernel_size ||
         weight_shape[3] != (int64_t)layer->kernel_size) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Weight shape [%lld, %lld, %lld, %lld] does not match layer dimensions [%zu, %zu, %zu, %zu]\n",
                 weight_shape[0], weight_shape[1], weight_shape[2], weight_shape[3],
-                layer->out_channels, layer->in_channels, layer->kernel_size, layer->kernel_size);
+                layer->out_channels, in_channels_per_group, layer->kernel_size, layer->kernel_size);
         return;
     }
     // Replace weight tensor
@@ -772,4 +894,8 @@ BOAT_NOINLINE BOAT_API size_t BOAT_CALL boat_conv_layer_get_stride(const boat_co
 
 BOAT_NOINLINE BOAT_API size_t BOAT_CALL boat_conv_layer_get_padding(const boat_conv_layer_t* layer) {
     return layer ? layer->padding : 0;
+}
+
+BOAT_NOINLINE BOAT_API size_t BOAT_CALL boat_conv_layer_get_groups(const boat_conv_layer_t* layer) {
+    return layer ? layer->groups : 1;
 }

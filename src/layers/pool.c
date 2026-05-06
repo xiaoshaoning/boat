@@ -9,6 +9,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef BOAT_WITH_CUDA
+#include <boat/cuda_runtime.h>
+#endif
+
 // Pooling layer structure (MaxPool2d)
 struct boat_pool_layer_t {
     size_t pool_size;
@@ -81,8 +85,54 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_forward(boat_pool_layer_t* lay
     int64_t height_out = (height + 2 * layer->padding - layer->pool_size) / layer->stride + 1;
     int64_t width_out = (width + 2 * layer->padding - layer->pool_size) / layer->stride + 1;
 
-    // Create output tensor
     const int64_t output_shape[] = { batch, channels, height_out, width_out };
+
+#ifdef BOAT_WITH_CUDA
+    if (boat_tensor_device(input) == BOAT_DEVICE_CUDA) {
+        boat_tensor_t* output = boat_tensor_create(output_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CUDA);
+        if (!output) return NULL;
+
+        // Clear previous cache if exists
+        if (layer->cache_input) { boat_tensor_unref(layer->cache_input); layer->cache_input = NULL; }
+        if (layer->max_indices) { boat_free(layer->max_indices); layer->max_indices = NULL; }
+
+        // Cache input tensor
+        layer->cache_input = (boat_tensor_t*)input;
+        boat_tensor_ref(layer->cache_input);
+
+        // Allocate max indices on CUDA device
+        size_t output_elements = batch * channels * height_out * width_out;
+        layer->max_indices = (int64_t*)boat_malloc(output_elements * sizeof(int64_t), BOAT_DEVICE_CUDA);
+        if (!layer->max_indices) {
+            boat_tensor_unref(output);
+            boat_tensor_unref(layer->cache_input);
+            layer->cache_input = NULL;
+            return NULL;
+        }
+
+        // Store dimensions for backward pass
+        layer->cache_batch = batch;
+        layer->cache_channels = channels;
+        layer->cache_height = height;
+        layer->cache_width = width;
+        layer->cache_height_out = height_out;
+        layer->cache_width_out = width_out;
+
+        boat_cuda_maxpool2d_forward_f32(
+            (const float*)boat_tensor_data(input),
+            (float*)boat_tensor_data(output),
+            layer->max_indices,
+            batch, channels, height, width,
+            layer->pool_size, layer->pool_size,
+            layer->padding, layer->padding,
+            layer->stride, layer->stride,
+            height_out, width_out);
+
+        return output;
+    }
+#endif
+
+    // Create output tensor on CPU
     boat_tensor_t* output = boat_tensor_create(output_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!output) {
         return NULL;
@@ -183,9 +233,32 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_backward(boat_pool_layer_t* la
         return NULL;
     }
 
-    // Create gradient input tensor with cached input shape
     const int64_t input_shape[] = { layer->cache_batch, layer->cache_channels,
                               layer->cache_height, layer->cache_width };
+    size_t input_elements = layer->cache_batch * layer->cache_channels *
+                           layer->cache_height * layer->cache_width;
+
+#ifdef BOAT_WITH_CUDA
+    if (boat_tensor_device(grad_output) == BOAT_DEVICE_CUDA) {
+        boat_tensor_t* grad_input = boat_tensor_create(input_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CUDA);
+        if (!grad_input) return NULL;
+
+        float* grad_input_data = (float*)boat_tensor_data(grad_input);
+        boat_memory_set(grad_input_data, 0, input_elements * sizeof(float), BOAT_DEVICE_CUDA);
+
+        boat_cuda_maxpool2d_backward_f32(
+            (const float*)boat_tensor_data(grad_output),
+            layer->max_indices,
+            grad_input_data,
+            layer->cache_batch, layer->cache_channels,
+            layer->cache_height, layer->cache_width,
+            layer->cache_height_out, layer->cache_width_out);
+
+        return grad_input;
+    }
+#endif
+
+    // Create gradient input tensor on CPU
     boat_tensor_t* grad_input = boat_tensor_create(input_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!grad_input) {
         return NULL;
@@ -193,8 +266,6 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_backward(boat_pool_layer_t* la
 
     // Initialize gradient input with zeros
     float* grad_input_data = (float*)boat_tensor_data(grad_input);
-    size_t input_elements = layer->cache_batch * layer->cache_channels *
-                           layer->cache_height * layer->cache_width;
     memset(grad_input_data, 0, input_elements * sizeof(float));
 
     // Get gradient output data

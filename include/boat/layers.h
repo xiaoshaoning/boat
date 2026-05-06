@@ -28,6 +28,7 @@ typedef enum {
     BOAT_LAYER_TYPE_GRU,
     BOAT_LAYER_TYPE_ATTENTION,
     BOAT_LAYER_TYPE_PRELU,
+    BOAT_LAYER_TYPE_EMBEDDING,
     BOAT_LAYER_TYPE_COUNT
 } boat_layer_type_t;
 
@@ -55,7 +56,8 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_get_grad_bias(const boat_dens
 
 // Convolutional layer functions
 BOAT_API boat_conv_layer_t* BOAT_CALL boat_conv_layer_create(size_t in_channels, size_t out_channels,
-                                           size_t kernel_size, size_t stride, size_t padding);
+                                           size_t kernel_size, size_t stride, size_t padding,
+                                           size_t groups);
 BOAT_API void BOAT_CALL boat_conv_layer_free(boat_conv_layer_t* layer);
 BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* layer, const boat_tensor_t* input);
 BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* layer, const boat_tensor_t* grad_output);
@@ -70,6 +72,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_grad_weight(const boat_con
 BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_grad_bias(const boat_conv_layer_t* layer);
 BOAT_API size_t BOAT_CALL boat_conv_layer_get_stride(const boat_conv_layer_t* layer);
 BOAT_API size_t BOAT_CALL boat_conv_layer_get_padding(const boat_conv_layer_t* layer);
+BOAT_API size_t BOAT_CALL boat_conv_layer_get_groups(const boat_conv_layer_t* layer);
 
 // Batch normalization layer functions (BatchNorm2d)
 typedef struct boat_batchnorm2d_layer_t boat_batchnorm2d_layer_t;
@@ -111,6 +114,7 @@ BOAT_API void BOAT_CALL boat_norm_layer_update(boat_norm_layer_t* layer, float l
 
 // Attention layer functions (simplified interface)
 BOAT_API boat_attention_layer_t* BOAT_CALL boat_attention_layer_create(size_t hidden_size, size_t num_heads,
+                                                              size_t num_kv_heads,
                                                               float dropout_prob, bool causal_mask);
 BOAT_API void BOAT_CALL boat_attention_layer_free(boat_attention_layer_t* layer);
 BOAT_API boat_tensor_t* BOAT_CALL boat_attention_layer_forward(boat_attention_layer_t* layer,
@@ -126,7 +130,7 @@ BOAT_API void BOAT_CALL boat_attention_layer_update(boat_attention_layer_t* laye
 typedef struct boat_relu_layer_t boat_relu_layer_t;
 BOAT_API boat_relu_layer_t* BOAT_CALL boat_relu_layer_create();
 BOAT_API void BOAT_CALL boat_relu_layer_free(boat_relu_layer_t* layer);
-BOAT_API boat_tensor_t* BOAT_CALL boat_relu_layer_forward(const boat_relu_layer_t* layer, const boat_tensor_t* input);
+BOAT_API boat_tensor_t* BOAT_CALL boat_relu_layer_forward(boat_relu_layer_t* layer, const boat_tensor_t* input);
 BOAT_API boat_tensor_t* BOAT_CALL boat_relu_layer_backward(boat_relu_layer_t* layer, const boat_tensor_t* grad_output);
 BOAT_API void BOAT_CALL boat_relu_layer_update(boat_relu_layer_t* layer, float learning_rate);
 

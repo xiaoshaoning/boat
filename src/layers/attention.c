@@ -145,13 +145,18 @@ BOAT_API boat_attention_t* BOAT_CALL boat_attention_create(const boat_attention_
     if (config->head_size == 0) {
         attention->config.head_size = config->hidden_size / config->num_heads;
     }
+    // Default: GQA disabled (num_kv_heads = num_heads)
+    if (attention->config.num_kv_heads == 0) {
+        attention->config.num_kv_heads = attention->config.num_heads;
+    }
 
     // Create weight matrices
     size_t hidden_size = attention->config.hidden_size;
+    size_t kv_hidden = attention->config.num_kv_heads * attention->config.head_size;
 
     attention->weight_q = create_linear_weights(hidden_size, hidden_size, config->use_bias);
-    attention->weight_k = create_linear_weights(hidden_size, hidden_size, config->use_bias);
-    attention->weight_v = create_linear_weights(hidden_size, hidden_size, config->use_bias);
+    attention->weight_k = create_linear_weights(hidden_size, kv_hidden, config->use_bias);
+    attention->weight_v = create_linear_weights(hidden_size, kv_hidden, config->use_bias);
     attention->weight_o = create_linear_weights(hidden_size, hidden_size, config->use_bias);
 
     if (!attention->weight_q || !attention->weight_k || !attention->weight_v || !attention->weight_o) {
@@ -380,8 +385,6 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_attention_forward(boat_attention_t* atten
     boat_tensor_ref(v_proj);
 
     // Reshape for multi-head attention: [batch, seq_len, hidden] -> [batch, num_heads, seq_len, head_size]
-    size_t num_heads = attention->config.num_heads;
-    size_t head_size = attention->config.head_size;
 
     // Get shape of projected tensors
     const int64_t* q_shape = boat_tensor_shape(q_proj);
@@ -389,12 +392,18 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_attention_forward(boat_attention_t* atten
     int64_t seq_len = q_shape[1];
     int64_t hidden = q_shape[2];
 
-    // Reshape q_proj, k_proj, v_proj
-    const int64_t reshaped_shape[] = {batch, (int64_t)num_heads, seq_len, (int64_t)head_size};
+    size_t num_heads = attention->config.num_heads;
+    size_t num_kv_heads = attention->config.num_kv_heads;
+    size_t head_size = attention->config.head_size;
 
-    boat_tensor_t* q_reshaped = boat_tensor_reshape(q_proj, reshaped_shape, 4);
-    boat_tensor_t* k_reshaped = boat_tensor_reshape(k_proj, reshaped_shape, 4);
-    boat_tensor_t* v_reshaped = boat_tensor_reshape(v_proj, reshaped_shape, 4);
+    // Reshape Q to 4D: [batch, num_heads, seq_len, head_size]
+    const int64_t q_reshaped_shape[] = {batch, (int64_t)num_heads, seq_len, (int64_t)head_size};
+    boat_tensor_t* q_reshaped = boat_tensor_reshape(q_proj, q_reshaped_shape, 4);
+
+    // Reshape K/V to 4D: [batch, num_kv_heads, seq_len, head_size] (supports GQA)
+    const int64_t kv_reshaped_shape[] = {batch, (int64_t)num_kv_heads, seq_len, (int64_t)head_size};
+    boat_tensor_t* k_reshaped = boat_tensor_reshape(k_proj, kv_reshaped_shape, 4);
+    boat_tensor_t* v_reshaped = boat_tensor_reshape(v_proj, kv_reshaped_shape, 4);
 
     if (!q_reshaped || !k_reshaped || !v_reshaped) {
         if (q_reshaped) boat_tensor_free(q_reshaped);
@@ -407,17 +416,49 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_attention_forward(boat_attention_t* atten
     }
 
     // Replace original tensors with reshaped ones (keep reshaped views)
-    // Don't free original tensors as reshaped views depend on them
-    // boat_tensor_free(q_proj);
-    // boat_tensor_free(k_proj);
-    // boat_tensor_free(v_proj);
     q_proj = q_reshaped;
     k_proj = k_reshaped;
     v_proj = v_reshaped;
 
+    // GQA: repeat K/V heads to match Q head count
+    if (num_kv_heads != 0 && num_kv_heads < num_heads) {
+        int repeat = (int)(num_heads / num_kv_heads);
+        // k_proj shape: [batch, num_kv_heads, seq_len, head_size]
+        // output shape: [batch, num_heads, seq_len, head_size]
+        const int64_t* kv_shape = boat_tensor_shape(k_proj);
+        int64_t B = kv_shape[0], n_kv = kv_shape[1], T = kv_shape[2], hd = kv_shape[3];
+        const int64_t out_shape[] = {B, (int64_t)num_heads, T, hd};
+        boat_tensor_t* k_repeated = boat_tensor_create(out_shape, 4, boat_tensor_dtype(k_proj), boat_tensor_device(k_proj));
+        boat_tensor_t* v_repeated = boat_tensor_create(out_shape, 4, boat_tensor_dtype(v_proj), boat_tensor_device(v_proj));
+        if (!k_repeated || !v_repeated) {
+            if (k_repeated) boat_tensor_free(k_repeated);
+            if (v_repeated) boat_tensor_free(v_repeated);
+            return NULL;
+        }
+        size_t row_bytes = (size_t)(T * hd) * sizeof(float);
+        float* k_src = (float*)boat_tensor_data(k_proj);
+        float* v_src = (float*)boat_tensor_data(v_proj);
+        float* k_dst = (float*)boat_tensor_data(k_repeated);
+        float* v_dst = (float*)boat_tensor_data(v_repeated);
+        for (int64_t b = 0; b < B; b++) {
+            for (int r = 0; r < repeat; r++) {
+                for (int64_t h = 0; h < n_kv; h++) {
+                    size_t src_idx = ((size_t)(b * n_kv + h) * (size_t)T * (size_t)hd);
+                    size_t dst_idx = ((size_t)(b * num_heads + r * n_kv + h) * (size_t)T * (size_t)hd);
+                    memcpy(k_dst + dst_idx, k_src + src_idx, row_bytes);
+                    memcpy(v_dst + dst_idx, v_src + src_idx, row_bytes);
+                }
+            }
+        }
+        boat_tensor_free(k_proj);
+        boat_tensor_free(v_proj);
+        k_proj = k_repeated;
+        v_proj = v_repeated;
+    }
+
     // Apply rotary position encoding if enabled
     if (attention->config.use_rotary) {
-        // TODO: Implement rotary position encoding
+        boat_apply_rotary_embedding(q_proj, k_proj, (size_t)seq_len, head_size, attention->config.rotary_theta);
     }
 
     // Calculate scaled dot-product attention with cache for backward pass
@@ -863,8 +904,11 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_multihead_attention(const boat_tensor_t* 
         .rotary_theta = 10000.0f
     };
 
-    // Create temporary attention layer
+    // Create temporary attention layer (MHA, no GQA for multihead_attention)
+    // This simplified API always uses MHA (num_kv_heads = num_heads)
     boat_attention_t* attention = boat_attention_create(&config);
+    // Override weights after create since the simplified API creates MHA-sizes
+    // (weights will be loaded externally if needed)
     if (!attention) {
         return NULL;
     }
@@ -900,10 +944,9 @@ static boat_tensor_t* scaled_dot_product_attention_impl(const boat_tensor_t* que
         return NULL;
     }
 
-    // For now, assume 4D tensors [batch, num_heads, seq_len, head_size]
-    // This is what attention layer passes after reshaping
+    // Expect 4D: [batch, num_heads, seq_len, head_size]
     if (q_ndim != 4 || k_ndim != 4 || v_ndim != 4) {
-        // Fallback to dummy tensor for compatibility
+        // Fallback for non-4D input
         const int64_t* value_shape = boat_tensor_shape(value);
         boat_tensor_t* output = boat_tensor_create(value_shape, v_ndim,
                                                    boat_tensor_dtype(value),
@@ -926,7 +969,7 @@ static boat_tensor_t* scaled_dot_product_attention_impl(const boat_tensor_t* que
     int64_t kv_seq_len = k_shape[2];
     int64_t head_size = q_shape[3];
 
-    // Validate shapes match (Q and K/V can have different seq_len for cross-attention)
+    // Validate shapes match
     if (k_shape[0] != batch || k_shape[1] != num_heads || k_shape[3] != head_size ||
         v_shape[0] != batch || v_shape[1] != num_heads || v_shape[2] != kv_seq_len || v_shape[3] != head_size) {
         return NULL;
@@ -934,145 +977,68 @@ static boat_tensor_t* scaled_dot_product_attention_impl(const boat_tensor_t* que
 
     boat_dtype_t dtype = boat_tensor_dtype(query);
     if (dtype != BOAT_DTYPE_FLOAT32) {
-        // Only support float32 for now
         return NULL;
     }
 
-    // Create cache for attention weights if requested
-    boat_tensor_t* weights_tensor = NULL;
+    // --- Op chain for scaled dot-product attention ---
+
+    // 1. scores = Q @ K^T * scale
+    // K^T: [batch, num_heads, kv_seq_len, head_size] -> [batch, num_heads, head_size, kv_seq_len]
+    boat_tensor_t* key_t = boat_transpose(key, 2, 3);
+    if (!key_t) return NULL;
+
+    boat_tensor_t* scores = boat_matmul(query, key_t);
+    boat_tensor_unref(key_t);
+    if (!scores) return NULL;
+
+    boat_tensor_t* scaled_scores = boat_mul_scalar(scores, (double)scale_factor);
+    boat_tensor_unref(scores);
+    if (!scaled_scores) return NULL;
+    scores = scaled_scores;
+
+    // 2. Apply causal mask (upper triangular set to -inf)
+    if (causal_mask && q_seq_len == kv_seq_len) {
+        float* scores_data = (float*)boat_tensor_data(scores);
+        for (int64_t b = 0; b < batch; b++) {
+            for (int64_t h = 0; h < num_heads; h++) {
+                for (int64_t i = 0; i < q_seq_len; i++) {
+                    for (int64_t j = i + 1; j < kv_seq_len; j++) {
+                        int64_t idx = ((b * num_heads + h) * q_seq_len + i) * kv_seq_len + j;
+                        scores_data[idx] = -INFINITY;
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Apply attention mask if provided
+    if (attention_mask) {
+        // Element-wise add mask to scores
+        boat_tensor_t* masked = boat_add(scores, attention_mask);
+        boat_tensor_unref(scores);
+        if (!masked) return NULL;
+        scores = masked;
+    }
+
+    // 4. Softmax over last dimension (kv_seq_len)
+    boat_tensor_t* weights = boat_softmax(scores, 3);
+    boat_tensor_unref(scores);
+    if (!weights) return NULL;
+
+    // Cache weights for backward pass if requested
     if (cache_weights) {
-        const int64_t weights_shape[] = {batch, num_heads, q_seq_len, kv_seq_len};
-        weights_tensor = boat_tensor_create(weights_shape, 4, dtype, boat_tensor_device(value));
-        if (!weights_tensor) {
-            return NULL;
-        }
-        *cache_weights = weights_tensor;
+        *cache_weights = weights;
+        boat_tensor_ref(weights);
     }
 
-    // Create output tensor with same shape as query (Q seq_len, head_size)
-    const int64_t out_shape[] = {batch, num_heads, q_seq_len, head_size};
-    boat_tensor_t* output = boat_tensor_create(out_shape, 4, dtype, boat_tensor_device(value));
-    if (!output) {
-        if (weights_tensor) boat_tensor_free(weights_tensor);
-        return NULL;
-    }
+    // 5. Dropout (skip for now)
 
-    float* q_data = (float*)boat_tensor_data(query);
-    float* k_data = (float*)boat_tensor_data(key);
-    float* v_data = (float*)boat_tensor_data(value);
-    float* out_data = (float*)boat_tensor_data(output);
+    // 6. output = weights @ V
+    boat_tensor_t* output = boat_matmul(weights, value);
 
-    // Compute strides
-    int64_t q_stride_batch = num_heads * q_seq_len * head_size;
-    int64_t q_stride_head = q_seq_len * head_size;
-    int64_t q_stride_seq = head_size;
-    int64_t k_stride_batch = num_heads * kv_seq_len * head_size;
-    int64_t k_stride_head = kv_seq_len * head_size;
-    int64_t k_stride_seq = head_size;
+    // Release our reference to weights (still alive if cached via cache_weights)
+    boat_tensor_unref(weights);
 
-    // Precompute scale factor
-    float scale = scale_factor;
-
-    // Temporary buffer for attention scores [q_seq_len, kv_seq_len]
-    float* scores = (float*)boat_malloc(q_seq_len * kv_seq_len * sizeof(float), BOAT_DEVICE_CPU);
-    if (!scores) {
-        boat_tensor_unref(output);
-        return NULL;
-    }
-
-    // Get weights tensor data pointer if caching
-    float* weights_data = NULL;
-    if (weights_tensor) {
-        weights_data = (float*)boat_tensor_data(weights_tensor);
-    }
-
-    for (int64_t b = 0; b < batch; b++) {
-        for (int64_t h = 0; h < num_heads; h++) {
-            // Pointers to current head
-            float* q_head = q_data + b * q_stride_batch + h * q_stride_head;
-            float* k_head = k_data + b * k_stride_batch + h * k_stride_head;
-            float* v_head = v_data + b * k_stride_batch + h * k_stride_head;
-            float* out_head = out_data + b * q_stride_batch + h * q_stride_head;
-
-            // Compute attention scores: Q * K^T * scale
-            for (int64_t i = 0; i < q_seq_len; i++) {
-                for (int64_t j = 0; j < kv_seq_len; j++) {
-                    float sum = 0.0f;
-                    const float* q_row = q_head + i * q_stride_seq;
-                    const float* k_row = k_head + j * k_stride_seq;
-                    for (int64_t d = 0; d < head_size; d++) {
-                        sum += q_row[d] * k_row[d];
-                    }
-                    scores[i * kv_seq_len + j] = sum * scale;
-                }
-            }
-
-            // Apply causal mask if needed (only for self-attention with same seq_len)
-            if (causal_mask && q_seq_len == kv_seq_len) {
-                for (int64_t i = 0; i < q_seq_len; i++) {
-                    for (int64_t j = 0; j < kv_seq_len; j++) {
-                        if (j > i) {
-                            scores[i * kv_seq_len + j] = -1e9f;
-                        }
-                    }
-                }
-            }
-
-            // Apply attention mask if provided (TODO)
-            if (attention_mask) {
-                // Not implemented yet
-            }
-
-            // Softmax over kv_seq_len dimension (j)
-            for (int64_t i = 0; i < q_seq_len; i++) {
-                float max_val = scores[i * kv_seq_len];
-                for (int64_t j = 1; j < kv_seq_len; j++) {
-                    if (scores[i * kv_seq_len + j] > max_val) {
-                        max_val = scores[i * kv_seq_len + j];
-                    }
-                }
-                float sum_exp = 0.0f;
-                for (int64_t j = 0; j < kv_seq_len; j++) {
-                    float val = scores[i * kv_seq_len + j] - max_val;
-                    scores[i * kv_seq_len + j] = expf(val);
-                    sum_exp += scores[i * kv_seq_len + j];
-                }
-                if (sum_exp != 0.0f) {
-                    for (int64_t j = 0; j < kv_seq_len; j++) {
-                        scores[i * kv_seq_len + j] /= sum_exp;
-                    }
-                }
-            }
-
-            // Store attention weights in cache if requested
-            if (weights_data) {
-                int64_t weights_stride_batch = num_heads * q_seq_len * kv_seq_len;
-                int64_t weights_stride_head = q_seq_len * kv_seq_len;
-                int64_t weights_stride_seq = kv_seq_len;
-                float* weights_ptr = weights_data + b * weights_stride_batch + h * weights_stride_head;
-                for (int64_t i = 0; i < q_seq_len; i++) {
-                    for (int64_t j = 0; j < kv_seq_len; j++) {
-                        weights_ptr[i * weights_stride_seq + j] = scores[i * kv_seq_len + j];
-                    }
-                }
-            }
-
-            // Apply dropout (TODO)
-
-            // Multiply scores * V
-            for (int64_t i = 0; i < q_seq_len; i++) {
-                for (int64_t d = 0; d < head_size; d++) {
-                    float sum = 0.0f;
-                    for (int64_t j = 0; j < kv_seq_len; j++) {
-                        sum += scores[i * kv_seq_len + j] * (v_head + j * k_stride_seq)[d];
-                    }
-                    out_head[i * q_stride_seq + d] = sum;
-                }
-            }
-        }
-    }
-
-    boat_free(scores);
     return output;
 }
 
@@ -1088,17 +1054,43 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_scaled_dot_product_attention(const boat_t
                                              attention_mask, causal_mask, dropout_prob, NULL);
 }
 
-// Rotary position encoding placeholder
+// Rotary position encoding
 BOAT_API boat_tensor_t* BOAT_CALL boat_rotary_position_encoding(const boat_tensor_t* tensor,
                                               size_t seq_len,
                                               size_t head_size,
                                               float theta) {
-    (void)tensor;
-    (void)seq_len;
-    (void)head_size;
-    (void)theta;
-    // TODO: Implement rotary position encoding
-    return NULL;
+    if (!tensor) return NULL;
+    // Create output with same shape
+    boat_tensor_t* out = boat_tensor_create_like(tensor);
+    if (!out) return NULL;
+
+    size_t n_heads = boat_tensor_shape(tensor)[1];
+    size_t n = boat_tensor_nelements(tensor);
+    float* src = (float*)boat_tensor_data(tensor);
+    float* dst = (float*)boat_tensor_data(out);
+    memcpy(dst, src, n * sizeof(float));
+
+    // Apply RoPE in-place on the output
+    size_t half = head_size / 2;
+    for (size_t b = 0; b < (size_t)boat_tensor_shape(tensor)[0]; b++) {
+        for (size_t h = 0; h < n_heads; h++) {
+            for (size_t p = 0; p < seq_len; p++) {
+                for (size_t i = 0; i < half; i++) {
+                    float freq = powf(theta, -2.0f * (float)i / (float)head_size);
+                    float cos_v = cosf((float)p * freq);
+                    float sin_v = sinf((float)p * freq);
+
+                    size_t idx = ((b * n_heads + h) * seq_len + p) * head_size;
+                    float x0 = dst[idx + 2 * i];
+                    float x1 = dst[idx + 2 * i + 1];
+                    dst[idx + 2 * i]     = x0 * cos_v - x1 * sin_v;
+                    dst[idx + 2 * i + 1] = x1 * cos_v + x0 * sin_v;
+                }
+            }
+        }
+    }
+
+    return out;
 }
 
 BOAT_API void BOAT_CALL boat_apply_rotary_embedding(boat_tensor_t* query,
@@ -1106,32 +1098,88 @@ BOAT_API void BOAT_CALL boat_apply_rotary_embedding(boat_tensor_t* query,
                                   size_t seq_len,
                                   size_t head_size,
                                   float theta) {
-    (void)query;
-    (void)key;
-    (void)seq_len;
-    (void)head_size;
-    (void)theta;
-    // TODO: Implement rotary embedding application
+    if (!query || !key) return;
+
+    size_t half = head_size / 2;
+    size_t q_heads = (size_t)boat_tensor_shape(query)[1];
+    size_t k_heads = (size_t)boat_tensor_shape(key)[1];
+
+    // Apply to query
+    float* q = (float*)boat_tensor_data(query);
+    for (size_t b = 0; b < (size_t)boat_tensor_shape(query)[0]; b++) {
+        for (size_t h = 0; h < q_heads; h++) {
+            for (size_t p = 0; p < seq_len; p++) {
+                for (size_t i = 0; i < half; i++) {
+                    float freq = powf(theta, -2.0f * (float)i / (float)head_size);
+                    float cos_v = cosf((float)p * freq);
+                    float sin_v = sinf((float)p * freq);
+
+                    size_t idx = ((b * q_heads + h) * seq_len + p) * head_size;
+                    float x0 = q[idx + 2 * i];
+                    float x1 = q[idx + 2 * i + 1];
+                    q[idx + 2 * i]     = x0 * cos_v - x1 * sin_v;
+                    q[idx + 2 * i + 1] = x1 * cos_v + x0 * sin_v;
+                }
+            }
+        }
+    }
+
+    // Apply to key
+    float* k = (float*)boat_tensor_data(key);
+    for (size_t b = 0; b < (size_t)boat_tensor_shape(key)[0]; b++) {
+        for (size_t h = 0; h < k_heads; h++) {
+            for (size_t p = 0; p < seq_len; p++) {
+                for (size_t i = 0; i < half; i++) {
+                    float freq = powf(theta, -2.0f * (float)i / (float)head_size);
+                    float cos_v = cosf((float)p * freq);
+                    float sin_v = sinf((float)p * freq);
+
+                    size_t idx = ((b * k_heads + h) * seq_len + p) * head_size;
+                    float x0 = k[idx + 2 * i];
+                    float x1 = k[idx + 2 * i + 1];
+                    k[idx + 2 * i]     = x0 * cos_v - x1 * sin_v;
+                    k[idx + 2 * i + 1] = x1 * cos_v + x0 * sin_v;
+                }
+            }
+        }
+    }
 }
 
 // Adapter for generic attention layer interface (layers.h)
 typedef boat_attention_t boat_attention_layer_t;
 
+BOAT_API boat_attention_t* BOAT_CALL boat_attention_create_gqa(size_t hidden_size, size_t num_heads,
+                                          size_t num_kv_heads, size_t head_size,
+                                          bool causal_mask, float rotary_theta) {
+    boat_attention_config_t config = {
+        .hidden_size = hidden_size,
+        .num_heads = num_heads,
+        .num_kv_heads = num_kv_heads,
+        .head_size = head_size,
+        .dropout_prob = 0.0f,
+        .causal_mask = causal_mask,
+        .use_bias = false,
+        .use_rotary = (rotary_theta > 0.0f),
+        .rotary_theta = rotary_theta > 0.0f ? rotary_theta : 10000.0f,
+    };
+    return boat_attention_create(&config);
+}
+
 BOAT_API boat_attention_layer_t* BOAT_CALL boat_attention_layer_create(size_t hidden_size, size_t num_heads,
+                                                              size_t num_kv_heads,
                                                               float dropout_prob, bool causal_mask) {
     boat_attention_config_t config = {
         .hidden_size = hidden_size,
         .num_heads = num_heads,
-        .head_size = hidden_size / num_heads,  // Assuming divisible
+        .num_kv_heads = num_kv_heads,
+        .head_size = hidden_size / num_heads,
         .dropout_prob = dropout_prob,
         .causal_mask = causal_mask,
-        .use_bias = true,           // Default to using bias
-        .use_rotary = false,        // Default no rotary encoding
-        .rotary_theta = 10000.0f    // Default theta
+        .use_bias = true,
+        .use_rotary = false,
+        .rotary_theta = 10000.0f
     };
-    // Ensure head_size calculation is valid
     if (hidden_size % num_heads != 0) {
-        // Adjust head_size to be divisible
         config.head_size = (hidden_size + num_heads - 1) / num_heads;
     }
     return boat_attention_create(&config);

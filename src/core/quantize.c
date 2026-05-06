@@ -42,6 +42,9 @@ BOAT_API void boat_compute_quant_params(float min_val, float max_val,
         } else if (quant_dtype == BOAT_DTYPE_BITS2) {
             *out_scale = abs_val / 3.0f;
             *out_zero_point = 0;
+        } else if (quant_dtype == BOAT_DTYPE_BITS1) {
+            *out_scale = abs_val / 1.0f;
+            *out_zero_point = 0;
         } else if (quant_dtype == BOAT_DTYPE_FLOAT4) {
             *out_scale = 1.0f;
             *out_zero_point = 0;
@@ -55,6 +58,14 @@ BOAT_API void boat_compute_quant_params(float min_val, float max_val,
     if (quant_dtype == BOAT_DTYPE_BITS2) {
         // BITS2: unsigned 2-bit, range [0, 3], qmax=3, asymmetric only
         *out_scale = (max_val - min_val) / 3.0f;
+        float inv_scale = 1.0f / *out_scale;
+        *out_zero_point = (int32_t)roundf(-min_val * inv_scale);
+        return;
+    }
+
+    if (quant_dtype == BOAT_DTYPE_BITS1) {
+        // BITS1: unsigned 1-bit, range [0, 1], qmax=1, asymmetric only
+        *out_scale = (max_val - min_val) / 1.0f;
         float inv_scale = 1.0f / *out_scale;
         *out_zero_point = (int32_t)roundf(-min_val * inv_scale);
         return;
@@ -169,6 +180,25 @@ BOAT_API boat_tensor_t* boat_quantize_tensor(const boat_tensor_t* fp32_tensor,
         return quantized;
     }
 
+    if (config->quant_dtype == BOAT_DTYPE_BITS1) {
+        // BITS1: quantize to [0, 1], then pack
+        bool* unpacked = (bool*)boat_malloc(sizeof(bool) * n, BOAT_DEVICE_CPU);
+        if (!unpacked) {
+            boat_tensor_unref(quantized);
+            return NULL;
+        }
+        for (size_t i = 0; i < n; i++) {
+            int32_t q = (int32_t)roundf(src[i] * inv_scale) + zero_point;
+            if (q < 0) q = 0;
+            if (q > 1) q = 1;
+            unpacked[i] = (bool)q;
+        }
+        uint8_t* dst = (uint8_t*)boat_tensor_data(quantized);
+        boat_pack_bits1(unpacked, dst, n);
+        boat_free(unpacked);
+        return quantized;
+    }
+
     if (config->quant_dtype == BOAT_DTYPE_INT8) {
         int8_t* dst = (int8_t*)boat_tensor_data(quantized);
         for (size_t i = 0; i < n; i++) {
@@ -197,9 +227,10 @@ BOAT_API boat_tensor_t* boat_dequantize_tensor(const boat_tensor_t* quantized_te
     }
     boat_dtype_t dt = boat_tensor_dtype(quantized_tensor);
     if (dt != BOAT_DTYPE_UINT8 && dt != BOAT_DTYPE_INT8 &&
-        dt != BOAT_DTYPE_BITS2 && dt != BOAT_DTYPE_FLOAT4) {
+        dt != BOAT_DTYPE_BITS2 && dt != BOAT_DTYPE_BITS1 &&
+        dt != BOAT_DTYPE_FLOAT4) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
-                        "[Dequantize] expected UINT8/INT8/BITS2/FLOAT4 tensor, got %s\n",
+                        "[Dequantize] expected UINT8/INT8/BITS2/BITS1/FLOAT4 tensor, got %s\n",
                         boat_dtype_name(dt));
         return NULL;
     }
@@ -244,6 +275,19 @@ BOAT_API boat_tensor_t* boat_dequantize_tensor(const boat_tensor_t* quantized_te
         }
         const uint8_t* src = (const uint8_t*)boat_tensor_const_data(quantized_tensor);
         boat_unpack_bits2(src, unpacked, n);
+        for (size_t i = 0; i < n; i++) {
+            dst[i] = ((int32_t)unpacked[i] - zero_point) * scale;
+        }
+        boat_free(unpacked);
+    } else if (dt == BOAT_DTYPE_BITS1) {
+        // Unpack BITS1 then apply affine dequantize
+        bool* unpacked = (bool*)boat_malloc(sizeof(bool) * n, BOAT_DEVICE_CPU);
+        if (!unpacked) {
+            boat_tensor_unref(fp32);
+            return NULL;
+        }
+        const uint8_t* src = (const uint8_t*)boat_tensor_const_data(quantized_tensor);
+        boat_unpack_bits1(src, unpacked, n);
         for (size_t i = 0; i < n; i++) {
             dst[i] = ((int32_t)unpacked[i] - zero_point) * scale;
         }
@@ -339,7 +383,8 @@ static bool dequantize_layer_weight(void* layer_data, boat_layer_type_t type) {
     // Only dequantize quantized tensors with scale != 0 (FLOAT4 always has scale=1)
     boat_dtype_t wdt = boat_tensor_dtype(weight);
     bool is_quantized = (wdt == BOAT_DTYPE_UINT8 || wdt == BOAT_DTYPE_INT8 ||
-                         wdt == BOAT_DTYPE_BITS2 || wdt == BOAT_DTYPE_FLOAT4);
+                         wdt == BOAT_DTYPE_BITS2 || wdt == BOAT_DTYPE_BITS1 ||
+                         wdt == BOAT_DTYPE_FLOAT4);
     if (!is_quantized) {
         return true; // not quantized, skip
     }
@@ -591,6 +636,30 @@ BOAT_API boat_tensor_t* boat_quantize_tensor_per_channel(
             }
             boat_pack_bits2(unpacked, (uint8_t*)dst, total_elements);
             boat_free(unpacked);
+        } else if (config->quant_dtype == BOAT_DTYPE_BITS1) {
+            // BITS1: quantize to [0,1] then pack
+            bool* unpacked = (bool*)boat_malloc(sizeof(bool) * total_elements, BOAT_DEVICE_CPU);
+            if (!unpacked) {
+                boat_tensor_unref(quantized);
+                boat_free(scales);
+                boat_free(zero_points);
+                return NULL;
+            }
+            for (size_t c = 0; c < n_channels; c++) {
+                float inv_scale = 1.0f / scales[c];
+                int32_t zp = zero_points[c];
+                for (size_t o = 0; o < outer_elements; o++) {
+                    for (size_t i = 0; i < inner_elements; i++) {
+                        size_t idx = (o * n_channels + c) * inner_elements + i;
+                        int32_t q = (int32_t)roundf(src[idx] * inv_scale) + zp;
+                        if (q < 0) q = 0;
+                        if (q > 1) q = 1;
+                        unpacked[idx] = (bool)q;
+                    }
+                }
+            }
+            boat_pack_bits1(unpacked, (uint8_t*)dst, total_elements);
+            boat_free(unpacked);
         } else if (config->quant_dtype == BOAT_DTYPE_INT8) {
             int8_t* dst_i8 = (int8_t*)dst;
             for (size_t c = 0; c < n_channels; c++) {
@@ -698,6 +767,28 @@ BOAT_API boat_tensor_t* boat_dequantize_tensor_per_channel(const boat_tensor_t* 
         }
         const uint8_t* src = (const uint8_t*)boat_tensor_const_data(quantized_tensor);
         boat_unpack_bits2(src, unpacked, total_elements);
+        for (size_t c = 0; c < n_channels; c++) {
+            float s = scales[c];
+            int32_t zp = zero_points[c];
+            for (size_t o = 0; o < outer_elements; o++) {
+                for (size_t i = 0; i < inner_elements; i++) {
+                    size_t idx = (o * n_channels + c) * inner_elements + i;
+                    dst[idx] = ((int32_t)unpacked[idx] - zp) * s;
+                }
+            }
+        }
+        boat_free(unpacked);
+        return fp32;
+    }
+
+    if (dt == BOAT_DTYPE_BITS1) {
+        bool* unpacked = (bool*)boat_malloc(sizeof(bool) * total_elements, BOAT_DEVICE_CPU);
+        if (!unpacked) {
+            boat_tensor_unref(fp32);
+            return NULL;
+        }
+        const uint8_t* src = (const uint8_t*)boat_tensor_const_data(quantized_tensor);
+        boat_unpack_bits1(src, unpacked, total_elements);
         for (size_t c = 0; c < n_channels; c++) {
             float s = scales[c];
             int32_t zp = zero_points[c];

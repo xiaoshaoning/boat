@@ -77,3 +77,39 @@ coverage/
 node_modules/
 *.dll
 external/
+
+# Auto-generated version header
+include/boat/version.h
+
+# Python cache
+__pycache__/
+
+# Visual Studio debug symbols
+*.pdb
+
+# Output logs
+output_*.txt
+
+# Model weight files
+*.npz
+*.safetensors
+
+# Audio feature data
+*.mel
+
+# Qwen3-ASR user scripts (root level)
+/build_build_qwen3asr.bat
+/build_qwen3asr.ps1
+/build_qwen3asr_debug.bat
+/build_qwen3asr_release.ps1
+/build_qwen3asr_simple.ps1
+/run_qwen3asr.bat
+/run_qwen3asr.py
+/compare_conv_intermediates.py
+/compare_encoder.py
+/compare_encoder_detailed.py
+/dump_conv_intermediates.py
+
+# OCR test artifacts
+examples/ocr/*.bat
+examples/ocr/ocr_output*.txt

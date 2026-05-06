@@ -233,7 +233,7 @@ static bool test_conv_gradient_config(size_t in_channels, size_t out_channels,
 
     // Create convolution layer
     boat_conv_layer_t* layer = boat_conv_layer_create(in_channels, out_channels,
-                                                      kernel_size, stride, padding);
+                                                      kernel_size, stride, padding, 1);
     if (!layer) {
         fprintf(stderr, "ERROR: Failed to create convolution layer\n");
         return false;
