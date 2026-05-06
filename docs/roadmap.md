@@ -149,33 +149,29 @@
 
 **Files:** `include/boat/prune.h`, `src/core/prune.c`, `tests/test_prune.c`
 
+### Phase 11: NanoChat LLM Inference and Training ✅
+
+| Feature | Status | Date |
+|---|---|---|
+| Weight loader for nanochat checkpoint (safetensors + meta) | Done | 2026-05 |
+| BPE tokenizer (tiktoken-compatible regex splitting) | Done | 2026-05 |
+| GPT model forward: RoPE, GQA, RMSNorm, ReLU², sliding window attention, value residual, logit softcap | Done | 2026-05 |
+| KV cache + inference engine (prefill + decode loop) | Done | 2026-05 |
+| Fused GQA decode attention custom CUDA kernel | Done | 2026-05 |
+| Sampling (top-k, temperature, repetition penalty) | Done | 2026-05 |
+| Interactive chat CLI with token streaming | Done | 2026-05 |
+| OpenAI-compatible HTTP server | Done | 2026-05 |
+| Muon + AdamW optimizers (Polar Express + NorMuon) | Done | 2026-05 |
+| BOS-aligned best-fit dataloader | Done | 2026-05 |
+| Training loop (pretraining, SFT, GRPO) | Done | 2026-05 |
+| FP8 dynamic tensorwise scaling for training | Done | 2026-05 |
+| Backward CUDA kernels (cross-entropy, dense, RoPE, RMSNorm, ReLU²) | Done | 2026-05 |
+
+**Files:** `examples/nanochat/*.{c,h,cu,cuh}` (25+ files)
+
 ---
 
 ## Short-term (1-2 months)
-
-### 1. NanoChat LLM inference + training
-
-Implement a full inference and training pipeline for nanochat GPT models, following the detailed plan at `docs/nanochat_plan.md`.
-
-- Weight loader for nanochat checkpoint format (safetensors + meta)
-- BPE tokenizer (tiktoken-compatible regex splitting)
-- GPT model forward/backward: RoPE, GQA, RMSNorm, ReLU², sliding window attention, value residual, logit softcap
-- KV cache + inference engine (prefill + decode loop)
-- Sampling (top-k, temperature, repetition penalty)
-- Muon + AdamW optimizer (Polar Express + NorMuon)
-- BOS-aligned best-fit dataloader
-- Pretraining / SFT with loss masking / RL (GRPO) training loops
-- FP8 dynamic tensorwise scaling
-- Interactive chat CLI with tool use
-- Unit tests for all components
-
-**Files:** `examples/nanochat/*.{c,h}` (20+ new files), `src/ops/` (RoPE, gather, top-k), `src/core/` (FP8 extend)
-
-**Estimated:** 6 phases, ~12 weeks
-
----
-
----
 
 ## Long-term (6-12 months)
 
@@ -197,4 +193,4 @@ Support loading TensorFlow 2.x SavedModel exports. Requires implementing the Sav
 
 ---
 
-*Last updated: 2026-05-04* (CUDA backend extended: full ops dispatch, layer paths, optimizer/loss CUDA kernels, GLM-OCR inference example)
+*Last updated: 2026-05-06* (NanoChat LLM inference and training completed and merged to main)

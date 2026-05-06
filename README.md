@@ -15,7 +15,7 @@ Boat is a lightweight, high-performance deep learning framework written in pure 
 - **Model Format Support**: ONNX (load/export/runtime executor), PyTorch (via LibTorch), HuggingFace Safetensors, GGUF (Q4_0, Q4_1, Q5_0, Q8_0)
 - **Data Pipeline**: Dataset/DataLoader abstraction with batching, shuffling, multi-threaded prefetch, and transforms
 - **Performance Optimizations**: SIMD (AVX2/NEON), SGEMM micro-kernel (hand-tuned with packing), OpenBLAS backend for accelerated matrix multiplication, OpenMP parallelism, memory pooling
-- **CUDA GPU Acceleration**: cuBLAS matmul, cuDNN conv/batchnorm, custom CUDA kernels for element-wise ops, activations, pooling, normalization, and optimizers
+- **CUDA GPU Acceleration**: cuBLAS matmul, cuDNN conv/batchnorm, fused attention kernels (flash attention, GQA decode), FP8/BF16 inference and training kernels, custom CUDA kernels for element-wise ops, activations, pooling, normalization, and optimizers
 - **Memory Efficient**: Explicit memory management with reference counting
 - **Cross-Platform**: Works on Linux, macOS, and Windows
 - **Extensible Architecture**: Modular design for adding new operations and layers
@@ -93,8 +93,12 @@ The Makefile automatically compiles all source files and creates a shared librar
 - `-DBOAT_WITH_EXAMPLES=ON`: Build example programs
 - `-DBOAT_WITH_ONNX=ON`: Enable ONNX support (requires protobuf)
 - `-DBOAT_WITH_CUDA=ON`: Enable CUDA GPU acceleration (requires CUDA Toolkit and NVIDIA GPU)
+- `-DBOAT_WITH_CUDNN=ON`: Enable cuDNN integration (requires cuDNN)
 - `-DBOAT_WITH_OPENBLAS=ON`: Enable OpenBLAS backend for accelerated matrix multiplication
   - Set `-DBOAT_OPENBLAS_ROOT=/path/to/openblas` if not in a standard location
+- `-DBOAT_WITH_OPENMP=ON`: Enable OpenMP parallelism
+- `-DBOAT_WITH_SIMD=ON`: Enable SIMD vectorization (AVX2/NEON)
+- `-DBOAT_WITH_ONNXRUNTIME=ON`: Enable ONNX Runtime executor
 
 ### Build Configurations
 
@@ -425,6 +429,55 @@ save_tensor_binary("test_labels.bin", test_labels.reshape(-1, 1))
 
 For more details, see the [MNIST example documentation](examples/mnist/CLAUDE.md).
 
+## NanoChat Example
+
+NanoChat is a GPT LLM example (d34 2.2B parameters) with CUDA-accelerated inference, training, and an OpenAI-compatible HTTP server.
+
+### Chat CLI
+
+```bash
+# Build with CUDA enabled
+mkdir build && cd build
+cmake .. -DBOAT_WITH_CUDA=ON -DBOAT_WITH_EXAMPLES=ON
+make
+
+# Run interactive chat
+./examples/nanochat/nanochat_cli <model_dir>
+```
+
+The chat CLI supports token-by-token streaming, markdown rendering (Windows console), and conversation history.
+
+### HTTP Server
+
+```bash
+# Start the server
+./examples/nanochat/server <model_dir>
+
+# Query via curl (OpenAI-compatible API)
+curl http://localhost:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"Hello!"}]}'
+```
+
+### Training
+
+```bash
+# Run training (supports pretraining, SFT, and GRPO)
+./examples/nanochat/nanochat_train <model_dir> <data_dir>
+```
+
+The training pipeline includes:
+- Muon and AdamW optimizers
+- FP8 dynamic tensorwise scaling
+- BOS-aligned best-fit batching
+- GRPO (Group Relative Policy Optimization) for RL fine-tuning
+
+### Architecture
+
+NanoChat implements the d34 architecture: 34 transformer layers, GQA (16 heads, 2 KV heads), RoPE, ReLU² activation, sliding window attention, value residual, and logit softcap. All attention and FFN operations are accelerated with custom fused CUDA kernels.
+
+For detailed design, see [docs/nanochat_plan.md](docs/nanochat_plan.md).
+
 ## Core Components
 
 ### Tensor Operations
@@ -506,6 +559,11 @@ The repository includes several comprehensive examples:
 - **Automatic Differentiation**: Gradient computation with dynamic computation graphs
 - **Scheduler Usage**: Learning rate scheduling with cosine annealing, step LR, and lambda LR
 - **ONNX Export**: Export trained boat models to ONNX format
+- **NanoChat**: GPT LLM inference and training (d34 2.2B) with CUDA acceleration
+  - Interactive chat CLI with token streaming
+  - OpenAI-compatible HTTP server (JSON API)
+  - Training loop with Muon/AdamW optimizers and FP8 support
+  - Fused GQA attention kernels for fast decode
 
 ## Project Structure
 
@@ -522,25 +580,41 @@ boat/
 │   │   ├── loss.h           # Loss functions
 │   │   ├── model.h          # Model definition and serialization
 │   │   ├── data.h           # Data loading and preprocessing
+│   │   ├── prune.h          # Model pruning
+│   │   ├── quantize.h       # Quantization
+│   │   ├── sampling.h       # Token sampling utilities
+│   │   ├── cuda_runtime.h   # CUDA runtime API
 │   │   └── format/          # Model format loaders
 │   │       ├── onnx.h       # ONNX format support
+│   │       ├── onnxruntime.h# ONNX Runtime executor
 │   │       ├── pytorch.h    # PyTorch format support
 │   │       ├── tensorflow.h # TensorFlow format support
 │   │       └── huggingface.h# HuggingFace format support
 │   └── boat.h               # Main include file
 ├── src/                     # Implementation
 │   ├── core/               # Core functionality
-│   ├── ops/                # Operations
+│   ├── ops/                # Operations (with device dispatch)
 │   ├── graph/              # Computational graph
 │   ├── layers/             # Neural network layers
-│   ├── optimizers/         # Optimization algorithms
+│   ├── optimizers/         # Optimization algorithms (with CUDA paths)
 │   ├── schedulers/         # Learning rate schedulers
-│   ├── loss/               # Loss functions
+│   ├── loss/               # Loss functions (with CUDA paths)
 │   ├── model/              # Model management
 │   └── format/             # Model format loaders
+├── cuda/                   # CUDA backend
+│   ├── kernels/            # CUDA kernels (basic, conv, dense, fused, norm, pool, optimizer, FP8, BF16)
+│   ├── ops/                # CUDA ops (activation, arithmetic, linear)
+│   ├── tensor.cu           # CUDA tensor copy
+│   ├── cublas_handle.cu    # cuBLAS handle manager
+│   ├── cudnn_handle.cu     # cuDNN handle manager
+│   ├── graph/              # CUDA graph executor
+│   └── autodiff/           # CUDA autodiff
+├── bindings/js/            # Node.js N-API bindings
 ├── examples/               # Example programs
 │   ├── mnist/             # MNIST classification
 │   ├── cifar10/           # CIFAR-10 image classification
+│   ├── common/            # Shared utilities (JSON, safetensors)
+│   ├── nanochat/          # NanoChat GPT LLM (inference, training, server)
 │   ├── transformer/       # Transformer end-to-end example
 │   └── translator/        # English-French MarianMT translator
 ├── tests/                 # Test suite
@@ -559,30 +633,39 @@ For detailed API documentation and development guidelines, see [CLAUDE.md](CLAUD
 - Core tensor operations with multiple data types
 - Automatic differentiation with computational graph
 - Neural network layers (dense, conv, attention, LSTM, GRU, etc.)
-- Optimizers (Adam, RMSprop, SGD, Adagrad)
+- Optimizers (Adam, RMSprop, SGD, Adagrad) with CUDA update paths
 - Learning rate schedulers (cosine annealing, step LR, lambda LR)
-- Loss functions (MSE, cross-entropy, Huber)
+- Loss functions (MSE, cross-entropy, Huber) with CUDA backward paths
 - Data pipeline (Dataset, DataLoader with multi-threaded prefetch)
 - Post-training quantization (UINT8, INT8, BITS2, FLOAT4, per-channel)
 - Quantization-aware training (QAT) with fake quantization
+- Model pruning (magnitude-based, structured channel/filter pruning)
 - Model format loaders (ONNX, PyTorch, TensorFlow, HuggingFace, GGUF)
-- ONNX runtime executor (graph-based direct inference for complex ONNX models)
-- CUDA GPU acceleration (cuBLAS matmul, cuDNN conv/batchnorm, custom kernels for element-wise ops, activations, pooling, normalization, and optimizers)
+- ONNX Runtime executor (graph-based direct inference for complex ONNX models)
+- CUDA GPU acceleration (cuBLAS matmul, cuDNN conv/batchnorm, fused attention kernels, FP8/BF16 inference and training, custom kernels for element-wise ops, activations, pooling, normalization, and optimizers)
+- Group/depthwise convolution with cuDNN acceleration
 - PReLU activation layer (Parametric ReLU for modern CNN architectures)
 - InsightFace face recognition model inference (ResNet50, 512-dim embeddings)
 - Model serialization (custom binary format, v3 with per-channel metadata)
 - Performance optimizations (SIMD, SGEMM with optional OpenBLAS backend, OpenMP, memory pool)
+- Node.js N-API bindings (Tensor and Model operations)
 - Cross-platform build with CMake
-- Comprehensive test suite
+- Comprehensive test suite with CI (GitHub Actions: CPU matrix + CUDA build)
 - MNIST training example (manual and autodiff, both >96% test accuracy)
 - CIFAR-10 CNN training example
 - Transformer end-to-end example
 - English-French MarianMT translator (Safetensors-based inference)
+- InsightFace face recognition (ONNX Runtime, 130-node graph executor)
 - ONNX export (boat → ONNX serialization)
+- **NanoChat GPT LLM (d34 2.2B)**:
+  - Interactive chat CLI with token streaming
+  - OpenAI-compatible HTTP server with JSON API
+  - Training pipeline (pretraining, SFT, GRPO) with Muon/AdamW optimizers
+  - FP8 dynamic tensorwise scaling for training
+  - Fused GQA decode attention with KV cache
+  - BF16 inference (avoids FP16 overflow)
 
 ### Planned Features
-- Group/depthwise convolution
-- Model compression and pruning
 - WebAssembly backend for in-browser inference
 - Distributed training support
 
