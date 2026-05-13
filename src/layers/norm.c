@@ -458,12 +458,65 @@ boat_tensor_t* boat_layer_norm(const boat_tensor_t* input,
                                 const int64_t* normalized_shape,
                                 size_t normalized_shape_len,
                                 float eps) {
-    (void)input;
-    (void)normalized_shape;
-    (void)normalized_shape_len;
-    (void)eps;
-    // TODO: Implement standalone layer norm
-    return NULL;
+    if (!input || !normalized_shape || normalized_shape_len == 0) return NULL;
+
+    size_t ndim = boat_tensor_ndim(input);
+    const int64_t* shape = boat_tensor_shape(input);
+    int64_t D = normalized_shape[normalized_shape_len - 1];
+
+    // Verify last dim matches
+    if (shape[ndim - 1] != D) return NULL;
+
+    size_t total = boat_tensor_nelements(input);
+    size_t outer = total / (size_t)D;
+
+    boat_tensor_t* output = boat_tensor_create_like(input);
+    if (!output) return NULL;
+
+#ifdef BOAT_WITH_CUDA
+    if (boat_tensor_device(input) == BOAT_DEVICE_CUDA && boat_tensor_dtype(input) == BOAT_DTYPE_FLOAT32) {
+        boat_cuda_layernorm_forward_f32(
+            (const float*)boat_tensor_const_data(input),
+            NULL, NULL,
+            (float*)boat_tensor_data(output),
+            (int64_t)outer, (int64_t)D, eps);
+        return output;
+    }
+#endif
+
+    if (boat_tensor_dtype(input) != BOAT_DTYPE_FLOAT32) {
+        boat_tensor_unref(output);
+        return NULL;
+    }
+
+    const float* in = (const float*)boat_tensor_const_data(input);
+    float* out = (float*)boat_tensor_data(output);
+
+    for (size_t i = 0; i < outer; i++) {
+        const float* row = in + i * D;
+        float* row_out = out + i * D;
+
+        // Mean
+        float sum = 0.0f;
+        for (int64_t j = 0; j < D; j++) sum += row[j];
+        float mean = sum / (float)D;
+
+        // Variance
+        float var = 0.0f;
+        for (int64_t j = 0; j < D; j++) {
+            float diff = row[j] - mean;
+            var += diff * diff;
+        }
+        var = var / (float)D;
+
+        // Normalize
+        float inv_std = 1.0f / sqrtf(var + eps);
+        for (int64_t j = 0; j < D; j++) {
+            row_out[j] = (row[j] - mean) * inv_std;
+        }
+    }
+
+    return output;
 }
 
 // Standalone RMS norm function

@@ -51,6 +51,9 @@
 // Sampling utilities
 #include "boat/sampling.h"
 
+// Tokenizers
+#include "boat/tokenizers/bpe.h"
+
 // Model format loaders
 #ifdef BOAT_WITH_ONNX
 #include "boat/format/onnx.h"

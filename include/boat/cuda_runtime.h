@@ -294,6 +294,45 @@ boat_tensor_t* boat_cuda_tensor_clone(const boat_tensor_t* src);
 void boat_cuda_tensor_to_host(boat_tensor_t* tensor);
 void boat_cuda_tensor_to_device(boat_tensor_t* tensor);
 
+// ---------------------------------------------------------------------------
+// Swin Transformer CUDA kernels
+// ---------------------------------------------------------------------------
+void boat_cuda_swin_window_partition_f32(const float* src, float* dst,
+    int B, int H, int W, int C, int ws);
+void boat_cuda_swin_window_reverse_f32(const float* src, float* dst,
+    int B, int H, int W, int C, int ws);
+void boat_cuda_swin_cyclic_shift_f32(const float* src, float* dst,
+    int B, int H, int W, int C, int shift, int reverse);
+void boat_cuda_window_attn_scores_f32(const float* Q, const float* K, float* scores,
+    int batch, int N, int D, float scale);
+void boat_cuda_add_rel_pos_bias_f32(float* scores, const float* bias_tbl,
+    const int64_t* rpi, int num_windows, int num_heads, int N);
+void boat_cuda_window_attn_apply_f32(const float* attn, const float* V, float* out,
+    int batch, int N, int D);
+
+// ---------------------------------------------------------------------------
+// Swin Transformer CUDA kernels (continued)
+// ---------------------------------------------------------------------------
+void boat_cuda_swin_patch_embed_f32(
+    const float* input, const float* weight, const float* bias,
+    float* output,
+    int N, int C, int H, int W, int embed_dim, int ps);
+
+// ---------------------------------------------------------------------------
+// Decoder attention CUDA kernels
+// ---------------------------------------------------------------------------
+void boat_cuda_batched_matmul_scale_f32(const float* A, const float* B, float* C,
+    int batch, int M, int N, int K, float scale);
+void boat_cuda_add_causal_mask_f32(float* scores, int batch, int T, int L, int step_offset);
+
+// ---------------------------------------------------------------------------
+// KV cache kernels (for decoder self-attention)
+// ---------------------------------------------------------------------------
+void boat_cuda_kv_cache_append_f32(const float* src, float* dst,
+    int B, int H, int T, int head_dim, int cache_max, int step);
+void boat_cuda_kv_cache_extract_f32(const float* cache, float* dst,
+    int B, int H, int L, int head_dim, int cache_max);
+
 #ifdef __cplusplus
 }
 #endif

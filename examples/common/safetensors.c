@@ -132,16 +132,22 @@ static int dtype_is_bf16(const char* dtype) {
             strcmp(dtype, "BFloat16") == 0 || strcmp(dtype, "bf16") == 0);
 }
 
+static int dtype_is_i64(const char* dtype) {
+    return (strcmp(dtype, "I64") == 0 || strcmp(dtype, "INT64") == 0 ||
+            strcmp(dtype, "int64") == 0 || strcmp(dtype, "Int64") == 0);
+}
+
 boat_tensor_t* safetensors_load_tensor(const safetensors_t* st, int idx, int do_transpose) {
     if (idx < 0 || idx >= st->count) return NULL;
     st_tensor_info_t* info = &st->tensors[idx];
     int need_bf16_convert = dtype_is_bf16(info->dtype);
+    int need_i64 = dtype_is_i64(info->dtype);
 
     size_t total = 1;
     for (int i = 0; i < info->ndim; i++) total *= (size_t)info->shape[i];
 
     void* src_ptr = (void*)(st->file_data + st->header_size + info->data_offset);
-    int elem_size = need_bf16_convert ? 2 : 4;
+    int elem_size = need_bf16_convert ? 2 : (need_i64 ? 8 : 4);
 
     if (do_transpose && info->ndim == 2) {
         int64_t rows = info->shape[0];
@@ -167,12 +173,17 @@ boat_tensor_t* safetensors_load_tensor(const safetensors_t* st, int idx, int do_
         return t;
     }
 
-    boat_tensor_t* t = boat_tensor_create(info->shape, (size_t)info->ndim, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    boat_dtype_t tensor_dtype = need_i64 ? BOAT_DTYPE_INT64 : BOAT_DTYPE_FLOAT32;
+    boat_tensor_t* t = boat_tensor_create(info->shape, (size_t)info->ndim, tensor_dtype, BOAT_DEVICE_CPU);
     if (!t) return NULL;
-    float* dst = (float*)boat_tensor_data(t);
-    if (need_bf16_convert) {
+    if (need_i64) {
+        int64_t* dst = (int64_t*)boat_tensor_data(t);
+        memcpy(dst, src_ptr, total * 8);
+    } else if (need_bf16_convert) {
+        float* dst = (float*)boat_tensor_data(t);
         bf16_to_fp32_batch((uint16_t*)src_ptr, dst, total);
     } else {
+        float* dst = (float*)boat_tensor_data(t);
         memcpy(dst, src_ptr, total * 4);
     }
     return t;

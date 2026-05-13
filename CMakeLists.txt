@@ -229,6 +229,9 @@ set(BOAT_SOURCES
     src/loss/cross_entropy.c
     src/loss/huber.c
     src/layers/embedding.c
+    src/layers/swin.c
+    src/layers/transformer_decoder.c
+    src/tokenizers/bpe.c
     src/sampling.c
 )
 
@@ -381,19 +384,24 @@ if(BOAT_WITH_CUDA)
 
     # CUDA source files
     set(BOAT_CUDA_SOURCES
-        cuda/tensor.cu
         cuda/cublas_handle.cu
-        cuda/ops/arithmetic.cu
         cuda/ops/linear.cu
         cuda/ops/activation.cu
+        cuda/kernels/basic.cu
+        cuda/kernels/norm.cu
+        cuda/kernels/swin.cu
+    )
+
+    # Additional CUDA sources (only include files that exist on disk)
+    foreach(_cu_file
+        cuda/tensor.cu
+        cuda/ops/arithmetic.cu
         cuda/autodiff/grad.cu
         cuda/graph/executor.cu
-        cuda/kernels/basic.cu
         cuda/kernels/dense.cu
         cuda/kernels/conv.cu
         cuda/kernels/fused.cu
         cuda/kernels/pool.cu
-        cuda/kernels/norm.cu
         cuda/kernels/optimizer.cu
         cuda/kernels/bf16_conversion.cu
         cuda/kernels/bf16_optimizer.cu
@@ -401,6 +409,10 @@ if(BOAT_WITH_CUDA)
         cuda/kernels/fp8_elemwise.cu
         cuda/kernels/fp8_matmul.cu
     )
+        if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_cu_file})
+            list(APPEND BOAT_CUDA_SOURCES ${_cu_file})
+        endif()
+    endforeach()
 
     # CUDA configuration
     set(CMAKE_CUDA_STANDARD 11)

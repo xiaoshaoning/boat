@@ -38,6 +38,8 @@ typedef struct boat_conv_layer_t boat_conv_layer_t;
 typedef struct boat_pool_layer_t boat_pool_layer_t;
 typedef struct boat_norm_layer_t boat_norm_layer_t;
 typedef struct boat_attention_layer_t boat_attention_layer_t;
+typedef struct boat_swin_t boat_swin_t;
+typedef struct boat_decoder_layer_t boat_decoder_layer_t;
 
 // Dense layer functions
 BOAT_API boat_dense_layer_t* BOAT_CALL boat_dense_layer_create(size_t input_features, size_t output_features, bool use_bias);
