@@ -1,0 +1,39 @@
+#!/bin/sh
+# Boat private-branch protection hook.
+#
+# Only the local branch 'main' may be pushed to the public 'origin' remote.
+# All other branches are treated as private/confidential and are rejected.
+#
+# Emergency override (use only when intentional):
+#   BOAT_ALLOW_PRIVATE_PUSH=1 git push origin <branch>
+#
+# Install:
+#   cp scripts/git-hooks/pre-push .git/hooks/pre-push
+#   chmod +x .git/hooks/pre-push   # Linux/macOS
+
+if [ "$BOAT_ALLOW_PRIVATE_PUSH" = "1" ]; then
+    exit 0
+fi
+
+remote="$1"
+url="$2"
+
+# stdin: <local ref> <local sha1> <remote ref> <remote sha1>
+if [ "$remote" = "origin" ]; then
+    while read local_ref local_sha remote_ref remote_sha; do
+        [ -z "$local_ref" ] && continue
+        case "$local_ref" in
+            refs/heads/*)
+                branch="${local_ref#refs/heads/}"
+                if [ "$branch" != "main" ]; then
+                    echo "ERROR: push to 'origin' rejected: branch '$branch' is private." >&2
+                    echo "       Only 'main' may be pushed to the public remote." >&2
+                    echo "       If this is intentional, set BOAT_ALLOW_PRIVATE_PUSH=1." >&2
+                    exit 1
+                fi
+                ;;
+        esac
+    done
+fi
+
+exit 0

@@ -8,6 +8,13 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -fPIC -DBOAT_BUILDING_DLL
 INCLUDES = -Iinclude
 LIBS = -lm
 
+# Version information (auto-generated header)
+VERSION_MAJOR = 0
+VERSION_MINOR = 1
+VERSION_PATCH = 0
+VERSION_STRING = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)
+VERSION_H = include/boat/version.h
+
 # Directories
 SRC_DIR = src
 BUILD_DIR = build
@@ -39,7 +46,10 @@ LIB_NAME = libboat.so
 LIB = $(LIB_DIR)/$(LIB_NAME)
 
 # Main targets
-all: $(LIB)
+all: $(VERSION_H) $(LIB)
+
+$(VERSION_H): include/boat/version.h.in
+	@HASH=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); DESC=$$(git describe --tags --always --dirty 2>/dev/null || echo unknown); sed -e s/@BOAT_VERSION_MAJOR@/$(VERSION_MAJOR)/ -e s/@BOAT_VERSION_MINOR@/$(VERSION_MINOR)/ -e s/@BOAT_VERSION_PATCH@/$(VERSION_PATCH)/ -e s/@BOAT_VERSION_STRING@/$(VERSION_STRING)/ -e s/@BOAT_GIT_HASH@/$$HASH/ -e s/@BOAT_GIT_DESCRIBE@/$$DESC/ $< > $@
 
 $(LIB): $(OBJS)
 	@mkdir -p $(LIB_DIR)

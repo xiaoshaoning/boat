@@ -102,6 +102,8 @@ git push origin feature/your-feature-name
 - **行宽**: 最大 100 字符
 - **大括号**: K&R 风格
 - **注释**: 全英文，无中文字符
+- **编码**: 所有文本文件（代码、文档、脚本）必须为 UTF-8 编码（无 BOM），
+  禁止提交 GBK/GB2312 等其他编码，请遵循根目录 .editorconfig。
 
 ### 示例
 ```c

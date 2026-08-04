@@ -113,3 +113,15 @@ output_*.txt
 # OCR test artifacts
 examples/ocr/*.bat
 examples/ocr/ocr_output*.txt
+
+# Root-level server/test artifacts
+/server_*log*.txt
+/run_sft_test.bat
+
+# Example weight/data directories (download or generate separately)
+*.f32
+*.wav
+/examples/shanghainese_asr/weights/
+/examples/shanghainese_asr/finetune/
+/examples/nanochat_code/output*/
+/examples/nanochat_code/data/

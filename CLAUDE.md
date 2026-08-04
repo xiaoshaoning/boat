@@ -51,6 +51,8 @@ The framework supports a wide range of data types for efficient computation:
 - **Constants**: `SNAKE_CASE`
 - **Comments**: English only (code comments), no Chinese characters in code
 - **Documentation**: Chinese or English (project primarily uses Chinese for developer docs)
+- **Encoding**: All text files (code, docs, scripts) must be UTF-8 without BOM.
+  Never commit GBK/GB2312 or other legacy encodings; use .editorconfig.
 - **Indentation**: 4 spaces, no tabs
 - **Line length**: 100 characters maximum
 
