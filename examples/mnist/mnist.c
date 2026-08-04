@@ -214,16 +214,14 @@ void backward_pass(mnist_model_t* model, boat_tensor_t* grad_output) {
     //   out = backward_N+1(layer, grad);
     //   boat_tensor_unref(grad);  // release backward_pass's ref on input
     //   grad = out;               // adopt the returned ref for next layer
-    // First call is special: grad_output is still owned by the caller,
-    // softmax_backward adds a ref which backward_pass adopts.
+    // grad_output is dL/dz for the fused CE+softmax loss (already in logit space),
+    // so the softmax layer is skipped in the backward chain.
     // Last call: unref both input and returned (conv1) gradient.
     boat_tensor_t* grad = grad_output;
     boat_tensor_t* out = NULL;
 
-    // Layer 1: softmax (no unref — the caller still owns grad_output)
-    out = boat_softmax_layer_backward(model->softmax, grad);
-    if (!out) return;
-    grad = out;
+    // Adopt a reference for the chain (the caller still owns grad_output).
+    boat_tensor_ref(grad);
 
     out = boat_dense_layer_backward(model->fc2, grad);
     if (!out) { boat_tensor_unref(grad); return; }

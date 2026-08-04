@@ -658,12 +658,17 @@ boat_tensor_t* boat_rmsnorm_backward(boat_rmsnorm_t* norm, const boat_tensor_t* 
             boat_tensor_free(grad_input);
             return NULL;
         }
+#ifdef BOAT_WITH_CUDA
         if (boat_tensor_device(norm->cache_input) == BOAT_DEVICE_CUDA) {
             boat_cuda_memcpy_d2h(x_host, boat_tensor_const_data(norm->cache_input), total * sizeof(float));
         } else {
             memcpy(x_host, boat_tensor_const_data(norm->cache_input), total * sizeof(float));
         }
         boat_cuda_memcpy_d2h(dy_host, boat_tensor_const_data(grad_output), total * sizeof(float));
+#else
+        memcpy(x_host, boat_tensor_const_data(norm->cache_input), total * sizeof(float));
+        memcpy(dy_host, boat_tensor_const_data(grad_output), total * sizeof(float));
+#endif
         x = x_host; dy = dy_host; dx = dx_host;
     } else {
         x = (const float*)boat_tensor_const_data(norm->cache_input);

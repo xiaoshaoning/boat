@@ -333,7 +333,6 @@ static int test_train_save_load_infer(void) {
         // Backward
         boat_tensor_t* g = grad;
         boat_tensor_t* t;
-        t = boat_softmax_layer_backward(sm, g);                if (t) { boat_tensor_unref(g); g = t; } else break;
         t = boat_dense_layer_backward(fc2, g);                 if (t) { boat_tensor_unref(g); g = t; } else break;
         t = boat_relu_layer_backward(relu, g);                 if (t) { boat_tensor_unref(g); g = t; } else break;
         t = boat_dense_layer_backward(fc1, g);                 if (t) { boat_tensor_unref(g); g = t; } else break;

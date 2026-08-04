@@ -462,7 +462,12 @@ int main() {
     printf("Boat Framework Optimizer Benchmark\n");
     printf("===================================\n\n");
 
+    // Use an explicit autodiff context so the benchmark graph is freed on exit.
+    boat_autodiff_context_t* ctx = boat_autodiff_context_create();
+    boat_autodiff_set_current_context(ctx);
+
     run_optimizer_benchmark();
 
+    boat_autodiff_context_free(ctx);
     return 0;
 }

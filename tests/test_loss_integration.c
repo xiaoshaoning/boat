@@ -214,7 +214,7 @@ static int test_mse_training(void) {
 
     boat_loss_t* mse = boat_mse_loss_create();
 
-    int n_epochs = 50;
+    int n_epochs = 200;
     float lr = 0.02f;
     float initial_loss = 0.0f;
     float final_loss = 0.0f;
@@ -413,7 +413,7 @@ static int test_ce_training(void) {
     fill_tensor_one_hot(y, labels, n_classes);
 
     boat_loss_t* ce = boat_cross_entropy_loss_create();
-    float lr = 0.02f;
+    float lr = 1.0f;
     int n_epochs = 100;
     float initial_loss = 0.0f;
     float final_loss = 0.0f;

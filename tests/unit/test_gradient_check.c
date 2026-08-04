@@ -27,7 +27,7 @@ static float compute_numerical_gradient_element(
     // Compute loss with positive perturbation
     data[idx] = original + epsilon;
     boat_variable_t* output_plus = forward_func(a, b);
-    float loss_plus = 0.0f;
+    double loss_plus = 0.0;
     if (output_plus) {
         boat_tensor_t* output_tensor = boat_variable_data(output_plus);
         float* out_data = (float*)boat_tensor_data(output_tensor);
@@ -41,7 +41,7 @@ static float compute_numerical_gradient_element(
     // Compute loss with negative perturbation
     data[idx] = original - epsilon;
     boat_variable_t* output_minus = forward_func(a, b);
-    float loss_minus = 0.0f;
+    double loss_minus = 0.0;
     if (output_minus) {
         boat_tensor_t* output_tensor = boat_variable_data(output_minus);
         float* out_data = (float*)boat_tensor_data(output_tensor);
@@ -56,7 +56,9 @@ static float compute_numerical_gradient_element(
     data[idx] = original;
 
     // Compute numerical gradient: (loss_plus - loss_minus) / (2 * epsilon)
-    return (loss_plus - loss_minus) / (2.0f * epsilon);
+    // Use double accumulation so the identical float32 products cancel exactly
+    // in the difference instead of losing precision to cancellation.
+    return (float)((loss_plus - loss_minus) / (2.0 * (double)epsilon));
 }
 
 // Check gradient agreement with relative and absolute tolerances
@@ -356,6 +358,9 @@ int main() {
 
     // Test multiplication gradient
     all_pass = test_multiplication_gradient() && all_pass;
+
+    // Free the context (and its graph) now that all variables are released.
+    boat_autodiff_context_free(ctx);
 
     printf("\n");
     if (all_pass) {

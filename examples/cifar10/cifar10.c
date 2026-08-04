@@ -227,10 +227,8 @@ static void backward_pass(cifar10_model_t* model, boat_tensor_t* grad_output) {
     boat_tensor_t* grad = grad_output;
     boat_tensor_t* out = NULL;
 
-    // Softmax backward (no unref — caller still owns grad_output)
-    out = boat_softmax_layer_backward(model->softmax, grad);
-    if (!out) return;
-    grad = out;
+    // grad is already dL/dz for the fused CE+softmax loss; skip softmax backward
+    boat_tensor_ref(grad);
 
     out = boat_dense_layer_backward(model->fc2, grad);
     if (!out) { boat_tensor_unref(grad); return; }

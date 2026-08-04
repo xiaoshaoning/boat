@@ -173,6 +173,7 @@ BOAT_API boat_variable_t* boat_variable_create(boat_tensor_t* tensor, bool requi
     } else {
         ctx = boat_autodiff_context_create();
         if (!ctx) {
+            boat_tensor_unref(tensor);
             boat_free(var);
             return NULL;
         }
@@ -184,6 +185,7 @@ BOAT_API boat_variable_t* boat_variable_create(boat_tensor_t* tensor, bool requi
         graph = boat_graph_create_with_device(boat_tensor_device(tensor));
         if (!graph) {
             if (ctx) boat_autodiff_context_free(ctx);
+            boat_tensor_unref(tensor);
             boat_free(var);
             return NULL;
         }
@@ -198,6 +200,7 @@ BOAT_API boat_variable_t* boat_variable_create(boat_tensor_t* tensor, bool requi
         var->node = boat_graph_add_node(var->graph, var, BOAT_NODE_TYPE_VARIABLE, free_variable_data);
         if (!var->node) {
             // Don't free graph, it's owned by context
+            boat_tensor_unref(tensor);
             boat_free(var);
             return NULL;
         }
@@ -213,24 +216,59 @@ boat_variable_t* boat_variable_create_with_shape(const int64_t* shape, size_t nd
         return NULL;
     }
 
-    return boat_variable_create(tensor, requires_grad);
+    boat_variable_t* var = boat_variable_create(tensor, requires_grad);
+    if (!var) {
+        boat_tensor_unref(tensor);
+        return NULL;
+    }
+    // boat_variable_create holds its own reference; release the caller's reference
+    boat_tensor_unref(tensor);
+    return var;
+}
+
+// Internal free: releases the variable's tensors and struct without touching the graph.
+// Used by free_variable_data (graph teardown) and by boat_variable_free when the
+// variable has no graph node.
+static void boat_variable_free_internal(boat_variable_t* var) {
+    if (!var) return;
+
+    // Free gradient tensor if exists
+    if (var->grad) {
+        boat_tensor_unref(var->grad);
+    }
+
+    // Free data tensor (variable owns a reference)
+    if (var->data) {
+        boat_tensor_unref(var->data);
+    }
+
+    boat_free(var);
 }
 
 BOAT_API void boat_variable_free(const boat_variable_t* variable) {
     if (!variable) return;
 
-    // Free gradient tensor if exists
-    if (variable->grad) {
-        boat_tensor_unref(variable->grad);
+    boat_variable_t* var = (boat_variable_t*)variable;
+    boat_graph_t* graph = var->graph;
+    boat_node_t* var_node = var->node;
+    boat_node_t* producer = var->producer_node;
+
+    // Detach from the graph first. Removing the variable node calls
+    // free_variable_data, which frees the variable struct via the internal path.
+    var->node = NULL;
+    var->producer_node = NULL;
+    var->graph = NULL;
+
+    if (var_node && graph) {
+        boat_graph_safe_remove_node(graph, var_node);
+    } else {
+        boat_variable_free_internal(var);
     }
 
-    // Free data tensor (variable owns it)
-    if (variable->data) {
-        boat_tensor_unref(variable->data);
+    // The producer operation node is dead once its output variable is freed.
+    if (producer && graph) {
+        boat_graph_safe_remove_node(graph, producer);
     }
-
-
-    boat_free((void*)variable);
 }
 
 // Variable properties
@@ -626,7 +664,17 @@ boat_autodiff_context_t* boat_autodiff_context_create() {
 
 void boat_autodiff_context_free(const boat_autodiff_context_t* context) {
     if (!context) return;
-    boat_free(context);
+
+    // The context owns the graph it holds; tear it down (frees remaining nodes).
+    if (context->graph) {
+        boat_graph_free((boat_graph_t*)context->graph);
+    }
+
+    if (current_context == context) {
+        current_context = NULL;
+    }
+
+    boat_free((void*)context);
 }
 
 void boat_autodiff_context_enable_grad(boat_autodiff_context_t* context) {
@@ -793,8 +841,13 @@ static void free_op_node_data(void* data) {
 
 static void free_variable_data(void* data) {
     if (!data) return;
-    const boat_variable_t* var = (const boat_variable_t*)data;
-    boat_variable_free(var);
+    boat_variable_t* var = (boat_variable_t*)data;
+    // The node that owns this data is being destroyed; detach to keep the
+    // variable consistent, then free without recursing into the graph.
+    var->node = NULL;
+    var->producer_node = NULL;
+    var->graph = NULL;
+    boat_variable_free_internal(var);
 }
 
 // Forward computation functions
@@ -2130,6 +2183,8 @@ static boat_variable_t* create_operation(boat_op_type_t op_type,
         boat_tensor_unref(output_tensor);
         return NULL;
     }
+    // boat_variable_create holds its own reference; release the caller's reference
+    boat_tensor_unref(output_tensor);
 
     // If gradient is required, create operation node and connect to graph
     if (requires_grad) {
@@ -2202,6 +2257,8 @@ static boat_variable_t* create_conv_operation(const boat_variable_t* input, cons
         boat_tensor_unref(output_tensor);
         return NULL;
     }
+    // boat_variable_create holds its own reference; release the caller's reference
+    boat_tensor_unref(output_tensor);
 
     // If gradient is required, create operation node and connect to graph
     if (output_requires_grad) {
@@ -2270,6 +2327,8 @@ static boat_variable_t* create_pool_operation(const boat_variable_t* input, cons
         boat_tensor_unref(output_tensor);
         return NULL;
     }
+    // boat_variable_create holds its own reference; release the caller's reference
+    boat_tensor_unref(output_tensor);
 
     // If gradient is required, create operation node and connect to graph
     if (requires_grad) {
@@ -2342,6 +2401,8 @@ static boat_variable_t* create_dense_operation(const boat_variable_t* input, con
         boat_tensor_unref(output_tensor);
         return NULL;
     }
+    // boat_variable_create holds its own reference; release the caller's reference
+    boat_tensor_unref(output_tensor);
 
     // If gradient is required, create operation node and connect to graph
     if (output_requires_grad) {
@@ -2453,6 +2514,8 @@ static boat_variable_t* create_attention_operation(const boat_variable_t* query,
         boat_tensor_unref(output_tensor);
         return NULL;
     }
+    // boat_variable_create holds its own reference; release the caller's reference
+    boat_tensor_unref(output_tensor);
 
     // If gradient is required, create operation node and connect to graph
     if (requires_grad) {

@@ -80,7 +80,6 @@ static float train_step(boat_dense_layer_t* fc1, boat_relu_layer_t* relu,
     // Backward
     boat_tensor_t* g = grad;
     boat_tensor_t* t;
-    t = boat_softmax_layer_backward(sm, g);                 if (t) { boat_tensor_unref(g); g = t; }
     t = boat_dense_layer_backward(fc2, g);                  if (t) { boat_tensor_unref(g); g = t; }
     t = boat_relu_layer_backward(relu, g);                  if (t) { boat_tensor_unref(g); g = t; }
     t = boat_dense_layer_backward(fc1, g);                  if (t) { boat_tensor_unref(g); g = t; }
