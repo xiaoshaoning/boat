@@ -102,18 +102,19 @@ static void generate_linear_data(
 static boat_variable_t* linear_model(
     const boat_variable_t* x,
     boat_variable_t* W,
-    boat_variable_t* b
+    boat_variable_t* b,
+    boat_variable_t** xW_out
 ) {
     // x shape: [batch, input_dim]
     // W shape: [input_dim, output_dim]
     // b shape: [output_dim]
     // Output: x * W + b
+    // NOTE: the intermediate xW is owned by the caller (must outlive backward)
 
     boat_variable_t* xW = boat_var_matmul(x, W);
     boat_variable_t* y_pred = boat_var_add(xW, b);
 
-    boat_variable_free(xW); // Free intermediate variable
-
+    if (xW_out) *xW_out = xW;
     return y_pred;
 }
 
@@ -149,7 +150,8 @@ static benchmark_result_t run_training(
         boat_variable_zero_grad(b);
 
         // Forward pass
-        boat_variable_t* y_pred_var = linear_model(x_var, W, b);
+        boat_variable_t* xW = NULL;
+        boat_variable_t* y_pred_var = linear_model(x_var, W, b, &xW);
 
         // Compute MSE loss and gradient using automatic differentiation
         // loss = mean((y_pred - y_true)^2)
@@ -162,6 +164,7 @@ static benchmark_result_t run_training(
         boat_tensor_t* diff = boat_sub(y_pred_tensor, y_true_tensor);
         if (!diff) {
             boat_variable_free(y_pred_var);
+            if (xW) boat_variable_free(xW);
             continue;
         }
 
@@ -170,6 +173,7 @@ static benchmark_result_t run_training(
         boat_tensor_unref(diff);
         if (!diff_squared) {
             boat_variable_free(y_pred_var);
+            if (xW) boat_variable_free(xW);
             continue;
         }
 
@@ -189,6 +193,7 @@ static benchmark_result_t run_training(
             result.steps_to_converge = step + 1;
             result.final_loss = loss;
             boat_variable_free(y_pred_var);
+            if (xW) boat_variable_free(xW);
             break;
         }
 
@@ -216,8 +221,9 @@ static benchmark_result_t run_training(
             boat_scheduler_update_optimizer(scheduler, optimizer);
         }
 
-        // Clean up
+        // Clean up (xW must be freed after backward)
         boat_variable_free(y_pred_var);
+        if (xW) boat_variable_free(xW);
 
         // Print progress every 100 steps
         if (step % 100 == 0) {

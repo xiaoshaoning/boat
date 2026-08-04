@@ -77,9 +77,11 @@ target_link_libraries(test_schedulers boat)
 add_executable(test_optimizer_benchmark ../benchmarks/linear_regression.c)
 target_link_libraries(test_optimizer_benchmark boat)
 
-# Attention layer performance benchmark
-add_executable(test_attention_performance ../benchmarks/attention_performance.c)
-target_link_libraries(test_attention_performance boat)
+# Attention layer performance benchmark (uses windows.h timing; Windows-only)
+if(WIN32)
+    add_executable(test_attention_performance ../benchmarks/attention_performance.c)
+    target_link_libraries(test_attention_performance boat)
+endif()
 
 # Gradient checking tests
 add_executable(test_gradient_check unit/test_gradient_check.c)

@@ -485,6 +485,11 @@ endif()
 
 add_library(boat::boat ALIAS boat)
 
+# libm for math functions (GCC/Clang do not link it implicitly)
+if(NOT WIN32)
+    target_link_libraries(boat PUBLIC m)
+endif()
+
 # Add debug definition if enabled
 if(BOAT_DEBUG)
     target_compile_definitions(boat PRIVATE BOAT_DEBUG=1)

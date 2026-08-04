@@ -345,10 +345,6 @@ boat_tensor_t* boat_layernorm_forward(boat_layernorm_t* norm, const boat_tensor_
         }
     }
 
-    // Free temporary arrays
-    boat_free(mean);
-    boat_free(variance);
-
     // Cache input, mean, and variance for backward pass
     if (norm->cache_input) boat_tensor_free(norm->cache_input);
     if (norm->cache_mean) boat_tensor_free(norm->cache_mean);
@@ -361,6 +357,10 @@ boat_tensor_t* boat_layernorm_forward(boat_layernorm_t* norm, const boat_tensor_
         memcpy(boat_tensor_data(norm->cache_mean), mean, outer_elements * sizeof(float));
         memcpy(boat_tensor_data(norm->cache_variance), variance, outer_elements * sizeof(float));
     }
+
+    // Free temporary arrays (after caching into norm)
+    boat_free(mean);
+    boat_free(variance);
 
     return output;
 }
@@ -455,9 +455,6 @@ boat_tensor_t* boat_rmsnorm_forward(boat_rmsnorm_t* norm, const boat_tensor_t* i
         }
     }
 
-    // Free temporary array
-    boat_free(rms);
-
     // Cache input and RMS for backward pass
     if (norm->cache_input) boat_tensor_free(norm->cache_input);
     if (norm->cache_rms) boat_tensor_free(norm->cache_rms);
@@ -467,6 +464,9 @@ boat_tensor_t* boat_rmsnorm_forward(boat_rmsnorm_t* norm, const boat_tensor_t* i
     if (norm->cache_rms) {
         memcpy(boat_tensor_data(norm->cache_rms), rms, outer_elements * sizeof(float));
     }
+
+    // Free temporary array (after caching into norm)
+    boat_free(rms);
 
     return output;
 }
@@ -511,12 +511,17 @@ boat_tensor_t* boat_layernorm_backward(boat_layernorm_t* norm, const boat_tensor
             boat_tensor_free(grad_input);
             return NULL;
         }
+#ifdef BOAT_WITH_CUDA
         if (boat_tensor_device(norm->cache_input) == BOAT_DEVICE_CUDA) {
             boat_cuda_memcpy_d2h(x_host, boat_tensor_const_data(norm->cache_input), total * sizeof(float));
         } else {
             memcpy(x_host, boat_tensor_const_data(norm->cache_input), total * sizeof(float));
         }
         boat_cuda_memcpy_d2h(dy_host, boat_tensor_const_data(grad_output), total * sizeof(float));
+#else
+        memcpy(x_host, boat_tensor_const_data(norm->cache_input), total * sizeof(float));
+        memcpy(dy_host, boat_tensor_const_data(grad_output), total * sizeof(float));
+#endif
         x = x_host; dy = dy_host; dx = dx_host;
     } else {
         x = (const float*)boat_tensor_const_data(norm->cache_input);

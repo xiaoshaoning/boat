@@ -79,17 +79,30 @@
 #endif
 
 // ---------------------------------------------------------------------------
+// Error handling
+// ---------------------------------------------------------------------------
+typedef enum {
+    BOAT_SUCCESS = 0,
+    BOAT_ERROR_INVALID_ARGUMENT,
+    BOAT_ERROR_OUT_OF_MEMORY,
+    BOAT_ERROR_INVALID_OPERATION,
+    BOAT_ERROR_DEVICE,
+    BOAT_ERROR_FILE_IO,
+    BOAT_ERROR_FORMAT,
+    BOAT_ERROR_NOT_IMPLEMENTED,
+    BOAT_ERROR_UNKNOWN
+} boat_error_t;
+
+// ---------------------------------------------------------------------------
 // Error-checking helper macros
 // These forward-declare boat_set_errorf (declared in boat.h with BOAT_API).
-// In translation units that include boat.h before using these, the BOOT_API
-// declaration takes over; the forward decl here is purely so that the macros
-// can be used without error in files that include export.h before boat.h.
+// boat_error_t is defined above so the declaration is identical everywhere.
 // ---------------------------------------------------------------------------
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void boat_set_errorf(int error, const char* format, ...);
+void boat_set_errorf(boat_error_t error, const char* format, ...);
 
 #ifdef __cplusplus
 }

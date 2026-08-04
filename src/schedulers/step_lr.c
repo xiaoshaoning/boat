@@ -57,7 +57,8 @@ void step_lr_scheduler_step(boat_scheduler_t* scheduler) {
     state->header.step_count++;
 
     // Calculate new learning rate: lr = base_lr * gamma^floor(step / step_size)
-    int steps = state->header.step_count - 1; // 0-indexed for calculation
+    // Decay after every step_size steps (1-indexed step count)
+    int steps = state->header.step_count;
     int decay_steps = steps / state->step_size;
     float new_lr = state->header.base_learning_rate * powf(state->gamma, (float)decay_steps);
 

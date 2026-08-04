@@ -279,6 +279,8 @@ int main() {
 
     // Cleanup
     boat_tensor_unref(grad_input);
+    if (grad_input_k) boat_tensor_unref(grad_input_k);
+    if (grad_input_v) boat_tensor_unref(grad_input_v);
     boat_tensor_unref(grad_output);
     boat_tensor_unref(output);
     boat_tensor_unref(query);

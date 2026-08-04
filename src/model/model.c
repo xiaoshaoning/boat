@@ -346,7 +346,12 @@ boat_tensor_t* boat_model_forward(const boat_model_t* model, const boat_tensor_t
         }
     }
 
-    // Cleanup temporary arrays (but keep final output)
+    // Cleanup temporary arrays and intermediate outputs (keep the final output)
+    for (size_t k = 0; k < node_count; k++) {
+        if (node_outputs[k] && node_outputs[k] != final_output) {
+            boat_tensor_free(node_outputs[k]);
+        }
+    }
     boat_free(sorted_nodes);
     boat_free(node_outputs);
 

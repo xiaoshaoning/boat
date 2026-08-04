@@ -415,7 +415,10 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_attention_forward(boat_attention_t* atten
         return NULL;
     }
 
-    // Replace original tensors with reshaped ones (keep reshaped views)
+    // Replace original tensors with reshaped views (drop local refs on the originals)
+    boat_tensor_unref(q_proj);
+    boat_tensor_unref(k_proj);
+    boat_tensor_unref(v_proj);
     q_proj = q_reshaped;
     k_proj = k_reshaped;
     v_proj = v_reshaped;
@@ -489,8 +492,9 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_attention_forward(boat_attention_t* atten
         boat_tensor_free(output);
         return NULL;
     }
-    // DO NOT free output here - output_reshaped is a view that depends on it
-    // boat_tensor_free(output);
+    // Drop our local ref on the original output; the reshape view and the
+    // cache below keep it alive (cache_attention_output is set to the view).
+    boat_tensor_unref(output);
     output = output_reshaped;
 
     // Cache attention output for backward pass (before final projection)
@@ -685,7 +689,9 @@ BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* attention,
     boat_tensor_t* grad_k = NULL;
     boat_tensor_t* grad_v = NULL;
 
-    // Gradient for Q projection
+    // Gradient for Q projection (replace previous iteration's accumulators)
+    if (attention->grad_weight_q) boat_tensor_free(attention->grad_weight_q);
+    if (attention->grad_bias_q) boat_tensor_free(attention->grad_bias_q);
     if (!linear_projection_backward(attention->cache_query,
                                     attention->weight_q,
                                     attention->bias_q,
@@ -702,7 +708,9 @@ BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* attention,
         return false;
     }
 
-    // Gradient for K projection
+    // Gradient for K projection (replace previous iteration's accumulators)
+    if (attention->grad_weight_k) boat_tensor_free(attention->grad_weight_k);
+    if (attention->grad_bias_k) boat_tensor_free(attention->grad_bias_k);
     if (!linear_projection_backward(attention->cache_key,
                                     attention->weight_k,
                                     attention->bias_k,
@@ -720,7 +728,9 @@ BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* attention,
         return false;
     }
 
-    // Gradient for V projection
+    // Gradient for V projection (replace previous iteration's accumulators)
+    if (attention->grad_weight_v) boat_tensor_free(attention->grad_weight_v);
+    if (attention->grad_bias_v) boat_tensor_free(attention->grad_bias_v);
     if (!linear_projection_backward(attention->cache_value,
                                     attention->weight_v,
                                     attention->bias_v,
@@ -740,6 +750,8 @@ BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* attention,
     }
 
     // Step 4: Store final projection gradients (already computed in Step 1)
+    if (attention->grad_weight_o) boat_tensor_free(attention->grad_weight_o);
+    if (attention->grad_bias_o) boat_tensor_free(attention->grad_bias_o);
     attention->grad_weight_o = grad_weight_o_local;
     attention->grad_bias_o = grad_bias_o_local;
 

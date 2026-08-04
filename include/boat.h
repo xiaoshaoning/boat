@@ -80,19 +80,7 @@ extern "C" {
 BOAT_API void boat_init();
 BOAT_API void boat_cleanup();
 
-// Error handling
-typedef enum {
-    BOAT_SUCCESS = 0,
-    BOAT_ERROR_INVALID_ARGUMENT,
-    BOAT_ERROR_OUT_OF_MEMORY,
-    BOAT_ERROR_INVALID_OPERATION,
-    BOAT_ERROR_DEVICE,
-    BOAT_ERROR_FILE_IO,
-    BOAT_ERROR_FORMAT,
-    BOAT_ERROR_NOT_IMPLEMENTED,
-    BOAT_ERROR_UNKNOWN
-} boat_error_t;
-
+// Error handling: boat_error_t is defined in boat/export.h
 BOAT_API const char* boat_error_string(boat_error_t error);
 BOAT_API boat_error_t boat_get_last_error();
 BOAT_API void boat_clear_error();

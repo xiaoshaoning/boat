@@ -75,7 +75,7 @@ struct boat_autodiff_context_t {
 #ifdef _WIN32
 static __declspec(thread) boat_autodiff_context_t* current_context = NULL;
 #else
-static thread_local boat_autodiff_context_t* current_context = NULL;
+static _Thread_local boat_autodiff_context_t* current_context = NULL;
 #endif
 
 // Debug counter for tracking function execution
