@@ -71,6 +71,11 @@ BOAT_API boat_tensor_t* boat_rms_norm_grad(const boat_tensor_t* grad_output,
                                    size_t normalized_shape_len,
                                    float eps);
 
+// Gradient tensor getters
+BOAT_API boat_tensor_t* boat_layernorm_get_grad_weight(const boat_layernorm_t* norm);
+BOAT_API boat_tensor_t* boat_layernorm_get_grad_bias(const boat_layernorm_t* norm);
+BOAT_API boat_tensor_t* boat_rmsnorm_get_grad_weight(const boat_rmsnorm_t* norm);
+
 // Parameter setting for model loading
 BOAT_API void boat_layernorm_set_weight(boat_layernorm_t* norm, boat_tensor_t* weight);
 BOAT_API void boat_layernorm_set_bias(boat_layernorm_t* norm, boat_tensor_t* bias);

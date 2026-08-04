@@ -130,6 +130,18 @@ if(BOAT_WITH_CUDA)
     target_link_libraries(test_cuda_layers boat)
 endif()
 
+# Activation function tests (sigmoid / tanh / SELU)
+add_executable(test_activation unit/test_activation.c)
+target_link_libraries(test_activation boat)
+
+# Normalization backward tests (LayerNorm / RMSNorm)
+add_executable(test_norm_backward unit/test_norm_backward.c)
+target_link_libraries(test_norm_backward boat)
+
+# Recurrent layer tests (LSTM / GRU forward, backward and update)
+add_executable(test_lstm_gru unit/test_lstm_gru.c)
+target_link_libraries(test_lstm_gru boat)
+
 # ONNX Runtime backend tests (requires ONNX for protobuf builder used in test model construction)
 if(BOAT_WITH_ONNXRUNTIME AND BOAT_WITH_ONNX)
     add_executable(test_onnxruntime test_onnxruntime.c)

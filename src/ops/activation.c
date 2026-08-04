@@ -268,7 +268,7 @@ boat_tensor_t* boat_log_softmax(const boat_tensor_t* a, int axis) {
     return out;
 }
 
-// Other activation functions (placeholders for now)
+// Other activation functions
 BOAT_API boat_tensor_t* boat_relu(const boat_tensor_t* a) {
 
     if (!a) {
@@ -313,8 +313,41 @@ BOAT_API boat_tensor_t* boat_relu(const boat_tensor_t* a) {
 
 
 boat_tensor_t* boat_sigmoid(const boat_tensor_t* a) {
-    // TODO: Implement sigmoid
-    (void)a;
+    if (!a) return NULL;
+
+    boat_tensor_t* out = boat_tensor_create_like(a);
+    if (!out) return NULL;
+
+    boat_dtype_t dtype = boat_tensor_dtype(a);
+    size_t n = boat_tensor_nelements(a);
+
+#ifdef BOAT_WITH_CUDA
+    if (boat_tensor_device(a) == BOAT_DEVICE_CUDA && dtype == BOAT_DTYPE_FLOAT32) {
+        boat_cuda_sigmoid_f32((const float*)boat_tensor_const_data(a),
+                              (float*)boat_tensor_data(out), n);
+        return out;
+    }
+#endif
+
+    if (dtype == BOAT_DTYPE_FLOAT32) {
+        const float* src = (const float*)boat_tensor_const_data(a);
+        float* dst = (float*)boat_tensor_data(out);
+        for (size_t i = 0; i < n; i++) {
+            dst[i] = 1.0f / (1.0f + expf(-src[i]));
+        }
+        return out;
+    }
+
+    if (dtype == BOAT_DTYPE_FLOAT64) {
+        const double* src = (const double*)boat_tensor_const_data(a);
+        double* dst = (double*)boat_tensor_data(out);
+        for (size_t i = 0; i < n; i++) {
+            dst[i] = 1.0 / (1.0 + exp(-src[i]));
+        }
+        return out;
+    }
+
+    boat_tensor_unref(out);
     return NULL;
 }
 
@@ -358,8 +391,41 @@ boat_tensor_t* boat_silu(const boat_tensor_t* a) {
 }
 
 boat_tensor_t* boat_tanh(const boat_tensor_t* a) {
-    // TODO: Implement tanh
-    (void)a;
+    if (!a) return NULL;
+
+    boat_tensor_t* out = boat_tensor_create_like(a);
+    if (!out) return NULL;
+
+    boat_dtype_t dtype = boat_tensor_dtype(a);
+    size_t n = boat_tensor_nelements(a);
+
+#ifdef BOAT_WITH_CUDA
+    if (boat_tensor_device(a) == BOAT_DEVICE_CUDA && dtype == BOAT_DTYPE_FLOAT32) {
+        boat_cuda_tanh_f32((const float*)boat_tensor_const_data(a),
+                           (float*)boat_tensor_data(out), n);
+        return out;
+    }
+#endif
+
+    if (dtype == BOAT_DTYPE_FLOAT32) {
+        const float* src = (const float*)boat_tensor_const_data(a);
+        float* dst = (float*)boat_tensor_data(out);
+        for (size_t i = 0; i < n; i++) {
+            dst[i] = tanhf(src[i]);
+        }
+        return out;
+    }
+
+    if (dtype == BOAT_DTYPE_FLOAT64) {
+        const double* src = (const double*)boat_tensor_const_data(a);
+        double* dst = (double*)boat_tensor_data(out);
+        for (size_t i = 0; i < n; i++) {
+            dst[i] = tanh(src[i]);
+        }
+        return out;
+    }
+
+    boat_tensor_unref(out);
     return NULL;
 }
 
@@ -397,8 +463,39 @@ boat_tensor_t* boat_gelu(const boat_tensor_t* a) {
 }
 
 boat_tensor_t* boat_selu(const boat_tensor_t* a) {
-    // TODO: Implement SELU
-    (void)a;
+    if (!a) return NULL;
+
+    boat_tensor_t* out = boat_tensor_create_like(a);
+    if (!out) return NULL;
+
+    boat_dtype_t dtype = boat_tensor_dtype(a);
+    size_t n = boat_tensor_nelements(a);
+    const double scale_d = 1.0507009873554804934193349852946;
+    const double alpha_d = 1.6732632423543772848170429916717;
+    const float scale = (float)scale_d;
+    const float alpha = (float)alpha_d;
+
+    if (dtype == BOAT_DTYPE_FLOAT32) {
+        const float* src = (const float*)boat_tensor_const_data(a);
+        float* dst = (float*)boat_tensor_data(out);
+        for (size_t i = 0; i < n; i++) {
+            float x = src[i];
+            dst[i] = scale * (x > 0.0f ? x : alpha * (expf(x) - 1.0f));
+        }
+        return out;
+    }
+
+    if (dtype == BOAT_DTYPE_FLOAT64) {
+        const double* src = (const double*)boat_tensor_const_data(a);
+        double* dst = (double*)boat_tensor_data(out);
+        for (size_t i = 0; i < n; i++) {
+            double x = src[i];
+            dst[i] = scale_d * (x > 0.0 ? x : alpha_d * (exp(x) - 1.0));
+        }
+        return out;
+    }
+
+    boat_tensor_unref(out);
     return NULL;
 }
 

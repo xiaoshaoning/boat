@@ -14,8 +14,13 @@
 | Schedulers (StepLR, CosineAnnealing, LambdaLR) | Done | 2026-04 |
 | Loss functions (MSE, CrossEntropy, Huber) | Done | 2026-04 |
 | Sequential model API | Done | 2026-04 |
-| Advanced layers (Attention, GRU, LSTM, LayerNorm, PReLU) | Done | 2026-04 |
+| Advanced layers (Attention, GRU, LSTM, LayerNorm, PReLU) | Done | 2026-08 |
 | Unit tests and gradient checks | Done | 2026-04 |
+
+> **2026-08 note:** LSTM/GRU forward/backward/update, LayerNorm/RMSNorm
+> backward/update and sigmoid/tanh/SELU were fully implemented and covered by
+> numerical-gradient unit tests (`tests/unit/test_lstm_gru.c`,
+> `tests/unit/test_norm_backward.c`, `tests/unit/test_activation.c`).
 
 ### Phase 2: Quantization ✅
 
