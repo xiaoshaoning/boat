@@ -106,14 +106,15 @@ jobs:
 
     - name: Generate coverage report
       run: |
-        cd build
-        gcovr --root .. \
+        # Run from the repo root: gcovr resolves --filter relative to the
+        # CWD, so 'cd build && gcovr --root ..' matches nothing (empty report).
+        gcovr --root build \
               --filter 'src/' \
               --filter 'include/' \
               --exclude 'tests/' \
               --exclude 'examples/' \
-              --xml coverage.xml \
-              --html coverage.html \
+              --xml build/coverage.xml \
+              --html build/coverage.html \
               --html-details \
               --print-summary
 
