@@ -34,7 +34,7 @@ choco install cmake cppcheck ccache -y
 ## 获取代码
 
 ```bash
-git clone https://github.com/your-org/boat.git
+git clone https://github.com/xiaoshaoning/boat.git
 cd boat
 git submodule update --init --recursive
 ```
@@ -53,7 +53,7 @@ cmake --build . --config Release
 - `-DBOAT_WITH_CUDA=ON`: 启用 CUDA 支持
 - `-DBOAT_WITH_TESTS=ON`: 构建测试套件
 - `-DBOAT_WITH_EXAMPLES=ON`: 构建示例程序
-- `-DBOAT_WITH_ONNX=ON`: 启用 ONNX 支持 (需要 protobuf)
+- `-DBOAT_WITH_ONNX=ON`: 启用 ONNX 支持 (自带 protobuf 解析器)
 
 ### 安装
 ```bash
@@ -100,7 +100,7 @@ boat/
 
 ### 启用调试模式
 ```bash
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DBOAT_DEBUG=ON
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DBOAT_DEBUG=1
 ```
 
 ### 静态分析

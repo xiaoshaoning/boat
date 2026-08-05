@@ -119,7 +119,7 @@ struct boat_tensor_t {
 };
 
 // constant definition
-#define BOAT_MAX_DIMENSIONS 8
+#define BOAT_MAX_DIMS 8
 ```
 
 ## 质量要求

@@ -70,11 +70,10 @@ cmake --build . --config Release
 
 | 选项 | 描述 | 默认值 |
 |------|------|--------|
-| `BOAT_BUILD_SHARED` | 构建动态库 (DLL) | `OFF` |
-| `BOAT_BUILD_STATIC` | 构建静态库 | `ON` |
-| `BOAT_WITH_TESTS` | 构建测试 | `ON` |
-| `BOAT_WITH_EXAMPLES` | 构建示例 | `ON` |
-| `CMAKE_BUILD_TYPE` | 构建类型 (Debug/Release/RelWithDebInfo) | `Release` |
+| `BOAT_BUILD_SHARED` | 构建动态库 (DLL)；默认构建静态库 | `OFF` |
+| `BOAT_WITH_TESTS` | 构建测试 | `OFF` |
+| `BOAT_WITH_EXAMPLES` | 构建示例 | `OFF` |
+| `CMAKE_BUILD_TYPE` | 构建类型 (Debug/Release/RelWithDebInfo) | 未设置 |
 | `CMAKE_INSTALL_PREFIX` | 安装目录 | `C:/Program Files/boat` |
 
 ### 高级构建配置
@@ -291,7 +290,7 @@ dumpbin /exports build/Release/boat.dll | findstr "boat_attention_layer_backward
 
 ```bash
 # Debug DLL build
-cmake .. -DBOAT_BUILD_SHARED=ON -DCMAKE_BUILD_TYPE=Debug -DBOAT_ENABLE_DEBUG_SYMBOLS=ON
+cmake .. -DBOAT_BUILD_SHARED=ON -DCMAKE_BUILD_TYPE=Debug
 
 # Build and generate PDB files
 cmake --build . --config Debug

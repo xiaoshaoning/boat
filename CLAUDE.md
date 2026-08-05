@@ -440,7 +440,7 @@ make
 - `-DBOAT_WITH_CUDA=ON`: Enable CUDA support
 - `-DBOAT_WITH_TESTS=ON`: Build tests
 - `-DBOAT_WITH_EXAMPLES=ON`: Build examples
-- `-DBOAT_WITH_ONNX=ON`: Enable ONNX support (requires protobuf)
+- `-DBOAT_WITH_ONNX=ON`: Enable ONNX support (self-contained protobuf parser)
 
 ### Installation
 

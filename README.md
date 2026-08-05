@@ -91,7 +91,7 @@ The Makefile automatically compiles all source files and creates a shared librar
 
 - `-DBOAT_WITH_TESTS=ON`: Build test suite
 - `-DBOAT_WITH_EXAMPLES=ON`: Build example programs
-- `-DBOAT_WITH_ONNX=ON`: Enable ONNX support (requires protobuf)
+- `-DBOAT_WITH_ONNX=ON`: Enable ONNX support (self-contained protobuf parser)
 - `-DBOAT_WITH_CUDA=ON`: Enable CUDA GPU acceleration (requires CUDA Toolkit and NVIDIA GPU)
 - `-DBOAT_WITH_CUDNN=ON`: Enable cuDNN integration (requires cuDNN)
 - `-DBOAT_WITH_OPENBLAS=ON`: Enable OpenBLAS backend for accelerated matrix multiplication
@@ -99,15 +99,22 @@ The Makefile automatically compiles all source files and creates a shared librar
 - `-DBOAT_WITH_OPENMP=ON`: Enable OpenMP parallelism
 - `-DBOAT_WITH_SIMD=ON`: Enable SIMD vectorization (AVX2/NEON)
 - `-DBOAT_WITH_ONNXRUNTIME=ON`: Enable ONNX Runtime executor
+- `-DBOAT_WITH_HUGGINGFACE=ON`: Enable Hugging Face safetensors support (vendored cJSON, no external dependency)
+- `-DBOAT_WITH_GGUF=ON`: Enable GGUF format support
+- `-DBOAT_WITH_PYTORCH=ON`: Enable PyTorch support (requires LibTorch)
+- `-DBOAT_WITH_TENSORFLOW=ON`: Enable TensorFlow support
+- `-DBOAT_WITH_COVERAGE=ON`: Enable code coverage instrumentation
+- `-DBOAT_BUILD_SHARED=ON`: Build shared library (DLL on Windows)
+- `-DBOAT_DEBUG=1`: Enable debug output
 
 ### Build Configurations
 
-- **Debug**: Default build with debug symbols and assertions
-- **Release**: Optimized build (`-O2 -DNDEBUG`)
+- **Debug**: Debug symbols and assertions (`-DCMAKE_BUILD_TYPE=Debug`)
+- **Release**: Optimized build (`-O3 -DNDEBUG`)
 - **MinSizeRel**: Size-optimized build
 - **RelWithDebInfo**: Release with debug symbols
 
-Tests are enabled by default in Debug builds and disabled in Release/MinSizeRel builds.
+Tests and examples are disabled by default; enable them with `-DBOAT_WITH_TESTS=ON` and `-DBOAT_WITH_EXAMPLES=ON`.
 
 ## Quick Start
 
