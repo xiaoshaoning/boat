@@ -191,7 +191,7 @@ boat_tensor_t* boat_##op_name(const boat_tensor_t* a, const boat_tensor_t* b) { 
             \
             /* Fast path: same-shape contiguous tensors (no broadcast_index overhead) */ \
             if (boat_tensor_ndim(a) == boat_tensor_ndim(b) && \
-                boat_tensor_nelements(a) == nelements && \
+                boat_tensor_nelements(a) == nelements && boat_tensor_nelements(b) == nelements && \
                 boat_tensor_is_contiguous(a) && boat_tensor_is_contiguous(b)) { \
                 for (size_t _i = 0; _i < nelements; _i++) { \
                     out_ptr[_i] = a_ptr[_i] op b_ptr[_i]; \
@@ -317,7 +317,7 @@ boat_tensor_t* boat_##op_name(const boat_tensor_t* a, const boat_tensor_t* b) { 
                 return NULL; \
             } \
             if (boat_tensor_ndim(a) == boat_tensor_ndim(b) && \
-                boat_tensor_nelements(a) == nelements) { \
+                boat_tensor_nelements(a) == nelements && boat_tensor_nelements(b) == nelements) { \
                 cuda_func_call; \
                 return out; \
             } \
@@ -370,7 +370,7 @@ boat_tensor_t* boat_add(const boat_tensor_t* a, const boat_tensor_t* b) {
             const float* b_ptr = (const float*)b_data;
             float* out_ptr = (float*)out_data;
             if (boat_tensor_ndim(a) == boat_tensor_ndim(b) &&
-                boat_tensor_nelements(a) == nelements &&
+                boat_tensor_nelements(a) == nelements && boat_tensor_nelements(b) == nelements &&
                 boat_tensor_is_contiguous(a) && boat_tensor_is_contiguous(b)) {
                 for (size_t _i = 0; _i < nelements; _i++) out_ptr[_i] = a_ptr[_i] + b_ptr[_i];
             } else {
@@ -497,7 +497,7 @@ boat_tensor_t* boat_sub(const boat_tensor_t* a, const boat_tensor_t* b) {
             const float* a_ptr = (const float*)a_data;
             const float* b_ptr = (const float*)b_data;
             float* out_ptr = (float*)out_data;
-            if (boat_tensor_ndim(a) == boat_tensor_ndim(b) && boat_tensor_nelements(a) == nelements && boat_tensor_is_contiguous(a) && boat_tensor_is_contiguous(b)) {
+            if (boat_tensor_ndim(a) == boat_tensor_ndim(b) && boat_tensor_nelements(a) == nelements && boat_tensor_nelements(b) == nelements && boat_tensor_is_contiguous(a) && boat_tensor_is_contiguous(b)) {
                 for (size_t _i = 0; _i < nelements; _i++) out_ptr[_i] = a_ptr[_i] - b_ptr[_i];
             } else {
                 for (size_t i = 0; i < nelements; i++) {
@@ -540,7 +540,7 @@ boat_tensor_t* boat_mul(const boat_tensor_t* a, const boat_tensor_t* b) {
             const float* a_ptr = (const float*)a_data;
             const float* b_ptr = (const float*)b_data;
             float* out_ptr = (float*)out_data;
-            if (boat_tensor_ndim(a) == boat_tensor_ndim(b) && boat_tensor_nelements(a) == nelements && boat_tensor_is_contiguous(a) && boat_tensor_is_contiguous(b)) {
+            if (boat_tensor_ndim(a) == boat_tensor_ndim(b) && boat_tensor_nelements(a) == nelements && boat_tensor_nelements(b) == nelements && boat_tensor_is_contiguous(a) && boat_tensor_is_contiguous(b)) {
                 for (size_t _i = 0; _i < nelements; _i++) out_ptr[_i] = a_ptr[_i] * b_ptr[_i];
             } else {
                 for (size_t i = 0; i < nelements; i++) {
@@ -583,7 +583,7 @@ boat_tensor_t* boat_div(const boat_tensor_t* a, const boat_tensor_t* b) {
             const float* a_ptr = (const float*)a_data;
             const float* b_ptr = (const float*)b_data;
             float* out_ptr = (float*)out_data;
-            if (boat_tensor_ndim(a) == boat_tensor_ndim(b) && boat_tensor_nelements(a) == nelements && boat_tensor_is_contiguous(a) && boat_tensor_is_contiguous(b)) {
+            if (boat_tensor_ndim(a) == boat_tensor_ndim(b) && boat_tensor_nelements(a) == nelements && boat_tensor_nelements(b) == nelements && boat_tensor_is_contiguous(a) && boat_tensor_is_contiguous(b)) {
                 for (size_t _i = 0; _i < nelements; _i++) out_ptr[_i] = a_ptr[_i] / b_ptr[_i];
             } else {
                 for (size_t i = 0; i < nelements; i++) {
@@ -635,7 +635,7 @@ boat_tensor_t* boat_mod(const boat_tensor_t* a, const boat_tensor_t* b) {
 
 #ifdef BOAT_WITH_CUDA
     if (boat_tensor_device(a) == BOAT_DEVICE_CUDA && dtype == BOAT_DTYPE_FLOAT32) {
-        if (boat_tensor_ndim(a) == boat_tensor_ndim(b) && boat_tensor_nelements(a) == nelements) {
+        if (boat_tensor_ndim(a) == boat_tensor_ndim(b) && boat_tensor_nelements(a) == nelements && boat_tensor_nelements(b) == nelements) {
             boat_cuda_mod_f32((const float*)a_data, (const float*)b_data, (float*)out_data, nelements);
             return out;
         }

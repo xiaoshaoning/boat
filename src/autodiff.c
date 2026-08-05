@@ -126,6 +126,27 @@ static void accumulate_grad_broadcast(boat_tensor_t* grad, const boat_tensor_t* 
         return;
     }
 
+    // Require grad's shape (after stripping leading size-1 dims) to be a
+    // suffix of grad_output's shape so the element mapping below is a pure
+    // broadcast over leading dimensions. This covers [out] and [1,out] grads
+    // reduced from [batch,out] while rejecting interior-broadcast shapes like
+    // [2,1,3] reduced from [2,4,3], where a flat block-sum would be wrong.
+    {
+        size_t g_ndim = boat_tensor_ndim(grad);
+        size_t o_ndim = boat_tensor_ndim(grad_output);
+        const int64_t* g_shape = boat_tensor_shape(grad);
+        const int64_t* o_shape = boat_tensor_shape(grad_output);
+        size_t g_start = 0;
+        while (g_start < g_ndim && g_shape[g_start] == 1) g_start++;
+        size_t g_eff = g_ndim - g_start;
+        if (g_eff > o_ndim) return;
+        for (size_t i = 0; i < g_eff; i++) {
+            if (g_shape[g_ndim - 1 - i] != o_shape[o_ndim - 1 - i]) {
+                return;
+            }
+        }
+    }
+
     // grad is a broadcast (repeated suffix) of grad_output: sum the repeated
     // leading blocks into the gradient.
     size_t repeats = out_n / grad_n;
@@ -1172,106 +1193,87 @@ static void compute_backward_sub(boat_op_node_data_t* op_data, const boat_tensor
 }
 
 static void compute_backward_mul(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
-    BOAT_DEBUG_PRINT("[autodiff] compute_backward_mul: op_data=%p, grad_output=%p\n", op_data, grad_output);
     if (!op_data || op_data->num_inputs != 2 || !grad_output) return;
 
-    // Gradient for multiplication: ∂L/∂a = ∂L/∂c * b, ∂L/∂b = ∂L/∂c * a
-    // where c = a * b
+    // Gradient for multiplication: dL/da = dL/dc * b, dL/db = dL/dc * a
     boat_variable_t* a = op_data->inputs[0];
     boat_variable_t* b = op_data->inputs[1];
 
     if (a->requires_grad) {
-        BOAT_DEBUG_PRINT("[autodiff] compute_backward_mul: a requires grad=%d, a->grad=%p\n", a->requires_grad, a->grad);
-        // Compute gradient contribution: grad_output * b
+        // grad_output * b has the broadcast shape; reduce it down to a's shape
+        // when a is broadcast (e.g. a bias [out] multiplied into [batch, out]).
         boat_tensor_t* grad_a = boat_mul(grad_output, b->data);
         if (grad_a) {
             if (!a->grad) {
-                a->grad = grad_a;
-                BOAT_DEBUG_PRINT("[autodiff] compute_backward_mul: set a->grad=%p\n", grad_a);
-            } else {
-                // Accumulate gradient: a->grad += grad_a
-                BOAT_DEBUG_PRINT("[autodiff] compute_backward_mul: accumulate a->grad\n");
-                boat_add_(a->grad, grad_a);
-                boat_tensor_unref(grad_a);
+                a->grad = boat_tensor_create_like(a->data);
             }
-        } else {
-            BOAT_DEBUG_PRINT("[autodiff] compute_backward_mul: grad_a computation failed\n");
+            if (a->grad) {
+                accumulate_grad_broadcast(a->grad, grad_a);
+            }
+            boat_tensor_unref(grad_a);
         }
-    } else {
-        BOAT_DEBUG_PRINT("[autodiff] compute_backward_mul: a does not require grad\n");
     }
 
     if (b->requires_grad) {
-        BOAT_DEBUG_PRINT("[autodiff] compute_backward_mul: b requires grad=%d, b->grad=%p\n", b->requires_grad, b->grad);
-        // Compute gradient contribution: grad_output * a
         boat_tensor_t* grad_b = boat_mul(grad_output, a->data);
         if (grad_b) {
             if (!b->grad) {
-                b->grad = grad_b;
-                BOAT_DEBUG_PRINT("[autodiff] compute_backward_mul: set b->grad=%p\n", grad_b);
-            } else {
-                BOAT_DEBUG_PRINT("[autodiff] compute_backward_mul: accumulate b->grad\n");
-                boat_add_(b->grad, grad_b);
-                boat_tensor_unref(grad_b);
+                b->grad = boat_tensor_create_like(b->data);
             }
-        } else {
-            BOAT_DEBUG_PRINT("[autodiff] compute_backward_mul: grad_b computation failed\n");
+            if (b->grad) {
+                accumulate_grad_broadcast(b->grad, grad_b);
+            }
+            boat_tensor_unref(grad_b);
         }
-    } else {
-        BOAT_DEBUG_PRINT("[autodiff] compute_backward_mul: b does not require grad\n");
     }
 }
 
 static void compute_backward_div(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 2 || !grad_output) return;
 
-    // Gradient for division: ∂L/∂a = ∂L/∂c / b, ∂L/∂b = -∂L/∂c * a / b²
-    // where c = a / b
+    // Gradient for division: dL/da = dL/dc / b, dL/db = -dL/dc * a / b^2
     boat_variable_t* a = op_data->inputs[0];
     boat_variable_t* b = op_data->inputs[1];
 
     if (a->requires_grad) {
-        // Compute gradient contribution: grad_output / b
         boat_tensor_t* grad_a = boat_div(grad_output, b->data);
         if (grad_a) {
             if (!a->grad) {
-                a->grad = grad_a;
-            } else {
-                boat_add_(a->grad, grad_a);
-                boat_tensor_unref(grad_a);
+                a->grad = boat_tensor_create_like(a->data);
             }
+            if (a->grad) {
+                accumulate_grad_broadcast(a->grad, grad_a);
+            }
+            boat_tensor_unref(grad_a);
         }
     }
 
     if (b->requires_grad) {
-        // Compute gradient contribution: -grad_output * a / (b * b)
-        // First compute b²
+        // dL/db = -dL/dc * a / b^2
         boat_tensor_t* b_squared = boat_mul(b->data, b->data);
         if (!b_squared) return;
 
-        // Compute a / b²
         boat_tensor_t* a_div_bsq = boat_div(a->data, b_squared);
         boat_tensor_unref(b_squared);
         if (!a_div_bsq) return;
 
-        // Compute -grad_output * (a / b²)
         boat_tensor_t* neg_grad = boat_mul_scalar(grad_output, -1.0);
         if (!neg_grad) {
             boat_tensor_unref(a_div_bsq);
             return;
         }
-
         boat_tensor_t* grad_b = boat_mul(neg_grad, a_div_bsq);
         boat_tensor_unref(neg_grad);
         boat_tensor_unref(a_div_bsq);
 
         if (grad_b) {
             if (!b->grad) {
-                b->grad = grad_b;
-            } else {
-                boat_add_(b->grad, grad_b);
-                boat_tensor_unref(grad_b);
+                b->grad = boat_tensor_create_like(b->data);
             }
+            if (b->grad) {
+                accumulate_grad_broadcast(b->grad, grad_b);
+            }
+            boat_tensor_unref(grad_b);
         }
     }
 }
