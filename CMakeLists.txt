@@ -372,8 +372,9 @@ if(BOAT_WITH_HUGGINGFACE)
             message(FATAL_ERROR "cJSON library not found in ${BOAT_CJSON_PATH}/lib")
         endif()
     else()
-        # Use system cJSON
-        find_package(cJSON REQUIRED)
+        # Use vendored cJSON (see third_party/cjson/README.md)
+        include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/cjson)
+        list(APPEND BOAT_SOURCES third_party/cjson/cjson/cJSON.c)
         add_definitions(-DBOAT_USE_CJSON)
     endif()
 endif()
@@ -612,10 +613,6 @@ if(BOAT_WITH_HUGGINGFACE)
         # Use CJSON_LIBRARIES variable set by custom path configuration
         target_link_libraries(boat PUBLIC ${CJSON_LIBRARIES})
         message(STATUS "Linking with cJSON library: ${CJSON_LIBRARIES}")
-    else()
-        # Use standard cJSON target
-        target_link_libraries(boat PUBLIC cJSON::cJSON)
-        message(STATUS "Linking with standard cJSON target")
     endif()
 endif()
 

@@ -55,8 +55,8 @@ int main() {
     size_t config_size = 0;
     char* config_json = read_file(config_path, &config_size);
     if (!config_json) {
-        fprintf(stderr, "Failed to read config.json\n");
-        return 1;
+        fprintf(stderr, "Skipping test_safetensors: %s not found\n", config_path);
+        return 77; // Skip when local Hugging Face model files are absent (e.g. CI)
     }
 
     printf("Config size: %zu bytes\n", config_size);
@@ -65,9 +65,9 @@ int main() {
     size_t weights_size = 0;
     char* weights_data = read_file(weights_path, &weights_size);
     if (!weights_data) {
-        fprintf(stderr, "Failed to read model.safetensors\n");
+        fprintf(stderr, "Skipping test_safetensors: %s not found\n", weights_path);
         free(config_json);
-        return 1;
+        return 77; // Skip when local Hugging Face model files are absent (e.g. CI)
     }
 
     printf("Weights size: %zu bytes\n", weights_size);
