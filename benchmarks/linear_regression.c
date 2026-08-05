@@ -143,12 +143,10 @@ static benchmark_result_t run_training(
     boat_variable_t* x_var = boat_variable_create(x_data, false); // No gradient needed for input
     boat_variable_t* y_true_var = boat_variable_create(y_data, false); // No gradient needed for target
 
+    bool params_registered = false;
+
     // Training loop
     for (int step = 0; step < max_steps; step++) {
-        // Zero gradients before forward pass
-        boat_variable_zero_grad(W);
-        boat_variable_zero_grad(b);
-
         // Forward pass
         boat_variable_t* xW = NULL;
         boat_variable_t* y_pred_var = linear_model(x_var, W, b, &xW);
@@ -212,8 +210,23 @@ static benchmark_result_t run_training(
             }
         }
 
+        // Register parameters after the first backward pass: the optimizer stores
+        // raw pointers to the parameter/gradient tensors, and backward creates the
+        // gradient tensors lazily. Registering earlier would silently drop the
+        // parameters because boat_variable_grad() is still NULL.
+        if (!params_registered) {
+            boat_optimizer_add_parameter(optimizer, boat_variable_data(W), boat_variable_grad(W));
+            boat_optimizer_add_parameter(optimizer, boat_variable_data(b), boat_variable_grad(b));
+            params_registered = true;
+        }
+
         // Update optimizer with computed gradients
         boat_optimizer_step(optimizer);
+
+        // Zero gradients in place so the registered gradient pointers stay valid
+        // for the next iteration (boat_variable_zero_grad would free them and
+        // leave the optimizer pointing at freed memory).
+        boat_optimizer_zero_grad(optimizer);
 
         // Update scheduler if provided
         if (scheduler) {
@@ -306,10 +319,6 @@ void run_optimizer_benchmark() {
         // Create optimizer
         boat_optimizer_t* optimizer = boat_adam_optimizer_create(learning_rate, 0.9f, 0.999f, 1e-8f);
 
-        // Register parameters
-        boat_optimizer_add_parameter(optimizer, boat_variable_data(W), boat_variable_grad(W));
-        boat_optimizer_add_parameter(optimizer, boat_variable_data(b), boat_variable_grad(b));
-
         // Run training
         results[result_count] = run_training(
             "Adam", optimizer, NULL, W, b, x_data, y_data, max_steps, loss_threshold);
@@ -342,10 +351,6 @@ void run_optimizer_benchmark() {
 
         // Create optimizer
         boat_optimizer_t* optimizer = boat_adam_optimizer_create(learning_rate, 0.9f, 0.999f, 1e-8f);
-
-        // Register parameters
-        boat_optimizer_add_parameter(optimizer, boat_variable_data(W), boat_variable_grad(W));
-        boat_optimizer_add_parameter(optimizer, boat_variable_data(b), boat_variable_grad(b));
 
         // Create scheduler
         boat_scheduler_t* scheduler = boat_step_lr_scheduler_create(learning_rate, 200, 0.5f);
@@ -384,10 +389,6 @@ void run_optimizer_benchmark() {
         // Create optimizer
         boat_optimizer_t* optimizer = boat_rmsprop_optimizer_create(learning_rate, 0.99f, 1e-8f);
 
-        // Register parameters
-        boat_optimizer_add_parameter(optimizer, boat_variable_data(W), boat_variable_grad(W));
-        boat_optimizer_add_parameter(optimizer, boat_variable_data(b), boat_variable_grad(b));
-
         // Run training
         results[result_count] = run_training(
             "RMSprop", optimizer, NULL, W, b, x_data, y_data, max_steps, loss_threshold);
@@ -420,10 +421,6 @@ void run_optimizer_benchmark() {
 
         // Create optimizer
         boat_optimizer_t* optimizer = boat_adagrad_optimizer_create(learning_rate, 1e-8f);
-
-        // Register parameters
-        boat_optimizer_add_parameter(optimizer, boat_variable_data(W), boat_variable_grad(W));
-        boat_optimizer_add_parameter(optimizer, boat_variable_data(b), boat_variable_grad(b));
 
         // Run training
         results[result_count] = run_training(

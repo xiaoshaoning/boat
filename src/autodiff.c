@@ -107,7 +107,81 @@ static boat_tensor_t* compute_forward_dense(const boat_tensor_t* input, const vo
 static void compute_backward_dense(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
 static boat_variable_t* create_attention_operation(const boat_variable_t* query, const boat_variable_t* key, const boat_variable_t* value, const struct boat_attention_t* attention, const boat_tensor_t* attention_mask);
 static void compute_backward_attention(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
-static void compute_backward_add(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
+// Accumulate grad_output into grad, reducing over leading broadcast
+// dimensions when grad is a repeated suffix of grad_output (e.g. a bias of
+// shape [out] added to a [batch, out] tensor). Same-shape gradients use a
+// direct in-place add.
+static void accumulate_grad_broadcast(boat_tensor_t* grad, const boat_tensor_t* grad_output) {
+    if (!grad || !grad_output) return;
+    if (boat_tensor_dtype(grad) != boat_tensor_dtype(grad_output)) return;
+
+    size_t grad_n = boat_tensor_nelements(grad);
+    size_t out_n = boat_tensor_nelements(grad_output);
+
+    if (grad_n == out_n) {
+        boat_add_(grad, grad_output);
+        return;
+    }
+    if (grad_n == 0 || out_n % grad_n != 0) {
+        return;
+    }
+
+    // grad is a broadcast (repeated suffix) of grad_output: sum the repeated
+    // leading blocks into the gradient.
+    size_t repeats = out_n / grad_n;
+    const void* gd = boat_tensor_const_data(grad_output);
+    void* ad = boat_tensor_data(grad);
+    switch (boat_tensor_dtype(grad)) {
+        case BOAT_DTYPE_FLOAT32: {
+            const float* g = (const float*)gd;
+            float* a = (float*)ad;
+            for (size_t r = 0; r < repeats; r++) {
+                for (size_t i = 0; i < grad_n; i++) {
+                    a[i] += g[r * grad_n + i];
+                }
+            }
+            break;
+        }
+        case BOAT_DTYPE_FLOAT64: {
+            const double* g = (const double*)gd;
+            double* a = (double*)ad;
+            for (size_t r = 0; r < repeats; r++) {
+                for (size_t i = 0; i < grad_n; i++) {
+                    a[i] += g[r * grad_n + i];
+                }
+            }
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+static void compute_backward_add(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
+    if (!op_data || op_data->num_inputs != 2 || !grad_output) return;
+
+    // Gradient for addition: dL/da = dL/dc, dL/db = dL/dc where c = a + b
+    boat_variable_t* a = op_data->inputs[0];
+    boat_variable_t* b = op_data->inputs[1];
+
+    if (a->requires_grad) {
+        if (!a->grad) {
+            a->grad = boat_tensor_create_like(a->data);
+        }
+        if (a->grad) {
+            accumulate_grad_broadcast(a->grad, grad_output);
+        }
+    }
+
+    if (b->requires_grad) {
+        if (!b->grad) {
+            b->grad = boat_tensor_create_like(b->data);
+        }
+        if (b->grad) {
+            accumulate_grad_broadcast(b->grad, grad_output);
+        }
+    }
+}
 static void compute_backward_sub(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
 static void compute_backward_mul(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
 static void compute_backward_div(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
@@ -1065,70 +1139,6 @@ static boat_tensor_t* compute_forward_conv(const boat_tensor_t* input, const voi
 }
 
 // Backward computation functions
-static void compute_backward_add(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
-    if (!op_data || op_data->num_inputs != 2 || !grad_output) return;
-
-
-    // Gradient for addition: ∂L/∂a = ∂L/∂c, ∂L/∂b = ∂L/∂c
-    // where c = a + b
-    boat_variable_t* a = op_data->inputs[0];
-    boat_variable_t* b = op_data->inputs[1];
-
-
-    if (a->requires_grad) {
-        if (!a->grad) {
-            // Create gradient tensor and copy grad_output
-            a->grad = boat_tensor_create_like(a->data);
-            if (a->grad) {
-                // Copy grad_output to gradient
-                // Note: grad_output may need broadcasting, but for addition gradient shapes match
-                // For now, assume same shape (should be true for element-wise ops)
-                boat_tensor_t* grad_output_clone = boat_tensor_create_like(grad_output);
-                if (grad_output_clone) {
-                    memcpy(boat_tensor_data(grad_output_clone), boat_tensor_const_data(grad_output),
-                           boat_tensor_nbytes(grad_output));
-                    // Add to gradient (grad is zero, so just copy)
-                    boat_add_(a->grad, grad_output_clone);
-                    boat_tensor_unref(grad_output_clone);
-                }
-            } else {
-            }
-        } else {
-            // Accumulate gradient: a->grad += grad_output
-            boat_tensor_t* grad_output_clone = boat_tensor_create_like(grad_output);
-            if (grad_output_clone) {
-                memcpy(boat_tensor_data(grad_output_clone), boat_tensor_const_data(grad_output),
-                       boat_tensor_nbytes(grad_output));
-                boat_add_(a->grad, grad_output_clone);
-                boat_tensor_unref(grad_output_clone);
-            }
-        }
-    }
-
-    if (b->requires_grad) {
-        if (!b->grad) {
-            b->grad = boat_tensor_create_like(b->data);
-            if (b->grad) {
-                boat_tensor_t* grad_output_clone = boat_tensor_create_like(grad_output);
-                if (grad_output_clone) {
-                    memcpy(boat_tensor_data(grad_output_clone), boat_tensor_const_data(grad_output),
-                           boat_tensor_nbytes(grad_output));
-                    boat_add_(b->grad, grad_output_clone);
-                    boat_tensor_unref(grad_output_clone);
-                }
-            }
-        } else {
-            boat_tensor_t* grad_output_clone = boat_tensor_create_like(grad_output);
-            if (grad_output_clone) {
-                memcpy(boat_tensor_data(grad_output_clone), boat_tensor_const_data(grad_output),
-                       boat_tensor_nbytes(grad_output));
-                boat_add_(b->grad, grad_output_clone);
-                boat_tensor_unref(grad_output_clone);
-            }
-        }
-    }
-}
-
 static void compute_backward_sub(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 2 || !grad_output) return;
 
@@ -1139,25 +1149,10 @@ static void compute_backward_sub(boat_op_node_data_t* op_data, const boat_tensor
 
     if (a->requires_grad) {
         if (!a->grad) {
-            // Create gradient tensor and copy grad_output
             a->grad = boat_tensor_create_like(a->data);
-            if (a->grad) {
-                boat_tensor_t* grad_output_clone = boat_tensor_create_like(grad_output);
-                if (grad_output_clone) {
-                    memcpy(boat_tensor_data(grad_output_clone), boat_tensor_const_data(grad_output),
-                           boat_tensor_nbytes(grad_output));
-                    boat_add_(a->grad, grad_output_clone);
-                    boat_tensor_unref(grad_output_clone);
-                }
-            }
-        } else {
-            boat_tensor_t* grad_output_clone = boat_tensor_create_like(grad_output);
-            if (grad_output_clone) {
-                memcpy(boat_tensor_data(grad_output_clone), boat_tensor_const_data(grad_output),
-                       boat_tensor_nbytes(grad_output));
-                boat_add_(a->grad, grad_output_clone);
-                boat_tensor_unref(grad_output_clone);
-            }
+        }
+        if (a->grad) {
+            accumulate_grad_broadcast(a->grad, grad_output);
         }
     }
 
@@ -1168,11 +1163,9 @@ static void compute_backward_sub(boat_op_node_data_t* op_data, const boat_tensor
 
         if (!b->grad) {
             b->grad = boat_tensor_create_like(b->data);
-            if (b->grad) {
-                boat_add_(b->grad, neg_grad_output);
-            }
-        } else {
-            boat_add_(b->grad, neg_grad_output);
+        }
+        if (b->grad) {
+            accumulate_grad_broadcast(b->grad, neg_grad_output);
         }
         boat_tensor_unref(neg_grad_output);
     }
