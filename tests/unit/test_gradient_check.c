@@ -326,6 +326,135 @@ static bool test_multiplication_gradient() {
     }
 }
 
+// Check analytical vs numerical gradients for a broadcast binary op where b
+// is broadcast against a (e.g. a bias [out] or [1,out] vs [batch,out]).
+static bool check_broadcast_gradient(
+    boat_variable_t* (*forward_func)(boat_variable_t*, boat_variable_t*),
+    int64_t* a_shape, size_t a_ndim,
+    int64_t* b_shape, size_t b_ndim,
+    const char* name, float epsilon, float rel_tol, float abs_tol)
+{
+    printf("Testing %s broadcast gradient...\n", name);
+
+    boat_variable_t* a = boat_variable_create_with_shape(a_shape, a_ndim, BOAT_DTYPE_FLOAT32, true);
+    boat_variable_t* b = boat_variable_create_with_shape(b_shape, b_ndim, BOAT_DTYPE_FLOAT32, true);
+    if (!a || !b) {
+        printf("  Failed to create variables\n");
+        if (a) boat_variable_free(a);
+        if (b) boat_variable_free(b);
+        return false;
+    }
+
+    size_t a_n = boat_tensor_nelements(boat_variable_data(a));
+    size_t b_n = boat_tensor_nelements(boat_variable_data(b));
+    float* a_data = (float*)boat_tensor_data(boat_variable_data(a));
+    float* b_data = (float*)boat_tensor_data(boat_variable_data(b));
+
+    srand(20260805);
+    for (size_t i = 0; i < a_n; i++) {
+        a_data[i] = ((float)rand() / RAND_MAX) * 2.0f - 1.0f;
+    }
+    // Keep b away from zero so division stays well-conditioned.
+    for (size_t i = 0; i < b_n; i++) {
+        b_data[i] = 0.25f + ((float)rand() / RAND_MAX) * 1.0f;
+    }
+
+    boat_variable_t* c = forward_func(a, b);
+    if (!c) {
+        printf("  Forward pass failed\n");
+        boat_variable_free(a);
+        boat_variable_free(b);
+        return false;
+    }
+
+    boat_variable_zero_grad(a);
+    boat_variable_zero_grad(b);
+
+    // Loss = sum(c): gradient w.r.t c is all ones.
+    boat_tensor_t* c_tensor = boat_variable_data(c);
+    size_t c_n = boat_tensor_nelements(c_tensor);
+    boat_tensor_t* grad_c = boat_tensor_create_like(c_tensor);
+    if (!grad_c) {
+        printf("  Failed to create gradient tensor\n");
+        boat_variable_free(c);
+        boat_variable_free(a);
+        boat_variable_free(b);
+        return false;
+    }
+    float* grad_c_data = (float*)boat_tensor_data(grad_c);
+    for (size_t i = 0; i < c_n; i++) {
+        grad_c_data[i] = 1.0f;
+    }
+
+    boat_variable_backward(c, grad_c);
+
+    boat_tensor_t* grad_a_tensor = boat_variable_grad(a);
+    boat_tensor_t* grad_b_tensor = boat_variable_grad(b);
+    float* grad_a = grad_a_tensor ? (float*)boat_tensor_data(grad_a_tensor) : NULL;
+    float* grad_b = grad_b_tensor ? (float*)boat_tensor_data(grad_b_tensor) : NULL;
+    if (!grad_a || !grad_b) {
+        printf("  Failed to get gradient tensors\n");
+        boat_tensor_unref(grad_c);
+        boat_variable_free(c);
+        boat_variable_free(a);
+        boat_variable_free(b);
+        return false;
+    }
+
+    int failures = 0;
+
+    for (size_t i = 0; i < a_n; i++) {
+        float numerical = compute_numerical_gradient_element(
+            boat_variable_data(a), i, epsilon, forward_func, a, b);
+        if (!check_gradient_agreement(grad_a[i], numerical, rel_tol, abs_tol)) {
+            printf("  Mismatch for a[%zu]: analytical=%g, numerical=%g\n", i, grad_a[i], numerical);
+            failures++;
+        }
+    }
+    for (size_t i = 0; i < b_n; i++) {
+        float numerical = compute_numerical_gradient_element(
+            boat_variable_data(b), i, epsilon, forward_func, a, b);
+        if (!check_gradient_agreement(grad_b[i], numerical, rel_tol, abs_tol)) {
+            printf("  Mismatch for b[%zu]: analytical=%g, numerical=%g\n", i, grad_b[i], numerical);
+            failures++;
+        }
+    }
+
+    boat_tensor_unref(grad_c);
+    boat_variable_free(c);
+    boat_variable_free(a);
+    boat_variable_free(b);
+
+    if (failures > 0) {
+        printf("  FAILED: %d mismatches\n", failures);
+        return false;
+    }
+    printf("  PASSED\n");
+    return true;
+}
+
+// Multiplication with a 1-D bias [out] broadcast against [batch, out].
+static bool test_multiplication_broadcast_gradient() {
+    int64_t a_shape[] = {2, 3};
+    int64_t b_shape[] = {3};
+    return check_broadcast_gradient(boat_var_mul, a_shape, 2, b_shape, 1,
+                                    "multiplication ([3] bias vs [2,3])",
+                                    1e-4f, 1e-3f, 1e-5f);
+}
+
+// Division with a leading-1 bias [1, out] broadcast against [batch, out].
+// Also covers the arithmetic fast-path guard for [1,out] operands.
+static bool test_division_broadcast_gradient() {
+    int64_t a_shape[] = {2, 3};
+    int64_t b_shape[] = {1, 3};
+    // Division gradients are noisier in float32 finite differences (the
+    // analytical value matches double precision to ~1e-7), so use a slightly
+    // larger epsilon and looser tolerance.
+    return check_broadcast_gradient(boat_var_div, a_shape, 2, b_shape, 2,
+                                    "division ([1,3] bias vs [2,3])",
+                                    1e-3f, 5e-3f, 1e-4f);
+}
+
 int main() {
     setvbuf(stdout, NULL, _IONBF, 0); // Disable output buffering
     fprintf(stderr, "Test starting\n");
@@ -358,6 +487,12 @@ int main() {
 
     // Test multiplication gradient
     all_pass = test_multiplication_gradient() && all_pass;
+    // Test multiplication with broadcasting gradient
+    all_pass = test_multiplication_broadcast_gradient() && all_pass;
+
+    // Test division with broadcasting gradient
+    all_pass = test_division_broadcast_gradient() && all_pass;
+
 
     // Free the context (and its graph) now that all variables are released.
     boat_autodiff_context_free(ctx);

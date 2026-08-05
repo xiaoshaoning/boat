@@ -122,3 +122,14 @@ jobs:
       with:
         file: build/coverage.xml
         fail_ci_if_error: false
+
+  # ---------------------------------------------------------------------------
+  # Encoding hygiene (UTF-8 without BOM, no mojibake)
+  # ---------------------------------------------------------------------------
+  encoding:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check file encoding
+      run: python3 scripts/check_encoding.py
