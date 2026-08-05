@@ -30,8 +30,6 @@ endif()
 if(BOAT_WITH_HUGGINGFACE)
     boat_add_test_executable(test_safetensors test_safetensors.c)
     target_link_libraries(test_safetensors boat)
-    # Skip (not fail) when local Hugging Face model files are absent (e.g. CI)
-    set_tests_properties(test_safetensors PROPERTIES SKIP_RETURN_CODE 77)
 endif()
 
 # Layer normalization integration test

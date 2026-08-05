@@ -24,6 +24,20 @@
 typedef void cJSON; // Dummy type
 #endif
 
+// Portable string duplication: strdup is not declared by <string.h> under
+// strict C11 (glibc with -std=c11), which silently truncates the returned
+// pointer on 64-bit targets.
+static char* dup_string(const char* s) {
+    if (!s) return NULL;
+
+    size_t len = strlen(s);
+    char* copy = (char*)malloc(len + 1);
+    if (copy) {
+        memcpy(copy, s, len + 1);
+    }
+    return copy;
+}
+
 // Forward declarations for internal structures
 typedef struct hf_layer_builder_t hf_layer_builder_t;
 
@@ -237,9 +251,9 @@ static hf_config_t* parse_config(const char* config_json) {
     // Extract model_type
     cJSON* model_type = cJSON_GetObjectItem(root, "model_type");
     if (model_type && cJSON_IsString(model_type)) {
-        config->model_type = strdup(model_type->valuestring);
+        config->model_type = dup_string(model_type->valuestring);
     } else {
-        config->model_type = strdup("unknown");
+        config->model_type = dup_string("unknown");
     }
 
     // Extract architecture parameters
@@ -306,7 +320,7 @@ static hf_config_t* parse_config(const char* config_json) {
     }
 
     if (!config->model_type) {
-        config->model_type = strdup("unknown");
+        config->model_type = dup_string("unknown");
     }
 
     return config;
@@ -376,8 +390,8 @@ static hf_layer_builder_t* find_or_create_builder(hf_config_t* config, const cha
     }
 
     hf_layer_builder_t* builder = &config->builders[config->builder_count];
-    builder->base_name = strdup(base_name);
-    builder->layer_type = strdup(layer_type);
+    builder->base_name = dup_string(base_name);
+    builder->layer_type = dup_string(layer_type);
     builder->has_weight = false;
     builder->has_bias = false;
     builder->weight_tensor = NULL;
@@ -818,12 +832,13 @@ static bool load_safetensors(const void* data, size_t size, const hf_config_t* c
                 // Actual layer created, add to model
                 boat_model_add_layer(model, layer);
                 tensor_count++;
+                // Use the tensor's own shape (the local shape array is freed above)
+                const int64_t* tensor_shape = boat_tensor_shape(tensor);
+                size_t tensor_ndim = boat_tensor_ndim(tensor);
                 printf("Loaded tensor '%s' with shape [", key);
-                if (shape_len > 0) {
-                    for (int i = 0; i < shape_len; i++) {
-                        printf("%" PRId64, shape[i]);
-                        if (i < shape_len - 1) printf(", ");
-                    }
+                for (size_t i = 0; i < tensor_ndim; i++) {
+                    printf("%" PRId64, tensor_shape[i]);
+                    if (i < tensor_ndim - 1) printf(", ");
                 }
                 printf("] dtype=%s\n", dtype_str);
             }
@@ -876,7 +891,7 @@ static hf_layer_wrapper_t* create_layer_wrapper(const char* layer_type, boat_ten
         boat_tensor_ref(weight); // Increase ref count since wrapper owns it
     }
     wrapper->bias = NULL;
-    wrapper->layer_type = layer_type ? strdup(layer_type) : strdup("unknown");
+    wrapper->layer_type = layer_type ? dup_string(layer_type) : dup_string("unknown");
     wrapper->layer_data = NULL; // For future expansion
 
     return wrapper;
@@ -1287,7 +1302,7 @@ static char* get_base_layer_name(const char* tensor_name) {
     if (!tensor_name) return NULL;
 
     // Make a copy to work with
-    char* base = strdup(tensor_name);
+    char* base = dup_string(tensor_name);
     if (!base) return NULL;
 
     // Remove common suffixes
