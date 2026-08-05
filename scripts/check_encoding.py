@@ -27,7 +27,7 @@ BINARY_EXTS = {
 }
 
 # Signatures of UTF-8 bytes that were decoded as GBK and re-saved as UTF-8.
-MOJIBAKE_SEQUENCES = ("\u951f\u65a4\u62f7",)  # 锟斤拷
+MOJIBAKE_SEQUENCES = ("\u951f\u65a4\u62f7",)
 MOJIBAKE_CHARS = "\u9480\u9225\u922d\u9224\u9227\u942e\u92f1\ufffd"
 
 

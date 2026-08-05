@@ -2,9 +2,16 @@
 
 # Include directories for all targets
 include_directories(${CMAKE_SOURCE_DIR}/include)
+# Register every test executable with CTest so `ctest` (and CI) actually
+# runs the suite instead of silently passing.
+macro(boat_add_test_executable name)
+    add_executable(${name} ${ARGN})
+    add_test(NAME ${name} COMMAND ${name})
+endmacro()
+
 
 # Add test executable
-add_executable(test_phase1 unit/test_phase1.c)
+boat_add_test_executable(test_phase1 unit/test_phase1.c)
 
 # Link with boat library
 target_link_libraries(test_phase1 boat)
@@ -15,138 +22,141 @@ if(BOAT_WITH_PYTORCH)
                    ${CMAKE_CURRENT_BINARY_DIR}/test_simple_model.pt COPYONLY)
 
     # Simple PyTorch loader test
-    add_executable(test_pytorch_simple test_pytorch_simple.c)
+    boat_add_test_executable(test_pytorch_simple test_pytorch_simple.c)
     target_link_libraries(test_pytorch_simple boat)
 endif()
 
 # Safetensors parsing test (only if HuggingFace support is enabled)
 if(BOAT_WITH_HUGGINGFACE)
-    add_executable(test_safetensors test_safetensors.c)
+    boat_add_test_executable(test_safetensors test_safetensors.c)
     target_link_libraries(test_safetensors boat)
 endif()
 
 # Layer normalization integration test
-add_executable(test_layernorm_simple test_layernorm_simple.c)
+boat_add_test_executable(test_layernorm_simple test_layernorm_simple.c)
 target_link_libraries(test_layernorm_simple boat)
 
 # Model and computational graph integration test
-add_executable(test_model_graph_integration test_model_graph_integration.c)
+boat_add_test_executable(test_model_graph_integration test_model_graph_integration.c)
 target_link_libraries(test_model_graph_integration boat)
 
 # Dense layer forward pass test
-add_executable(test_dense_forward test_dense_forward.c)
+boat_add_test_executable(test_dense_forward test_dense_forward.c)
 target_link_libraries(test_dense_forward boat)
 
 # Convolutional layer forward pass test
-add_executable(test_conv_forward test_conv_forward.c)
+boat_add_test_executable(test_conv_forward test_conv_forward.c)
 target_link_libraries(test_conv_forward boat)
 
 # Attention layer gradient check test
-add_executable(test_attention_gradient_check unit/test_attention_gradient_check.c)
+boat_add_test_executable(test_attention_gradient_check unit/test_attention_gradient_check.c)
 target_link_libraries(test_attention_gradient_check boat)
 
 # Attention layer end-to-end training test
-add_executable(test_attention_training test_attention_training.c)
+boat_add_test_executable(test_attention_training test_attention_training.c)
 target_link_libraries(test_attention_training boat)
 
 # Convolutional layer gradient check test
-add_executable(test_conv_gradient_check unit/test_conv_gradient_check.c)
+boat_add_test_executable(test_conv_gradient_check unit/test_conv_gradient_check.c)
 target_link_libraries(test_conv_gradient_check boat)
 
 # Adam optimizer test
-add_executable(test_optimizer_adam unit/test_optimizer_adam.c)
+boat_add_test_executable(test_optimizer_adam unit/test_optimizer_adam.c)
 target_link_libraries(test_optimizer_adam boat)
 
 # RMSprop optimizer test
-add_executable(test_optimizer_rmsprop unit/test_optimizer_rmsprop.c)
+boat_add_test_executable(test_optimizer_rmsprop unit/test_optimizer_rmsprop.c)
 target_link_libraries(test_optimizer_rmsprop boat)
 
 # Adagrad optimizer test
-add_executable(test_optimizer_adagrad unit/test_optimizer_adagrad.c)
+boat_add_test_executable(test_optimizer_adagrad unit/test_optimizer_adagrad.c)
 target_link_libraries(test_optimizer_adagrad boat)
 
 # SGD optimizer test
-add_executable(test_optimizer_sgd unit/test_optimizer_sgd.c)
+boat_add_test_executable(test_optimizer_sgd unit/test_optimizer_sgd.c)
 target_link_libraries(test_optimizer_sgd boat)
 
 # Scheduler tests
-add_executable(test_schedulers unit/test_schedulers.c)
+boat_add_test_executable(test_schedulers unit/test_schedulers.c)
 target_link_libraries(test_schedulers boat)
 
 # Optimizer benchmark
-add_executable(test_optimizer_benchmark ../benchmarks/linear_regression.c)
+boat_add_test_executable(test_optimizer_benchmark ../benchmarks/linear_regression.c)
 target_link_libraries(test_optimizer_benchmark boat)
 
 # Attention layer performance benchmark (uses windows.h timing; Windows-only)
 if(WIN32)
-    add_executable(test_attention_performance ../benchmarks/attention_performance.c)
+    boat_add_test_executable(test_attention_performance ../benchmarks/attention_performance.c)
     target_link_libraries(test_attention_performance boat)
 endif()
 
 # Gradient checking tests
-add_executable(test_gradient_check unit/test_gradient_check.c)
+boat_add_test_executable(test_gradient_check unit/test_gradient_check.c)
 target_link_libraries(test_gradient_check boat)
 
 # Transpose operation tests
-add_executable(test_transpose unit/test_transpose.c)
+boat_add_test_executable(test_transpose unit/test_transpose.c)
 target_link_libraries(test_transpose boat)
 
 # Serialization integration test (train -> save -> load -> inference round-trip)
-add_executable(test_serialization_integration test_serialization_integration.c)
+boat_add_test_executable(test_serialization_integration test_serialization_integration.c)
 target_link_libraries(test_serialization_integration boat)
 
 # Loss function integration tests (forward, backward, training, edge cases)
-add_executable(test_loss_integration test_loss_integration.c)
+boat_add_test_executable(test_loss_integration test_loss_integration.c)
 target_link_libraries(test_loss_integration boat)
 
 # Quantization tests
-add_executable(test_quantize test_quantize.c)
+boat_add_test_executable(test_quantize test_quantize.c)
 target_link_libraries(test_quantize boat)
 
 # Pruning tests
-add_executable(test_prune test_prune.c)
+boat_add_test_executable(test_prune test_prune.c)
 target_link_libraries(test_prune boat)
 
-# ONNX loader tests (self-contained, no external dependency)
-add_executable(test_onnx test_onnx.c)
-target_include_directories(test_onnx PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(test_onnx boat)
+# ONNX loader tests (only when ONNX support is enabled: they link against
+# src/format/onnx.c / onnx_pb.c, which are not compiled otherwise)
+if(BOAT_WITH_ONNX)
+    boat_add_test_executable(test_onnx test_onnx.c)
+    target_include_directories(test_onnx PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_link_libraries(test_onnx boat)
+endif()
 
 # Data pipeline tests (Dataset, DataLoader, Transforms)
-add_executable(test_data_pipeline test_data_pipeline.c)
+boat_add_test_executable(test_data_pipeline test_data_pipeline.c)
 target_link_libraries(test_data_pipeline boat)
 
 # GGUF format loader tests
 if(BOAT_WITH_GGUF)
-    add_executable(test_gguf test_gguf.c)
+    boat_add_test_executable(test_gguf test_gguf.c)
     target_link_libraries(test_gguf boat)
 endif()
 
 # CUDA backend tests
 if(BOAT_WITH_CUDA)
-    add_executable(test_cuda_mini test_cuda_mini.c)
+    boat_add_test_executable(test_cuda_mini test_cuda_mini.c)
     target_link_libraries(test_cuda_mini boat)
-    add_executable(test_cuda_basic test_cuda_basic.c)
+    boat_add_test_executable(test_cuda_basic test_cuda_basic.c)
     target_link_libraries(test_cuda_basic boat)
-    add_executable(test_cuda_layers test_cuda_layers.c)
+    boat_add_test_executable(test_cuda_layers test_cuda_layers.c)
     target_link_libraries(test_cuda_layers boat)
 endif()
 
 # Activation function tests (sigmoid / tanh / SELU)
-add_executable(test_activation unit/test_activation.c)
+boat_add_test_executable(test_activation unit/test_activation.c)
 target_link_libraries(test_activation boat)
 
 # Normalization backward tests (LayerNorm / RMSNorm)
-add_executable(test_norm_backward unit/test_norm_backward.c)
+boat_add_test_executable(test_norm_backward unit/test_norm_backward.c)
 target_link_libraries(test_norm_backward boat)
 
 # Recurrent layer tests (LSTM / GRU forward, backward and update)
-add_executable(test_lstm_gru unit/test_lstm_gru.c)
+boat_add_test_executable(test_lstm_gru unit/test_lstm_gru.c)
 target_link_libraries(test_lstm_gru boat)
 
 # ONNX Runtime backend tests (requires ONNX for protobuf builder used in test model construction)
 if(BOAT_WITH_ONNXRUNTIME AND BOAT_WITH_ONNX)
-    add_executable(test_onnxruntime test_onnxruntime.c)
+    boat_add_test_executable(test_onnxruntime test_onnxruntime.c)
     target_include_directories(test_onnxruntime PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_compile_definitions(test_onnxruntime PRIVATE BOAT_STATIC_BUILD _CRT_NONSTDC_NO_DEPRECATE)
     target_link_libraries(test_onnxruntime boat)
