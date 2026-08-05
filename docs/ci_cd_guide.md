@@ -17,28 +17,28 @@ Boat 使用 GitHub Actions 进行持续集成和持续部署，确保代码质�
 ## 工作流步骤
 
 ### 1. 代码检出
-- 使用 `actions/checkout@v3`
+- 使用 `actions/checkout@v4`
 - 递归初始化子模块
 
 ### 2. 依赖安装
-**Ubuntu**: 安装 cmake, build-essential, clang-tidy, ccache
-**macOS**: 安装 cmake, clang-tidy, ccache (通过 Homebrew)
-**Windows**: 安装 cmake, clang-tidy, ccache (通过 Chocolatey)
+**Ubuntu**: 安装 cmake, build-essential, ccache
+**macOS**: 安装 cmake, ccache (通过 Homebrew)
+**Windows**: 安装 ccache (通过 Chocolatey)
 
 ### 3. 缓存配置
-- 使用 ccache 加速编译
-- 缓存 ccache 目录以提高后续构建速度
-- 设置最大缓存大小: 1GB
+- 使用 `hendrikmuhs/ccache-action@v1.2` 配置并缓存 ccache
+- 以 `runner.os` + `build_type` 作为缓存 key
 
 ### 4. 配置 CMake
 ```yaml
-env:
-  CMAKE_C_COMPILER_LAUNCHER: ccache
-  CMAKE_CXX_COMPILER_LAUNCHER: ccache
 run: |
   mkdir build
   cd build
-  cmake .. -DBOAT_WITH_TESTS=ON -DBOAT_WITH_EXAMPLES=ON -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+  cmake .. \
+    -DBOAT_WITH_TESTS=ON \
+    -DBOAT_WITH_EXAMPLES=ON \
+    -DBOAT_WITH_HUGGINGFACE=ON \
+    -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
 ```
 
 ### 5. 构建项目
@@ -50,14 +50,14 @@ run: |
 - 使用 `ctest --output-on-failure`
 - 输出详细失败信息
 
-### 7. 静态分析
-- C 代码: 使用 `clang-tidy` 进行代码质量检查 (结合 `clang-analyzer`)
-- CUDA 代码: 静态分析工具支持有限，依赖运行时测试和 code review
-- 目前不因警告而失败 (使用 `|| true`)
+### 7. 静态分析（计划中）
+- 计划引入 `clang-tidy` 进行 C 代码质量检查（结合 `clang-analyzer`）
+- CUDA 代码静态分析工具支持有限，依赖运行时测试和 code review
+- 当前工作流暂未启用该步骤
 
-### 8. 示例验证
-- 构建并运行 MNIST 示例
-- 验证基本功能正常
+### 8. 示例构建
+- 通过 `-DBOAT_WITH_EXAMPLES=ON` 构建全部示例
+- 验证示例可编译
 
 ## 矩阵策略
 
@@ -99,7 +99,7 @@ matrix:
 
 ### 计划改进
 - 设置 clang-tidy 警告阈值
-- 添加代码覆盖率要求
+- ✅ 已添加代码覆盖率报告（coverage job + Codecov 上传）
 - 添加性能基准测试
 
 ## 故障排除
@@ -201,12 +201,12 @@ matrix:
 ## 未来改进路线图
 
 ### 短期 (1-2 个月)
-- [ ] 添加 ccache 目录缓存
+- [x] 添加 ccache 目录缓存
 - [ ] 扩展编译器矩阵
 - [ ] 添加构建时间趋势图
 
 ### 中期 (3-6 个月)
-- [ ] 集成代码覆盖率 (Coveralls/Codecov)
+- [x] 集成代码覆盖率 (Codecov)
 - [ ] 添加性能基准测试
 - [ ] 集成安全扫描 (CodeQL)
 
@@ -224,5 +224,5 @@ matrix:
 
 ---
 
-*本指南最后更新: 2026-03-01*
-*对应 CI 版本: ci.yml v2.0*
+*本指南最后更新: 2026-08-05*
+*对应 CI 版本: ci.yml v3.0*

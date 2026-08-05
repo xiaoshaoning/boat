@@ -25,8 +25,8 @@
 
 ### 4. 构建系统更新
 ```cmake
-# 编译时启用 Hugging Face 支持
-cmake -DBOAT_WITH_HUGGINGFACE=ON -DBOAT_CJSON_PATH="D:/github/cJSON" ..
+# 编译时启用 Hugging Face 支持（cJSON 已内置，无需外部依赖）
+cmake -DBOAT_WITH_HUGGINGFACE=ON ..
 make
 ```
 
@@ -61,10 +61,7 @@ boat_model_t* model = boat_huggingface_load_from_memory(config_json, weights_dat
 - **CNN 模型**：卷积层、池化层映射
 
 ### 2. 文件系统加载
-`boat_huggingface_load()` 函数需要实现文件读取：
-- 读取 `config.json` 文件
-- 检测 `model.safetensors` 或 `pytorch_model.bin`
-- 调用内存加载接口
+`boat_huggingface_load()` 已实现：读取 `config.json`、检测 `model.safetensors` 并调用内存加载接口。
 
 ### 3. 模型架构支持
 当前框架支持通用的 safetensors 解析，但需要针对具体模型类型：
@@ -77,7 +74,7 @@ boat_model_t* model = boat_huggingface_load_from_memory(config_json, weights_dat
 ### 1. 编译测试
 ```bash
 cd build
-cmake -DBOAT_WITH_HUGGINGFACE=ON -DBOAT_CJSON_PATH="D:/github/cJSON" ..
+cmake -DBOAT_WITH_HUGGINGFACE=ON ..
 make
 ```
 
@@ -136,8 +133,7 @@ Loaded tensor 'conv1.bias' with shape [32] dtype=F32
 - cJSON 集成配置
 
 ### ⏳ 待实现
-- 完整的层映射系统
-- 文件系统加载接口
+- 完整的层映射系统（BERT/GPT-2 架构）
 - 特定模型架构支持
 - 错误处理和验证
 
@@ -158,4 +154,4 @@ Loaded tensor 'conv1.bias' with shape [32] dtype=F32
 ---
 
 *文档创建时间：2026-02-22*
-*最后更新：2026-02-22*
+*最后更新：2026-08-05*
