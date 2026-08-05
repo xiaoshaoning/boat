@@ -90,6 +90,12 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
+# MSVC: treat all sources as UTF-8 regardless of the system codepage
+# (avoids C4819 warnings for files with non-ASCII comments on zh-CN systems)
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 # AddressSanitizer for Debug builds (optional)
 option(BOAT_WITH_ASAN "Enable AddressSanitizer for memory error detection" OFF)
 if(BOAT_WITH_ASAN)
