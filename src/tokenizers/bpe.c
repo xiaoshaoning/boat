@@ -9,6 +9,20 @@
 #include <stdio.h>
 #include <inttypes.h>
 
+// Portable string duplication: strdup is not declared by <string.h> under
+// strict C11 (glibc with -std=c11), which silently truncates the returned
+// pointer on 64-bit targets.
+static char* dup_string(const char* s) {
+    if (!s) return NULL;
+
+    size_t len = strlen(s);
+    char* copy = (char*)malloc(len + 1);
+    if (copy) {
+        memcpy(copy, s, len + 1);
+    }
+    return copy;
+}
+
 // =========================================================================
 // Tokenizer struct
 // =========================================================================
@@ -330,7 +344,7 @@ boat_bpe_tokenizer_t* boat_bpe_tokenizer_create(const char* tokenizer_json_path)
         if (!tok->vocab[i]) {
             char buf[32];
             snprintf(buf, sizeof(buf), "<|%zu|>", i);
-            tok->vocab[i] = strdup(buf);
+            tok->vocab[i] = dup_string(buf);
         }
     }
 
