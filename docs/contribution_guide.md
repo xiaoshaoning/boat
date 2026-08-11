@@ -1,111 +1,111 @@
-# Boat 代码贡献指南
+# Boat Contribution Guide
 
-## 概述
+## Overview
 
-欢迎为 Boat 深度学习框架贡献代码！本指南将帮助您了解贡献流程、代码标准和最佳实践。
+Welcome to contributing code to the Boat deep learning framework! This guide will help you understand the contribution process, code standards, and best practices.
 
-## 贡献流程
+## Contribution Process
 
-### 1. 准备工作
-1. **Fork 仓库**: 点击 GitHub 页面右上角的 "Fork" 按钮
-2. **克隆仓库**:
+### 1. Preparation
+1. **Fork the repository**: Click the "Fork" button in the top-right corner of the GitHub page
+2. **Clone the repository**:
    ```bash
    git clone https://github.com/your-username/boat.git
    cd boat
    ```
-3. **设置上游远程**:
+3. **Set up the upstream remote**:
    ```bash
    git remote add upstream https://github.com/original-owner/boat.git
    ```
 
-### 2. 创建特性分支
+### 2. Create a Feature Branch
 ```bash
 git checkout -b feature/your-feature-name
 ```
-**分支命名约定**:
-- `feature/` - 新功能
-- `fix/` - 错误修复
-- `docs/` - 文档更新
-- `test/` - 测试相关
-- `refactor/` - 代码重构
+**Branch naming convention**:
+- `feature/` - new features
+- `fix/` - bug fixes
+- `docs/` - documentation updates
+- `test/` - test-related changes
+- `refactor/` - code refactoring
 
-### 3. 开发与测试
-1. **实现功能**: 遵循代码风格指南
-2. **添加测试**: 为新功能编写单元测试
-3. **本地测试**:
+### 3. Development and Testing
+1. **Implement the feature**: Follow the code style guide
+2. **Add tests**: Write unit tests for the new feature
+3. **Run tests locally**:
    ```bash
    mkdir build && cd build
    cmake .. -DBOAT_WITH_TESTS=ON
    cmake --build .
    ctest --output-on-failure
    ```
-4. **静态分析**:
+4. **Static analysis**:
    ```bash
-   # C 代码静态分析 (clang-tidy, 而非 cppcheck, 后者主要针对 C++)
+   # C static analysis (clang-tidy, not cppcheck, which targets C++ mainly)
    clang-tidy src/**/*.c -- -Iinclude
    ```
 
-### 4. 提交更改
+### 4. Commit Changes
 ```bash
 git add .
-git commit -m "类型: 描述性提交信息"
+git commit -m "<type>: descriptive commit message"
 ```
-**提交信息格式**:
+**Commit message format**:
 ```
-类型: 简要描述
+<type>: short description
 
-详细描述（可选）
+Detailed description (optional)
 
-- 列出主要更改
-- 说明影响范围
-- 关联问题编号（如 #123）
+- list the main changes
+- describe the impact scope
+- reference issue numbers (e.g. #123)
 
-类型说明:
-- feat: 新功能
-- fix: 错误修复
-- docs: 文档更新
-- style: 代码风格调整（不影响功能）
-- refactor: 代码重构
-- test: 测试相关
-- chore: 构建过程或工具更新
+Type legend:
+- feat: new feature
+- fix: bug fix
+- docs: documentation update
+- style: code style changes (no functional impact)
+- refactor: code refactoring
+- test: test-related
+- chore: build process or tooling update
 ```
 
-### 5. 同步上游更改
+### 5. Sync with Upstream Changes
 ```bash
 git fetch upstream
 git rebase upstream/main
 ```
 
-### 6. 推送更改
+### 6. Push Changes
 ```bash
 git push origin feature/your-feature-name
 ```
 
-### 7. 创建 Pull Request
-1. 访问 GitHub 仓库页面
-2. 点击 "New Pull Request"
-3. 选择你的分支
-4. 填写 PR 描述模板
-5. 等待 CI 运行和代码审查
+### 7. Create a Pull Request
+1. Visit the GitHub repository page
+2. Click "New Pull Request"
+3. Select your branch
+4. Fill in the PR description template
+5. Wait for CI to run and for code review
 
-## 代码标准
+## Code Standards
 
-### 命名约定
-- **函数**: `snake_case`
-- **变量**: `snake_case`
-- **类型**: `snake_type_t`
-- **常量**: `SNAKE_CASE`
-- **文件**: `snake_case.c`, `snake_case.h`
+### Naming Conventions
+- **Functions**: `snake_case`
+- **Variables**: `snake_case`
+- **Types**: `snake_type_t`
+- **Constants**: `SNAKE_CASE`
+- **Files**: `snake_case.c`, `snake_case.h`
 
-### 代码风格
-- **缩进**: 4 个空格（非制表符）
-- **行宽**: 最大 100 字符
-- **大括号**: K&R 风格
-- **注释**: 全英文，无中文字符
-- **编码**: 所有文本文件（代码、文档、脚本）必须为 UTF-8 编码（无 BOM），
-  禁止提交 GBK/GB2312 等其他编码，请遵循根目录 .editorconfig。
+### Code Style
+- **Indentation**: 4 spaces (not tabs)
+- **Line width**: 100 characters maximum
+- **Braces**: K&R style
+- **Comments**: entirely in English, no Chinese characters
+- **Encoding**: All text files (code, docs, scripts) must be UTF-8 encoded (without BOM);
+  other encodings such as GBK/GB2312 must not be committed. Please follow the .editorconfig in the repository root.
 
-### 示例
+### Example
 ```c
 // function declaration
 boat_tensor_t* boat_tensor_create(const int64_t* shape, size_t ndim,
@@ -122,41 +122,41 @@ struct boat_tensor_t {
 #define BOAT_MAX_DIMS 8
 ```
 
-## 质量要求
+## Quality Requirements
 
-### 1. 代码正确性
-- 通过所有现有测试
-- 添加新功能的测试覆盖率
-- 处理边界条件和错误情况
+### 1. Code Correctness
+- Pass all existing tests
+- Add test coverage for new features
+- Handle edge cases and error conditions
 
-### 2. 内存安全
-- 无内存泄漏（使用 Valgrind 检查）
-- 无悬空指针
-- 正确的引用计数管理
+### 2. Memory Safety
+- No memory leaks (check with Valgrind)
+- No dangling pointers
+- Proper reference counting management
 
-### 3. 性能考虑
-- 避免不必要的内存分配
-- 使用高效算法
-- 考虑缓存友好性
+### 3. Performance Considerations
+- Avoid unnecessary memory allocations
+- Use efficient algorithms
+- Consider cache friendliness
 
-### 4. 可维护性
-- 清晰的代码结构
-- 有意义的变量名
-- 适当的注释（解释为什么，而不是做什么）
+### 4. Maintainability
+- Clear code structure
+- Meaningful variable names
+- Appropriate comments (explain why, not what)
 
-## 测试要求
+## Testing Requirements
 
-### 单元测试
-- 每个新功能应有对应的单元测试
-- 测试应覆盖正常情况和错误情况
-- 测试文件命名: `test_模块名.c`
+### Unit Tests
+- Every new feature should have corresponding unit tests
+- Tests should cover both normal and error cases
+- Test files are named: `test_<module>.c`
 
-### 集成测试
-- 验证模块间的交互
-- 测试端到端功能
-- 确保向后兼容性
+### Integration Tests
+- Verify interactions between modules
+- Test end-to-end functionality
+- Ensure backward compatibility
 
-### 测试结构
+### Test Structure
 ```c
 #include <boat/test.h>
 
@@ -173,14 +173,14 @@ int main() {
 }
 ```
 
-## 文档要求
+## Documentation Requirements
 
-### 代码文档
-- 公共 API 必须有文档注释
-- 复杂算法应有解释性注释
-- 头文件应描述模块用途
+### Code Documentation
+- Public APIs must have doc comments
+- Complex algorithms should have explanatory comments
+- Header files should describe the module's purpose
 
-### API 文档示例
+### API Documentation Example
 ```c
 /**
  * create new tensor
@@ -195,59 +195,59 @@ BOAT_API boat_tensor_t* boat_tensor_create(const int64_t* shape, size_t ndim,
                                            boat_dtype_t dtype, boat_device_t device);
 ```
 
-### 用户文档
-- 更新相关文档（如需要）
-- 添加使用示例
-- 更新 README（如影响安装或使用）
+### User Documentation
+- Update related documentation (if needed)
+- Add usage examples
+- Update the README (if installation or usage is affected)
 
-## 审查流程
+## Review Process
 
-### PR 审查标准
-1. **功能正确性**: 实现是否符合需求
-2. **代码质量**: 是否符合代码标准
-3. **测试覆盖**: 是否有充分测试
-4. **文档完整**: 是否更新相关文档
-5. **性能影响**: 是否影响现有性能
+### PR Review Standards
+1. **Functional correctness**: Does the implementation meet the requirements
+2. **Code quality**: Does it conform to the code standards
+3. **Test coverage**: Are there sufficient tests
+4. **Documentation completeness**: Are related docs updated
+5. **Performance impact**: Does it affect existing performance
 
-### 审查反馈
-- 建设性批评
-- 具体改进建议
-- 解释审查决定的原因
+### Review Feedback
+- Constructive criticism
+- Specific improvement suggestions
+- Explain the reasoning behind review decisions
 
-### 常见审查意见
-- **需要更多测试**: 添加测试用例
-- **代码风格问题**: 遵循风格指南
-- **缺少文档**: 添加 API 文档
-- **性能问题**: 优化算法或内存使用
+### Common Review Comments
+- **Need more tests**: Add test cases
+- **Code style issues**: Follow the style guide
+- **Missing documentation**: Add API docs
+- **Performance issues**: Optimize algorithms or memory usage
 
-## 特殊贡献类型
+## Special Contribution Types
 
-### 错误修复
-1. 创建最小复现用例
-2. 定位根本原因
-3. 提供修复方案
-4. 添加回归测试
+### Bug Fixes
+1. Create a minimal reproduction case
+2. Identify the root cause
+3. Provide a fix
+4. Add regression tests
 
-### 性能优化
-1. 提供性能基准
-2. 证明优化效果
-3. 确保不破坏功能
-4. 更新相关文档
+### Performance Optimization
+1. Provide performance benchmarks
+2. Demonstrate the optimization gains
+3. Make sure functionality is not broken
+4. Update related documentation
 
-### 文档改进
-1. 确保信息准确
-2. 保持风格一致
-3. 添加实用示例
-4. 检查链接有效性
+### Documentation Improvements
+1. Ensure the information is accurate
+2. Keep the style consistent
+3. Add practical examples
+4. Check that links are valid
 
-## 工具支持
+## Tooling Support
 
-### 开发工具
-- **代码格式化**: 遵循 CLAUDE.md 中的代码风格
-- **静态分析**: `clang-tidy` 集成 (C 代码; CUDA 静态分析工具有限)
-- **构建系统**: CMake
+### Development Tools
+- **Code formatting**: Follow the code style in CLAUDE.md
+- **Static analysis**: `clang-tidy` integration (C code; CUDA static analysis tooling is limited)
+- **Build system**: CMake
 
-### 本地检查
+### Local Checks
 ```bash
 # run static analysis
 clang-tidy src/**/*.c -- -Iinclude
@@ -259,22 +259,22 @@ cmake --build .
 ctest --output-on-failure
 ```
 
-## 社区准则
+## Community Guidelines
 
-### 行为准则
-1. **尊重**: 尊重所有社区成员
-2. **包容**: 欢迎不同背景的贡献者
-3. **协作**: 积极协作，共同解决问题
-4. **专业**: 保持专业和技术性讨论
+### Code of Conduct
+1. **Respect**: Respect all community members
+2. **Inclusiveness**: Welcome contributors from diverse backgrounds
+3. **Collaboration**: Collaborate actively to solve problems together
+4. **Professionalism**: Keep discussions professional and technical
 
-### 沟通渠道
-- **GitHub Issues**: 问题报告和功能请求
-- **GitHub Discussions**: 技术讨论和问答
-- **Pull Requests**: 代码贡献和审查
+### Communication Channels
+- **GitHub Issues**: Bug reports and feature requests
+- **GitHub Discussions**: Technical discussions and Q&A
+- **Pull Requests**: Code contributions and reviews
 
-## 快速参考
+## Quick Reference
 
-### 常用命令
+### Common Commands
 ```bash
 # setup development environment
 git clone --recursive https://github.com/your-username/boat.git
@@ -289,33 +289,33 @@ clang-tidy src/*.c -- -Iinclude  # static check (C code only)
 
 # commit changes
 git add .
-git commit -m "feat: 添加新功能"
+git commit -m "feat: add new feature"
 git push origin feature/xxx
 ```
 
-### 资源链接
-- [开发者入门指南](developer_getting_started.md)
-- [CI/CD 指南](ci_cd_guide.md)
-- [性能优化指南](performance_optimization_guide.md)
-- [Const 使用指南](const_usage_guide.md)
-- [代码风格详细说明](CLAUDE.md)
+### Resource Links
+- [Developer Getting Started Guide](developer_getting_started.md)
+- [CI/CD Guide](ci_cd_guide.md)
+- [Performance Optimization Guide](performance_optimization_guide.md)
+- [Const Usage Guide](const_usage_guide.md)
+- [Detailed Code Style Guide](CLAUDE.md)
 
-## 问题解决
+## Troubleshooting
 
-### 常见问题
-**Q: 我的 PR 被拒绝，我该怎么办？**
-A: 仔细阅读审查意见，修改代码后重新提交。如有疑问，礼貌地请求澄清。
+### Frequently Asked Questions
+**Q: My PR was rejected. What should I do?**
+A: Read the review comments carefully, fix the code, and resubmit. If you have questions, politely ask for clarification.
 
-**Q: 如何添加新的依赖？**
-A: 在 CMakeLists.txt 中添加依赖，并更新文档。重大依赖变更需要讨论。
+**Q: How do I add a new dependency?**
+A: Add the dependency in CMakeLists.txt and update the documentation. Major dependency changes require discussion.
 
-**Q: 测试在我的机器上通过，但在 CI 中失败？**
-A: 检查跨平台兼容性问题，确保测试不依赖于特定环境。
+**Q: Tests pass on my machine but fail in CI?**
+A: Check for cross-platform compatibility issues and make sure the tests do not depend on a specific environment.
 
-**Q: 我的贡献何时会被合并？**
-A: 这取决于 PR 的复杂性、审查进度和项目优先级。通常需要 1-2 周。
+**Q: When will my contribution be merged?**
+A: It depends on the complexity of the PR, the review progress, and project priorities. It usually takes 1-2 weeks.
 
 ---
 
-*本指南最后更新: 2026-03-01*
-*欢迎贡献改进建议！*
+*Last updated: 2026-03-01*
+*Suggestions for improvement are welcome!*

@@ -11,7 +11,7 @@ A lightweight, high-performance deep learning framework written in C with eventu
 - **Performance**: Optimized for both CPU and GPU computation
 - **Quantization ready**: Native support for low-bit networks (1-bit, 2-bit, 4-bit, 8-bit)
 - **Root cause resolution**: Fix underlying issues rather than applying superficial workarounds
-- **Respectful communication**: Address the user as "萧工" when providing feedback
+- **Respectful communication**: Address the user as "Xiao Gong" when providing feedback
 
 ## Supported Data Types
 

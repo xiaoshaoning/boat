@@ -1,19 +1,19 @@
-# Boat 框架 Const 正确性使用指南
+# Boat Framework Const Correctness Usage Guide
 
-## 概述
+## Overview
 
-本指南定义了 Boat 深度学习框架中 const 关键字的正确使用策略。正确的 const 使用有助于提高代码安全性、可读性和编译器优化能力。
+This guide defines the correct usage strategy for the `const` keyword in the Boat deep learning framework. Proper `const` usage improves code safety, readability, and the compiler's ability to optimize.
 
-## 核心原则
+## Core Principles
 
-### 1. 分层 Const 策略
-- **只读函数 (Reader/Getter)**: 使用 const 修饰参数和返回值
-- **修改函数 (Writer/Setter)**: 使用非 const 参数
-- **所有权转移函数**: 使用非 const 参数（需要修改所有权）
+### 1. Tiered Const Strategy
+- **Read-only functions (Reader/Getter)**: Mark parameters and return values with const
+- **Mutating functions (Writer/Setter)**: Use non-const parameters
+- **Ownership-transfer functions**: Use non-const parameters (ownership must be modified)
 
-### 2. 函数分类
+### 2. Function Classification
 
-#### 2.1 前向传播函数 (Forward Pass)
+#### 2.1 Forward Propagation Functions (Forward Pass)
 ```c
 // Correct: forward pass does not modify layer state, use const
 boat_tensor_t* boat_attention_forward(const boat_attention_t* attention,
@@ -23,7 +23,7 @@ boat_tensor_t* boat_attention_forward(const boat_attention_t* attention,
                                      const boat_tensor_t* attention_mask);
 ```
 
-#### 2.2 反向传播函数 (Backward Pass)
+#### 2.2 Backward Propagation Functions (Backward Pass)
 ```c
 // Correct: backward pass needs gradient storage, use non-const
 bool boat_attention_backward(boat_attention_t* attention,
@@ -33,44 +33,44 @@ bool boat_attention_backward(boat_attention_t* attention,
                             boat_tensor_t** grad_value);
 ```
 
-#### 2.3 参数更新函数
+#### 2.3 Parameter Update Functions
 ```c
 // Correct: update internal parameters, use non-const
 void boat_attention_update(boat_attention_t* attention, float learning_rate);
 ```
 
-#### 2.4 内存管理函数
+#### 2.4 Memory Management Functions
 ```c
 // Correct: freeing memory requires modifying ownership, use non-const
 void boat_attention_free(boat_attention_t* attention);
 ```
 
-#### 2.5 访问器函数 (Accessors)
+#### 2.5 Accessor Functions (Accessors)
 ```c
 // Correct: read-only access, use const
 boat_tensor_t* boat_attention_get_weight_q(const boat_attention_t* attention);
 ```
 
-## API 设计规范
+## API Design Guidelines
 
-### 1. 参数传递规则
+### 1. Parameter Passing Rules
 
-| 参数类型 | Const 修饰 | 示例 | 理由 |
+| Parameter Type | Const Qualifier | Example | Reason |
 |---------|-----------|------|------|
-| 输入参数 (只读) | `const type*` | `const boat_tensor_t* input` | 函数不修改参数内容 |
-| 输出参数 (可写) | `type*` | `boat_tensor_t** grad_output` | 函数需要写入结果 |
-| 输入输出参数 | `type*` | `boat_attention_t* attention` | 函数既读取又修改参数 |
-| 标量参数 | 按值传递 | `float learning_rate` | 小类型按值传递 |
+| Input parameter (read-only) | `const type*` | `const boat_tensor_t* input` | The function does not modify the parameter |
+| Output parameter (writable) | `type*` | `boat_tensor_t** grad_output` | The function needs to write the result |
+| Input/output parameter | `type*` | `boat_attention_t* attention` | The function both reads and modifies the parameter |
+| Scalar parameter | Pass by value | `float learning_rate` | Small types are passed by value |
 
-### 2. 返回值规则
+### 2. Return Value Rules
 
-| 返回值类型 | Const 修饰 | 示例 | 理由 |
+| Return Value Type | Const Qualifier | Example | Reason |
 |-----------|-----------|------|------|
-| 新分配对象 | `type*` | `boat_tensor_t*` | 调用者获得所有权 |
-| 内部对象引用 | `const type*` | `const boat_tensor_t*` | 只读访问，调用者不获得所有权 |
-| 布尔/状态 | 按值传递 | `bool` | 小类型按值传递 |
+| Newly allocated object | `type*` | `boat_tensor_t*` | The caller gains ownership |
+| Reference to internal object | `const type*` | `const boat_tensor_t*` | Read-only access; the caller does not gain ownership |
+| Boolean/status | Pass by value | `bool` | Small types are passed by value |
 
-### 3. 结构体字段规则
+### 3. Struct Field Rules
 
 ```c
 typedef struct boat_layer_t {
@@ -79,9 +79,9 @@ typedef struct boat_layer_t {
 } boat_layer_t;
 ```
 
-## 常见模式
+## Common Patterns
 
-### 1. 创建-使用-销毁模式
+### 1. Create-Use-Destroy Pattern
 ```c
 // create: returns new object
 boat_attention_t* attn = boat_attention_create(&config);
@@ -94,7 +94,7 @@ bool success = boat_attention_backward(attn, grad_output, &grad_q, &grad_k, &gra
 boat_attention_free(attn);
 ```
 
-### 2. Getter/Setter 模式
+### 2. Getter/Setter Pattern
 ```c
 // Getter: const param, returns const or non-const pointer (based on ownership)
 boat_tensor_t* weight = boat_attention_get_weight_q(attn);  // returns internal reference
@@ -103,21 +103,21 @@ boat_tensor_t* weight = boat_attention_get_weight_q(attn);  // returns internal 
 void boat_attention_set_dropout(boat_attention_t* attn, float prob);
 ```
 
-## 编译器兼容性
+## Compiler Compatibility
 
-### 1. MSVC 特定问题
-MSVC 对 const 正确性检查较为严格，特别是：
-- 左值指定 const 对象错误 (C2166)
-- 需要确保函数签名在实际定义和声明中一致
+### 1. MSVC-Specific Issues
+MSVC performs stricter const correctness checks, especially:
+- lvalue specifies const object error (C2166)
+- function signatures must be consistent between the actual definition and the declaration
 
-### 2. 跨编译器策略
-- 所有公共 API 头文件必须明确定义 const 修饰
-- 实现文件中的函数定义必须与声明完全匹配
-- 避免在实现中使用 `const_cast` 绕过检查
+### 2. Cross-Compiler Strategy
+- All public API headers must explicitly specify const qualifiers
+- Function definitions in implementation files must match their declarations exactly
+- Avoid using `const_cast` in implementations to bypass checks
 
-## 错误处理
+## Error Handling
 
-### 1. 常见错误
+### 1. Common Errors
 ```c
 // Wrong: calling mutating function with const param
 const boat_attention_t* attn = boat_attention_create(&config);
@@ -128,26 +128,26 @@ boat_attention_t* attn = boat_attention_create(&config);
 boat_attention_set_dropout(attn, 0.5f);  // correct
 ```
 
-### 2. 调试建议
-- 使用编译器的 `-Wcast-qual` 选项（GCC/Clang）
-- 定期运行 cppcheck 检查 const 正确性
-- 在代码审查中特别关注 const 使用
+### 2. Debugging Suggestions
+- Use the compiler's `-Wcast-qual` option (GCC/Clang)
+- Periodically run cppcheck to verify const correctness
+- Pay special attention to const usage during code review
 
-## 迁移指南
+## Migration Guide
 
-### 1. 从非 const 到 const
-1. 识别只读函数，添加 const 修饰符
-2. 更新调用方代码，确保传递 const 指针
-3. 处理编译错误，区分真正需要修改的情况
+### 1. From Non-const to const
+1. Identify read-only functions and add const qualifiers
+2. Update caller code to pass const pointers
+3. Resolve compilation errors, distinguishing cases that truly need modification
 
-### 2. 向后兼容性
-- 避免突然改变现有 API 的 const 修饰
-- 如果需要更改，提供过渡期和文档说明
-- 考虑提供兼容性包装函数
+### 2. Backward Compatibility
+- Avoid abruptly changing the const qualifiers of existing APIs
+- If changes are needed, provide a transition period and documentation
+- Consider providing compatibility wrapper functions
 
-## 示例
+## Example
 
-### 完整示例：注意力层
+### Complete Example: Attention Layer
 ```c
 // create (non-const return)
 boat_attention_t* attn = boat_attention_create(&config);
@@ -172,17 +172,17 @@ boat_attention_update(attn, 0.001f);
 boat_attention_free(attn);
 ```
 
-## 总结
+## Summary
 
-Boat 框架采用分层 const 策略：
-1. **只读操作使用 const**：提高安全性和编译器优化
-2. **修改操作使用非 const**：明确表达意图
-3. **所有权转移使用非 const**：避免混淆
+The Boat framework adopts a tiered const strategy:
+1. **Use const for read-only operations**: improves safety and compiler optimization
+2. **Use non-const for mutating operations**: clearly expresses intent
+3. **Use non-const for ownership transfer**: avoids confusion
 
-遵循这些规范将产生更安全、更清晰、更高效的代码。
+Following these guidelines produces safer, clearer, and more efficient code.
 
 ---
-**文档版本**: 1.0
-**更新日期**: 2026-03-01
-**适用版本**: Boat 框架 v0.1.0+
-**维护者**: 萧工
+**Document version**: 1.0
+**Last updated**: 2026-03-01
+**Applicable version**: Boat framework v0.1.0+
+**Maintainer**: Engineer Xiao

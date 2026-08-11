@@ -1,35 +1,35 @@
-# Boat CI/CD 使用指南
+# Boat CI/CD Usage Guide
 
-## 概述
+## Overview
 
-Boat 使用 GitHub Actions 进行持续集成和持续部署，确保代码质量、跨平台兼容性和自动化测试。
+Boat uses GitHub Actions for continuous integration and continuous deployment, ensuring code quality, cross-platform compatibility, and automated testing.
 
-## CI 工作流
+## CI Workflow
 
-### 触发条件
-- **推送**到 main 分支
-- **Pull Request** 到 main 分支
-- **手动触发** (workflow_dispatch)
+### Trigger Conditions
+- **Push** to the main branch
+- **Pull Request** to the main branch
+- **Manual trigger** (workflow_dispatch)
 
-### 工作流文件
-- `.github/workflows/ci.yml` - 主要 CI 配置文件
+### Workflow Files
+- `.github/workflows/ci.yml` - the main CI configuration file
 
-## 工作流步骤
+## Workflow Steps
 
-### 1. 代码检出
-- 使用 `actions/checkout@v4`
-- 递归初始化子模块
+### 1. Checkout Code
+- Uses `actions/checkout@v4`
+- Recursively initializes submodules
 
-### 2. 依赖安装
-**Ubuntu**: 安装 cmake, build-essential, ccache
-**macOS**: 安装 cmake, ccache (通过 Homebrew)
-**Windows**: 安装 ccache (通过 Chocolatey)
+### 2. Install Dependencies
+**Ubuntu**: Install cmake, build-essential, ccache
+**macOS**: Install cmake, ccache (via Homebrew)
+**Windows**: Install ccache (via Chocolatey)
 
-### 3. 缓存配置
-- 使用 `hendrikmuhs/ccache-action@v1.2` 配置并缓存 ccache
-- 以 `runner.os` + `build_type` 作为缓存 key
+### 3. Cache Configuration
+- Uses `hendrikmuhs/ccache-action@v1.2` to configure and cache ccache
+- Uses `runner.os` + `build_type` as the cache key
 
-### 4. 配置 CMake
+### 4. Configure CMake
 ```yaml
 run: |
   mkdir build
@@ -41,94 +41,94 @@ run: |
     -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
 ```
 
-### 5. 构建项目
-- 记录构建开始时间
-- 执行 `cmake --build`
-- 显示构建持续时间
+### 5. Build the Project
+- Records the build start time
+- Runs `cmake --build`
+- Displays the build duration
 
-### 6. 运行测试
-- 使用 `ctest --output-on-failure`
-- 输出详细失败信息
+### 6. Run Tests
+- Uses `ctest --output-on-failure`
+- Outputs detailed failure information
 
-### 7. 静态分析（计划中）
-- 计划引入 `clang-tidy` 进行 C 代码质量检查（结合 `clang-analyzer`）
-- CUDA 代码静态分析工具支持有限，依赖运行时测试和 code review
-- 当前工作流暂未启用该步骤
+### 7. Static Analysis (Planned)
+- Plans to introduce `clang-tidy` for C code quality checks (combined with `clang-analyzer`)
+- CUDA code has limited static analysis tool support, relying on runtime testing and code review
+- This step is not yet enabled in the current workflow
 
-### 8. 示例构建
-- 通过 `-DBOAT_WITH_EXAMPLES=ON` 构建全部示例
-- 验证示例可编译
+### 8. Build Examples
+- Builds all examples via `-DBOAT_WITH_EXAMPLES=ON`
+- Verifies that the examples compile
 
-## 矩阵策略
+## Matrix Strategy
 
-### 操作系统矩阵
+### Operating System Matrix
 ```yaml
 matrix:
   os: [ubuntu-latest, windows-latest, macos-latest]
   build_type: [Release, Debug]
 ```
 
-### 当前配置
-- **3 个操作系统**: Ubuntu, Windows, macOS
-- **2 个构建类型**: Release, Debug
-- **总计 6 个组合**
+### Current Configuration
+- **3 operating systems**: Ubuntu, Windows, macOS
+- **2 build types**: Release, Debug
+- **6 combinations in total**
 
-### 扩展计划
-- 添加编译器矩阵 (GCC, Clang, MSVC)
-- 添加 CUDA 支持测试
-- 添加 sanitizer 测试 (AddressSanitizer, UndefinedBehaviorSanitizer)
+### Expansion Plans
+- Add a compiler matrix (GCC, Clang, MSVC)
+- Add CUDA support testing
+- Add sanitizer testing (AddressSanitizer, UndefinedBehaviorSanitizer)
 
-## 性能监控
+## Performance Monitoring
 
-### 构建时间跟踪
-- 记录构建开始和结束时间
-- 计算并显示构建持续时间
-- 监控构建时间变化趋势
+### Build Time Tracking
+- Records build start and end times
+- Computes and displays build duration
+- Monitors build time trends
 
-### 缓存效率
-- 显示 ccache 统计信息
-- 监控缓存命中率
-- 优化缓存配置
+### Cache Efficiency
+- Displays ccache statistics
+- Monitors cache hit rate
+- Optimizes cache configuration
 
-## 质量门禁
+## Quality Gates
 
-### 当前状态
-- 构建必须成功
-- 所有测试必须通过
-- 示例必须构建成功
+### Current Status
+- The build must succeed
+- All tests must pass
+- Examples must build successfully
 
-### 计划改进
-- 设置 clang-tidy 警告阈值
-- ✅ 已添加代码覆盖率报告（coverage job + Codecov 上传）
-- 添加性能基准测试
+### Planned Improvements
+- Set a clang-tidy warning threshold
+- ✅ Code coverage reporting added (coverage job + Codecov upload)
+- Add performance benchmarks
 
-## 故障排除
+## Troubleshooting
 
-### 常见问题
+### Common Issues
 
-#### 1. 构建失败
-- 检查操作系统特定依赖
-- 验证 CMake 配置选项
-- 查看完整构建日志
+#### 1. Build Failure
+- Check operating-system-specific dependencies
+- Verify CMake configuration options
+- Review the full build log
 
-#### 2. 测试失败
-- 检查测试输出详细信息
-- 验证测试数据可用性
-- 检查跨平台兼容性问题
+#### 2. Test Failure
+- Check detailed test output
+- Verify test data availability
+- Check for cross-platform compatibility issues
 
-#### 3. 静态分析警告
-- 运行本地 clang-tidy 验证
-- 参考 [Const 使用指南](const_usage_guide.md)
-- 逐步修复警告
+#### 3. Static Analysis Warnings
+- Run local clang-tidy to verify
+- Refer to the [Const Usage Guide](const_usage_guide.md)
+- Fix warnings incrementally
 
-### 调试 CI
-1. 启用 workflow_dispatch 手动触发
-2. 查看 GitHub Actions 详细日志
-3. 在本地复现问题
+### Debugging CI
+1. Enable manual workflow_dispatch triggering
+2. Review detailed GitHub Actions logs
+3. Reproduce the issue locally
 
-## 本地运行 CI 步骤
+## Running CI Steps Locally
 
-### 安装依赖
+### Installing Dependencies
 ```bash
 # Ubuntu
 sudo apt-get install -y cmake build-essential clang-tidy ccache
@@ -140,89 +140,89 @@ brew install cmake clang-tidy ccache
 choco install cmake llvm ccache -y  # clang-tidy is part of LLVM
 ```
 
-### 运行完整流程
+### Running the Full Flow
 ```bash
 mkdir build
 cd build
 cmake .. -DBOAT_WITH_TESTS=ON -DBOAT_WITH_EXAMPLES=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build . --config Release
 ctest --output-on-failure -C Release
-# C 代码静态分析
+# C static analysis
 clang-tidy src/**/*.c -- -Iinclude
-# 或使用扫描构建
+# or use a scan-build pass
 scan-build cmake --build . --config Release
 ```
 
-## 自定义工作流
+## Customizing the Workflow
 
-### 添加新步骤
-1. 编辑 `.github/workflows/ci.yml`
-2. 添加新的 step
-3. 测试通过 workflow_dispatch
+### Adding New Steps
+1. Edit `.github/workflows/ci.yml`
+2. Add a new step
+3. Test via workflow_dispatch
 
-### 修改矩阵
+### Modifying the Matrix
 ```yaml
 matrix:
   os: [ubuntu-latest, windows-latest, macos-latest]
   build_type: [Release, Debug]
-  compiler: [gcc, clang]  # 未来扩展
+  compiler: [gcc, clang]  # future extension
 ```
 
-### 条件执行
+### Conditional Execution
 ```yaml
 - name: Run GPU tests
   if: matrix.os == 'ubuntu-latest' && matrix.cuda == 'enabled'
   run: |
-    # GPU 特定测试
+    # GPU-specific tests
 ```
 
-## 最佳实践
+## Best Practices
 
-### 1. 快速反馈
-- 保持工作流快速运行
-- 使用缓存减少构建时间
-- 并行化独立任务
+### 1. Fast Feedback
+- Keep the workflow running fast
+- Use caching to reduce build time
+- Parallelize independent tasks
 
-### 2. 可靠性
-- 处理临时网络故障
-- 设置合理超时时间
-- 提供详细错误信息
+### 2. Reliability
+- Handle transient network failures
+- Set reasonable timeouts
+- Provide detailed error messages
 
-### 3. 可维护性
-- 使用清晰的步骤名称
-- 添加注释说明复杂逻辑
-- 定期更新依赖版本
+### 3. Maintainability
+- Use clear step names
+- Add comments explaining complex logic
+- Regularly update dependency versions
 
-### 4. 安全性
-- 使用 secrets 管理敏感信息
-- 定期检查依赖安全性
-- 遵循最小权限原则
+### 4. Security
+- Use secrets to manage sensitive information
+- Regularly check dependency security
+- Follow the principle of least privilege
 
-## 未来改进路线图
+## Future Improvement Roadmap
 
-### 短期 (1-2 个月)
-- [x] 添加 ccache 目录缓存
-- [ ] 扩展编译器矩阵
-- [ ] 添加构建时间趋势图
+### Short Term (1-2 months)
+- [x] Add ccache directory caching
+- [ ] Expand the compiler matrix
+- [ ] Add build time trend charts
 
-### 中期 (3-6 个月)
-- [x] 集成代码覆盖率 (Codecov)
-- [ ] 添加性能基准测试
-- [ ] 集成安全扫描 (CodeQL)
+### Mid Term (3-6 months)
+- [x] Integrate code coverage (Codecov)
+- [ ] Add performance benchmarks
+- [ ] Integrate security scanning (CodeQL)
 
-### 长期 (6+ 个月)
-- [ ] 添加发布自动化
-- [ ] 集成文档生成和部署
-- [ ] 添加 nightly 构建和测试
+### Long Term (6+ months)
+- [ ] Add release automation
+- [ ] Integrate documentation generation and deployment
+- [ ] Add nightly builds and testing
 
-## 相关文档
+## Related Documentation
 
-- [开发者入门指南](developer_getting_started.md)
-- [代码贡献指南](contribution_guide.md)
-- [性能优化指南](performance_optimization_guide.md)
-- [Const 使用指南](const_usage_guide.md)
+- [Developer Getting Started Guide](developer_getting_started.md)
+- [Code Contribution Guide](contribution_guide.md)
+- [Performance Optimization Guide](performance_optimization_guide.md)
+- [Const Usage Guide](const_usage_guide.md)
 
 ---
 
-*本指南最后更新: 2026-08-05*
-*对应 CI 版本: ci.yml v3.0*
+*Last updated: 2026-08-05*
+*Corresponding CI version: ci.yml v3.0*

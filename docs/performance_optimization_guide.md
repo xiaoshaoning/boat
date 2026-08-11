@@ -1,26 +1,26 @@
-# Boat 性能优化指南
+# Boat Performance Optimization Guide
 
-## 概述
+## Overview
 
-本指南提供 Boat 深度学习框架的性能优化策略、最佳实践和调优技巧，帮助开发者编写高效代码。
+This guide provides performance optimization strategies, best practices, and tuning tips for the Boat deep learning framework, helping developers write efficient code.
 
-## 性能原则
+## Performance Principles
 
-### 核心原则
-1. **测量优先**: 在优化前测量性能瓶颈
-2. **渐进优化**: 从算法优化开始，再到微优化
-3. **权衡考虑**: 平衡性能、可读性和可维护性
-4. **平台感知**: 考虑 CPU/GPU 架构差异
+### Core Principles
+1. **Measure first**: Measure performance bottlenecks before optimizing
+2. **Incremental optimization**: Start with algorithmic optimization, then move to micro-optimization
+3. **Trade-off considerations**: Balance performance, readability, and maintainability
+4. **Platform awareness**: Consider CPU/GPU architecture differences
 
-### 性能层级
-1. **算法层面**: 选择高效算法 (O(n) vs O(n²))
-2. **内存层面**: 优化内存访问模式
-3. **指令层面**: 减少指令数量，利用 SIMD
-4. **系统层面**: 并行化、缓存优化
+### Performance Levels
+1. **Algorithm level**: Choose efficient algorithms (O(n) vs O(n²))
+2. **Memory level**: Optimize memory access patterns
+3. **Instruction level**: Reduce instruction count, leverage SIMD
+4. **System level**: Parallelization, cache optimization
 
-## 性能测量工具
+## Performance Measurement Tools
 
-### 时间测量
+### Time Measurement
 ```c
 #include <time.h>
 
@@ -31,7 +31,7 @@ double elapsed = (double)(end - start) / CLOCKS_PER_SEC;
 printf("Time: %f seconds\n", elapsed);
 ```
 
-### 内存测量
+### Memory Measurement
 ```c
 #include <stdlib.h>
 #include <stdio.h>
@@ -42,20 +42,20 @@ size_t end_memory = get_current_memory_usage();
 printf("Memory delta: %zu bytes\n", end_memory - start_memory);
 ```
 
-### 性能分析工具
+### Performance Analysis Tools
 - **Linux**: `perf`, `valgrind --tool=callgrind`, `gprof`
 - **macOS**: Instruments, `sample`
 - **Windows**: Visual Studio Profiler, Windows Performance Toolkit
-- **跨平台**: `google/benchmark` 库
+- **Cross-platform**: `google/benchmark` library
 
-## 张量操作优化
+## Tensor Operation Optimization
 
-### 内存布局
-- **连续内存**: 确保张量数据在内存中连续存储
-- **缓存友好**: 优化数据访问模式，提高缓存命中率
-- **对齐**: 确保内存对齐，支持 SIMD 指令
+### Memory Layout
+- **Contiguous memory**: Ensure tensor data is stored contiguously in memory
+- **Cache-friendly**: Optimize data access patterns to improve cache hit rates
+- **Alignment**: Ensure memory alignment to support SIMD instructions
 
-### 示例优化
+### Example Optimization
 ```c
 // inefficient: compute index each time
 for (size_t i = 0; i < n; i++) {
@@ -73,19 +73,19 @@ for (size_t i = 0; i < n; i++) {
 }
 ```
 
-### 批量操作
-- 使用批量处理减少函数调用开销
-- 合并小操作为大操作
-- 利用向量化指令
+### Batch Operations
+- Use batched processing to reduce function call overhead
+- Merge small operations into larger ones
+- Leverage vectorized instructions
 
-## 内存管理优化
+## Memory Management Optimization
 
-### 分配策略
-1. **池化分配**: 复用内存块，减少 malloc/free 调用
-2. **预分配**: 预先分配足够内存，避免频繁重分配
-3. **对齐分配**: 使用对齐的内存分配，提高 SIMD 性能
+### Allocation Strategies
+1. **Pooled allocation**: Reuse memory blocks to reduce malloc/free calls
+2. **Pre-allocation**: Pre-allocate sufficient memory to avoid frequent reallocation
+3. **Aligned allocation**: Use aligned memory allocation to improve SIMD performance
 
-### 示例: 内存池
+### Example: Memory Pool
 ```c
 typedef struct {
     void** blocks;
@@ -105,14 +105,14 @@ void pool_reset(memory_pool_t* pool) {
 }
 ```
 
-### 减少内存碎片
-- 使用固定大小分配器
-- 避免频繁的小内存分配
-- 定期整理内存
+### Reducing Memory Fragmentation
+- Use fixed-size allocators
+- Avoid frequent small memory allocations
+- Defragment memory periodically
 
-## 计算优化
+## Computation Optimization
 
-### 循环优化
+### Loop Optimization
 ```c
 // loop unrolling
 for (size_t i = 0; i < n; i += 4) {
@@ -132,12 +132,12 @@ for (size_t i = 0; i < n; i++) {
 }
 ```
 
-### 数学优化
-- 使用查表法替代复杂计算
-- 近似计算，在可接受误差范围内
-- 利用数学恒等式简化表达式
+### Mathematical Optimization
+- Use lookup tables instead of complex computations
+- Use approximate computations within acceptable error bounds
+- Use mathematical identities to simplify expressions
 
-### SIMD 优化
+### SIMD Optimization
 ```c
 #ifdef __AVX2__
 #include <immintrin.h>
@@ -153,9 +153,9 @@ void vector_add(float* a, float* b, float* c, size_t n) {
 #endif
 ```
 
-## 并行化优化
+## Parallelization Optimization
 
-### OpenMP 集成
+### OpenMP Integration
 ```c
 #include <omp.h>
 
@@ -165,30 +165,30 @@ for (size_t i = 0; i < n; i++) {
 }
 ```
 
-### 线程池
-- 创建线程池，避免频繁创建销毁线程
-- 任务队列管理并行任务
-- 负载均衡，避免线程饥饿
+### Thread Pools
+- Create thread pools to avoid frequent thread creation and destruction
+- Use task queues to manage parallel tasks
+- Balance load to avoid thread starvation
 
-### 数据并行 vs 任务并行
-- **数据并行**: 相同操作应用于不同数据 (适合 SIMD/GPU)
-- **任务并行**: 不同操作并行执行 (适合多核 CPU)
+### Data Parallelism vs Task Parallelism
+- **Data parallelism**: The same operation applied to different data (suited for SIMD/GPU)
+- **Task parallelism**: Different operations executed in parallel (suited for multi-core CPUs)
 
-## GPU 优化 (未来支持)
+## GPU Optimization (Future Support)
 
-### 内存传输优化
-- 最小化主机-设备数据传输
-- 使用 pinned memory 加速传输
-- 异步传输与计算重叠
+### Memory Transfer Optimization
+- Minimize host-device data transfers
+- Use pinned memory to accelerate transfers
+- Overlap asynchronous transfers with computation
 
-### 内核优化
-- 优化线程网格配置
-- 使用共享内存减少全局内存访问
-- 避免线程发散 (warp divergence)
+### Kernel Optimization
+- Optimize thread grid configuration
+- Use shared memory to reduce global memory access
+- Avoid thread divergence (warp divergence)
 
-## 编译器优化
+## Compiler Optimization
 
-### 编译标志
+### Compilation Flags
 ```cmake
 # Release mode optimization
 set(CMAKE_C_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
@@ -198,7 +198,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 ```
 
-### 内联优化
+### Inline Optimization
 ```c
 // use static inline to hint compiler
 static inline float fast_sigmoid(float x) {
@@ -206,7 +206,7 @@ static inline float fast_sigmoid(float x) {
 }
 ```
 
-### 分支预测
+### Branch Prediction
 ```c
 // hint branch probability to compiler
 if (likely(condition)) {  // likely true
@@ -216,27 +216,27 @@ if (likely(condition)) {  // likely true
 }
 ```
 
-## 框架特定优化
+## Framework-Specific Optimizations
 
-### 计算图优化
-1. **操作融合**: 合并多个操作为一个内核
-2. **常量折叠**: 预先计算常量表达式
-3. **死代码消除**: 移除无用的计算节点
-4. **公共子表达式消除**: 复用重复计算结果
+### Computation Graph Optimization
+1. **Operator fusion**: Fuse multiple operations into a single kernel
+2. **Constant folding**: Pre-compute constant expressions
+3. **Dead code elimination**: Remove unused computation nodes
+4. **Common subexpression elimination**: Reuse duplicate computation results
 
-### 自动微分优化
-- 反向传播内存复用
-- 梯度计算流水线化
-- 检查点技术，平衡内存与计算
+### Automatic Differentiation Optimization
+- Reuse memory in backpropagation
+- Pipeline gradient computation
+- Use checkpointing techniques to balance memory and computation
 
-### 模型加载优化
-- 懒加载模型参数
-- 并行加载大型模型
-- 使用内存映射文件
+### Model Loading Optimization
+- Lazy-load model parameters
+- Load large models in parallel
+- Use memory-mapped files
 
-## 性能测试套件
+## Performance Test Suite
 
-### 基准测试
+### Benchmarking
 ```c
 #include <time.h>
 
@@ -264,114 +264,114 @@ int main() {
 }
 ```
 
-### 性能回归测试
-- 每次提交运行性能基准
-- 检测性能回归
-- 设置性能阈值
+### Performance Regression Testing
+- Run performance benchmarks on every commit
+- Detect performance regressions
+- Set performance thresholds
 
-### 监控与报警
-- 记录历史性能数据
-- 设置性能退化报警
-- 可视化性能趋势
+### Monitoring and Alerting
+- Record historical performance data
+- Set performance degradation alerts
+- Visualize performance trends
 
-## 优化案例研究
+## Optimization Case Studies
 
-### 案例 1: 矩阵乘法优化
-**问题**: 朴素实现 O(n³) 复杂度
-**优化**:
-1. 使用分块算法提高缓存命中率
-2. 使用 SIMD 指令向量化
-3. 使用多线程并行化
-**结果**: 速度提升 20 倍
+### Case 1: Matrix Multiplication Optimization
+**Problem**: Naive implementation with O(n³) complexity
+**Optimization**:
+1. Use blocking algorithms to improve cache hit rates
+2. Vectorize with SIMD instructions
+3. Parallelize with multiple threads
+**Result**: 20x speedup
 
-### 案例 2: 激活函数优化
-**问题**: `expf()` 函数调用开销大
-**优化**:
-1. 使用近似公式: `sigmoid(x) ≈ 0.5 * (x / (1 + |x|)) + 0.5`
-2. 使用查表法预处理
-3. 向量化计算
-**结果**: 速度提升 5 倍，误差 < 0.1%
+### Case 2: Activation Function Optimization
+**Problem**: `expf()` function call overhead is high
+**Optimization**:
+1. Use an approximate formula: `sigmoid(x) ≈ 0.5 * (x / (1 + |x|)) + 0.5`
+2. Use lookup tables for precomputation
+3. Vectorize the computation
+**Result**: 5x speedup, error < 0.1%
 
-### 案例 3: 内存分配优化
-**问题**: 训练循环中频繁分配释放内存
-**优化**:
-1. 实现张量内存池
-2. 复用前向传播内存用于反向传播
-3. 预分配最大所需内存
-**结果**: 内存分配开销减少 90%
+### Case 3: Memory Allocation Optimization
+**Problem**: Frequent memory allocation and deallocation in the training loop
+**Optimization**:
+1. Implement a tensor memory pool
+2. Reuse forward propagation memory for backward propagation
+3. Pre-allocate the maximum required memory
+**Result**: 90% reduction in memory allocation overhead
 
-## 最佳实践清单
+## Best Practices Checklist
 
-### 开发时
-- [ ] 编写可读代码，然后优化
-- [ ] 添加性能测试
-- [ ] 使用性能分析工具定位瓶颈
-- [ ] 考虑算法复杂度
+### During Development
+- [ ] Write readable code first, then optimize
+- [ ] Add performance tests
+- [ ] Use profiling tools to locate bottlenecks
+- [ ] Consider algorithmic complexity
 
-### 优化时
-- [ ] 一次优化一个瓶颈
-- [ ] 验证优化后功能正确性
-- [ ] 测量优化前后性能
-- [ ] 考虑不同硬件平台
+### During Optimization
+- [ ] Optimize one bottleneck at a time
+- [ ] Verify functional correctness after optimization
+- [ ] Measure performance before and after optimization
+- [ ] Consider different hardware platforms
 
-### 维护时
-- [ ] 定期运行性能测试
-- [ ] 监控性能回归
-- [ ] 更新优化指南
-- [ ] 分享优化经验
+### During Maintenance
+- [ ] Run performance tests regularly
+- [ ] Monitor performance regressions
+- [ ] Update the optimization guide
+- [ ] Share optimization experience
 
-## 工具与资源
+## Tools and Resources
 
-### 分析工具
+### Analysis Tools
 - **Profiler**: `perf`, `gprof`, `VTune`
 - **Memory**: `valgrind`, `AddressSanitizer`
 - **Cache**: `cachegrind`, `perf c2c`
 
-### 优化库
-- **SIMD**: Intel IPP, ARM NEON 内在函数
-- **并行**: OpenMP, Intel TBB
-- **数学**: Intel MKL, OpenBLAS
+### Optimization Libraries
+- **SIMD**: Intel IPP, ARM NEON intrinsics
+- **Parallel**: OpenMP, Intel TBB
+- **Math**: Intel MKL, OpenBLAS
 
-### 学习资源
-- [Intel 优化手册](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html)
-- [ARM 优化指南](https://developer.arm.com/documentation)
-- [CUDA 最佳实践指南](https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/)
+### Learning Resources
+- [Intel Optimization Manual](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html)
+- [ARM Optimization Guide](https://developer.arm.com/documentation)
+- [CUDA Best Practices Guide](https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/)
 
-## 性能调优工作流
+## Performance Tuning Workflow
 
-1. **定位瓶颈**: 使用分析工具找到热点
-2. **分析原因**: 理解性能限制因素（CPU、内存、I/O）
-3. **设计优化**: 选择合适的优化策略
-4. **实施优化**: 编写优化代码
-5. **验证结果**: 测试功能和性能
-6. **集成监控**: 添加性能监控和报警
+1. **Locate bottlenecks**: Use profiling tools to find hot spots
+2. **Analyze causes**: Understand performance limiting factors (CPU, memory, I/O)
+3. **Design optimizations**: Choose appropriate optimization strategies
+4. **Implement optimizations**: Write optimized code
+5. **Verify results**: Test functionality and performance
+6. **Integrate monitoring**: Add performance monitoring and alerting
 
-## 注意事项
+## Notes
 
-### 避免过早优化
-- 首先确保代码正确
-- 优化显著的瓶颈，而非微观优化
-- 保持代码可读性和可维护性
+### Avoid Premature Optimization
+- Ensure code correctness first
+- Optimize significant bottlenecks rather than micro-optimizing
+- Maintain code readability and maintainability
 
-### 平台兼容性
-- 为不同平台提供优化实现
-- 运行时检测硬件特性
-- 提供回退到通用实现
+### Platform Compatibility
+- Provide optimized implementations for different platforms
+- Detect hardware features at runtime
+- Provide fallbacks to generic implementations
 
-### 测试覆盖
-- 优化后运行完整测试套件
-- 验证数值精度可接受
-- 确保边缘情况正确处理
+### Test Coverage
+- Run the full test suite after optimization
+- Verify numerical accuracy is acceptable
+- Ensure edge cases are handled correctly
 
-## 贡献优化
+## Contributing Optimizations
 
-欢迎贡献性能优化！请遵循：
-1. 提供性能测量数据（优化前后对比）
-2. 确保不破坏现有功能
-3. 添加适当的测试
-4. 更新相关文档
+Contributions of performance optimizations are welcome! Please follow:
+1. Provide performance measurement data (before/after comparison)
+2. Ensure existing functionality is not broken
+3. Add appropriate tests
+4. Update related documentation
 
 ---
 
-*本指南最后更新: 2026-03-01*
-*性能优化是持续过程，欢迎分享经验和改进建议！*
+*Last updated: 2026-03-01*
+*Performance optimization is an ongoing process — feel free to share your experiences and improvement suggestions!*

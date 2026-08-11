@@ -1,39 +1,39 @@
-# Windows 编译指南
+# Windows Compilation Guide
 
-本文档详细介绍了在 Windows 平台上编译 Boat 深度学习框架的步骤、注意事项和最佳实践。重点涵盖 MSVC 编译器特定行为、DLL 构建优化控制和跨平台兼容性保障。
+This document describes in detail the steps, considerations, and best practices for compiling the Boat deep learning framework on the Windows platform. It focuses on MSVC compiler-specific behavior, DLL build optimization control, and cross-platform compatibility guarantees.
 
-## 目录
+## Table of Contents
 
-1. [环境准备](#环境准备)
-2. [构建配置](#构建配置)
-3. [MSVC 编译器特性](#msvc-编译器特性)
-4. [DLL 导出最佳实践](#dll-导出最佳实践)
-5. [编译器优化控制](#编译器优化控制)
-6. [调试与诊断](#调试与诊断)
-7. [常见问题解决](#常见问题解决)
-8. [跨平台注意事项](#跨平台注意事项)
+1. [Environment Preparation](#environment-preparation)
+2. [Build Configuration](#build-configuration)
+3. [MSVC Compiler Features](#msvc-compiler-features)
+4. [DLL Export Best Practices](#dll-export-best-practices)
+5. [Compiler Optimization Control](#compiler-optimization-control)
+6. [Debugging and Diagnostics](#debugging-and-diagnostics)
+7. [Troubleshooting](#troubleshooting)
+8. [Cross-Platform Considerations](#cross-platform-considerations)
 
-## 环境准备
+## Environment Preparation
 
-### 必备工具
+### Required Tools
 
-1. **Visual Studio 2022 或更高版本**
-   - 包含 MSVC 编译器工具链
-   - 推荐安装 "使用 C++ 的桌面开发" 工作负载
-   - 确保 Windows SDK 版本 10.0.19041.0 或更高
+1. **Visual Studio 2022 or later**
+   - Includes the MSVC compiler toolchain
+   - It is recommended to install the "Desktop development with C++" workload
+   - Ensure the Windows SDK version is 10.0.19041.0 or later
 
-2. **CMake 3.20 或更高版本**
-   - 从 [cmake.org](https://cmake.org/download/) 下载
-   - 添加 CMake 到系统 PATH
+2. **CMake 3.20 or later**
+   - Download from [cmake.org](https://cmake.org/download/)
+   - Add CMake to the system PATH
 
 3. **Git**
-   - 用于获取源代码
-   - 推荐使用 Git for Windows
+   - Used to fetch the source code
+   - Git for Windows is recommended
 
-4. **可选：Windows Terminal**
-   - 提供更好的命令行体验
+4. **Optional: Windows Terminal**
+   - Provides a better command-line experience
 
-### 环境验证
+### Environment Verification
 
 ```bash
 # Verify MSVC compiler
@@ -46,9 +46,9 @@ cmake --version
 git --version
 ```
 
-## 构建配置
+## Build Configuration
 
-### 基本构建步骤
+### Basic Build Steps
 
 ```bash
 # 1. Clone repository
@@ -66,17 +66,17 @@ cmake .. -DBOAT_BUILD_SHARED=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build . --config Release
 ```
 
-### 关键 CMake 选项
+### Key CMake Options
 
-| 选项 | 描述 | 默认值 |
+| Option | Description | Default |
 |------|------|--------|
-| `BOAT_BUILD_SHARED` | 构建动态库 (DLL)；默认构建静态库 | `OFF` |
-| `BOAT_WITH_TESTS` | 构建测试 | `OFF` |
-| `BOAT_WITH_EXAMPLES` | 构建示例 | `OFF` |
-| `CMAKE_BUILD_TYPE` | 构建类型 (Debug/Release/RelWithDebInfo) | 未设置 |
-| `CMAKE_INSTALL_PREFIX` | 安装目录 | `C:/Program Files/boat` |
+| `BOAT_BUILD_SHARED` | Build a shared library (DLL); builds a static library by default | `OFF` |
+| `BOAT_WITH_TESTS` | Build the tests | `OFF` |
+| `BOAT_WITH_EXAMPLES` | Build the examples | `OFF` |
+| `CMAKE_BUILD_TYPE` | Build type (Debug/Release/RelWithDebInfo) | unset |
+| `CMAKE_INSTALL_PREFIX` | Installation directory | `C:/Program Files/boat` |
 
-### 高级构建配置
+### Advanced Build Configuration
 
 ```bash
 # Debug build with symbol information
@@ -89,42 +89,42 @@ cmake .. -DBOAT_BUILD_SHARED=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake .. -G "Visual Studio 17 2022" -A x64 -DBOAT_BUILD_SHARED=ON
 ```
 
-### MinGW-w64 (GCC) 构建
+### MinGW-w64 (GCC) Build
 
-Boat 也支持使用 MinGW-w64 GCC 在 Windows 上构建（已验证：MSYS2
-`mingw64` 工具链，gcc 13，ctest **29/29** 全部通过）。与 MSVC 构建的
-区别：默认生成静态库（`libboat.a`），使用 `-G "MinGW Makefiles"`。
+Boat can also be built on Windows using MinGW-w64 GCC (verified with the MSYS2
+`mingw64` toolchain, gcc 13, ctest **29/29** all passing). The differences from an
+MSVC build: a static library (`libboat.a`) is produced by default, using `-G "MinGW Makefiles"`.
 
 ```bash
-# 1. 安装 MSYS2 并添加 mingw64 到 PATH
+# 1. Install MSYS2 and add mingw64 to PATH
 #    https://www.msys2.org/  → pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake
 
-# 2. 配置（务必显式指定 mingw 编译器，避免选中 MSVC）
+# 2. Configure (explicitly specify the mingw compiler so MSVC is not picked)
 cmake -S . -B build-mingw -G "MinGW Makefiles" ^
   -DCMAKE_C_COMPILER=C:/msys64/mingw64/bin/gcc.exe ^
   -DBOAT_WITH_TESTS=ON -DBOAT_WITH_EXAMPLES=ON ^
   -DBOAT_WITH_HUGGINGFACE=ON -DBOAT_WITH_ONNX=ON -DBOAT_WITH_GGUF=ON ^
   -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
-# 3. 构建与测试
+# 3. Build and test
 cmake --build build-mingw -j
 ctest --test-dir build-mingw --output-on-failure -j
 ```
 
-注意事项：
-- 运行生成的 `.exe` 时需将 `C:\msys64\mingw64\bin` 加入 `PATH`
-  （依赖 `libgomp-1.dll`、`libwinpthread-1.dll` 等运行时 DLL）。
-- mingw GCC 会报告少量预置的 `-Wdiscarded-qualifiers` / `-Wattributes`
-  警告（如 `src/graph/edge.c` 的 const 丢弃、`error.c` 的 `__thread`
-  属性），不影响构建与测试结果。
-- 示例程序（`examples/regression`、`serialization`、`transformer` 等）
-  在 mingw 构建下均可正常运行。
+Notes:
+- When running the generated `.exe`, add `C:\msys64\mingw64\bin` to `PATH`
+  (it depends on runtime DLLs such as `libgomp-1.dll` and `libwinpthread-1.dll`).
+- MinGW GCC reports a few pre-existing `-Wdiscarded-qualifiers` / `-Wattributes`
+  warnings (e.g., discarded const in `src/graph/edge.c`, `error.c`'s `__thread`
+  attribute); these do not affect the build or test results.
+- The example programs (`examples/regression`, `serialization`, `transformer`, etc.)
+  all run correctly under a MinGW build.
 
-## MSVC 编译器特性
+## MSVC Compiler Features
 
-### 调用约定
+### Calling Convention
 
-Windows x64 平台使用统一的调用约定，无需显式指定。Windows x86 平台需要使用 `__stdcall`。
+The Windows x64 platform uses a single unified calling convention, so no explicit specifier is required. The Windows x86 platform requires `__stdcall`.
 
 ```c
 // include/boat/export.h
@@ -140,9 +140,9 @@ Windows x64 平台使用统一的调用约定，无需显式指定。Windows x86
 #endif
 ```
 
-### DLL 导出/导入
+### DLL Export/Import
 
-使用 `__declspec(dllexport)` 和 `__declspec(dllimport)` 控制符号可见性。
+Use `__declspec(dllexport)` and `__declspec(dllimport)` to control symbol visibility.
 
 ```c
 // include/boat/export.h
@@ -163,28 +163,28 @@ Windows x64 平台使用统一的调用约定，无需显式指定。Windows x86
 #endif
 ```
 
-### 编译器优化行为
+### Compiler Optimization Behavior
 
-MSVC 编译器在 Release 模式下会进行激进优化，可能导致以下问题：
+In Release mode, the MSVC compiler applies aggressive optimizations that can lead to the following issues:
 
-1. **函数级链接 (Function-Level Linking, /Gy)**
-   - 将函数打包为 COMDAT 节
-   - 允许链接器消除未引用函数
-   - 可能导致简单包装函数被消除
+1. **Function-Level Linking (/Gy)**
+   - Packages functions into COMDAT sections
+   - Allows the linker to eliminate unreferenced functions
+   - Can cause simple wrapper functions to be eliminated
 
-2. **内联优化**
-   - 自动内联小函数
-   - 对于简单包装函数，可能导致函数体被完全优化掉
+2. **Inlining Optimization**
+   - Automatically inlines small functions
+   - For simple wrapper functions, the function body may be optimized away entirely
 
-3. **全局优化 (/GL) 和链接时代码生成 (LTCG)**
-   - 跨模块优化
-   - 增加优化能力，但也可能引入意外行为
+3. **Global Optimization (/GL) and Link-Time Code Generation (LTCG)**
+   - Cross-module optimization
+   - Increases optimization capability, but may also introduce unexpected behavior
 
-## DLL 导出最佳实践
+## DLL Export Best Practices
 
-### 1. 简单包装函数保护
+### 1. Protecting Simple Wrapper Functions
 
-简单包装函数（特别是仅调用另一个函数的包装器）容易被编译器优化消除。使用 `BOAT_NOINLINE` 强制保留函数体。
+Simple wrapper functions (especially wrappers that only call another function) can easily be eliminated by compiler optimization. Use `BOAT_NOINLINE` to force the function body to be retained.
 
 ```c
 // Dangerous: simple wrapper may be optimized away
@@ -200,9 +200,9 @@ BOAT_NOINLINE BOAT_API boat_tensor_t* boat_norm_layer_backward(boat_norm_layer_t
 }
 ```
 
-### 2. 函数声明一致性
+### 2. Consistent Function Declarations
 
-确保头文件声明和源文件定义一致：
+Ensure that header declarations and source definitions are consistent:
 
 ```c
 // include/boat/layers.h - header declaration
@@ -222,9 +222,9 @@ boat_tensor_t* boat_dense_layer_backward(boat_dense_layer_t* layer,
 }
 ```
 
-### 3. 调用约定统一
+### 3. Unified Calling Convention
 
-对所有导出函数使用 `BOAT_CALL` 宏确保跨平台一致性：
+Use the `BOAT_CALL` macro on all exported functions to ensure cross-platform consistency:
 
 ```c
 // Recommended: use BOAT_CALL for correct calling convention
@@ -235,23 +235,23 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_attention_layer_forward(boat_attention_la
                                                                const boat_tensor_t* attention_mask);
 ```
 
-### 4. 函数复杂度阈值
+### 4. Function Complexity Thresholds
 
-对于以下类型的函数，建议添加 `BOAT_NOINLINE`：
+For the following types of functions, adding `BOAT_NOINLINE` is recommended:
 
-| 函数类型 | 示例 | 风险等级 |
+| Function Type | Example | Risk Level |
 |----------|------|----------|
-| 简单包装器 | 仅调用另一个函数 | 高 |
-| 返回常量 | 返回 `NULL`、`0` 等 | 高 |
-| 简单 getter/setter | 返回成员变量或参数 | 中 |
-| 错误检查包装器 | 检查参数后调用实际函数 | 中 |
-| 复杂函数 | 包含循环、分配、系统调用 | 低 |
+| Simple wrapper | Only calls another function | High |
+| Returns a constant | Returns `NULL`, `0`, etc. | High |
+| Simple getter/setter | Returns a member variable or argument | Medium |
+| Error-checking wrapper | Checks arguments, then calls the actual function | Medium |
+| Complex function | Contains loops, allocations, system calls | Low |
 
-## 编译器优化控制
+## Compiler Optimization Control
 
-### BOAT_NOINLINE 宏
+### The BOAT_NOINLINE Macro
 
-框架提供了统一的 `BOAT_NOINLINE` 宏处理各平台 noinline 属性：
+The framework provides a unified `BOAT_NOINLINE` macro that handles the noinline attribute across platforms:
 
 ```c
 // include/boat/export.h
@@ -264,29 +264,29 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_attention_layer_forward(boat_attention_la
 #endif
 ```
 
-### 使用场景
+### Use Cases
 
-1. **所有层接口包装函数**
+1. **All layer interface wrapper functions**
    ```c
    BOAT_NOINLINE BOAT_API boat_tensor_t* boat_norm_layer_backward(...);
    BOAT_NOINLINE BOAT_API boat_tensor_t* boat_attention_layer_forward(...);
    ```
 
-2. **简单工具函数**
+2. **Simple utility functions**
    ```c
    BOAT_NOINLINE BOAT_API const char* boat_get_version_string(void);
    BOAT_NOINLINE BOAT_API size_t boat_get_alignment(void);
    ```
 
-3. **初始化/清理函数**
+3. **Initialization/cleanup functions**
    ```c
    BOAT_NOINLINE BOAT_API void boat_initialize(void);
    BOAT_NOINLINE BOAT_API void boat_cleanup(void);
    ```
 
-### 编译器选项控制
+### Compiler Option Control
 
-在 CMake 中控制编译器优化选项：
+Control compiler optimization options in CMake:
 
 ```cmake
 # CMakeLists.txt snippet
@@ -301,11 +301,11 @@ if(MSVC)
 endif()
 ```
 
-## 调试与诊断
+## Debugging and Diagnostics
 
-### DLL 导出符号验证
+### Verifying DLL Export Symbols
 
-构建后验证 DLL 导出符号：
+Verify the DLL's exported symbols after the build:
 
 ```bash
 # Use dumpbin to check exported functions
@@ -315,9 +315,9 @@ dumpbin /exports build/Release/boat.dll
 dumpbin /exports build/Release/boat.dll | findstr "boat_attention_layer_backward"
 ```
 
-### 调试构建配置
+### Debug Build Configuration
 
-创建专门的调试构建配置：
+Create a dedicated debug build configuration:
 
 ```bash
 # Debug DLL build
@@ -327,9 +327,9 @@ cmake .. -DBOAT_BUILD_SHARED=ON -DCMAKE_BUILD_TYPE=Debug
 cmake --build . --config Debug
 ```
 
-### 运行时诊断
+### Runtime Diagnostics
 
-在代码中添加平台特定诊断：
+Add platform-specific diagnostics to your code:
 
 ```c
 #include <boat/export.h>
@@ -345,69 +345,69 @@ BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_layer_backward(..
 }
 ```
 
-## 常见问题解决
+## Troubleshooting
 
-### 问题 1: DLL 导出函数缺失
+### Issue 1: Missing DLL Export Functions
 
-**症状**: 使用 `dumpbin /exports` 检查时，预期函数未出现在导出表中。
+**Symptoms**: When inspected with `dumpbin /exports`, an expected function is missing from the export table.
 
-**可能原因**:
-1. 函数未使用 `BOAT_API` 修饰符
-2. 函数被编译器优化消除
-3. 链接器优化移除了未引用函数
+**Possible causes**:
+1. The function does not use the `BOAT_API` modifier
+2. The function was eliminated by compiler optimization
+3. Linker optimization removed the unreferenced function
 
-**解决方案**:
-1. 确保函数声明和定义都使用 `BOAT_API`
-2. 为简单包装函数添加 `BOAT_NOINLINE`
-3. 调整链接器选项：`/OPT:NOREF`
+**Solutions**:
+1. Ensure both the declaration and definition use `BOAT_API`
+2. Add `BOAT_NOINLINE` to simple wrapper functions
+3. Adjust the linker option: `/OPT:NOREF`
 
-### 问题 2: 函数调用崩溃
+### Issue 2: Crash on Function Call
 
-**症状**: 调用 DLL 导出函数时程序崩溃。
+**Symptoms**: The program crashes when calling a DLL-exported function.
 
-**可能原因**:
-1. 调用约定不匹配
-2. 堆栈指针错位
-3. 参数传递错误
+**Possible causes**:
+1. Calling convention mismatch
+2. Stack pointer misalignment
+3. Incorrect argument passing
 
-**解决方案**:
-1. 确保所有导出函数使用 `BOAT_CALL` 宏
-2. 验证函数签名一致性
-3. 使用调试器检查调用堆栈
+**Solutions**:
+1. Ensure all exported functions use the `BOAT_CALL` macro
+2. Verify function signature consistency
+3. Use a debugger to inspect the call stack
 
-### 问题 3: 性能测试失败
+### Issue 3: Performance Test Failure
 
-**症状**: 性能测试中函数返回 `NULL` 或无效值。
+**Symptoms**: A function returns `NULL` or an invalid value during performance testing.
 
-**可能原因**:
-1. 函数体被编译器优化消除
-2. 缓存管理问题
-3. 线程同步问题
+**Possible causes**:
+1. The function body was eliminated by compiler optimization
+2. Cache management issues
+3. Thread synchronization issues
 
-**解决方案**:
-1. 添加 `BOAT_NOINLINE` 防止优化
-2. 添加调试输出验证函数执行
-3. 检查缓存有效性
+**Solutions**:
+1. Add `BOAT_NOINLINE` to prevent optimization
+2. Add debug output to verify function execution
+3. Check cache validity
 
-### 问题 4: 跨平台行为不一致
+### Issue 4: Inconsistent Cross-Platform Behavior
 
-**症状**: 代码在 Windows 上失败，但在 Linux/macOS 上正常工作。
+**Symptoms**: The code fails on Windows but works correctly on Linux/macOS.
 
-**可能原因**:
-1. 平台特定编译器优化差异
-2. DLL 与共享库机制不同
-3. 调用约定差异
+**Possible causes**:
+1. Platform-specific compiler optimization differences
+2. DLL and shared library mechanisms differ
+3. Calling convention differences
 
-**解决方案**:
-1. 使用统一的宏处理平台差异
-2. 在各平台上运行完整测试套件
-3. 实现平台兼容性测试
+**Solutions**:
+1. Use unified macros to handle platform differences
+2. Run the full test suite on each platform
+3. Implement platform compatibility tests
 
-## 跨平台注意事项
+## Cross-Platform Considerations
 
-### 宏定义兼容性
+### Macro Definition Compatibility
 
-确保所有平台特定代码通过宏定义处理：
+Ensure all platform-specific code is handled through macro definitions:
 
 ```c
 // Wrong: directly using platform-specific syntax
@@ -420,9 +420,9 @@ void my_function();
 BOAT_NOINLINE void my_function();
 ```
 
-### 构建系统兼容性
+### Build System Compatibility
 
-CMake 配置应处理所有平台差异：
+The CMake configuration should handle all platform differences:
 
 ```cmake
 # Platform-specific compiler options
@@ -436,19 +436,19 @@ endif()
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${PLATFORM_C_FLAGS}")
 ```
 
-### 测试策略
+### Testing Strategy
 
-1. **平台矩阵测试**: 在 Windows、Linux、macOS 上运行完整测试套件
-2. **构建类型测试**: 测试 Debug、Release、RelWithDebInfo 配置
-3. **链接类型测试**: 测试静态库和动态库构建
-4. **编译器测试**: 测试不同编译器版本（MSVC、GCC、Clang）
+1. **Platform matrix testing**: Run the full test suite on Windows, Linux, and macOS
+2. **Build type testing**: Test the Debug, Release, and RelWithDebInfo configurations
+3. **Link type testing**: Test static and shared library builds
+4. **Compiler testing**: Test different compiler versions (MSVC, GCC, Clang)
 
-### 持续集成
+### Continuous Integration
 
-配置 CI 流水线包含：
+Configure the CI pipeline to include:
 
 ```yaml
-# GitHub Actions 示例
+# GitHub Actions example
 jobs:
   windows-build:
     runs-on: windows-latest
@@ -470,21 +470,21 @@ jobs:
     # ...
 ```
 
-## 总结
+## Summary
 
-Windows 平台编译需要特别注意编译器优化行为和 DLL 机制。通过以下措施确保兼容性：
+Compiling on Windows requires special attention to compiler optimization behavior and the DLL mechanism. Ensure compatibility through the following measures:
 
-1. **统一使用框架宏**: `BOAT_API`, `BOAT_CALL`, `BOAT_NOINLINE`
-2. **保护简单包装函数**: 防止编译器优化消除
-3. **验证导出符号**: 构建后检查 DLL 导出表
-4. **全面测试**: 多平台、多配置测试矩阵
-5. **文档记录**: 记录平台特定行为和解决方案
+1. **Use framework macros consistently**: `BOAT_API`, `BOAT_CALL`, `BOAT_NOINLINE`
+2. **Protect simple wrapper functions**: Prevent elimination by compiler optimization
+3. **Verify exported symbols**: Check the DLL export table after the build
+4. **Test comprehensively**: Multi-platform, multi-configuration test matrix
+5. **Document**: Record platform-specific behavior and solutions
 
-遵循这些指南可确保 Boat 框架在 Windows 平台上的稳定性和可靠性，为生产环境部署提供坚实基础。
+Following these guidelines ensures the Boat framework is stable and reliable on Windows, providing a solid foundation for production deployment.
 
-## 附录
+## Appendix
 
-### A. 实用命令参考
+### A. Useful Command Reference
 
 ```bash
 # Generate Visual Studio solution
@@ -503,22 +503,22 @@ dumpbin /dependents boat.dll
 dumpbin /exports boat.dll > exports.txt
 ```
 
-### B. 推荐开发工具
+### B. Recommended Development Tools
 
-1. **Visual Studio 2022**: 集成开发环境
-2. **CMake GUI**: 图形化配置工具
-3. **Dependencies** (formerly Dependency Walker): DLL 分析工具
-4. **Process Monitor**: 系统监控工具
-5. **DebugView**: 系统调试输出查看器
+1. **Visual Studio 2022**: Integrated development environment
+2. **CMake GUI**: Graphical configuration tool
+3. **Dependencies** (formerly Dependency Walker): DLL analysis tool
+4. **Process Monitor**: System monitoring tool
+5. **DebugView**: System debug output viewer
 
-### C. 参考资料
+### C. References
 
-1. [Microsoft C/C++ 文档](https://docs.microsoft.com/cpp/)
-2. [CMake 文档](https://cmake.org/documentation/)
-3. [Windows DLL 最佳实践](https://docs.microsoft.com/windows/win32/dlls/dynamic-link-library-best-practices)
-4. [MSVC 编译器选项](https://docs.microsoft.com/cpp/build/reference/compiler-options-listed-alphabetically)
+1. [Microsoft C/C++ documentation](https://docs.microsoft.com/cpp/)
+2. [CMake documentation](https://cmake.org/documentation/)
+3. [Windows DLL best practices](https://docs.microsoft.com/windows/win32/dlls/dynamic-link-library-best-practices)
+4. [MSVC compiler options](https://docs.microsoft.com/cpp/build/reference/compiler-options-listed-alphabetically)
 
 ---
 
-*最后更新: 2026-02-24*
-*文档版本: 1.0*
+*Last updated: 2026-02-24*
+*Document version: 1.0*

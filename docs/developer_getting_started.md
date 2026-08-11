@@ -1,18 +1,18 @@
-# Boat 框架开发者入门指南
+# Boat Framework Developer Getting Started Guide
 
-## 概述
+## Overview
 
-Boat 是一个轻量级、高性能的深度学习框架，使用 C 语言编写，支持 CPU 和 CUDA 后端。本指南帮助新开发者快速上手项目开发。
+Boat is a lightweight, high-performance deep learning framework written in C, supporting CPU and CUDA backends. This guide helps new developers get started with project development quickly.
 
-## 环境准备
+## Environment Setup
 
-### 系统要求
-- **操作系统**: Linux, macOS, Windows
-- **编译器**: GCC (>= 8.0), Clang (>= 7.0), MSVC (>= 2019)
-- **构建工具**: CMake (>= 3.10)
-- **可选依赖**: CUDA Toolkit (>= 11.0) 用于 GPU 支持
+### System Requirements
+- **Operating System**: Linux, macOS, Windows
+- **Compiler**: GCC (>= 8.0), Clang (>= 7.0), MSVC (>= 2019)
+- **Build Tool**: CMake (>= 3.10)
+- **Optional Dependencies**: CUDA Toolkit (>= 11.0) for GPU support
 
-### 安装依赖
+### Install Dependencies
 
 #### Ubuntu/Debian
 ```bash
@@ -31,7 +31,7 @@ brew install cmake cppcheck ccache
 choco install cmake cppcheck ccache -y
 ```
 
-## 获取代码
+## Getting the Code
 
 ```bash
 git clone https://github.com/xiaoshaoning/boat.git
@@ -39,9 +39,9 @@ cd boat
 git submodule update --init --recursive
 ```
 
-## 构建框架
+## Building the Framework
 
-### 基本构建
+### Basic Build
 ```bash
 mkdir build
 cd build
@@ -49,97 +49,97 @@ cmake .. -DBOAT_WITH_TESTS=ON -DBOAT_WITH_EXAMPLES=ON
 cmake --build . --config Release
 ```
 
-### 构建选项
-- `-DBOAT_WITH_CUDA=ON`: 启用 CUDA 支持
-- `-DBOAT_WITH_TESTS=ON`: 构建测试套件
-- `-DBOAT_WITH_EXAMPLES=ON`: 构建示例程序
-- `-DBOAT_WITH_ONNX=ON`: 启用 ONNX 支持 (自带 protobuf 解析器)
+### Build Options
+- `-DBOAT_WITH_CUDA=ON`: Enable CUDA support
+- `-DBOAT_WITH_TESTS=ON`: Build the test suite
+- `-DBOAT_WITH_EXAMPLES=ON`: Build example programs
+- `-DBOAT_WITH_ONNX=ON`: Enable ONNX support (bundled protobuf parser)
 
-### 安装
+### Install
 ```bash
 cmake --install .
 ```
 
-## 运行测试
+## Running Tests
 
 ```bash
 cd build
 ctest --output-on-failure -C Release
 ```
 
-## 运行示例
+## Running Examples
 
-### MNIST 手写数字识别
+### MNIST Handwritten Digit Recognition
 ```bash
 ./build/examples/mnist/mnist --help
 ```
 
-## 项目结构
+## Project Structure
 
 ```
 boat/
-├── include/          # 公共头文件
-├── src/              # 源代码
-├── examples/         # 示例程序
-├── tests/            # 测试代码
-├── docs/             # 文档
-└── .github/          # CI/CD 配置
+├── include/          # public headers
+├── src/              # source code
+├── examples/         # example programs
+├── tests/            # test code
+├── docs/             # documentation
+└── .github/          # CI/CD configuration
 ```
 
-## 代码风格
+## Code Style
 
-- **命名约定**: snake_case (函数、变量、类型)
-- **缩进**: 4 个空格
-- **行宽**: 最大 100 字符
-- **注释**: 全英文，无中文字符
-- **头文件保护**: `#ifndef BOAT_FILENAME_H`
+- **Naming Convention**: snake_case (functions, variables, types)
+- **Indentation**: 4 spaces
+- **Line Width**: 100 characters maximum
+- **Comments**: English only, no Chinese characters
+- **Header Guards**: `#ifndef BOAT_FILENAME_H`
 
-详细代码风格请参考 CLAUDE.md。
+For detailed code style, please refer to CLAUDE.md.
 
-## 调试与开发
+## Debugging and Development
 
-### 启用调试模式
+### Enabling Debug Mode
 ```bash
 cmake .. -DCMAKE_BUILD_TYPE=Debug -DBOAT_DEBUG=1
 ```
 
-### 静态分析
+### Static Analysis
 ```bash
 cppcheck --enable=warning,style --suppress=missingInclude -I include src
 ```
 
-### 内存检查
+### Memory Checking
 ```bash
 valgrind --leak-check=full ./build/tests/test_phase1
 ```
 
-> Valgrind 只能在 Linux/macOS 上运行。Windows 开发者请使用 WSL2 进行
-> 内存检查（完整方法与结果见 `docs/WSL2-Valgrind-Guide.md`）；Windows
-> 原生环境可改用 AddressSanitizer（`-DBOAT_WITH_ASAN=ON`）。
+> Valgrind can only run on Linux/macOS. Windows developers should use WSL2 for
+> memory checks (see `docs/WSL2-Valgrind-Guide.md` for the full method and results); on native
+> Windows, AddressSanitizer can be used instead (`-DBOAT_WITH_ASAN=ON`).
 
-## 贡献代码
+## Contributing Code
 
-1. Fork 仓库并创建特性分支
-2. 遵循代码风格指南
-3. 添加单元测试
-4. 确保通过所有测试
-5. 提交 Pull Request
+1. Fork the repository and create a feature branch
+2. Follow the code style guide
+3. Add unit tests
+4. Make sure all tests pass
+5. Submit a Pull Request
 
-详细贡献流程请参考 [贡献指南](contribution_guide.md)。
+For the detailed contribution process, please refer to the [Contribution Guide](contribution_guide.md).
 
-## 获取帮助
+## Getting Help
 
-- **问题跟踪**: GitHub Issues
-- **代码审查**: GitHub Pull Requests
-- **文档**: `docs/` 目录
+- **Issue Tracking**: GitHub Issues
+- **Code Review**: GitHub Pull Requests
+- **Documentation**: The `docs/` directory
 
-## 下一步
+## Next Steps
 
-- 阅读 [代码贡献指南](contribution_guide.md) 了解详细流程
-- 查看 [CI/CD 指南](ci_cd_guide.md) 了解自动化测试
-- 学习 [性能优化指南](performance_optimization_guide.md) 提升代码效率
-- 参考 [Const 使用指南](const_usage_guide.md) 确保代码质量
+- Read the [Code Contribution Guide](contribution_guide.md) to learn the detailed process
+- Check out the [CI/CD Guide](ci_cd_guide.md) to learn about automated testing
+- Study the [Performance Optimization Guide](performance_optimization_guide.md) to improve code efficiency
+- Refer to the [Const Usage Guide](const_usage_guide.md) to ensure code quality
 
 ---
 
-*本指南最后更新: 2026-03-01*
+*Last updated: 2026-03-01*
