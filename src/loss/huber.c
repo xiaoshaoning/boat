@@ -21,7 +21,7 @@ typedef struct {
 float huber_loss_compute(boat_loss_t* loss_ptr, const void* predictions_ptr, const void* targets_ptr);
 
 // Create Huber loss function with specified delta
-boat_loss_t* boat_huber_loss_create(float delta) {
+boat_loss_t* BOAT_API boat_huber_loss_create(float delta) {
     if (delta <= 0.0f) {
         return NULL;
     }

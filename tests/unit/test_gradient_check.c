@@ -16,7 +16,7 @@ static float compute_numerical_gradient_element(
     boat_tensor_t* param,
     size_t idx,
     float epsilon,
-    boat_variable_t* (*forward_func)(boat_variable_t*, boat_variable_t*),
+    boat_variable_t* (*forward_func)(const boat_variable_t*, const boat_variable_t*),
     const boat_variable_t* a,
     boat_variable_t* b
 ) {
@@ -329,7 +329,7 @@ static bool test_multiplication_gradient() {
 // Check analytical vs numerical gradients for a broadcast binary op where b
 // is broadcast against a (e.g. a bias [out] or [1,out] vs [batch,out]).
 static bool check_broadcast_gradient(
-    boat_variable_t* (*forward_func)(boat_variable_t*, boat_variable_t*),
+    boat_variable_t* (*forward_func)(const boat_variable_t*, const boat_variable_t*),
     int64_t* a_shape, size_t a_ndim,
     int64_t* b_shape, size_t b_ndim,
     const char* name, float epsilon, float rel_tol, float abs_tol)

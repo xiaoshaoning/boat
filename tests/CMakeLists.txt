@@ -75,6 +75,8 @@ target_link_libraries(test_optimizer_adagrad boat)
 # SGD optimizer test
 boat_add_test_executable(test_optimizer_sgd unit/test_optimizer_sgd.c)
 target_link_libraries(test_optimizer_sgd boat)
+boat_add_test_executable(test_optimizer_l2 unit/test_optimizer_l2.c)
+target_link_libraries(test_optimizer_l2 boat)
 
 # Scheduler tests
 boat_add_test_executable(test_schedulers unit/test_schedulers.c)

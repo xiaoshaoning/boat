@@ -24,7 +24,7 @@ typedef struct {
 } boat_loss_common_t;
 
 // Dispatch compute based on loss type
-float boat_loss_compute(boat_loss_t* loss, const void* predictions, const void* targets) {
+float BOAT_API boat_loss_compute(boat_loss_t* loss, const void* predictions, const void* targets) {
     if (!loss) {
         return 0.0f;
     }
@@ -44,7 +44,7 @@ float boat_loss_compute(boat_loss_t* loss, const void* predictions, const void* 
 }
 
 // Generic free function
-void boat_loss_free(boat_loss_t* loss) {
+void BOAT_API boat_loss_free(boat_loss_t* loss) {
     if (!loss) {
         return;
     }
@@ -53,7 +53,7 @@ void boat_loss_free(boat_loss_t* loss) {
 }
 
 // Dispatch backward based on loss type
-boat_tensor_t* boat_loss_backward(boat_loss_t* loss, const void* predictions, const void* targets) {
+boat_tensor_t* BOAT_API boat_loss_backward(boat_loss_t* loss, const void* predictions, const void* targets) {
     if (!loss) {
         return NULL;
     }

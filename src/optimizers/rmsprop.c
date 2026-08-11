@@ -12,6 +12,7 @@
 typedef struct boat_rmsprop_state_t {
     boat_optimizer_type_t type;
     float learning_rate;
+    float weight_decay;  // L2 gradient penalty coefficient (0 = off)
     float alpha;
     float epsilon;
 
@@ -58,6 +59,7 @@ BOAT_API boat_optimizer_t* boat_rmsprop_optimizer_create(float learning_rate,
     // Initialize state
     state->type = BOAT_OPTIMIZER_RMSPROP;
     state->learning_rate = learning_rate;
+    state->weight_decay = 0.0f;
     state->alpha = alpha;
     state->epsilon = epsilon;
     state->num_params = 0;
@@ -186,7 +188,8 @@ static void rmsprop_update_parameter(boat_rmsprop_state_t* state, size_t idx) {
 
     // Update each element
     for (size_t i = 0; i < num_elements; i++) {
-        float g = grad_data[i];
+        float p = param_data[i];
+        float g = grad_data[i] + state->weight_decay * p;
 
         // Update running average of squared gradients
         square_avg_data[i] = state->alpha * square_avg_data[i] + (1.0f - state->alpha) * g * g;
@@ -273,4 +276,16 @@ void rmsprop_optimizer_set_learning_rate(boat_optimizer_t* optimizer, float lear
     }
     boat_rmsprop_state_t* state = (boat_rmsprop_state_t*)optimizer;
     state->learning_rate = learning_rate;
+}
+
+float rmsprop_optimizer_get_weight_decay(const boat_optimizer_t* optimizer) {
+    if (!optimizer) return 0.0f;
+    const boat_rmsprop_state_t* state = (const boat_rmsprop_state_t*)optimizer;
+    return state->weight_decay;
+}
+
+void rmsprop_optimizer_set_weight_decay(boat_optimizer_t* optimizer, float weight_decay) {
+    if (!optimizer || weight_decay < 0.0f) return;
+    boat_rmsprop_state_t* state = (boat_rmsprop_state_t*)optimizer;
+    state->weight_decay = weight_decay;
 }

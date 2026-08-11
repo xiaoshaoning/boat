@@ -17,6 +17,7 @@
 typedef struct boat_sgd_state_t {
     boat_optimizer_type_t type;
     float learning_rate;
+    float weight_decay;  // L2 gradient penalty coefficient (0 = off)
     float momentum;
     int use_nesterov;
 
@@ -72,6 +73,7 @@ BOAT_API boat_optimizer_t* boat_sgd_optimizer_create(float learning_rate,
     // Initialize state
     state->type = BOAT_OPTIMIZER_SGD;
     state->learning_rate = learning_rate;
+    state->weight_decay = 0.0f;
     state->momentum = momentum;
     state->use_nesterov = 0;
     state->num_params = 0;
@@ -238,24 +240,24 @@ static void sgd_update_parameter(boat_sgd_state_t* state, size_t idx) {
         if (momentum > 0.0f) {
             if (state->use_nesterov) {
                 for (size_t i = 0; i < num_elements; i++) {
-                    float g = grad_data[i];
+                    float p = bf16_to_float(bf16_param[i]);
+                    float g = grad_data[i] + state->weight_decay * p;
                     float v_prev = vel_data[i];
                     vel_data[i] = momentum * v_prev + g;
-                    float p = bf16_to_float(bf16_param[i]);
                     bf16_param[i] = float_to_bf16(p - lr * (g + momentum * vel_data[i]));
                 }
             } else {
                 for (size_t i = 0; i < num_elements; i++) {
-                    float g = grad_data[i];
-                    vel_data[i] = momentum * vel_data[i] + g;
                     float p = bf16_to_float(bf16_param[i]);
+                    float g = grad_data[i] + state->weight_decay * p;
+                    vel_data[i] = momentum * vel_data[i] + g;
                     bf16_param[i] = float_to_bf16(p - lr * vel_data[i]);
                 }
             }
         } else {
             for (size_t i = 0; i < num_elements; i++) {
                 float p = bf16_to_float(bf16_param[i]);
-                bf16_param[i] = float_to_bf16(p - lr * grad_data[i]);
+                bf16_param[i] = float_to_bf16(p - lr * (grad_data[i] + state->weight_decay * p));
             }
         }
         return;
@@ -267,7 +269,8 @@ static void sgd_update_parameter(boat_sgd_state_t* state, size_t idx) {
             // v = momentum * v + g
             // param -= lr * (g + momentum * v)
             for (size_t i = 0; i < num_elements; i++) {
-                float g = grad_data[i];
+                float p = param_data[i];
+                float g = grad_data[i] + state->weight_decay * p;
                 float v_prev = vel_data[i];
                 vel_data[i] = momentum * v_prev + g;
                 param_data[i] -= lr * (g + momentum * vel_data[i]);
@@ -277,15 +280,16 @@ static void sgd_update_parameter(boat_sgd_state_t* state, size_t idx) {
             // v = momentum * v + g
             // param -= lr * v
             for (size_t i = 0; i < num_elements; i++) {
-                float g = grad_data[i];
+                float p = param_data[i];
+                float g = grad_data[i] + state->weight_decay * p;
                 vel_data[i] = momentum * vel_data[i] + g;
                 param_data[i] -= lr * vel_data[i];
             }
         }
     } else {
-        // Vanilla SGD (no momentum): param -= lr * g
+        // Vanilla SGD (no momentum): param -= lr * (g + wd * p)
         for (size_t i = 0; i < num_elements; i++) {
-            param_data[i] -= lr * grad_data[i];
+            param_data[i] -= lr * (grad_data[i] + state->weight_decay * param_data[i]);
         }
     }
 }
@@ -364,4 +368,16 @@ void sgd_optimizer_set_learning_rate(boat_optimizer_t* optimizer, float learning
     }
     boat_sgd_state_t* state = (boat_sgd_state_t*)optimizer;
     state->learning_rate = learning_rate;
+}
+
+float sgd_optimizer_get_weight_decay(const boat_optimizer_t* optimizer) {
+    if (!optimizer) return 0.0f;
+    const boat_sgd_state_t* state = (const boat_sgd_state_t*)optimizer;
+    return state->weight_decay;
+}
+
+void sgd_optimizer_set_weight_decay(boat_optimizer_t* optimizer, float weight_decay) {
+    if (!optimizer || weight_decay < 0.0f) return;
+    boat_sgd_state_t* state = (boat_sgd_state_t*)optimizer;
+    state->weight_decay = weight_decay;
 }

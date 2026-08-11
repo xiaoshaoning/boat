@@ -7,6 +7,7 @@
 #include <boat/sgemm.h>
 #include <boat/simd.h>
 #include "../core/openmp.h"
+#include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <stdio.h>

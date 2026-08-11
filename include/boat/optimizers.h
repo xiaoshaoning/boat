@@ -43,6 +43,12 @@ BOAT_API void boat_optimizer_add_parameter(boat_optimizer_t* optimizer,
 BOAT_API float boat_optimizer_get_learning_rate(const boat_optimizer_t* optimizer);
 BOAT_API void boat_optimizer_set_learning_rate(boat_optimizer_t* optimizer, float learning_rate);
 
+// Weight decay (L2 regularization): the gradient penalty g' = g + wd * w is
+// applied on the CPU update paths (CUDA kernels are untouched; the default
+// wd = 0 keeps their behavior identical). Matches MATLAB's L2Regularization.
+BOAT_API float boat_optimizer_get_weight_decay(const boat_optimizer_t* optimizer);
+BOAT_API void boat_optimizer_set_weight_decay(boat_optimizer_t* optimizer, float weight_decay);
+
 // SGD-specific: enable Nesterov momentum (disabled by default)
 BOAT_API void boat_sgd_set_nesterov(boat_optimizer_t* optimizer, int use_nesterov);
 

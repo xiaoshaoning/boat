@@ -5,6 +5,8 @@
 #ifndef BOAT_LOSS_H
 #define BOAT_LOSS_H
 
+#include "export.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -22,14 +24,14 @@ typedef enum {
 typedef struct boat_loss_t boat_loss_t;
 
 // Create loss functions
-boat_loss_t* boat_mse_loss_create();
-boat_loss_t* boat_cross_entropy_loss_create();
-boat_loss_t* boat_huber_loss_create(float delta);
+BOAT_API boat_loss_t* boat_mse_loss_create();
+BOAT_API boat_loss_t* boat_cross_entropy_loss_create();
+BOAT_API boat_loss_t* boat_huber_loss_create(float delta);
 
 // Loss operations
-float boat_loss_compute(boat_loss_t* loss, const void* predictions, const void* targets);
-boat_tensor_t* boat_loss_backward(boat_loss_t* loss, const void* predictions, const void* targets);
-void boat_loss_free(boat_loss_t* loss);
+BOAT_API float boat_loss_compute(boat_loss_t* loss, const void* predictions, const void* targets);
+BOAT_API boat_tensor_t* boat_loss_backward(boat_loss_t* loss, const void* predictions, const void* targets);
+BOAT_API void boat_loss_free(boat_loss_t* loss);
 
 #ifdef __cplusplus
 }

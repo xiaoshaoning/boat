@@ -12,6 +12,7 @@
 typedef struct boat_adagrad_state_t {
     boat_optimizer_type_t type;
     float learning_rate;
+    float weight_decay;  // L2 gradient penalty coefficient (0 = off)
     float epsilon;
 
     // Parameter and gradient arrays
@@ -52,6 +53,7 @@ BOAT_API boat_optimizer_t* boat_adagrad_optimizer_create(float learning_rate,
     // Initialize state
     state->type = BOAT_OPTIMIZER_ADAGRAD;
     state->learning_rate = learning_rate;
+    state->weight_decay = 0.0f;
     state->epsilon = epsilon;
     state->num_params = 0;
     state->capacity = 16;  // Initial capacity
@@ -182,7 +184,8 @@ static void adagrad_update_parameter(boat_adagrad_state_t* state, size_t idx) {
 
     // Update each element
     for (size_t i = 0; i < num_elements; i++) {
-        float g = grad_data[i];
+        float p = param_data[i];
+        float g = grad_data[i] + state->weight_decay * p;
 
         // Accumulate squared gradient
         sum_square_grad_data[i] += g * g;
@@ -269,4 +272,16 @@ void adagrad_optimizer_set_learning_rate(boat_optimizer_t* optimizer, float lear
     }
     boat_adagrad_state_t* state = (boat_adagrad_state_t*)optimizer;
     state->learning_rate = learning_rate;
+}
+
+float adagrad_optimizer_get_weight_decay(const boat_optimizer_t* optimizer) {
+    if (!optimizer) return 0.0f;
+    const boat_adagrad_state_t* state = (const boat_adagrad_state_t*)optimizer;
+    return state->weight_decay;
+}
+
+void adagrad_optimizer_set_weight_decay(boat_optimizer_t* optimizer, float weight_decay) {
+    if (!optimizer || weight_decay < 0.0f) return;
+    boat_adagrad_state_t* state = (boat_adagrad_state_t*)optimizer;
+    state->weight_decay = weight_decay;
 }

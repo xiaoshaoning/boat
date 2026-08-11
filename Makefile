@@ -3,10 +3,33 @@
 .PHONY: all clean install uninstall test examples
 
 # Configuration
+# Force bash recipes: the GnuWin32 make on this machine's PATH
+# runs recipes via cmd.exe, where MSYS paths and the lld search break.
+SHELL := /bin/bash
 CC = gcc
 CFLAGS = -std=c11 -Wall -Wextra -O2 -fPIC -DBOAT_BUILDING_DLL
 INCLUDES = -Iinclude
 LIBS = -lm
+
+# Platform detection: PE DLL + import lib on Windows/MinGW, .so on Linux.
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+    LIB_NAME = libboat.so
+    IMPLIB =
+else
+    # Windows/MinGW: PE DLL + import lib. GNU ld crashes (silent "ld
+    # returned 5") on objects with many PE import relocations in this
+    # environment; LLVM lld links the same objects correctly, so the
+    # Windows build uses -fuse-ld=lld (D:\llvm on PATH).
+    LIB_NAME = boat.dll
+    # export-all: the public headers declare BOAT_API but ~100 definitions
+    # lack the dllexport attribute (a latent bug the static cmake build
+    # hides); export-all makes every global symbol visible regardless.
+    IMPLIB = -Wl,--out-implib,$(LIB_DIR)/libboat.dll.a -Wl,--export-all-symbols
+    # -B points gcc/collect2 at lld directly (a PATH export does not
+    # survive the MSYS->Windows path conversion for the recipe shell).
+    LDFLAGS = -fuse-ld=lld -B/d/llvm/bin
+endif
 
 # Version information (auto-generated header)
 VERSION_MAJOR = 0
@@ -31,7 +54,7 @@ LOSS_SRCS = $(wildcard $(SRC_DIR)/loss/*.c)
 SCHEDULERS_SRCS = $(wildcard $(SRC_DIR)/schedulers/*.c)
 MODEL_SRCS = $(wildcard $(SRC_DIR)/model/*.c)
 DATA_SRCS = $(wildcard $(SRC_DIR)/data/*.c)
-FORMAT_SRCS = $(wildcard $(SRC_DIR)/format/*.c)
+FORMAT_SRCS = $(filter-out $(SRC_DIR)/format/onnxruntime.c, $(wildcard $(SRC_DIR)/format/*.c))
 
 ALL_SRCS = $(CORE_SRCS) $(OPS_SRCS) $(GRAPH_SRCS) $(LAYERS_SRCS) \
            $(OPTIMIZERS_SRCS) $(SCHEDULERS_SRCS) $(LOSS_SRCS) $(MODEL_SRCS) \
@@ -42,7 +65,6 @@ ALL_SRCS = $(CORE_SRCS) $(OPS_SRCS) $(GRAPH_SRCS) $(LAYERS_SRCS) \
 OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(ALL_SRCS))
 
 # Library
-LIB_NAME = libboat.so
 LIB = $(LIB_DIR)/$(LIB_NAME)
 
 # Main targets
@@ -53,7 +75,7 @@ $(VERSION_H): include/boat/version.h.in
 
 $(LIB): $(OBJS)
 	@mkdir -p $(LIB_DIR)
-	$(CC) -shared $(CFLAGS) $(OBJS) -o $@ $(LIBS)
+	$(CC) -shared $(CFLAGS) $(LDFLAGS) $(OBJS) -o $@ $(LIBS) $(IMPLIB)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(dir $@)
@@ -77,9 +99,30 @@ uninstall:
 	rm -rf $(PREFIX)/include/boat
 
 # Test
-test:
-	@echo "Running tests..."
-	# TODO: Add test runner
+# CPU-only test suite: everything except backends needing external SDKs
+# or data (CUDA, PyTorch, Safetensors, HuggingFace, GGUF, ONNX(-runtime),
+# TensorFlow). The same set is what the cmake CPU build runs under ctest.
+TEST_EXCLUDE = $(wildcard tests/*cuda*.c tests/*pytorch*.c tests/*safetensors*.c 	tests/*huggingface*.c tests/*gguf*.c tests/*onnx*.c tests/*onnxruntime*.c 	tests/*tensorflow*.c)
+TEST_SRCS = $(filter-out $(TEST_EXCLUDE),$(wildcard tests/*.c) $(wildcard tests/unit/*.c))
+TEST_BINS = $(patsubst tests/%,build/test/%,$(patsubst %.c,%.exe,$(TEST_SRCS)))
+TEST_LIBS = -L$(LIB_DIR) -lboat $(LIBS)
+
+build/test/%.exe: tests/%.c $(LIB)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(LDFLAGS) $(INCLUDES) $< -o $@ $(TEST_LIBS)
+
+test: all $(TEST_BINS)
+	@echo "Running $$(words $(TEST_BINS)) tests..."
+	@fail=0; pass=0; \
+	for t in $(TEST_BINS); do \
+		if PATH="$(LIB_DIR):$$PATH" ./$$t > build/test/$$(basename $$t).log 2>&1; then \
+			echo "  PASS $$(basename $$t)"; pass=$$((pass+1)); \
+		else \
+			echo "  FAIL $$(basename $$t)"; tail -3 build/test/$$(basename $$t).log; fail=$$((fail+1)); \
+		fi; \
+	done; \
+	echo "Tests: $$pass passed, $$fail failed"; \
+	test $$fail -eq 0
 
 # Examples
 examples:

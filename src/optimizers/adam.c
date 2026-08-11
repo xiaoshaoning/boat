@@ -21,6 +21,7 @@
 typedef struct boat_adam_state_t {
     boat_optimizer_type_t type;
     float learning_rate;
+    float weight_decay;  // L2 gradient penalty coefficient (0 = off)
     float beta1;
     float beta2;
     float epsilon;
@@ -85,6 +86,7 @@ BOAT_API boat_optimizer_t* boat_adam_optimizer_create(float learning_rate,
     // Initialize state
     state->type = BOAT_OPTIMIZER_ADAM;
     state->learning_rate = learning_rate;
+    state->weight_decay = 0.0f;
     state->beta1 = beta1;
     state->beta2 = beta2;
     state->epsilon = epsilon;
@@ -250,12 +252,12 @@ static void adam_update_parameter(boat_adam_state_t* state, size_t idx) {
     if (boat_tensor_dtype(param) == BOAT_DTYPE_BFLOAT16) {
         uint16_t* bf16_param = (uint16_t*)param_data;
         for (size_t i = 0; i < num_elements; i++) {
-            float g = grad_data[i];
+            float p = bf16_to_float(bf16_param[i]);
+            float g = grad_data[i] + state->weight_decay * p;
             m_data[i] = state->beta1 * m_data[i] + (1.0f - state->beta1) * g;
             v_data[i] = state->beta2 * v_data[i] + (1.0f - state->beta2) * g * g;
             float m_hat = m_data[i] / (1.0f - beta1_pow_t);
             float v_hat = v_data[i] / (1.0f - beta2_pow_t);
-            float p = bf16_to_float(bf16_param[i]);
             p -= state->learning_rate * m_hat / (sqrtf(v_hat) + state->epsilon);
             bf16_param[i] = float_to_bf16(p);
         }
@@ -264,7 +266,8 @@ static void adam_update_parameter(boat_adam_state_t* state, size_t idx) {
 
     // Update each element (CPU, FP32)
     for (size_t i = 0; i < num_elements; i++) {
-        float g = grad_data[i];
+        float p = param_data[i];
+        float g = grad_data[i] + state->weight_decay * p;
 
         // Update biased first moment estimate
         m_data[i] = state->beta1 * m_data[i] + (1.0f - state->beta1) * g;
@@ -363,4 +366,16 @@ void adam_optimizer_set_learning_rate(boat_optimizer_t* optimizer, float learnin
     }
     boat_adam_state_t* state = (boat_adam_state_t*)optimizer;
     state->learning_rate = learning_rate;
+}
+
+float adam_optimizer_get_weight_decay(const boat_optimizer_t* optimizer) {
+    if (!optimizer) return 0.0f;
+    const boat_adam_state_t* state = (const boat_adam_state_t*)optimizer;
+    return state->weight_decay;
+}
+
+void adam_optimizer_set_weight_decay(boat_optimizer_t* optimizer, float weight_decay) {
+    if (!optimizer || weight_decay < 0.0f) return;
+    boat_adam_state_t* state = (boat_adam_state_t*)optimizer;
+    state->weight_decay = weight_decay;
 }
