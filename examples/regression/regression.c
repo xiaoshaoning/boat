@@ -256,8 +256,7 @@ static int run_regression_demo(void) {
 
             boat_tensor_t* grad = boat_loss_backward(loss_fn, pred, batch_y);
             if (grad) {
-                backward_reg(model, grad);
-                boat_tensor_unref(grad);
+                backward_reg(model, grad);  // backward_reg consumes the grad reference
             }
             boat_tensor_unref(pred);
 
@@ -502,8 +501,7 @@ static int run_timeseries_demo(void) {
 
             boat_tensor_t* grad = boat_loss_backward(loss_fn, pred, batch_yt);
             if (grad) {
-                backward_ts(model, grad);
-                boat_tensor_unref(grad);
+                backward_ts(model, grad);  // backward_ts consumes the grad reference
             }
             boat_tensor_unref(pred);
 

@@ -39,6 +39,8 @@ BOAT_API boat_dense_layer_t* BOAT_CALL boat_dense_layer_create(size_t input_feat
     layer->output_features = output_features;
     layer->use_bias = use_bias;
     layer->cache_input = NULL;
+    layer->grad_weight = NULL;
+    layer->grad_bias = NULL;
 
     // Create weight tensor
     const int64_t weight_shape[] = { (int64_t)input_features, (int64_t)output_features };
@@ -403,14 +405,32 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_get_bias(const boat_dense_lay
     return layer->bias;
 }
 
-// Get weight gradient tensor
+// Get weight gradient tensor (lazily created, zero-filled)
 BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_get_grad_weight(const boat_dense_layer_t* layer) {
     if (!layer) return NULL;
-    return layer->grad_weight;
+    boat_dense_layer_t* l = (boat_dense_layer_t*)layer;
+    if (!l->grad_weight) {
+        l->grad_weight = boat_tensor_create_like(l->weight);
+        if (l->grad_weight) {
+            boat_memory_set(boat_tensor_data(l->grad_weight), 0,
+                            boat_tensor_nbytes(l->grad_weight),
+                            boat_tensor_device(l->grad_weight));
+        }
+    }
+    return l->grad_weight;
 }
 
-// Get bias gradient tensor
+// Get bias gradient tensor (lazily created, zero-filled)
 BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_get_grad_bias(const boat_dense_layer_t* layer) {
     if (!layer) return NULL;
-    return layer->grad_bias;
+    boat_dense_layer_t* l = (boat_dense_layer_t*)layer;
+    if (!l->grad_bias) {
+        l->grad_bias = boat_tensor_create_like(l->bias);
+        if (l->grad_bias) {
+            boat_memory_set(boat_tensor_data(l->grad_bias), 0,
+                            boat_tensor_nbytes(l->grad_bias),
+                            boat_tensor_device(l->grad_bias));
+        }
+    }
+    return l->grad_bias;
 }

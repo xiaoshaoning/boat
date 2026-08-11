@@ -675,6 +675,7 @@ int main(void) {
         boat_mul_scalar_(grad_logits, scale);
 
         boat_tensor_unref(probs);
+        boat_tensor_unref(logits);
 
         // ---- Backward pass ----
 
@@ -738,6 +739,7 @@ int main(void) {
             if (block_inputs[i]) boat_tensor_unref(block_inputs[i]);
         }
         if (block_out) boat_tensor_unref(block_out);
+        boat_tensor_unref(x);
 
         if (epoch % 5 == 0 || epoch == n_epochs - 1) {
             printf("Epoch %4d/%d  Loss: %.6f  Perplexity: %.2f\n",

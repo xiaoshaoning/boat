@@ -129,14 +129,10 @@ static int step_create_and_save(void) {
     }
     printf("Model saved to '%s' (%zu layers)\n", MODEL_FILE, boat_model_layer_count(model));
 
-    // Clean up — model_free also frees the layer wrappers, but NOT the
-    // underlying layer data (fc1, fc2, relu, sm) since ops->free is NULL.
-    // We free the layers manually.
+    // Clean up — model_free frees the layer wrappers AND the underlying
+    // layer data via each layer type's ops->free (e.g. dense_free_op).
+    // The layer handles (fc1, fc2, relu, sm) must NOT be freed again.
     boat_model_free(model);
-    boat_dense_layer_free(fc1);
-    boat_relu_layer_free(relu);
-    boat_dense_layer_free(fc2);
-    boat_softmax_layer_free(sm);
 
     tests_total++;
     printf("PASSED\n");
