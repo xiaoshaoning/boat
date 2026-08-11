@@ -124,11 +124,20 @@ test: all $(TEST_BINS)
 	echo "Tests: $$pass passed, $$fail failed"; \
 	test $$fail -eq 0
 
-# Static archive (used by MATLAB_in_C's deep learning builtins)
+# Static archive (used by MATLAB_in_C's deep learning builtins).
+# Objects are recompiled with BOAT_STATIC_BUILD (which wins over
+# BOAT_BUILDING_DLL in export.h): the dllexport markers would otherwise
+# make lld emit an export table + __imp_ auto-imports in the final exe,
+# which then loads an unshipped boat.dll (startup crash 0xC0000135).
+STATIC_OBJ_DIR = $(BUILD_DIR)/obj-static
+STATIC_OBJS = $(patsubst $(SRC_DIR)/%.c,$(STATIC_OBJ_DIR)/%.o,$(ALL_SRCS))
+$(STATIC_OBJ_DIR)/%.o: $(SRC_DIR)/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -DBOAT_STATIC_BUILD $(INCLUDES) -c $< -o $@
 LIB_STATIC = $(LIB_DIR)/libboat.a
-$(LIB_STATIC): $(OBJS)
+$(LIB_STATIC): $(STATIC_OBJS)
 	@mkdir -p $(LIB_DIR)
-	$(AR) rcs $@ $(OBJS)
+	$(AR) rcs $@ $(STATIC_OBJS)
 
 static: $(VERSION_H) $(LIB_STATIC)
 
