@@ -1,8 +1,9 @@
 # WSL2 Compatibility & Valgrind Memory Check
 
-Date: 2026-08-11
-Scope: verify Boat builds and passes its test suite on WSL2, and run a full
-Valgrind Memcheck pass over the library, tests, and examples.
+Date: 2026-08-11 (updated 2026-08-12)
+Scope: verify Boat builds and passes its test suite on WSL2, run a full
+Valgrind Memcheck pass over the library, tests, and examples, and fix the
+memory bugs that were found.
 
 ## Summary
 
@@ -12,9 +13,12 @@ Valgrind Memcheck pass over the library, tests, and examples.
 - Valgrind Memcheck over all 28 test binaries: **0 errors, 0 bytes leaked**
   in every category.
 - Four real memory bugs were found in the examples and one library defect in
-  `src/layers/dense.c`; all were fixed and verified in a sandbox copy.
-  The upstream repository was **not modified** — the exact patch is included
-  at the end of this document.
+  `src/layers/dense.c`. All five were fixed and committed upstream
+  (commit `a95cecc`, pushed to `origin/main`). The exact change set is
+  recorded at the end of this document.
+- After the fixes, the suite was re-verified on **both platforms**:
+  WSL2 Linux 28/28 tests (valgrind-clean) and Windows mingw64 gcc 29/29
+  tests (includes the Windows-only `test_attention_performance`).
 - The `examples/regression` demo's high reported test loss is a data-split
   artifact (contiguous split = extrapolation), not a library bug; proven by
   re-running with a shuffled split.
@@ -76,7 +80,7 @@ All 28 test binaries: `ERROR SUMMARY: 0 errors from 0 contexts`, and
 leak category). No invalid reads/writes, no uninitialized-value uses, no
 definite/indirect/possible leaks.
 
-### Examples: 4 bugs found and fixed (verified in sandbox)
+### Bugs found and fixed (all committed upstream)
 
 | # | File | Bug | Valgrind before | After fix |
 |---|---|---|---|---|
@@ -165,10 +169,10 @@ for t in test_*; do [ -x "$t" ] || continue
     --track-origins=yes --error-exitcode=42 ./"$t"; done
 ```
 
-## Patch to apply upstream
+## Applied change set (commit `a95cecc`)
 
-The following changes were applied and verified in the sandbox
-(`~/boat-wsl`); the upstream repository was left untouched.
+The following changes were applied to the repository and verified on WSL2
+Linux and Windows (mingw64 gcc); pushed to `origin/main`.
 
 ```diff
 --- a/src/layers/dense.c
@@ -231,6 +235,12 @@ The following changes were applied and verified in the sandbox
 +        boat_tensor_unref(x);
 ```
 
-Verification status of the patch: all 28 tests still pass after the
-`dense.c` change; regression, serialization, and transformer examples are
-valgrind-clean (0 errors, 0 bytes lost) with the fixes applied.
+Verification status of the change set:
+
+- **WSL2 Linux** (gcc 11.4): ctest **28/28** pass; valgrind memcheck on all
+  28 test binaries **0 errors, 0 bytes lost**; the regression, serialization,
+  and transformer examples run valgrind-clean (0 errors, 0 bytes lost).
+- **Windows** (mingw64 gcc 13, `-G "MinGW Makefiles"`): ctest **29/29** pass
+  (includes the Windows-only `test_attention_performance`); the fixed
+  examples run and pass (serialization reports `PASSED` ×4 with matching
+  outputs, transformer completes training, regression trains).

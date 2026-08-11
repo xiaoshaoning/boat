@@ -89,6 +89,37 @@ cmake .. -DBOAT_BUILD_SHARED=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake .. -G "Visual Studio 17 2022" -A x64 -DBOAT_BUILD_SHARED=ON
 ```
 
+### MinGW-w64 (GCC) 构建
+
+Boat 也支持使用 MinGW-w64 GCC 在 Windows 上构建（已验证：MSYS2
+`mingw64` 工具链，gcc 13，ctest **29/29** 全部通过）。与 MSVC 构建的
+区别：默认生成静态库（`libboat.a`），使用 `-G "MinGW Makefiles"`。
+
+```bash
+# 1. 安装 MSYS2 并添加 mingw64 到 PATH
+#    https://www.msys2.org/  → pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake
+
+# 2. 配置（务必显式指定 mingw 编译器，避免选中 MSVC）
+cmake -S . -B build-mingw -G "MinGW Makefiles" ^
+  -DCMAKE_C_COMPILER=C:/msys64/mingw64/bin/gcc.exe ^
+  -DBOAT_WITH_TESTS=ON -DBOAT_WITH_EXAMPLES=ON ^
+  -DBOAT_WITH_HUGGINGFACE=ON -DBOAT_WITH_ONNX=ON -DBOAT_WITH_GGUF=ON ^
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo
+
+# 3. 构建与测试
+cmake --build build-mingw -j
+ctest --test-dir build-mingw --output-on-failure -j
+```
+
+注意事项：
+- 运行生成的 `.exe` 时需将 `C:\msys64\mingw64\bin` 加入 `PATH`
+  （依赖 `libgomp-1.dll`、`libwinpthread-1.dll` 等运行时 DLL）。
+- mingw GCC 会报告少量预置的 `-Wdiscarded-qualifiers` / `-Wattributes`
+  警告（如 `src/graph/edge.c` 的 const 丢弃、`error.c` 的 `__thread`
+  属性），不影响构建与测试结果。
+- 示例程序（`examples/regression`、`serialization`、`transformer` 等）
+  在 mingw 构建下均可正常运行。
+
 ## MSVC 编译器特性
 
 ### 调用约定

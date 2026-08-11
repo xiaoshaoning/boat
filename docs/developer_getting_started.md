@@ -113,6 +113,10 @@ cppcheck --enable=warning,style --suppress=missingInclude -I include src
 valgrind --leak-check=full ./build/tests/test_phase1
 ```
 
+> Valgrind 只能在 Linux/macOS 上运行。Windows 开发者请使用 WSL2 进行
+> 内存检查（完整方法与结果见 `docs/WSL2-Valgrind-Guide.md`）；Windows
+> 原生环境可改用 AddressSanitizer（`-DBOAT_WITH_ASAN=ON`）。
+
 ## 贡献代码
 
 1. Fork 仓库并创建特性分支
