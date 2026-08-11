@@ -124,6 +124,14 @@ test: all $(TEST_BINS)
 	echo "Tests: $$pass passed, $$fail failed"; \
 	test $$fail -eq 0
 
+# Static archive (used by MATLAB_in_C's deep learning builtins)
+LIB_STATIC = $(LIB_DIR)/libboat.a
+$(LIB_STATIC): $(OBJS)
+	@mkdir -p $(LIB_DIR)
+	$(AR) rcs $@ $(OBJS)
+
+static: $(VERSION_H) $(LIB_STATIC)
+
 # Examples
 examples:
 	@echo "Building examples..."
