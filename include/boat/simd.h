@@ -65,25 +65,25 @@ BOAT_API void boat_simd_free(void* ptr);
 // ---------------------------------------------------------------------------
 
 // Elementwise: dst[i] = a[i] + b[i]  (all float32, n elements)
-void boat_simd_add_f32(const float* a, const float* b, float* dst, size_t n);
+BOAT_API void boat_simd_add_f32(const float* a, const float* b, float* dst, size_t n);
 
 // Elementwise: dst[i] = a[i] * b[i]
-void boat_simd_mul_f32(const float* a, const float* b, float* dst, size_t n);
+BOAT_API void boat_simd_mul_f32(const float* a, const float* b, float* dst, size_t n);
 
 // Elementwise: dst[i] = a[i] * scalar
-void boat_simd_mul_scalar_f32(const float* a, float scalar, float* dst, size_t n);
+BOAT_API void boat_simd_mul_scalar_f32(const float* a, float scalar, float* dst, size_t n);
 
 // Activation: dst[i] = max(a[i], 0)
-void boat_simd_relu_f32(const float* a, float* dst, size_t n);
+BOAT_API void boat_simd_relu_f32(const float* a, float* dst, size_t n);
 
 // Reduction: return max(a[0..n-1])
-float boat_simd_max_reduce_f32(const float* a, size_t n);
+BOAT_API float boat_simd_max_reduce_f32(const float* a, size_t n);
 
 // Reduction: return sum(a[0..n-1])
-float boat_simd_sum_reduce_f32(const float* a, size_t n);
+BOAT_API float boat_simd_sum_reduce_f32(const float* a, size_t n);
 
 // Check if two arrays are element-wise equal within tolerance
-bool boat_simd_allclose_f32(const float* a, const float* b, size_t n,
+BOAT_API bool boat_simd_allclose_f32(const float* a, const float* b, size_t n,
                              float rtol, float atol);
 
 #ifdef __cplusplus

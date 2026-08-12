@@ -22,10 +22,10 @@ else
     # environment; LLVM lld links the same objects correctly, so the
     # Windows build uses -fuse-ld=lld (D:\llvm on PATH).
     LIB_NAME = boat.dll
-    # export-all: the public headers declare BOAT_API but ~100 definitions
-    # lack the dllexport attribute (a latent bug the static cmake build
-    # hides); export-all makes every global symbol visible regardless.
-    IMPLIB = -Wl,--out-implib,$(LIB_DIR)/libboat.dll.a -Wl,--export-all-symbols
+    # export hygiene (2026-08): all public declarations now carry
+    # BOAT_API, so the dllexport attributes drive the exports; the old
+    # --export-all-symbols workaround is gone.
+    IMPLIB = -Wl,--out-implib,$(LIB_DIR)/libboat.dll.a
     # -B points gcc/collect2 at lld directly (a PATH export does not
     # survive the MSYS->Windows path conversion for the recipe shell).
     LDFLAGS = -fuse-ld=lld -B/d/llvm/bin

@@ -102,7 +102,7 @@ typedef enum {
 extern "C" {
 #endif
 
-void boat_set_errorf(boat_error_t error, const char* format, ...);
+BOAT_API void boat_set_errorf(boat_error_t error, const char* format, ...);
 
 #ifdef __cplusplus
 }

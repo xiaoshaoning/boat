@@ -17,7 +17,7 @@ extern "C" {
 // top_k:      restrict to top-k highest logits (0 = use full vocabulary)
 // temperature: scaling factor (0.0 = greedy argmax, >0 = sample from scaled distribution)
 // Returns:    sampled token ID
-int boat_sample_token(const float* logits, int vocab_size, int top_k, float temperature);
+BOAT_API int boat_sample_token(const float* logits, int vocab_size, int top_k, float temperature);
 
 #ifdef __cplusplus
 }
