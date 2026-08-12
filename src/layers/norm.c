@@ -82,7 +82,7 @@ static boat_tensor_t* create_bias_tensor(size_t normalized_shape) {
     return bias;
 }
 
-boat_layernorm_t* boat_layernorm_create(const boat_layernorm_config_t* config) {
+BOAT_API boat_layernorm_t* boat_layernorm_create(const boat_layernorm_config_t* config) {
     if (!config || config->normalized_shape == 0) {
         return NULL;
     }
@@ -128,7 +128,7 @@ boat_layernorm_t* boat_layernorm_create(const boat_layernorm_config_t* config) {
     return norm;
 }
 
-void boat_layernorm_free(boat_layernorm_t* norm) {
+BOAT_API void boat_layernorm_free(boat_layernorm_t* norm) {
     if (!norm) {
         return;
     }
@@ -148,7 +148,7 @@ void boat_layernorm_free(boat_layernorm_t* norm) {
     boat_free(norm);
 }
 
-boat_rmsnorm_t* boat_rmsnorm_create(const boat_rmsnorm_config_t* config) {
+BOAT_API boat_rmsnorm_t* boat_rmsnorm_create(const boat_rmsnorm_config_t* config) {
     if (!config || config->normalized_shape == 0) {
         return NULL;
     }
@@ -180,7 +180,7 @@ boat_rmsnorm_t* boat_rmsnorm_create(const boat_rmsnorm_config_t* config) {
     return norm;
 }
 
-void boat_rmsnorm_free(boat_rmsnorm_t* norm) {
+BOAT_API void boat_rmsnorm_free(boat_rmsnorm_t* norm) {
     if (!norm) {
         return;
     }
@@ -245,7 +245,7 @@ static void compute_rms(const float* input, size_t batch_size, size_t seq_len, s
     }
 }
 
-boat_tensor_t* boat_layernorm_forward(boat_layernorm_t* norm, const boat_tensor_t* input) {
+BOAT_API boat_tensor_t* boat_layernorm_forward(boat_layernorm_t* norm, const boat_tensor_t* input) {
     if (!norm || !input) {
         return NULL;
     }
@@ -365,7 +365,7 @@ boat_tensor_t* boat_layernorm_forward(boat_layernorm_t* norm, const boat_tensor_
     return output;
 }
 
-boat_tensor_t* boat_rmsnorm_forward(boat_rmsnorm_t* norm, const boat_tensor_t* input) {
+BOAT_API boat_tensor_t* boat_rmsnorm_forward(boat_rmsnorm_t* norm, const boat_tensor_t* input) {
     if (!norm || !input) {
         return NULL;
     }
@@ -471,7 +471,7 @@ boat_tensor_t* boat_rmsnorm_forward(boat_rmsnorm_t* norm, const boat_tensor_t* i
     return output;
 }
 
-boat_tensor_t* boat_layernorm_backward(boat_layernorm_t* norm, const boat_tensor_t* grad_output) {
+BOAT_API boat_tensor_t* boat_layernorm_backward(boat_layernorm_t* norm, const boat_tensor_t* grad_output) {
     if (!norm || !grad_output || !norm->cache_input) {
         return NULL;
     }
@@ -619,7 +619,7 @@ boat_tensor_t* boat_layernorm_backward(boat_layernorm_t* norm, const boat_tensor
     return grad_input;
 }
 
-boat_tensor_t* boat_rmsnorm_backward(boat_rmsnorm_t* norm, const boat_tensor_t* grad_output) {
+BOAT_API boat_tensor_t* boat_rmsnorm_backward(boat_rmsnorm_t* norm, const boat_tensor_t* grad_output) {
     if (!norm || !grad_output || !norm->cache_input) {
         return NULL;
     }
@@ -747,7 +747,7 @@ boat_tensor_t* boat_rmsnorm_backward(boat_rmsnorm_t* norm, const boat_tensor_t* 
     return grad_input;
 }
 
-void boat_layernorm_update(boat_layernorm_t* norm, float learning_rate) {
+BOAT_API void boat_layernorm_update(boat_layernorm_t* norm, float learning_rate) {
     if (!norm) return;
     if (norm->grad_weight && norm->weight) {
         float* w = (float*)boat_tensor_data(norm->weight);
@@ -769,7 +769,7 @@ void boat_layernorm_update(boat_layernorm_t* norm, float learning_rate) {
     }
 }
 
-void boat_rmsnorm_update(boat_rmsnorm_t* norm, float learning_rate) {
+BOAT_API void boat_rmsnorm_update(boat_rmsnorm_t* norm, float learning_rate) {
     if (!norm) return;
     if (norm->grad_weight && norm->weight) {
         float* w = (float*)boat_tensor_data(norm->weight);
@@ -783,7 +783,7 @@ void boat_rmsnorm_update(boat_rmsnorm_t* norm, float learning_rate) {
 }
 
 // Standalone layer norm function
-boat_tensor_t* boat_layer_norm(const boat_tensor_t* input,
+BOAT_API boat_tensor_t* boat_layer_norm(const boat_tensor_t* input,
                                 const int64_t* normalized_shape,
                                 size_t normalized_shape_len,
                                 float eps) {
@@ -849,7 +849,7 @@ boat_tensor_t* boat_layer_norm(const boat_tensor_t* input,
 }
 
 // Standalone RMS norm function
-boat_tensor_t* boat_rms_norm(const boat_tensor_t* input,
+BOAT_API boat_tensor_t* boat_rms_norm(const boat_tensor_t* input,
                               const int64_t* normalized_shape,
                               size_t normalized_shape_len,
                               float eps) {
@@ -907,7 +907,7 @@ boat_tensor_t* boat_rms_norm(const boat_tensor_t* input,
 }
 
 // Gradient functions
-boat_tensor_t* boat_layer_norm_grad(const boat_tensor_t* grad_output,
+BOAT_API boat_tensor_t* boat_layer_norm_grad(const boat_tensor_t* grad_output,
                                      const boat_tensor_t* input,
                                      const boat_tensor_t* output,
                                      const int64_t* normalized_shape,
@@ -922,7 +922,7 @@ boat_tensor_t* boat_layer_norm_grad(const boat_tensor_t* grad_output,
     return NULL;
 }
 
-boat_tensor_t* boat_rms_norm_grad(const boat_tensor_t* grad_output,
+BOAT_API boat_tensor_t* boat_rms_norm_grad(const boat_tensor_t* grad_output,
                                    const boat_tensor_t* input,
                                    const boat_tensor_t* output,
                                    const int64_t* normalized_shape,
@@ -938,7 +938,7 @@ boat_tensor_t* boat_rms_norm_grad(const boat_tensor_t* grad_output,
 }
 
 // Parameter setting for model loading
-void boat_layernorm_set_weight(boat_layernorm_t* norm, boat_tensor_t* weight) {
+BOAT_API void boat_layernorm_set_weight(boat_layernorm_t* norm, boat_tensor_t* weight) {
     if (!norm || !weight) {
         return;
     }
@@ -957,7 +957,7 @@ void boat_layernorm_set_weight(boat_layernorm_t* norm, boat_tensor_t* weight) {
     boat_tensor_ref(weight); // Increase ref count since layer now owns it
 }
 
-void boat_layernorm_set_bias(boat_layernorm_t* norm, boat_tensor_t* bias) {
+BOAT_API void boat_layernorm_set_bias(boat_layernorm_t* norm, boat_tensor_t* bias) {
     if (!norm || !bias) {
         return;
     }
@@ -983,7 +983,7 @@ void boat_layernorm_set_bias(boat_layernorm_t* norm, boat_tensor_t* bias) {
 // Adapter for generic norm layer interface (layers.h)
 typedef boat_layernorm_t boat_norm_layer_t;
 
-BOAT_API boat_norm_layer_t* BOAT_CALL boat_norm_layer_create(size_t normalized_shape, float eps, bool elementwise_affine) {
+BOAT_API BOAT_API boat_norm_layer_t* BOAT_CALL boat_norm_layer_create(size_t normalized_shape, float eps, bool elementwise_affine) {
     boat_layernorm_config_t config = {
         .normalized_shape = normalized_shape,
         .eps = eps,
@@ -993,38 +993,38 @@ BOAT_API boat_norm_layer_t* BOAT_CALL boat_norm_layer_create(size_t normalized_s
     return boat_layernorm_create(&config);
 }
 
-BOAT_API void BOAT_CALL boat_norm_layer_free(boat_norm_layer_t* layer) {
+BOAT_API BOAT_API void BOAT_CALL boat_norm_layer_free(boat_norm_layer_t* layer) {
     boat_layernorm_free(layer);
 }
 
-BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_norm_layer_forward(boat_norm_layer_t* layer, const boat_tensor_t* input) {
+BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_norm_layer_forward(boat_norm_layer_t* layer, const boat_tensor_t* input) {
     return boat_layernorm_forward(layer, input);
 }
 
-BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_norm_layer_backward(boat_norm_layer_t* layer, const boat_tensor_t* grad_output) {
+BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_norm_layer_backward(boat_norm_layer_t* layer, const boat_tensor_t* grad_output) {
     return boat_layernorm_backward(layer, grad_output);
 }
 
-BOAT_NOINLINE BOAT_API void BOAT_CALL boat_norm_layer_update(boat_norm_layer_t* layer, float learning_rate) {
+BOAT_API BOAT_NOINLINE BOAT_API void BOAT_CALL boat_norm_layer_update(boat_norm_layer_t* layer, float learning_rate) {
     boat_layernorm_update(layer, learning_rate);
 }
 
-BOAT_API boat_tensor_t* boat_layernorm_get_grad_weight(const boat_layernorm_t* norm) {
+BOAT_API BOAT_API boat_tensor_t* boat_layernorm_get_grad_weight(const boat_layernorm_t* norm) {
     if (!norm) return NULL;
     return norm->grad_weight;
 }
 
-BOAT_API boat_tensor_t* boat_layernorm_get_grad_bias(const boat_layernorm_t* norm) {
+BOAT_API BOAT_API boat_tensor_t* boat_layernorm_get_grad_bias(const boat_layernorm_t* norm) {
     if (!norm) return NULL;
     return norm->grad_bias;
 }
 
-BOAT_API boat_tensor_t* boat_rmsnorm_get_grad_weight(const boat_rmsnorm_t* norm) {
+BOAT_API BOAT_API boat_tensor_t* boat_rmsnorm_get_grad_weight(const boat_rmsnorm_t* norm) {
     if (!norm) return NULL;
     return norm->grad_weight;
 }
 
-BOAT_API void boat_rmsnorm_set_weight(boat_rmsnorm_t* norm, boat_tensor_t* weight) {
+BOAT_API BOAT_API void boat_rmsnorm_set_weight(boat_rmsnorm_t* norm, boat_tensor_t* weight) {
     if (!norm || !weight) return;
 
     const int64_t* ws = boat_tensor_shape(weight);

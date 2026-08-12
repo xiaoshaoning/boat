@@ -31,7 +31,7 @@ static void adagrad_expand_capacity(boat_adagrad_state_t* state);
 static void adagrad_update_parameter(boat_adagrad_state_t* state, size_t idx);
 
 // Create Adagrad optimizer
-BOAT_API boat_optimizer_t* boat_adagrad_optimizer_create(float learning_rate,
+BOAT_API BOAT_API boat_optimizer_t* boat_adagrad_optimizer_create(float learning_rate,
                                                 float epsilon) {
     // Parameter validation
     if (learning_rate <= 0.0f) {

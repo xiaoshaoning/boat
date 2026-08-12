@@ -23,7 +23,7 @@ static void tail_loop_f32(const float* a, const float* b, float* dst,
 // boat_simd_add_f32
 // ---------------------------------------------------------------------------
 
-void boat_simd_add_f32(const float* a, const float* b, float* dst, size_t n)
+BOAT_API void boat_simd_add_f32(const float* a, const float* b, float* dst, size_t n)
 {
 #if BOAT_HAVE_AVX2
     size_t i = 0;
@@ -52,7 +52,7 @@ void boat_simd_add_f32(const float* a, const float* b, float* dst, size_t n)
 // boat_simd_mul_f32
 // ---------------------------------------------------------------------------
 
-void boat_simd_mul_f32(const float* a, const float* b, float* dst, size_t n)
+BOAT_API void boat_simd_mul_f32(const float* a, const float* b, float* dst, size_t n)
 {
 #if BOAT_HAVE_AVX2
     size_t i = 0;
@@ -81,7 +81,7 @@ void boat_simd_mul_f32(const float* a, const float* b, float* dst, size_t n)
 // boat_simd_mul_scalar_f32
 // ---------------------------------------------------------------------------
 
-void boat_simd_mul_scalar_f32(const float* a, float scalar, float* dst, size_t n)
+BOAT_API void boat_simd_mul_scalar_f32(const float* a, float scalar, float* dst, size_t n)
 {
 #if BOAT_HAVE_AVX2
     __m256 vs = _mm256_set1_ps(scalar);
@@ -110,7 +110,7 @@ void boat_simd_mul_scalar_f32(const float* a, float scalar, float* dst, size_t n
 // boat_simd_relu_f32
 // ---------------------------------------------------------------------------
 
-void boat_simd_relu_f32(const float* a, float* dst, size_t n)
+BOAT_API void boat_simd_relu_f32(const float* a, float* dst, size_t n)
 {
 #if BOAT_HAVE_AVX2
     __m256 vzero = _mm256_setzero_ps();
@@ -139,7 +139,7 @@ void boat_simd_relu_f32(const float* a, float* dst, size_t n)
 // boat_simd_max_reduce_f32
 // ---------------------------------------------------------------------------
 
-float boat_simd_max_reduce_f32(const float* a, size_t n)
+BOAT_API float boat_simd_max_reduce_f32(const float* a, size_t n)
 {
     if (n == 0) return 0.0f;
 #if BOAT_HAVE_AVX2
@@ -185,7 +185,7 @@ float boat_simd_max_reduce_f32(const float* a, size_t n)
 // boat_simd_sum_reduce_f32
 // ---------------------------------------------------------------------------
 
-float boat_simd_sum_reduce_f32(const float* a, size_t n)
+BOAT_API float boat_simd_sum_reduce_f32(const float* a, size_t n)
 {
     if (n == 0) return 0.0f;
 #if BOAT_HAVE_AVX2
@@ -225,7 +225,7 @@ float boat_simd_sum_reduce_f32(const float* a, size_t n)
 // boat_simd_allclose_f32
 // ---------------------------------------------------------------------------
 
-bool boat_simd_allclose_f32(const float* a, const float* b, size_t n,
+BOAT_API bool boat_simd_allclose_f32(const float* a, const float* b, size_t n,
                              float rtol, float atol)
 {
     for (size_t i = 0; i < n; i++) {
@@ -242,7 +242,7 @@ bool boat_simd_allclose_f32(const float* a, const float* b, size_t n,
 // boat_simd_alloc / boat_simd_free
 // ---------------------------------------------------------------------------
 
-void* boat_simd_alloc(size_t size)
+BOAT_API void* boat_simd_alloc(size_t size)
 {
     // Allocate with extra space for alignment offset
     size_t alloc_size = size + BOAT_SIMD_ALIGNMENT + sizeof(void*);
@@ -258,7 +258,7 @@ void* boat_simd_alloc(size_t size)
     return (void*)aligned;
 }
 
-void boat_simd_free(void* ptr)
+BOAT_API void boat_simd_free(void* ptr)
 {
     if (!ptr) return;
     // Retrieve original pointer stored before aligned region

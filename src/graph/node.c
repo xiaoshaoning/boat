@@ -37,7 +37,7 @@ static boat_node_t* boat_node_create(void* data, boat_node_type_t type,
     return node;
 }
 
-void boat_node_free(boat_node_t* node) {
+BOAT_API void boat_node_free(boat_node_t* node) {
     if (!node) {
         return;
     }
@@ -51,34 +51,34 @@ void boat_node_free(boat_node_t* node) {
     }
 }
 
-void boat_node_ref(boat_node_t* node) {
+BOAT_API void boat_node_ref(boat_node_t* node) {
     if (node) {
         node->ref_count++;
     }
 }
 
-void boat_node_unref(boat_node_t* node) {
+BOAT_API void boat_node_unref(boat_node_t* node) {
     boat_node_free(node);
 }
 
 // Node properties
-size_t boat_graph_node_id(const boat_node_t* node) {
+BOAT_API size_t boat_graph_node_id(const boat_node_t* node) {
     return node ? node->id : 0;
 }
 
-void* boat_node_data(const boat_node_t* node) {
+BOAT_API void* boat_node_data(const boat_node_t* node) {
     if (!node) {
         return NULL;
     }
     return node->data;
 }
 
-boat_node_type_t boat_node_type(const boat_node_t* node) {
+BOAT_API boat_node_type_t boat_node_type(const boat_node_t* node) {
     return node ? node->type : BOAT_NODE_TYPE_VARIABLE;
 }
 
 // Node operations for graph
-boat_node_t* boat_graph_add_node(boat_graph_t* graph, void* data,
+BOAT_API boat_node_t* boat_graph_add_node(boat_graph_t* graph, void* data,
                                  boat_node_type_t type,
                                  void (*free_fn)(void*)) {
     if (!graph) {
@@ -103,7 +103,7 @@ boat_node_t* boat_graph_add_node(boat_graph_t* graph, void* data,
     return node;
 }
 
-void boat_graph_remove_node(boat_graph_t* graph, boat_node_t* node) {
+BOAT_API void boat_graph_remove_node(boat_graph_t* graph, boat_node_t* node) {
     if (!graph || !node) {
         return;
     }
@@ -133,7 +133,7 @@ void boat_graph_remove_node(boat_graph_t* graph, boat_node_t* node) {
     boat_node_free(node);
 }
 
-boat_node_t* boat_graph_get_node(const boat_graph_t* graph, size_t id) {
+BOAT_API boat_node_t* boat_graph_get_node(const boat_graph_t* graph, size_t id) {
     if (!graph) {
         return NULL;
     }
@@ -150,11 +150,11 @@ boat_node_t* boat_graph_get_node(const boat_graph_t* graph, size_t id) {
 
 
 // Graph creation and management (basic implementation)
-boat_graph_t* boat_graph_create() {
+BOAT_API boat_graph_t* boat_graph_create() {
     return boat_graph_create_with_device(BOAT_DEVICE_CPU);
 }
 
-boat_graph_t* boat_graph_create_with_device(boat_device_t device) {
+BOAT_API boat_graph_t* boat_graph_create_with_device(boat_device_t device) {
     boat_graph_t* graph = boat_malloc(sizeof(boat_graph_t), BOAT_DEVICE_CPU);
     if (!graph) {
         return NULL;
@@ -182,18 +182,18 @@ boat_graph_t* boat_graph_create_with_device(boat_device_t device) {
 }
 
 // Device management
-boat_device_t boat_graph_device(const boat_graph_t* graph) {
+BOAT_API boat_device_t boat_graph_device(const boat_graph_t* graph) {
     return graph ? graph->device : BOAT_DEVICE_CPU;
 }
 
-void boat_graph_set_device(boat_graph_t* graph, boat_device_t device) {
+BOAT_API void boat_graph_set_device(boat_graph_t* graph, boat_device_t device) {
     if (!graph) return;
     graph->device = device;
     // Note: Changing device doesn't move existing data
     // Call boat_graph_to_device() to actually move data
 }
 
-void boat_graph_free(boat_graph_t* graph) {
+BOAT_API void boat_graph_free(boat_graph_t* graph) {
     if (!graph) {
         return;
     }
@@ -242,7 +242,7 @@ void boat_graph_free(boat_graph_t* graph) {
 }
 
 // Graph properties
-size_t boat_graph_node_count(const boat_graph_t* graph) {
+BOAT_API size_t boat_graph_node_count(const boat_graph_t* graph) {
     return graph ? graph->node_count : 0;
 }
 
@@ -250,28 +250,28 @@ size_t boat_graph_node_count(const boat_graph_t* graph) {
 // This is a basic implementation focusing on nodes
 
 // Utility functions for node operations
-bool boat_node_is_variable(const boat_node_t* node) {
+BOAT_API bool boat_node_is_variable(const boat_node_t* node) {
     return node && node->type == BOAT_NODE_TYPE_VARIABLE;
 }
 
-bool boat_node_is_operation(const boat_node_t* node) {
+BOAT_API bool boat_node_is_operation(const boat_node_t* node) {
     return node && node->type == BOAT_NODE_TYPE_OPERATION;
 }
 
-bool boat_node_is_constant(const boat_node_t* node) {
+BOAT_API bool boat_node_is_constant(const boat_node_t* node) {
     return node && node->type == BOAT_NODE_TYPE_CONSTANT;
 }
 
-bool boat_node_is_placeholder(const boat_node_t* node) {
+BOAT_API bool boat_node_is_placeholder(const boat_node_t* node) {
     return node && node->type == BOAT_NODE_TYPE_PLACEHOLDER;
 }
 
-bool boat_node_is_output(const boat_node_t* node) {
+BOAT_API bool boat_node_is_output(const boat_node_t* node) {
     return node && node->type == BOAT_NODE_TYPE_OUTPUT;
 }
 
 // Node data management
-void boat_node_set_data(boat_node_t* node, void* data, void (*free_fn)(void*)) {
+BOAT_API void boat_node_set_data(boat_node_t* node, void* data, void (*free_fn)(void*)) {
     if (!node) {
         return;
     }
@@ -286,7 +286,7 @@ void boat_node_set_data(boat_node_t* node, void* data, void (*free_fn)(void*)) {
 }
 
 // Node type conversion
-const char* boat_node_type_name(boat_node_type_t type) {
+BOAT_API const char* boat_node_type_name(boat_node_type_t type) {
     switch (type) {
         case BOAT_NODE_TYPE_VARIABLE: return "VARIABLE";
         case BOAT_NODE_TYPE_OPERATION: return "OPERATION";

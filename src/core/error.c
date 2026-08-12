@@ -18,7 +18,7 @@ static BOAT_THREAD_LOCAL boat_error_t boat_last_error = BOAT_SUCCESS;
 static BOAT_THREAD_LOCAL char boat_last_error_msg[256] = "";
 
 // Convert error code to string
-const char* boat_error_string(boat_error_t error) {
+BOAT_API const char* boat_error_string(boat_error_t error) {
     switch (error) {
         case BOAT_SUCCESS: return "Success";
         case BOAT_ERROR_INVALID_ARGUMENT: return "Invalid argument";
@@ -34,18 +34,18 @@ const char* boat_error_string(boat_error_t error) {
 }
 
 // Get last error code
-boat_error_t boat_get_last_error() {
+BOAT_API boat_error_t boat_get_last_error() {
     return boat_last_error;
 }
 
 // Clear last error
-void boat_clear_error() {
+BOAT_API void boat_clear_error() {
     boat_last_error = BOAT_SUCCESS;
     boat_last_error_msg[0] = '\0';
 }
 
 // Set error with message
-void boat_set_error(boat_error_t error, const char* message) {
+BOAT_API void boat_set_error(boat_error_t error, const char* message) {
     boat_last_error = error;
     if (message) {
         strncpy(boat_last_error_msg, message, sizeof(boat_last_error_msg) - 1);
@@ -56,12 +56,12 @@ void boat_set_error(boat_error_t error, const char* message) {
 }
 
 // Get last error message
-const char* boat_get_last_error_message() {
+BOAT_API const char* boat_get_last_error_message() {
     return boat_last_error_msg;
 }
 
 // Set error with formatted message
-void boat_set_errorf(boat_error_t error, const char* format, ...) {
+BOAT_API void boat_set_errorf(boat_error_t error, const char* format, ...) {
     va_list args;
     va_start(args, format);
     boat_last_error = error;
@@ -70,11 +70,11 @@ void boat_set_errorf(boat_error_t error, const char* format, ...) {
 }
 
 // Check if error occurred
-bool boat_has_error() {
+BOAT_API bool boat_has_error() {
     return boat_last_error != BOAT_SUCCESS;
 }
 
 // Reset error state
-void boat_reset_error() {
+BOAT_API void boat_reset_error() {
     boat_clear_error();
 }

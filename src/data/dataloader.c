@@ -34,7 +34,7 @@ struct boat_dataloader_t {
     boat_transform_chain_t* transform;
 };
 
-boat_dataloader_t* boat_dataloader_create(boat_dataset_t* dataset,
+BOAT_API boat_dataloader_t* boat_dataloader_create(boat_dataset_t* dataset,
                                           size_t batch_size, bool shuffle) {
     if (!dataset) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
@@ -83,13 +83,13 @@ boat_dataloader_t* boat_dataloader_create(boat_dataset_t* dataset,
     return loader;
 }
 
-void boat_dataloader_free(boat_dataloader_t* loader) {
+BOAT_API void boat_dataloader_free(boat_dataloader_t* loader) {
     if (!loader) return;
     boat_free(loader->indices);
     boat_free(loader);
 }
 
-void boat_dataloader_reset(boat_dataloader_t* loader) {
+BOAT_API void boat_dataloader_reset(boat_dataloader_t* loader) {
     if (!loader) return;
 
     loader->current_batch = 0;
@@ -106,7 +106,7 @@ void boat_dataloader_reset(boat_dataloader_t* loader) {
     }
 }
 
-bool boat_dataloader_next(boat_dataloader_t* loader,
+BOAT_API bool boat_dataloader_next(boat_dataloader_t* loader,
                           boat_tensor_t** batch_data,
                           boat_tensor_t** batch_labels) {
     if (!loader || !batch_data || !batch_labels) return false;
@@ -214,21 +214,21 @@ bool boat_dataloader_next(boat_dataloader_t* loader,
     return true;
 }
 
-size_t boat_dataloader_num_batches(const boat_dataloader_t* loader) {
+BOAT_API size_t boat_dataloader_num_batches(const boat_dataloader_t* loader) {
     return loader ? loader->num_batches : 0;
 }
 
-size_t boat_dataloader_batch_size(const boat_dataloader_t* loader) {
+BOAT_API size_t boat_dataloader_batch_size(const boat_dataloader_t* loader) {
     return loader ? loader->batch_size : 0;
 }
 
-void boat_dataloader_set_transform(boat_dataloader_t* loader,
+BOAT_API void boat_dataloader_set_transform(boat_dataloader_t* loader,
                                    boat_transform_chain_t* transform) {
     if (loader) {
         loader->transform = transform;
     }
 }
 
-size_t boat_dataloader_current_batch_idx(const boat_dataloader_t* loader) {
+BOAT_API size_t boat_dataloader_current_batch_idx(const boat_dataloader_t* loader) {
     return loader ? loader->current_batch : 0;
 }

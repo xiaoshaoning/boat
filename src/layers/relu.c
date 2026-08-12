@@ -15,7 +15,7 @@ struct boat_relu_layer_t {
     boat_tensor_t* cache_input;  // Input from forward pass (for backward masking)
 };
 
-BOAT_API boat_relu_layer_t* BOAT_CALL boat_relu_layer_create() {
+BOAT_API BOAT_API boat_relu_layer_t* BOAT_CALL boat_relu_layer_create() {
     boat_relu_layer_t* layer = (boat_relu_layer_t*)boat_malloc(sizeof(boat_relu_layer_t), BOAT_DEVICE_CPU);
     if (!layer) {
         return NULL;
@@ -24,7 +24,7 @@ BOAT_API boat_relu_layer_t* BOAT_CALL boat_relu_layer_create() {
     return layer;
 }
 
-BOAT_API void BOAT_CALL boat_relu_layer_free(boat_relu_layer_t* layer) {
+BOAT_API BOAT_API void BOAT_CALL boat_relu_layer_free(boat_relu_layer_t* layer) {
     if (!layer) {
         return;
     }
@@ -34,7 +34,7 @@ BOAT_API void BOAT_CALL boat_relu_layer_free(boat_relu_layer_t* layer) {
     boat_free(layer);
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_relu_layer_forward(boat_relu_layer_t* layer, const boat_tensor_t* input) {
+BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_relu_layer_forward(boat_relu_layer_t* layer, const boat_tensor_t* input) {
     if (!layer || !input) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ReLULayer] NULL input or layer\n");
         return NULL;
@@ -59,7 +59,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_relu_layer_forward(boat_relu_layer_t* lay
     return result;
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_relu_layer_backward(boat_relu_layer_t* layer, const boat_tensor_t* grad_output) {
+BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_relu_layer_backward(boat_relu_layer_t* layer, const boat_tensor_t* grad_output) {
     if (!layer || !grad_output || !layer->cache_input) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ReLULayer] NULL input, gradient, or missing cache\n");
         return NULL;
@@ -91,7 +91,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_relu_layer_backward(boat_relu_layer_t* la
     return grad_input;
 }
 
-BOAT_API void BOAT_CALL boat_relu_layer_update(boat_relu_layer_t* layer, float learning_rate) {
+BOAT_API BOAT_API void BOAT_CALL boat_relu_layer_update(boat_relu_layer_t* layer, float learning_rate) {
     (void)layer;
     (void)learning_rate;
     // ReLU has no parameters to update

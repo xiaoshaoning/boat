@@ -65,7 +65,7 @@ static void update_free_stats(size_t size) {
 }
 
 // Public API implementation
-void* boat_memory_allocate(size_t size, boat_device_t device,
+BOAT_API void* boat_memory_allocate(size_t size, boat_device_t device,
                            const char* file, int line) {
     if (size == 0) {
         return NULL;
@@ -95,7 +95,7 @@ void* boat_memory_allocate(size_t size, boat_device_t device,
     return (void*)(header + 1);
 }
 
-void* boat_memory_allocate_zero(size_t size, boat_device_t device,
+BOAT_API void* boat_memory_allocate_zero(size_t size, boat_device_t device,
                                 const char* file, int line) {
     void* ptr = boat_memory_allocate(size, device, file, line);
     if (ptr) {
@@ -104,7 +104,7 @@ void* boat_memory_allocate_zero(size_t size, boat_device_t device,
     return ptr;
 }
 
-void* boat_memory_reallocate(void* ptr, size_t new_size, boat_device_t device,
+BOAT_API void* boat_memory_reallocate(void* ptr, size_t new_size, boat_device_t device,
                              const char* file, int line) {
     if (!ptr) {
         return boat_memory_allocate(new_size, device, file, line);
@@ -141,7 +141,7 @@ void* boat_memory_reallocate(void* ptr, size_t new_size, boat_device_t device,
     return (void*)(new_header + 1);
 }
 
-void boat_memory_free(void* ptr) {
+BOAT_API void boat_memory_free(void* ptr) {
     if (!ptr) {
         return;
     }
@@ -156,7 +156,7 @@ void boat_memory_free(void* ptr) {
     heap_free(header);
 }
 
-void boat_memory_free_safe(void** ptr_ptr) {
+BOAT_API void boat_memory_free_safe(void** ptr_ptr) {
     if (ptr_ptr && *ptr_ptr) {
         boat_memory_free(*ptr_ptr);
         *ptr_ptr = NULL;
@@ -164,11 +164,11 @@ void boat_memory_free_safe(void** ptr_ptr) {
 }
 
 // Memory statistics functions
-BOAT_API boat_memory_stats_t boat_memory_get_stats() {
+BOAT_API BOAT_API boat_memory_stats_t boat_memory_get_stats() {
     return g_memory_stats;
 }
 
-BOAT_API void boat_memory_reset_stats() {
+BOAT_API BOAT_API void boat_memory_reset_stats() {
     g_memory_stats.allocated_bytes = 0;
     g_memory_stats.allocated_blocks = 0;
     g_memory_stats.peak_allocated_bytes = 0;
@@ -176,7 +176,7 @@ BOAT_API void boat_memory_reset_stats() {
     g_memory_stats.freed_blocks = 0;
 }
 
-void boat_memory_print_stats(FILE* stream) {
+BOAT_API void boat_memory_print_stats(FILE* stream) {
     boat_memory_stats_t stats = boat_memory_get_stats();
 
     fprintf(stream, "=== Memory Statistics ===\n");
@@ -193,7 +193,7 @@ void boat_memory_print_stats(FILE* stream) {
 }
 
 // Device-specific memory allocation
-void* boat_memory_allocate_device(size_t size, boat_device_t device,
+BOAT_API void* boat_memory_allocate_device(size_t size, boat_device_t device,
                                   const char* file, int line) {
     if (size == 0) return NULL;
 #ifdef BOAT_WITH_CUDA
@@ -210,7 +210,7 @@ void* boat_memory_allocate_device(size_t size, boat_device_t device,
     return boat_memory_allocate(size, BOAT_DEVICE_CPU, file, line);
 }
 
-void boat_memory_free_device(void* ptr, boat_device_t device) {
+BOAT_API void boat_memory_free_device(void* ptr, boat_device_t device) {
     if (!ptr) return;
 #ifdef BOAT_WITH_CUDA
     if (device == BOAT_DEVICE_CUDA) {
@@ -223,7 +223,7 @@ void boat_memory_free_device(void* ptr, boat_device_t device) {
 }
 
 // Alignment functions
-void* boat_memory_allocate_aligned(size_t size, size_t alignment,
+BOAT_API void* boat_memory_allocate_aligned(size_t size, size_t alignment,
                                    boat_device_t device,
                                    const char* file, int line) {
     if (alignment < sizeof(void*)) {
@@ -251,7 +251,7 @@ void* boat_memory_allocate_aligned(size_t size, size_t alignment,
     return (void*)aligned_addr;
 }
 
-void boat_memory_free_aligned(const void* aligned_ptr) {
+BOAT_API void boat_memory_free_aligned(const void* aligned_ptr) {
     if (!aligned_ptr) {
         return;
     }
@@ -264,7 +264,7 @@ void boat_memory_free_aligned(const void* aligned_ptr) {
 }
 
 // Memory copy functions
-void boat_memory_copy(void* dest, const void* src, size_t size,
+BOAT_API void boat_memory_copy(void* dest, const void* src, size_t size,
                       boat_device_t dest_device, boat_device_t src_device) {
     if (dest_device == BOAT_DEVICE_CPU && src_device == BOAT_DEVICE_CPU) {
         memcpy(dest, src, size);
@@ -281,7 +281,7 @@ void boat_memory_copy(void* dest, const void* src, size_t size,
     }
 }
 
-void boat_memory_set(void* dest, int value, size_t size, boat_device_t device) {
+BOAT_API void boat_memory_set(void* dest, int value, size_t size, boat_device_t device) {
     if (device == BOAT_DEVICE_CPU) {
         memset(dest, value, size);
 #ifdef BOAT_WITH_CUDA
@@ -336,7 +336,7 @@ struct boat_memory_arena_t {
     size_t peak_used;
 };
 
-boat_memory_pool_t* boat_memory_pool_create(size_t block_size, size_t initial_blocks) {
+BOAT_API boat_memory_pool_t* boat_memory_pool_create(size_t block_size, size_t initial_blocks) {
     if (block_size == 0 || initial_blocks == 0) {
         return NULL;
     }
@@ -376,7 +376,7 @@ boat_memory_pool_t* boat_memory_pool_create(size_t block_size, size_t initial_bl
     return pool;
 }
 
-void boat_memory_pool_free(boat_memory_pool_t* pool) {
+BOAT_API void boat_memory_pool_free(boat_memory_pool_t* pool) {
     if (!pool) {
         return;
     }
@@ -385,7 +385,7 @@ void boat_memory_pool_free(boat_memory_pool_t* pool) {
     heap_free(pool);
 }
 
-void* boat_memory_pool_alloc(boat_memory_pool_t* pool, size_t size) {
+BOAT_API void* boat_memory_pool_alloc(boat_memory_pool_t* pool, size_t size) {
     if (!pool || size > pool->block_size) {
         return NULL;
     }
@@ -408,7 +408,7 @@ void* boat_memory_pool_alloc(boat_memory_pool_t* pool, size_t size) {
     return block->data;
 }
 
-void boat_memory_pool_free_block(boat_memory_pool_t* pool, void* block_ptr) {
+BOAT_API void boat_memory_pool_free_block(boat_memory_pool_t* pool, void* block_ptr) {
     if (!pool || !block_ptr) {
         return;
     }
@@ -440,7 +440,7 @@ void boat_memory_pool_free_block(boat_memory_pool_t* pool, void* block_ptr) {
     block->in_use = false;
 }
 
-void boat_memory_pool_clear(boat_memory_pool_t* pool) {
+BOAT_API void boat_memory_pool_clear(boat_memory_pool_t* pool) {
     if (!pool) {
         return;
     }
@@ -458,15 +458,15 @@ void boat_memory_pool_clear(boat_memory_pool_t* pool) {
     pool->free_blocks = pool->total_blocks;
 }
 
-size_t boat_memory_pool_allocated_blocks(const boat_memory_pool_t* pool) {
+BOAT_API size_t boat_memory_pool_allocated_blocks(const boat_memory_pool_t* pool) {
     return pool ? pool->total_blocks - pool->free_blocks : 0;
 }
 
-size_t boat_memory_pool_free_blocks(const boat_memory_pool_t* pool) {
+BOAT_API size_t boat_memory_pool_free_blocks(const boat_memory_pool_t* pool) {
     return pool ? pool->free_blocks : 0;
 }
 
-size_t boat_memory_pool_total_memory(const boat_memory_pool_t* pool) {
+BOAT_API size_t boat_memory_pool_total_memory(const boat_memory_pool_t* pool) {
     return pool ? pool->total_blocks * (sizeof(boat_memory_block_t) + pool->block_size) : 0;
 }
 
@@ -474,7 +474,7 @@ size_t boat_memory_pool_total_memory(const boat_memory_pool_t* pool) {
 // Arena Allocator Implementation
 // ============================================================================
 
-boat_memory_arena_t* boat_memory_arena_create(size_t initial_size) {
+BOAT_API boat_memory_arena_t* boat_memory_arena_create(size_t initial_size) {
     if (initial_size == 0) {
         initial_size = 1024 * 1024;  // Default 1MB
     }
@@ -497,7 +497,7 @@ boat_memory_arena_t* boat_memory_arena_create(size_t initial_size) {
     return arena;
 }
 
-void boat_memory_arena_free(boat_memory_arena_t* arena) {
+BOAT_API void boat_memory_arena_free(boat_memory_arena_t* arena) {
     if (!arena) {
         return;
     }
@@ -506,7 +506,7 @@ void boat_memory_arena_free(boat_memory_arena_t* arena) {
     heap_free(arena);
 }
 
-void* boat_memory_arena_alloc(boat_memory_arena_t* arena, size_t size) {
+BOAT_API void* boat_memory_arena_alloc(boat_memory_arena_t* arena, size_t size) {
     if (!arena || size == 0) {
         return NULL;
     }
@@ -540,16 +540,16 @@ void* boat_memory_arena_alloc(boat_memory_arena_t* arena, size_t size) {
     return ptr;
 }
 
-void boat_memory_arena_reset(boat_memory_arena_t* arena) {
+BOAT_API void boat_memory_arena_reset(boat_memory_arena_t* arena) {
     if (arena) {
         arena->used = 0;
     }
 }
 
-BOAT_API size_t boat_memory_arena_used(const boat_memory_arena_t* arena) {
+BOAT_API BOAT_API size_t boat_memory_arena_used(const boat_memory_arena_t* arena) {
     return arena ? arena->used : 0;
 }
 
-BOAT_API size_t boat_memory_arena_capacity(const boat_memory_arena_t* arena) {
+BOAT_API BOAT_API size_t boat_memory_arena_capacity(const boat_memory_arena_t* arena) {
     return arena ? arena->capacity : 0;
 }

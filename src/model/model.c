@@ -32,7 +32,7 @@ struct boat_model_t {
 // Layer structure is now defined in model.h
 
 // Model creation and management
-boat_model_t* boat_model_create() {
+BOAT_API boat_model_t* boat_model_create() {
     boat_model_t* model = boat_malloc(sizeof(boat_model_t), BOAT_DEVICE_CPU);
     if (!model) {
         return NULL;
@@ -60,7 +60,7 @@ boat_model_t* boat_model_create() {
     return model;
 }
 
-boat_model_t* boat_model_create_with_graph(const boat_graph_t* graph) {
+BOAT_API boat_model_t* boat_model_create_with_graph(const boat_graph_t* graph) {
     if (!graph) {
         return NULL;
     }
@@ -87,7 +87,7 @@ boat_model_t* boat_model_create_with_graph(const boat_graph_t* graph) {
     return model;
 }
 
-void boat_model_free(boat_model_t* model) {
+BOAT_API void boat_model_free(boat_model_t* model) {
     if (!model) {
         return;
     }
@@ -128,11 +128,11 @@ void boat_model_free(boat_model_t* model) {
 }
 
 // Graph access
-boat_graph_t* boat_model_graph(const boat_model_t* model) {
+BOAT_API boat_graph_t* boat_model_graph(const boat_model_t* model) {
     return model ? model->graph : NULL;
 }
 
-void boat_model_set_graph(boat_model_t* model, boat_graph_t* graph) {
+BOAT_API void boat_model_set_graph(boat_model_t* model, boat_graph_t* graph) {
     if (!model || !graph) {
         return;
     }
@@ -147,7 +147,7 @@ void boat_model_set_graph(boat_model_t* model, boat_graph_t* graph) {
 }
 
 // Model operations
-boat_tensor_t* boat_model_forward(const boat_model_t* model, const boat_tensor_t* input) {
+BOAT_API boat_tensor_t* boat_model_forward(const boat_model_t* model, const boat_tensor_t* input) {
     if (!model || !input) return NULL;
     if (model->layer_count == 0) return NULL;
 
@@ -358,14 +358,14 @@ boat_tensor_t* boat_model_forward(const boat_model_t* model, const boat_tensor_t
     return final_output;
 }
 
-boat_tensor_t* boat_model_backward(const boat_model_t* model, const boat_tensor_t* grad_output) {
+BOAT_API boat_tensor_t* boat_model_backward(const boat_model_t* model, const boat_tensor_t* grad_output) {
     (void)model;
     (void)grad_output;
     // TODO: Implement backward pass through computational graph
     return NULL;
 }
 
-void boat_model_update(const boat_model_t* model, float learning_rate) {
+BOAT_API void boat_model_update(const boat_model_t* model, float learning_rate) {
     (void)model;
     (void)learning_rate;
     // TODO: Implement parameter update
@@ -687,7 +687,7 @@ static void set_layer_ops(boat_layer_t* wrapper) {
 
 // --- Save ---
 
-bool boat_model_save(const boat_model_t* model, const char* filename) {
+BOAT_API bool boat_model_save(const boat_model_t* model, const char* filename) {
     if (!model || !filename || model->layer_count == 0) return false;
 
     FILE* f = fopen(filename, "wb");
@@ -865,7 +865,7 @@ bool boat_model_save(const boat_model_t* model, const char* filename) {
 
 // --- Load ---
 
-boat_model_t* boat_model_load(const char* filename) {
+BOAT_API boat_model_t* boat_model_load(const char* filename) {
     if (!filename) return NULL;
 
     FILE* f = fopen(filename, "rb");
@@ -1048,17 +1048,17 @@ boat_model_t* boat_model_load(const char* filename) {
 }
 
 // Get layer by index
-boat_layer_t* boat_model_get_layer(const boat_model_t* model, size_t index) {
+BOAT_API boat_layer_t* boat_model_get_layer(const boat_model_t* model, size_t index) {
     if (!model || index >= model->layer_count) return NULL;
     return model->layers[index];
 }
 
 // User data management
-void* boat_model_get_user_data(const boat_model_t* model) {
+BOAT_API void* boat_model_get_user_data(const boat_model_t* model) {
     return model ? model->user_data : NULL;
 }
 
-void boat_model_set_user_data(boat_model_t* model, void* user_data, void (*free_fn)(void*)) {
+BOAT_API void boat_model_set_user_data(boat_model_t* model, void* user_data, void (*free_fn)(void*)) {
     if (!model) {
         return;
     }
@@ -1073,12 +1073,12 @@ void boat_model_set_user_data(boat_model_t* model, void* user_data, void (*free_
 }
 
 // Get layer count
-size_t boat_model_layer_count(const boat_model_t* model) {
+BOAT_API size_t boat_model_layer_count(const boat_model_t* model) {
     return model ? model->layer_count : 0;
 }
 
 // Add layer to model
-void boat_model_add_layer(boat_model_t* model, boat_layer_t* layer) {
+BOAT_API void boat_model_add_layer(boat_model_t* model, boat_layer_t* layer) {
     if (!model || !layer) {
         return;
     }

@@ -13,7 +13,7 @@ struct boat_dataset_t {
     boat_tensor_t* labels;  // [N] or [N, 1] labels
 };
 
-boat_dataset_t* boat_tensor_dataset_create(boat_tensor_t* data, boat_tensor_t* labels) {
+BOAT_API boat_dataset_t* boat_tensor_dataset_create(boat_tensor_t* data, boat_tensor_t* labels) {
     if (!data || !labels) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
             "[Dataset] NULL data or labels\n");
@@ -45,20 +45,20 @@ boat_dataset_t* boat_tensor_dataset_create(boat_tensor_t* data, boat_tensor_t* l
     return ds;
 }
 
-void boat_dataset_free(boat_dataset_t* dataset) {
+BOAT_API void boat_dataset_free(boat_dataset_t* dataset) {
     if (!dataset) return;
     boat_tensor_unref(dataset->data);
     boat_tensor_unref(dataset->labels);
     boat_free(dataset);
 }
 
-size_t boat_dataset_size(const boat_dataset_t* dataset) {
+BOAT_API size_t boat_dataset_size(const boat_dataset_t* dataset) {
     if (!dataset) return 0;
     if (boat_tensor_ndim(dataset->data) == 0) return 0;
     return (size_t)boat_tensor_shape(dataset->data)[0];
 }
 
-boat_tensor_t* boat_dataset_get_data(const boat_dataset_t* dataset, size_t index) {
+BOAT_API boat_tensor_t* boat_dataset_get_data(const boat_dataset_t* dataset, size_t index) {
     if (!dataset) return NULL;
 
     size_t ndim = boat_tensor_ndim(dataset->data);
@@ -126,7 +126,7 @@ boat_tensor_t* boat_dataset_get_data(const boat_dataset_t* dataset, size_t index
     return result;
 }
 
-boat_tensor_t* boat_dataset_get_label(const boat_dataset_t* dataset, size_t index) {
+BOAT_API boat_tensor_t* boat_dataset_get_label(const boat_dataset_t* dataset, size_t index) {
     if (!dataset) return NULL;
 
     size_t n = boat_dataset_size(dataset);

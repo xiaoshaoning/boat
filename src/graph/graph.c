@@ -101,7 +101,7 @@ bool ensure_edge_capacity(boat_graph_t* graph, size_t needed_capacity) {
 
 
 // Edge operations
-boat_edge_t* boat_graph_add_edge(boat_graph_t* graph, const boat_node_t* from, const boat_node_t* to,
+BOAT_API boat_edge_t* boat_graph_add_edge(boat_graph_t* graph, const boat_node_t* from, const boat_node_t* to,
                                  boat_edge_direction_t direction) {
     if (!graph || !from || !to) {
         return NULL;
@@ -178,7 +178,7 @@ boat_edge_t* boat_graph_add_edge(boat_graph_t* graph, const boat_node_t* from, c
     return edge;
 }
 
-void boat_graph_remove_edge(boat_graph_t* graph, const boat_edge_t* edge) {
+BOAT_API void boat_graph_remove_edge(boat_graph_t* graph, const boat_edge_t* edge) {
     if (!graph || !edge) return;
 
     // Find edge in edges array
@@ -227,11 +227,11 @@ void boat_graph_remove_edge(boat_graph_t* graph, const boat_edge_t* edge) {
 }
 
 // Graph topology functions
-size_t boat_graph_edge_count(const boat_graph_t* graph) {
+BOAT_API size_t boat_graph_edge_count(const boat_graph_t* graph) {
     return graph ? graph->edge_count : 0;
 }
 
-size_t boat_graph_in_degree(const boat_graph_t* graph, const boat_node_t* node) {
+BOAT_API size_t boat_graph_in_degree(const boat_graph_t* graph, const boat_node_t* node) {
     if (!graph || !node) return 0;
 
     // Find node index
@@ -243,7 +243,7 @@ size_t boat_graph_in_degree(const boat_graph_t* graph, const boat_node_t* node) 
     return 0;
 }
 
-size_t boat_graph_out_degree(const boat_graph_t* graph, const boat_node_t* node) {
+BOAT_API size_t boat_graph_out_degree(const boat_graph_t* graph, const boat_node_t* node) {
     if (!graph || !node) return 0;
 
     for (size_t i = 0; i < graph->node_count; i++) {
@@ -255,7 +255,7 @@ size_t boat_graph_out_degree(const boat_graph_t* graph, const boat_node_t* node)
 }
 
 // Graph traversal algorithms
-void boat_graph_dfs(const boat_graph_t* graph, const boat_node_t* start,
+BOAT_API void boat_graph_dfs(const boat_graph_t* graph, const boat_node_t* start,
                     boat_node_visitor_t pre_visit, boat_node_visitor_t post_visit,
                     void* user_data) {
     if (!graph || !start) return;
@@ -320,7 +320,7 @@ void boat_graph_dfs(const boat_graph_t* graph, const boat_node_t* start,
     boat_free(visited);
 }
 
-void boat_graph_bfs(const boat_graph_t* graph, const boat_node_t* start,
+BOAT_API void boat_graph_bfs(const boat_graph_t* graph, const boat_node_t* start,
                     boat_node_visitor_t visit, void* user_data) {
     if (!graph || !start || !visit) return;
 
@@ -370,7 +370,7 @@ void boat_graph_bfs(const boat_graph_t* graph, const boat_node_t* start,
     boat_free(visited);
 }
 
-void boat_graph_topological_sort(const boat_graph_t* graph, boat_node_t** sorted_nodes,
+BOAT_API void boat_graph_topological_sort(const boat_graph_t* graph, boat_node_t** sorted_nodes,
                                  size_t* count) {
     if (!graph || !sorted_nodes || !count) return;
 
@@ -461,7 +461,7 @@ static bool dfs_cycle(const boat_graph_t* graph, bool* visited, bool* rec_stack,
     return false;
 }
 
-bool boat_graph_is_acyclic(const boat_graph_t* graph) {
+BOAT_API bool boat_graph_is_acyclic(const boat_graph_t* graph) {
     if (!graph) return true;
 
     size_t n = graph->node_count;
@@ -489,7 +489,7 @@ bool boat_graph_is_acyclic(const boat_graph_t* graph) {
     return !has_cycle;
 }
 
-bool boat_graph_is_connected(const boat_graph_t* graph) {
+BOAT_API bool boat_graph_is_connected(const boat_graph_t* graph) {
     if (!graph || graph->node_count == 0) return true;
 
     // Use BFS from first node
@@ -547,7 +547,7 @@ bool boat_graph_is_connected(const boat_graph_t* graph) {
     return connected;
 }
 
-bool boat_graph_has_path(const boat_graph_t* graph, const boat_node_t* from, const boat_node_t* to) {
+BOAT_API bool boat_graph_has_path(const boat_graph_t* graph, const boat_node_t* from, const boat_node_t* to) {
     if (!graph || !from || !to) return false;
 
     size_t from_index = SIZE_MAX, to_index = SIZE_MAX;
@@ -602,7 +602,7 @@ bool boat_graph_has_path(const boat_graph_t* graph, const boat_node_t* from, con
 }
 
 // Graph copy operations
-boat_graph_t* boat_graph_copy(const boat_graph_t* graph) {
+BOAT_API boat_graph_t* boat_graph_copy(const boat_graph_t* graph) {
     if (!graph) return NULL;
 
     // Create new graph with same device
@@ -745,7 +745,7 @@ boat_graph_t* boat_graph_copy(const boat_graph_t* graph) {
 }
 
 // Subgraph operations
-boat_graph_t* boat_graph_subgraph(const boat_graph_t* graph, boat_node_t** nodes,
+BOAT_API boat_graph_t* boat_graph_subgraph(const boat_graph_t* graph, boat_node_t** nodes,
                                   size_t node_count) {
     if (!graph || !nodes || node_count == 0) return NULL;
 
@@ -925,7 +925,7 @@ boat_graph_t* boat_graph_subgraph(const boat_graph_t* graph, boat_node_t** nodes
     return subgraph;
 }
 
-void boat_graph_merge(boat_graph_t* dest, const boat_graph_t* src) {
+BOAT_API void boat_graph_merge(boat_graph_t* dest, const boat_graph_t* src) {
     if (!dest || !src) return;
 
     // We need to merge nodes and edges from src into dest
@@ -1067,7 +1067,7 @@ void boat_graph_merge(boat_graph_t* dest, const boat_graph_t* src) {
 }
 
 // Graph validation
-void boat_graph_validate(const boat_graph_t* graph) {
+BOAT_API void boat_graph_validate(const boat_graph_t* graph) {
     if (!graph) return;
 
     // Basic sanity checks
@@ -1202,7 +1202,7 @@ void boat_graph_validate(const boat_graph_t* graph) {
     }
 }
 
-bool boat_graph_can_add_edge(const boat_graph_t* graph, const boat_node_t* from, const boat_node_t* to) {
+BOAT_API bool boat_graph_can_add_edge(const boat_graph_t* graph, const boat_node_t* from, const boat_node_t* to) {
     if (!graph || !from || !to) return false;
 
     // Check if both nodes are in the graph
@@ -1250,7 +1250,7 @@ bool boat_graph_can_add_edge(const boat_graph_t* graph, const boat_node_t* from,
     return true;
 }
 
-bool boat_graph_can_remove_node(const boat_graph_t* graph, const boat_node_t* node) {
+BOAT_API bool boat_graph_can_remove_node(const boat_graph_t* graph, const boat_node_t* node) {
     if (!graph || !node) return false;
 
     // Check if node is in graph
@@ -1280,7 +1280,7 @@ bool boat_graph_can_remove_node(const boat_graph_t* graph, const boat_node_t* no
 }
 
 // Gradient checkpointing
-void boat_graph_enable_checkpointing(boat_graph_t* graph, bool enabled) {
+BOAT_API void boat_graph_enable_checkpointing(boat_graph_t* graph, bool enabled) {
     if (!graph) return;
 
     graph->checkpointing_enabled = enabled;
@@ -1299,11 +1299,11 @@ void boat_graph_enable_checkpointing(boat_graph_t* graph, bool enabled) {
     }
 }
 
-bool boat_graph_checkpointing_enabled(const boat_graph_t* graph) {
+BOAT_API bool boat_graph_checkpointing_enabled(const boat_graph_t* graph) {
     return graph ? graph->checkpointing_enabled : false;
 }
 
-void boat_graph_mark_checkpoint(const boat_graph_t* graph, const boat_node_t* node) {
+BOAT_API void boat_graph_mark_checkpoint(const boat_graph_t* graph, const boat_node_t* node) {
     if (!graph || !node || !graph->checkpoint_nodes) return;
 
     // Find node index
@@ -1315,7 +1315,7 @@ void boat_graph_mark_checkpoint(const boat_graph_t* graph, const boat_node_t* no
     }
 }
 
-bool boat_graph_is_checkpoint(const boat_graph_t* graph, const boat_node_t* node) {
+BOAT_API bool boat_graph_is_checkpoint(const boat_graph_t* graph, const boat_node_t* node) {
     if (!graph || !node || !graph->checkpoint_nodes) return false;
 
     for (size_t i = 0; i < graph->node_count; i++) {
@@ -1327,7 +1327,7 @@ bool boat_graph_is_checkpoint(const boat_graph_t* graph, const boat_node_t* node
 }
 
 // Graph visualization
-void boat_graph_print(const boat_graph_t* graph) {
+BOAT_API void boat_graph_print(const boat_graph_t* graph) {
     if (!graph) return;
 
     printf("Graph with %zu nodes and %zu edges:\n",
@@ -1350,21 +1350,21 @@ void boat_graph_print(const boat_graph_t* graph) {
     }
 }
 
-boat_node_t* boat_graph_get_node_at_index(const boat_graph_t* graph, size_t index) {
+BOAT_API boat_node_t* boat_graph_get_node_at_index(const boat_graph_t* graph, size_t index) {
     if (!graph || index >= graph->node_count) {
         return NULL;
     }
     return graph->nodes[index];
 }
 
-boat_edge_t* boat_graph_get_edge_at_index(const boat_graph_t* graph, size_t index) {
+BOAT_API boat_edge_t* boat_graph_get_edge_at_index(const boat_graph_t* graph, size_t index) {
     if (!graph || index >= graph->edge_count) {
         return NULL;
     }
     return graph->edges[index];
 }
 
-char* boat_graph_to_dot(const boat_graph_t* graph) {
+BOAT_API char* boat_graph_to_dot(const boat_graph_t* graph) {
     if (!graph) return NULL;
 
     // Calculate required buffer size
@@ -1428,7 +1428,7 @@ char* boat_graph_to_dot(const boat_graph_t* graph) {
 }
 
 // Real-time graph modification during training
-boat_edge_t* boat_graph_safe_add_edge(boat_graph_t* graph, const boat_node_t* from, const boat_node_t* to,
+BOAT_API boat_edge_t* boat_graph_safe_add_edge(boat_graph_t* graph, const boat_node_t* from, const boat_node_t* to,
                                      boat_edge_direction_t direction) {
     if (!graph || !from || !to) return NULL;
 
@@ -1451,7 +1451,7 @@ boat_edge_t* boat_graph_safe_add_edge(boat_graph_t* graph, const boat_node_t* fr
     return boat_graph_add_edge(graph, from, to, direction);
 }
 
-bool boat_graph_safe_remove_node(boat_graph_t* graph, const boat_node_t* node) {
+BOAT_API bool boat_graph_safe_remove_node(boat_graph_t* graph, const boat_node_t* node) {
     if (!graph || !node) return false;
 
     // Check if node can be removed (no edges)
@@ -1471,7 +1471,7 @@ bool boat_graph_safe_remove_node(boat_graph_t* graph, const boat_node_t* node) {
     return true;
 }
 
-bool boat_graph_safe_replace_node(boat_graph_t* graph, const boat_node_t* old_node, const boat_node_t* new_node) {
+BOAT_API bool boat_graph_safe_replace_node(boat_graph_t* graph, const boat_node_t* old_node, const boat_node_t* new_node) {
     if (!graph || !old_node || !new_node) return false;
 
     // Check if old_node is in graph
@@ -1559,7 +1559,7 @@ bool boat_graph_safe_replace_node(boat_graph_t* graph, const boat_node_t* old_no
     return true;
 }
 
-void boat_graph_batch_modifications(boat_graph_t* graph, bool begin) {
+BOAT_API void boat_graph_batch_modifications(boat_graph_t* graph, bool begin) {
     if (!graph) return;
 
     if (begin) {
@@ -1573,7 +1573,7 @@ void boat_graph_batch_modifications(boat_graph_t* graph, bool begin) {
 }
 
 // Cross-device communication and optimization
-bool boat_graph_to_device(boat_graph_t* graph, boat_device_t device) {
+BOAT_API bool boat_graph_to_device(boat_graph_t* graph, boat_device_t device) {
     if (!graph) return false;
 
     if (graph->device == device) {
@@ -1594,7 +1594,7 @@ bool boat_graph_to_device(boat_graph_t* graph, boat_device_t device) {
     return true;
 }
 
-size_t boat_graph_device_memory_usage(const boat_graph_t* graph, boat_device_t device) {
+BOAT_API size_t boat_graph_device_memory_usage(const boat_graph_t* graph, boat_device_t device) {
     if (!graph) return 0;
 
     size_t total_memory = 0;
@@ -1611,7 +1611,7 @@ size_t boat_graph_device_memory_usage(const boat_graph_t* graph, boat_device_t d
 
 // Graph optimization functions
 
-void boat_graph_optimize(const boat_graph_t* graph, unsigned int optimization_flags) {
+BOAT_API void boat_graph_optimize(const boat_graph_t* graph, unsigned int optimization_flags) {
     if (!graph) return;
 
     // Apply optimizations based on flags
@@ -1629,7 +1629,7 @@ void boat_graph_optimize(const boat_graph_t* graph, unsigned int optimization_fl
     }
 }
 
-void boat_graph_eliminate_common_subexpressions(const boat_graph_t* graph) {
+BOAT_API void boat_graph_eliminate_common_subexpressions(const boat_graph_t* graph) {
     if (!graph) return;
 
     // Phase 3: Common subexpression elimination
@@ -1645,7 +1645,7 @@ void boat_graph_eliminate_common_subexpressions(const boat_graph_t* graph) {
     }
 }
 
-void boat_graph_eliminate_dead_code(const boat_graph_t* graph) {
+BOAT_API void boat_graph_eliminate_dead_code(const boat_graph_t* graph) {
     if (!graph) return;
 
     // Phase 3: Dead code elimination
@@ -1661,7 +1661,7 @@ void boat_graph_eliminate_dead_code(const boat_graph_t* graph) {
     }
 }
 
-void boat_graph_fold_constants(const boat_graph_t* graph) {
+BOAT_API void boat_graph_fold_constants(const boat_graph_t* graph) {
     if (!graph) return;
 
     // Phase 3: Constant folding
@@ -1677,7 +1677,7 @@ void boat_graph_fold_constants(const boat_graph_t* graph) {
     }
 }
 
-void boat_graph_simplify(const boat_graph_t* graph) {
+BOAT_API void boat_graph_simplify(const boat_graph_t* graph) {
     if (!graph) return;
 
     // Phase 3: Graph simplification
@@ -1694,7 +1694,7 @@ void boat_graph_simplify(const boat_graph_t* graph) {
 }
 
 // Node migration between graphs
-bool boat_graph_migrate_node(boat_graph_t* dest_graph, boat_graph_t* src_graph, const boat_node_t* node) {
+BOAT_API bool boat_graph_migrate_node(boat_graph_t* dest_graph, boat_graph_t* src_graph, const boat_node_t* node) {
     if (!dest_graph || !src_graph || !node) {
         return false;
     }

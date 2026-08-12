@@ -24,7 +24,7 @@ typedef struct {
 } mse_loss_t;
 
 // Create MSE loss function
-boat_loss_t* BOAT_API boat_mse_loss_create() {
+BOAT_API boat_loss_t* BOAT_API boat_mse_loss_create() {
     mse_loss_t* loss = (mse_loss_t*)boat_malloc(sizeof(mse_loss_t), BOAT_DEVICE_CPU);
     if (!loss) {
         return NULL;

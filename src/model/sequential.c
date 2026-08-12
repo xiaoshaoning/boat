@@ -19,7 +19,7 @@ typedef struct {
 } boat_sequential_model_private_t;
 
 // Sequential model creation
-boat_sequential_model_t* boat_sequential_create() {
+BOAT_API boat_sequential_model_t* boat_sequential_create() {
     // Create base model
     boat_model_t* model = boat_model_create();
     if (!model) {
@@ -44,7 +44,7 @@ boat_sequential_model_t* boat_sequential_create() {
 }
 
 // Add layer to sequential model
-void boat_sequential_add(boat_sequential_model_t* model, boat_layer_t* layer) {
+BOAT_API void boat_sequential_add(boat_sequential_model_t* model, boat_layer_t* layer) {
     BOAT_CHECK_NULL_VOID(model);
     BOAT_CHECK_NULL_VOID(layer);
 

@@ -11,7 +11,7 @@
 // OpenBLAS backend: delegate boat_sgemm to cblas_sgemm
 // ---------------------------------------------------------------------------
 
-void boat_sgemm(int64_t M, int64_t N, int64_t K,
+BOAT_API void boat_sgemm(int64_t M, int64_t N, int64_t K,
                 const float* A, const float* B, float* C)
 {
     if (M <= 0 || N <= 0 || K <= 0) return;
@@ -20,7 +20,7 @@ void boat_sgemm(int64_t M, int64_t N, int64_t K,
                 1.0f, A, (int)K, B, (int)N, 0.0f, C, (int)N);
 }
 
-void boat_sgemm_batched(int64_t batch,
+BOAT_API void boat_sgemm_batched(int64_t batch,
                          int64_t M, int64_t N, int64_t K,
                          const float* A, int64_t stride_a,
                          const float* B, int64_t stride_b,
@@ -300,7 +300,7 @@ static void sgemm_panel(int64_t mc, int64_t nc, int64_t kc,
 // boat_sgemm: C[M][N] += A[M][K] * B[K][N]  (row-major, float32)
 // ---------------------------------------------------------------------------
 
-void boat_sgemm(int64_t M, int64_t N, int64_t K,
+BOAT_API void boat_sgemm(int64_t M, int64_t N, int64_t K,
                 const float* A, const float* B, float* C)
 {
     if (M <= 0 || N <= 0 || K <= 0) return;
@@ -359,7 +359,7 @@ void boat_sgemm(int64_t M, int64_t N, int64_t K,
 // boat_sgemm_batched: batched version with configurable strides
 // ---------------------------------------------------------------------------
 
-void boat_sgemm_batched(int64_t batch,
+BOAT_API void boat_sgemm_batched(int64_t batch,
                          int64_t M, int64_t N, int64_t K,
                          const float* A, int64_t stride_a,
                          const float* B, int64_t stride_b,

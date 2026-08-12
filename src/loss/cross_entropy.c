@@ -24,7 +24,7 @@ typedef struct {
 } cross_entropy_loss_t;
 
 // Create cross entropy loss function
-boat_loss_t* BOAT_API boat_cross_entropy_loss_create() {
+BOAT_API boat_loss_t* BOAT_API boat_cross_entropy_loss_create() {
     cross_entropy_loss_t* loss = (cross_entropy_loss_t*)boat_malloc(sizeof(cross_entropy_loss_t), BOAT_DEVICE_CPU);
     if (!loss) {
         return NULL;

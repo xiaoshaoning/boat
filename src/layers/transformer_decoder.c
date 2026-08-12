@@ -551,7 +551,7 @@ static boat_tensor_t* cross_attention(
 // Public API
 // =========================================================================
 
-boat_tensor_t* boat_decoder_layer_forward(
+BOAT_API boat_tensor_t* boat_decoder_layer_forward(
     const boat_decoder_config_t* config,
     const boat_decoder_layer_weights_t* weights,
     const boat_tensor_t* x,
@@ -645,7 +645,7 @@ boat_tensor_t* boat_decoder_layer_forward(
 // KV Cache management
 // =========================================================================
 
-boat_decoder_cache_t* boat_decoder_cache_create(
+BOAT_API boat_decoder_cache_t* boat_decoder_cache_create(
     int32_t batch_size,
     int32_t num_heads,
     int32_t head_dim,
@@ -655,7 +655,7 @@ boat_decoder_cache_t* boat_decoder_cache_create(
     return boat_decoder_cache_create_ex(batch_size, num_heads, head_dim, max_t, encoder_seq_len, BOAT_DEVICE_CPU);
 }
 
-boat_decoder_cache_t* boat_decoder_cache_create_ex(
+BOAT_API boat_decoder_cache_t* boat_decoder_cache_create_ex(
     int32_t batch_size,
     int32_t num_heads,
     int32_t head_dim,
@@ -686,7 +686,7 @@ boat_decoder_cache_t* boat_decoder_cache_create_ex(
     return cache;
 }
 
-void boat_decoder_cache_free(boat_decoder_cache_t* cache) {
+BOAT_API void boat_decoder_cache_free(boat_decoder_cache_t* cache) {
     if (!cache) return;
     if (cache->self_k) boat_tensor_unref(cache->self_k);
     if (cache->self_v) boat_tensor_unref(cache->self_v);
@@ -695,7 +695,7 @@ void boat_decoder_cache_free(boat_decoder_cache_t* cache) {
     boat_free(cache);
 }
 
-void boat_decoder_cache_reset(boat_decoder_cache_t* cache) {
+BOAT_API void boat_decoder_cache_reset(boat_decoder_cache_t* cache) {
     if (!cache) return;
     cache->length = 0;
 }

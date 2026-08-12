@@ -16,7 +16,7 @@
 #include "schedulers_internal.h"
 
 // Create LambdaLR scheduler
-BOAT_API boat_scheduler_t* boat_lambda_lr_scheduler_create(float base_learning_rate,
+BOAT_API BOAT_API boat_scheduler_t* boat_lambda_lr_scheduler_create(float base_learning_rate,
                                                            float (*lambda_fn)(int step, float base_lr)) {
     // Validate hyperparameters
     if (base_learning_rate <= 0.0f) {

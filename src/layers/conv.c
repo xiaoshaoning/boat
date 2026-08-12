@@ -359,7 +359,7 @@ static bool compute_bias_gradient_into(const boat_conv_layer_t* layer,
     return true;
 }
 
-BOAT_API boat_conv_layer_t* BOAT_CALL boat_conv_layer_create(size_t in_channels, size_t out_channels,
+BOAT_API BOAT_API boat_conv_layer_t* BOAT_CALL boat_conv_layer_create(size_t in_channels, size_t out_channels,
                                            size_t kernel_size, size_t stride, size_t padding,
                                            size_t groups) {
     BOAT_DEBUG_PRINT("DEBUG conv_create called: in=%zu, out=%zu, k=%zu, groups=%zu\n", in_channels, out_channels, kernel_size, groups);
@@ -451,7 +451,7 @@ BOAT_API boat_conv_layer_t* BOAT_CALL boat_conv_layer_create(size_t in_channels,
     return layer;
 }
 
-BOAT_API void BOAT_CALL boat_conv_layer_free(boat_conv_layer_t* layer) {
+BOAT_API BOAT_API void BOAT_CALL boat_conv_layer_free(boat_conv_layer_t* layer) {
     if (!layer) {
         return;
     }
@@ -464,7 +464,7 @@ BOAT_API void BOAT_CALL boat_conv_layer_free(boat_conv_layer_t* layer) {
     boat_free(layer);
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* layer, const boat_tensor_t* input) {
+BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* layer, const boat_tensor_t* input) {
     if (!layer || !input) {
         return NULL;
     }
@@ -640,7 +640,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
     return output;
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* layer, const boat_tensor_t* grad_output) {
+BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* layer, const boat_tensor_t* grad_output) {
     if (!layer || !grad_output) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] conv backward: NULL input\n");
         return NULL;
@@ -798,7 +798,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* la
     return grad_input;
 }
 
-BOAT_API void BOAT_CALL boat_conv_layer_update(boat_conv_layer_t* layer, float learning_rate) {
+BOAT_API BOAT_API void BOAT_CALL boat_conv_layer_update(boat_conv_layer_t* layer, float learning_rate) {
     if (!layer) {
         return;
     }
@@ -824,7 +824,7 @@ BOAT_API void BOAT_CALL boat_conv_layer_update(boat_conv_layer_t* layer, float l
 }
 
 // Parameter access functions for model loading
-BOAT_API void BOAT_CALL boat_conv_layer_set_weight(boat_conv_layer_t* layer, boat_tensor_t* weight) {
+BOAT_API BOAT_API void BOAT_CALL boat_conv_layer_set_weight(boat_conv_layer_t* layer, boat_tensor_t* weight) {
     if (!layer || !weight) {
         return;
     }
@@ -848,7 +848,7 @@ BOAT_API void BOAT_CALL boat_conv_layer_set_weight(boat_conv_layer_t* layer, boa
     boat_tensor_ref(weight); // Increase ref count since layer now owns it
 }
 
-BOAT_API void BOAT_CALL boat_conv_layer_set_bias(boat_conv_layer_t* layer, boat_tensor_t* bias) {
+BOAT_API BOAT_API void BOAT_CALL boat_conv_layer_set_bias(boat_conv_layer_t* layer, boat_tensor_t* bias) {
     if (!layer || !bias) {
         return;
     }
@@ -871,31 +871,31 @@ BOAT_API void BOAT_CALL boat_conv_layer_set_bias(boat_conv_layer_t* layer, boat_
     boat_tensor_ref(bias);
 }
 
-BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_weight(const boat_conv_layer_t* layer) {
+BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_weight(const boat_conv_layer_t* layer) {
     return layer ? layer->weight : NULL;
 }
 
-BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_bias(const boat_conv_layer_t* layer) {
+BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_bias(const boat_conv_layer_t* layer) {
     return layer ? layer->bias : NULL;
 }
 
-BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_grad_weight(const boat_conv_layer_t* layer) {
+BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_grad_weight(const boat_conv_layer_t* layer) {
     BOAT_DEBUG_PRINT("DEBUG get_grad_weight: layer=%p, grad_weight=%p\n", layer, layer ? layer->grad_weight : NULL);
     return layer ? layer->grad_weight : NULL;
 }
 
-BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_grad_bias(const boat_conv_layer_t* layer) {
+BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_get_grad_bias(const boat_conv_layer_t* layer) {
     return layer ? layer->grad_bias : NULL;
 }
 
-BOAT_NOINLINE BOAT_API size_t BOAT_CALL boat_conv_layer_get_stride(const boat_conv_layer_t* layer) {
+BOAT_API BOAT_NOINLINE BOAT_API size_t BOAT_CALL boat_conv_layer_get_stride(const boat_conv_layer_t* layer) {
     return layer ? layer->stride : 0;
 }
 
-BOAT_NOINLINE BOAT_API size_t BOAT_CALL boat_conv_layer_get_padding(const boat_conv_layer_t* layer) {
+BOAT_API BOAT_NOINLINE BOAT_API size_t BOAT_CALL boat_conv_layer_get_padding(const boat_conv_layer_t* layer) {
     return layer ? layer->padding : 0;
 }
 
-BOAT_NOINLINE BOAT_API size_t BOAT_CALL boat_conv_layer_get_groups(const boat_conv_layer_t* layer) {
+BOAT_API BOAT_NOINLINE BOAT_API size_t BOAT_CALL boat_conv_layer_get_groups(const boat_conv_layer_t* layer) {
     return layer ? layer->groups : 1;
 }

@@ -598,7 +598,7 @@ static boat_tensor_t* swin_block_forward(
 // Public API
 // =========================================================================
 
-boat_tensor_t* boat_swin_forward(
+BOAT_API boat_tensor_t* boat_swin_forward(
     const boat_swin_config_t* config,
     const boat_swin_weights_t* weights,
     const boat_tensor_t* input)

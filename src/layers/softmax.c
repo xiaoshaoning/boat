@@ -13,7 +13,7 @@ struct boat_softmax_layer_t {
     boat_tensor_t* cache_output;  // Softmax output from the last forward pass
 };
 
-BOAT_API boat_softmax_layer_t* BOAT_CALL boat_softmax_layer_create(int axis) {
+BOAT_API BOAT_API boat_softmax_layer_t* BOAT_CALL boat_softmax_layer_create(int axis) {
     boat_softmax_layer_t* layer = (boat_softmax_layer_t*)boat_malloc(sizeof(boat_softmax_layer_t), BOAT_DEVICE_CPU);
     if (!layer) {
         return NULL;
@@ -24,7 +24,7 @@ BOAT_API boat_softmax_layer_t* BOAT_CALL boat_softmax_layer_create(int axis) {
     return layer;
 }
 
-BOAT_API void BOAT_CALL boat_softmax_layer_free(boat_softmax_layer_t* layer) {
+BOAT_API BOAT_API void BOAT_CALL boat_softmax_layer_free(boat_softmax_layer_t* layer) {
     if (!layer) {
         return;
     }
@@ -34,7 +34,7 @@ BOAT_API void BOAT_CALL boat_softmax_layer_free(boat_softmax_layer_t* layer) {
     boat_free(layer);
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_softmax_layer_forward(const boat_softmax_layer_t* layer, const boat_tensor_t* input) {
+BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_softmax_layer_forward(const boat_softmax_layer_t* layer, const boat_tensor_t* input) {
     if (!layer || !input) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[SoftmaxLayer] NULL input or layer\n");
         return NULL;
@@ -56,7 +56,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_softmax_layer_forward(const boat_softmax_
     return output;
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_softmax_layer_backward(boat_softmax_layer_t* layer, const boat_tensor_t* grad_output) {
+BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_softmax_layer_backward(boat_softmax_layer_t* layer, const boat_tensor_t* grad_output) {
     if (!layer || !grad_output || !layer->cache_output) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[SoftmaxLayer] NULL gradient output or missing forward cache\n");
         return NULL;
@@ -135,12 +135,12 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_softmax_layer_backward(boat_softmax_layer
     return grad;
 }
 
-BOAT_API void BOAT_CALL boat_softmax_layer_update(boat_softmax_layer_t* layer, float learning_rate) {
+BOAT_API BOAT_API void BOAT_CALL boat_softmax_layer_update(boat_softmax_layer_t* layer, float learning_rate) {
     (void)layer;
     (void)learning_rate;
     // Softmax has no parameters to update
 }
 
-BOAT_API int BOAT_CALL boat_softmax_layer_get_axis(const boat_softmax_layer_t* layer) {
+BOAT_API BOAT_API int BOAT_CALL boat_softmax_layer_get_axis(const boat_softmax_layer_t* layer) {
     return layer ? layer->axis : 0;
 }

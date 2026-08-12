@@ -339,7 +339,7 @@ boat_tensor_t* boat_##op_name(const boat_tensor_t* a, const boat_tensor_t* b) { 
     } while(0)
 
 // Define arithmetic operations (explicit for CUDA support)
-boat_tensor_t* boat_add(const boat_tensor_t* a, const boat_tensor_t* b) {
+BOAT_API boat_tensor_t* boat_add(const boat_tensor_t* a, const boat_tensor_t* b) {
     BOAT_DEBUG_PRINT("DEBUG boat_add: called, a=%p, b=%p\n", (void*)a, (void*)b);
     if (!a || !b) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Null input in boat_add\n");
@@ -477,7 +477,7 @@ boat_tensor_t* boat_add(const boat_tensor_t* a, const boat_tensor_t* b) {
     return out;
 }
 
-boat_tensor_t* boat_sub(const boat_tensor_t* a, const boat_tensor_t* b) {
+BOAT_API boat_tensor_t* boat_sub(const boat_tensor_t* a, const boat_tensor_t* b) {
     if (!a || !b) { return NULL; }
     boat_dtype_t dtype = boat_tensor_dtype(a);
     if (dtype != boat_tensor_dtype(b)) { return NULL; }
@@ -520,7 +520,7 @@ boat_tensor_t* boat_sub(const boat_tensor_t* a, const boat_tensor_t* b) {
     return out;
 }
 
-boat_tensor_t* boat_mul(const boat_tensor_t* a, const boat_tensor_t* b) {
+BOAT_API boat_tensor_t* boat_mul(const boat_tensor_t* a, const boat_tensor_t* b) {
     if (!a || !b) { return NULL; }
     boat_dtype_t dtype = boat_tensor_dtype(a);
     if (dtype != boat_tensor_dtype(b)) { return NULL; }
@@ -563,7 +563,7 @@ boat_tensor_t* boat_mul(const boat_tensor_t* a, const boat_tensor_t* b) {
     return out;
 }
 
-boat_tensor_t* boat_div(const boat_tensor_t* a, const boat_tensor_t* b) {
+BOAT_API boat_tensor_t* boat_div(const boat_tensor_t* a, const boat_tensor_t* b) {
     if (!a || !b) { return NULL; }
     boat_dtype_t dtype = boat_tensor_dtype(a);
     if (dtype != boat_tensor_dtype(b)) { return NULL; }
@@ -610,7 +610,7 @@ boat_tensor_t* boat_div(const boat_tensor_t* a, const boat_tensor_t* b) {
 // (they are now explicit functions above for CUDA dispatch support)
 
 // Mod operation (special handling for floating point)
-boat_tensor_t* boat_mod(const boat_tensor_t* a, const boat_tensor_t* b) {
+BOAT_API boat_tensor_t* boat_mod(const boat_tensor_t* a, const boat_tensor_t* b) {
     if (!a || !b) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Null input in boat_mod\n");
         return NULL;
@@ -857,7 +857,7 @@ DEFINE_SCALAR_OP(sub, -)
 DEFINE_SCALAR_OP(mul, *)
 DEFINE_SCALAR_OP(div, /)
 
-boat_tensor_t* boat_pow_scalar(const boat_tensor_t* a, double scalar) {
+BOAT_API boat_tensor_t* boat_pow_scalar(const boat_tensor_t* a, double scalar) {
     if (!a) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Null input in boat_pow_scalar\n");
         return NULL;
@@ -908,7 +908,7 @@ boat_tensor_t* boat_pow_scalar(const boat_tensor_t* a, double scalar) {
 }
 
 // Element-wise absolute value
-boat_tensor_t* boat_abs(const boat_tensor_t* a) {
+BOAT_API boat_tensor_t* boat_abs(const boat_tensor_t* a) {
     if (!a) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Null input in boat_abs\n");
         return NULL;
@@ -1027,7 +1027,7 @@ DEFINE_INPLACE_SCALAR_OP(mul, *)
 DEFINE_INPLACE_SCALAR_OP(div, /)
 
 // Broadcasting utility
-bool boat_can_broadcast(const boat_tensor_t* a, const boat_tensor_t* b) {
+BOAT_API bool boat_can_broadcast(const boat_tensor_t* a, const boat_tensor_t* b) {
     if (!a || !b) return false;
 
     int64_t out_shape[BOAT_MAX_DIMS];
@@ -1035,7 +1035,7 @@ bool boat_can_broadcast(const boat_tensor_t* a, const boat_tensor_t* b) {
     return validate_shapes_for_broadcasting(a, b, out_shape, &out_ndim);
 }
 
-boat_tensor_t* boat_broadcast_to(const boat_tensor_t* a, const int64_t* shape, size_t ndim) {
+BOAT_API boat_tensor_t* boat_broadcast_to(const boat_tensor_t* a, const int64_t* shape, size_t ndim) {
     if (!a || !shape) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Null input in boat_broadcast_to\n");
         return NULL;
@@ -1066,7 +1066,7 @@ boat_tensor_t* boat_broadcast_to(const boat_tensor_t* a, const int64_t* shape, s
 }
 
 // Reduction operations
-boat_tensor_t* boat_sum(const boat_tensor_t* a, const int64_t* dims, size_t n_dims, bool keepdim) {
+BOAT_API boat_tensor_t* boat_sum(const boat_tensor_t* a, const int64_t* dims, size_t n_dims, bool keepdim) {
     if (!a) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Null input in boat_sum\n");
         return NULL;

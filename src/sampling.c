@@ -16,7 +16,7 @@ static int cmp_desc(const void* a, const void* b) {
     return (pa->val > pb->val) ? -1 : (pa->val < pb->val) ? 1 : 0;
 }
 
-int boat_sample_token(const float* logits, int vocab_size,
+BOAT_API int boat_sample_token(const float* logits, int vocab_size,
                        int top_k, float temperature) {
     if (!logits || vocab_size <= 0) {
         return 0;

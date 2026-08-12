@@ -1101,7 +1101,7 @@ static boat_layer_t* create_layer_from_config(const hf_config_t* config, const c
 }
 
 // Load Hugging Face model from directory
-boat_model_t* boat_huggingface_load(const char* model_dir) {
+BOAT_API boat_model_t* boat_huggingface_load(const char* model_dir) {
     if (!model_dir) return NULL;
 
     // Construct file paths
@@ -1191,7 +1191,7 @@ boat_model_t* boat_huggingface_load(const char* model_dir) {
 }
 
 // Load Hugging Face model from memory buffers
-boat_model_t* boat_huggingface_load_from_memory(const char* config_json, const void* weights_data, size_t weights_size) {
+BOAT_API boat_model_t* boat_huggingface_load_from_memory(const char* config_json, const void* weights_data, size_t weights_size) {
     if (!config_json || !weights_data || weights_size == 0) {
         return NULL;
     }
@@ -1242,7 +1242,7 @@ boat_model_t* boat_huggingface_load_from_memory(const char* config_json, const v
 }
 
 // Check if directory contains a valid Hugging Face model
-bool boat_huggingface_check(const char* model_dir) {
+BOAT_API bool boat_huggingface_check(const char* model_dir) {
     if (!model_dir) return false;
 
     // Check for config.json
@@ -1276,7 +1276,7 @@ bool boat_huggingface_check(const char* model_dir) {
 }
 
 // Get model configuration information
-char* boat_huggingface_get_config(const char* model_dir) {
+BOAT_API char* boat_huggingface_get_config(const char* model_dir) {
     if (!model_dir) return NULL;
 
     char config_path[1024];
@@ -1286,7 +1286,7 @@ char* boat_huggingface_get_config(const char* model_dir) {
 }
 
 // Save model to Hugging Face format directory
-bool boat_huggingface_save(const boat_model_t* model, const char* model_dir) {
+BOAT_API bool boat_huggingface_save(const boat_model_t* model, const char* model_dir) {
     // TODO: Implement saving to Hugging Face format
     // This would involve:
     // 1. Convert Boat layers to Hugging Face configuration

@@ -911,7 +911,7 @@ static boat_model_t* build_llama_model(const gguf_context_t* ctx,
 // Public API
 // -----------------------------------------------------------------------
 
-bool boat_gguf_check(const char* filename) {
+BOAT_API bool boat_gguf_check(const char* filename) {
     if (!filename) return false;
 
     FILE* f = fopen(filename, "rb");
@@ -924,7 +924,7 @@ bool boat_gguf_check(const char* filename) {
     return magic == GGUF_MAGIC;
 }
 
-boat_model_t* boat_gguf_load(const char* filename) {
+BOAT_API boat_model_t* boat_gguf_load(const char* filename) {
     if (!filename) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[GGUF] filename is NULL\n");
         return NULL;

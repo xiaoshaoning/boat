@@ -17,7 +17,7 @@
 #endif
 
 // Matrix multiplication with batch support
-boat_tensor_t* boat_matmul(const boat_tensor_t* a, const boat_tensor_t* b) {
+BOAT_API boat_tensor_t* boat_matmul(const boat_tensor_t* a, const boat_tensor_t* b) {
     if (!a || !b) {
         return NULL;
     }
@@ -188,7 +188,7 @@ boat_tensor_t* boat_matmul(const boat_tensor_t* a, const boat_tensor_t* b) {
 }
 
 // Dot product for 1D tensors
-boat_tensor_t* boat_dot(const boat_tensor_t* a, const boat_tensor_t* b) {
+BOAT_API boat_tensor_t* boat_dot(const boat_tensor_t* a, const boat_tensor_t* b) {
     if (!a || !b) return NULL;
 
     size_t a_ndim = boat_tensor_ndim(a);
@@ -273,7 +273,7 @@ boat_tensor_t* boat_dot(const boat_tensor_t* a, const boat_tensor_t* b) {
 }
 
 // Transpose operation
-boat_tensor_t* boat_transpose(const boat_tensor_t* a, int dim0, int dim1) {
+BOAT_API boat_tensor_t* boat_transpose(const boat_tensor_t* a, int dim0, int dim1) {
     if (!a) return NULL;
 
     size_t ndim = boat_tensor_ndim(a);
@@ -479,7 +479,7 @@ boat_tensor_t* boat_transpose(const boat_tensor_t* a, int dim0, int dim1) {
 }
 
 // Matrix inverse (placeholder)
-boat_tensor_t* boat_inverse(const boat_tensor_t* a) {
+BOAT_API boat_tensor_t* boat_inverse(const boat_tensor_t* a) {
     (void)a;
     // TODO: Implement matrix inverse
     return NULL;

@@ -34,7 +34,7 @@ struct boat_batchnorm2d_layer_t {
     boat_tensor_t* cache_save_inv_var;  // 1/sqrt(var + eps)
 };
 
-BOAT_API boat_batchnorm2d_layer_t* BOAT_CALL boat_batchnorm2d_layer_create(size_t num_features, float eps, float momentum, bool affine) {
+BOAT_API BOAT_API boat_batchnorm2d_layer_t* BOAT_CALL boat_batchnorm2d_layer_create(size_t num_features, float eps, float momentum, bool affine) {
     boat_batchnorm2d_layer_t* layer = (boat_batchnorm2d_layer_t*)boat_malloc(sizeof(boat_batchnorm2d_layer_t), BOAT_DEVICE_CPU);
     if (!layer) {
         return NULL;
@@ -139,7 +139,7 @@ BOAT_API boat_batchnorm2d_layer_t* BOAT_CALL boat_batchnorm2d_layer_create(size_
     return layer;
 }
 
-BOAT_API void BOAT_CALL boat_batchnorm2d_layer_free(boat_batchnorm2d_layer_t* layer) {
+BOAT_API BOAT_API void BOAT_CALL boat_batchnorm2d_layer_free(boat_batchnorm2d_layer_t* layer) {
     if (!layer) {
         return;
     }
@@ -156,7 +156,7 @@ BOAT_API void BOAT_CALL boat_batchnorm2d_layer_free(boat_batchnorm2d_layer_t* la
     boat_free(layer);
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_forward(const boat_batchnorm2d_layer_t* layer, const boat_tensor_t* input) {
+BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_forward(const boat_batchnorm2d_layer_t* layer, const boat_tensor_t* input) {
     if (!layer || !input) {
         return NULL;
     }
@@ -380,7 +380,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_forward(const boat_batc
     return output;
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_backward(boat_batchnorm2d_layer_t* layer, const boat_tensor_t* grad_output) {
+BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_backward(boat_batchnorm2d_layer_t* layer, const boat_tensor_t* grad_output) {
     if (!layer || !grad_output) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[BatchNormLayer] bn backward: NULL input\n");
         return NULL;
@@ -545,7 +545,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_backward(boat_batchnorm
     return grad_input;
 }
 
-BOAT_API void BOAT_CALL boat_batchnorm2d_layer_update(boat_batchnorm2d_layer_t* layer, float learning_rate) {
+BOAT_API BOAT_API void BOAT_CALL boat_batchnorm2d_layer_update(boat_batchnorm2d_layer_t* layer, float learning_rate) {
     if (!layer || !layer->affine) return;
 
     if (layer->grad_weight && layer->weight) {
@@ -566,7 +566,7 @@ BOAT_API void BOAT_CALL boat_batchnorm2d_layer_update(boat_batchnorm2d_layer_t* 
 }
 
 // Parameter access functions
-BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_weight(boat_batchnorm2d_layer_t* layer, boat_tensor_t* weight) {
+BOAT_API BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_weight(boat_batchnorm2d_layer_t* layer, boat_tensor_t* weight) {
     if (!layer || !weight) {
         return;
     }
@@ -587,7 +587,7 @@ BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_weight(boat_batchnorm2d_layer
     boat_tensor_ref(weight);
 }
 
-BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_bias(boat_batchnorm2d_layer_t* layer, boat_tensor_t* bias) {
+BOAT_API BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_bias(boat_batchnorm2d_layer_t* layer, boat_tensor_t* bias) {
     if (!layer || !bias) {
         return;
     }
@@ -608,7 +608,7 @@ BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_bias(boat_batchnorm2d_layer_t
     boat_tensor_ref(bias);
 }
 
-BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_running_mean(boat_batchnorm2d_layer_t* layer, boat_tensor_t* running_mean) {
+BOAT_API BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_running_mean(boat_batchnorm2d_layer_t* layer, boat_tensor_t* running_mean) {
     if (!layer || !running_mean) {
         return;
     }
@@ -625,7 +625,7 @@ BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_running_mean(boat_batchnorm2d
     boat_tensor_ref(running_mean);
 }
 
-BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_running_var(boat_batchnorm2d_layer_t* layer, boat_tensor_t* running_var) {
+BOAT_API BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_running_var(boat_batchnorm2d_layer_t* layer, boat_tensor_t* running_var) {
     if (!layer || !running_var) {
         return;
     }
@@ -642,30 +642,30 @@ BOAT_API void BOAT_CALL boat_batchnorm2d_layer_set_running_var(boat_batchnorm2d_
     boat_tensor_ref(running_var);
 }
 
-BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_get_weight(const boat_batchnorm2d_layer_t* layer) {
+BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_get_weight(const boat_batchnorm2d_layer_t* layer) {
     return layer ? layer->weight : NULL;
 }
 
-BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_get_bias(const boat_batchnorm2d_layer_t* layer) {
+BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_get_bias(const boat_batchnorm2d_layer_t* layer) {
     return layer ? layer->bias : NULL;
 }
 
-BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_get_running_mean(const boat_batchnorm2d_layer_t* layer) {
+BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_get_running_mean(const boat_batchnorm2d_layer_t* layer) {
     return layer ? layer->running_mean : NULL;
 }
 
-BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_get_running_var(const boat_batchnorm2d_layer_t* layer) {
+BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_get_running_var(const boat_batchnorm2d_layer_t* layer) {
     return layer ? layer->running_var : NULL;
 }
 
-BOAT_NOINLINE BOAT_API float BOAT_CALL boat_batchnorm2d_layer_get_eps(const boat_batchnorm2d_layer_t* layer) {
+BOAT_API BOAT_NOINLINE BOAT_API float BOAT_CALL boat_batchnorm2d_layer_get_eps(const boat_batchnorm2d_layer_t* layer) {
     return layer ? layer->eps : 0.0f;
 }
 
-BOAT_NOINLINE BOAT_API float BOAT_CALL boat_batchnorm2d_layer_get_momentum(const boat_batchnorm2d_layer_t* layer) {
+BOAT_API BOAT_NOINLINE BOAT_API float BOAT_CALL boat_batchnorm2d_layer_get_momentum(const boat_batchnorm2d_layer_t* layer) {
     return layer ? layer->momentum : 0.0f;
 }
 
-BOAT_NOINLINE BOAT_API bool BOAT_CALL boat_batchnorm2d_layer_get_affine(const boat_batchnorm2d_layer_t* layer) {
+BOAT_API BOAT_NOINLINE BOAT_API bool BOAT_CALL boat_batchnorm2d_layer_get_affine(const boat_batchnorm2d_layer_t* layer) {
     return layer ? layer->affine : false;
 }

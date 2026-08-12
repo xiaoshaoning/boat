@@ -12,7 +12,7 @@
 #include <string.h>
 
 // Load TensorFlow model from file
-boat_model_t* boat_tensorflow_load(const char* filename) {
+BOAT_API boat_model_t* boat_tensorflow_load(const char* filename) {
     (void)filename; // Unused parameter
     // TODO: Implement TensorFlow model loading
     // For now, return NULL to indicate not implemented
@@ -20,7 +20,7 @@ boat_model_t* boat_tensorflow_load(const char* filename) {
 }
 
 // Save model to TensorFlow format
-bool boat_tensorflow_save(const boat_model_t* model, const char* filename) {
+BOAT_API bool boat_tensorflow_save(const boat_model_t* model, const char* filename) {
     (void)model;
     (void)filename;
     // TODO: Implement TensorFlow model saving
@@ -28,7 +28,7 @@ bool boat_tensorflow_save(const boat_model_t* model, const char* filename) {
 }
 
 // Load TensorFlow model from memory buffer
-boat_model_t* boat_tensorflow_load_from_memory(const void* data, size_t size) {
+BOAT_API boat_model_t* boat_tensorflow_load_from_memory(const void* data, size_t size) {
     (void)data;
     (void)size;
     // TODO: Implement TensorFlow model loading from memory
@@ -36,7 +36,7 @@ boat_model_t* boat_tensorflow_load_from_memory(const void* data, size_t size) {
 }
 
 // Save model to memory buffer in TensorFlow format
-bool boat_tensorflow_save_to_memory(const boat_model_t* model, void** data, size_t* size) {
+BOAT_API bool boat_tensorflow_save_to_memory(const boat_model_t* model, void** data, size_t* size) {
     (void)model;
     (void)data;
     (void)size;
@@ -45,21 +45,21 @@ bool boat_tensorflow_save_to_memory(const boat_model_t* model, void** data, size
 }
 
 // Check if file is a valid TensorFlow model
-bool boat_tensorflow_check(const char* filename) {
+BOAT_API bool boat_tensorflow_check(const char* filename) {
     (void)filename;
     // TODO: Implement TensorFlow file validation
     return false;
 }
 
 // Load TensorFlow SavedModel directory
-boat_model_t* boat_tensorflow_load_savedmodel(const char* directory) {
+BOAT_API boat_model_t* boat_tensorflow_load_savedmodel(const char* directory) {
     (void)directory;
     // TODO: Implement TensorFlow SavedModel loading
     return NULL;
 }
 
 // Load TensorFlow frozen graph
-boat_model_t* boat_tensorflow_load_frozen_graph(const char* filename) {
+BOAT_API boat_model_t* boat_tensorflow_load_frozen_graph(const char* filename) {
     (void)filename;
     // TODO: Implement TensorFlow frozen graph loading
     return NULL;

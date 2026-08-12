@@ -51,7 +51,7 @@ static void sgd_expand_capacity(boat_sgd_state_t* state);
 static void sgd_update_parameter(boat_sgd_state_t* state, size_t idx);
 
 // Create SGD optimizer
-BOAT_API boat_optimizer_t* boat_sgd_optimizer_create(float learning_rate,
+BOAT_API BOAT_API boat_optimizer_t* boat_sgd_optimizer_create(float learning_rate,
                                             float momentum) {
     // Parameter validation
     if (learning_rate <= 0.0f) {
@@ -104,7 +104,7 @@ BOAT_API boat_optimizer_t* boat_sgd_optimizer_create(float learning_rate,
 }
 
 // Enable or disable Nesterov momentum
-BOAT_API void boat_sgd_set_nesterov(boat_optimizer_t* optimizer, int use_nesterov) {
+BOAT_API BOAT_API void boat_sgd_set_nesterov(boat_optimizer_t* optimizer, int use_nesterov) {
     if (!optimizer) return;
     boat_sgd_state_t* state = (boat_sgd_state_t*)optimizer;
     state->use_nesterov = use_nesterov ? 1 : 0;

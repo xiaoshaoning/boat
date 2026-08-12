@@ -8,7 +8,7 @@
 #include <math.h>
 
 // BITS1 packing/unpacking
-void boat_pack_bits1(const bool* src, uint8_t* dst, size_t n) {
+BOAT_API void boat_pack_bits1(const bool* src, uint8_t* dst, size_t n) {
     size_t i = 0;
     for (size_t byte_idx = 0; byte_idx < (n + 7) / 8; byte_idx++) {
         uint8_t byte = 0;
@@ -22,7 +22,7 @@ void boat_pack_bits1(const bool* src, uint8_t* dst, size_t n) {
     }
 }
 
-void boat_unpack_bits1(const uint8_t* src, bool* dst, size_t n) {
+BOAT_API void boat_unpack_bits1(const uint8_t* src, bool* dst, size_t n) {
     size_t i = 0;
     for (size_t byte_idx = 0; byte_idx < (n + 7) / 8; byte_idx++) {
         uint8_t byte = src[byte_idx];
@@ -38,7 +38,7 @@ void boat_unpack_bits1(const uint8_t* src, bool* dst, size_t n) {
 }
 
 // BITS2 packing/unpacking
-void boat_pack_bits2(const uint8_t* src, uint8_t* dst, size_t n) {
+BOAT_API void boat_pack_bits2(const uint8_t* src, uint8_t* dst, size_t n) {
     size_t i = 0;
     for (size_t byte_idx = 0; byte_idx < (n + 3) / 4; byte_idx++) {
         uint8_t byte = 0;
@@ -53,7 +53,7 @@ void boat_pack_bits2(const uint8_t* src, uint8_t* dst, size_t n) {
     }
 }
 
-void boat_unpack_bits2(const uint8_t* src, uint8_t* dst, size_t n) {
+BOAT_API void boat_unpack_bits2(const uint8_t* src, uint8_t* dst, size_t n) {
     size_t i = 0;
     for (size_t byte_idx = 0; byte_idx < (n + 3) / 4; byte_idx++) {
         uint8_t byte = src[byte_idx];
@@ -71,7 +71,7 @@ void boat_unpack_bits2(const uint8_t* src, uint8_t* dst, size_t n) {
 // FLOAT4 custom floating point format
 // Simple representation: sign (1 bit), exponent (3 bits), no mantissa
 // Exponent bias: 3 (so exponent range -3 to 4)
-boat_float4_t boat_float4_from_float(float f) {
+BOAT_API boat_float4_t boat_float4_from_float(float f) {
     boat_float4_t f4 = {0};
 
     if (f == 0.0f) {
@@ -98,7 +98,7 @@ boat_float4_t boat_float4_from_float(float f) {
     return f4;
 }
 
-float boat_float4_to_float(boat_float4_t f4) {
+BOAT_API float boat_float4_to_float(boat_float4_t f4) {
     if (f4.exponent == 0) {
         return 0.0f;
     }
@@ -113,7 +113,7 @@ float boat_float4_to_float(boat_float4_t f4) {
     return value;
 }
 
-void boat_pack_float4(const float* src, uint8_t* dst, size_t n) {
+BOAT_API void boat_pack_float4(const float* src, uint8_t* dst, size_t n) {
     for (size_t i = 0; i < n; i += 2) {
         uint8_t byte = 0;
 
@@ -131,7 +131,7 @@ void boat_pack_float4(const float* src, uint8_t* dst, size_t n) {
     }
 }
 
-void boat_unpack_float4(const uint8_t* src, float* dst, size_t n) {
+BOAT_API void boat_unpack_float4(const uint8_t* src, float* dst, size_t n) {
     for (size_t i = 0; i < n; i += 2) {
         uint8_t byte = src[i / 2];
 
@@ -152,7 +152,7 @@ void boat_unpack_float4(const uint8_t* src, float* dst, size_t n) {
 // FLOAT8 custom floating point format
 // Format: sign (1 bit), exponent (4 bits), mantissa (3 bits)
 // Exponent bias: 7 (so exponent range -7 to 8)
-boat_float8_t boat_float8_from_float(float f) {
+BOAT_API boat_float8_t boat_float8_from_float(float f) {
     boat_float8_t f8 = {0};
 
     if (f == 0.0f) {
@@ -186,7 +186,7 @@ boat_float8_t boat_float8_from_float(float f) {
     return f8;
 }
 
-float boat_float8_to_float(boat_float8_t f8) {
+BOAT_API float boat_float8_to_float(boat_float8_t f8) {
     if (f8.exponent == 0 && f8.mantissa == 0) {
         return 0.0f;
     }
@@ -202,14 +202,14 @@ float boat_float8_to_float(boat_float8_t f8) {
     return value;
 }
 
-void boat_pack_float8(const float* src, uint8_t* dst, size_t n) {
+BOAT_API void boat_pack_float8(const float* src, uint8_t* dst, size_t n) {
     for (size_t i = 0; i < n; i++) {
         boat_float8_t f8 = boat_float8_from_float(src[i]);
         dst[i] = (f8.sign << 7) | (f8.exponent << 3) | f8.mantissa;
     }
 }
 
-void boat_unpack_float8(const uint8_t* src, float* dst, size_t n) {
+BOAT_API void boat_unpack_float8(const uint8_t* src, float* dst, size_t n) {
     for (size_t i = 0; i < n; i++) {
         uint8_t byte = src[i];
         boat_float8_t f8;
@@ -222,14 +222,14 @@ void boat_unpack_float8(const uint8_t* src, float* dst, size_t n) {
 
 // Element-wise operations for packed types
 // BITS1 addition: logical OR (since values are 0 or 1)
-void boat_add_bits1(const uint8_t* a, const uint8_t* b, uint8_t* out, size_t n_bytes) {
+BOAT_API void boat_add_bits1(const uint8_t* a, const uint8_t* b, uint8_t* out, size_t n_bytes) {
     for (size_t i = 0; i < n_bytes; i++) {
         out[i] = a[i] | b[i];
     }
 }
 
 // BITS2 addition: saturated addition (max value 3)
-void boat_add_bits2(const uint8_t* a, const uint8_t* b, uint8_t* out, size_t n_bytes) {
+BOAT_API void boat_add_bits2(const uint8_t* a, const uint8_t* b, uint8_t* out, size_t n_bytes) {
     for (size_t i = 0; i < n_bytes; i++) {
         uint8_t a_byte = a[i];
         uint8_t b_byte = b[i];
@@ -249,7 +249,7 @@ void boat_add_bits2(const uint8_t* a, const uint8_t* b, uint8_t* out, size_t n_b
 }
 
 // FLOAT4 addition: unpack, add, repack
-void boat_add_float4(const uint8_t* a, const uint8_t* b, uint8_t* out, size_t n_bytes) {
+BOAT_API void boat_add_float4(const uint8_t* a, const uint8_t* b, uint8_t* out, size_t n_bytes) {
     size_t n_elements = n_bytes * 2; // 2 elements per byte
 
     // Simple implementation: unpack, add floats, repack
@@ -275,7 +275,7 @@ void boat_add_float4(const uint8_t* a, const uint8_t* b, uint8_t* out, size_t n_
 }
 
 // FLOAT8 addition: similar to FLOAT4
-void boat_add_float8(const uint8_t* a, const uint8_t* b, uint8_t* out, size_t n_bytes) {
+BOAT_API void boat_add_float8(const uint8_t* a, const uint8_t* b, uint8_t* out, size_t n_bytes) {
     size_t n_elements = n_bytes; // 1 element per byte
 
     float* a_unpacked = boat_malloc(sizeof(float) * n_elements, BOAT_DEVICE_CPU);
@@ -299,7 +299,7 @@ void boat_add_float8(const uint8_t* a, const uint8_t* b, uint8_t* out, size_t n_
 }
 
 // Memory access optimizations for packed types
-size_t boat_packed_element_offset(boat_dtype_t dtype, size_t index) {
+BOAT_API size_t boat_packed_element_offset(boat_dtype_t dtype, size_t index) {
     switch (dtype) {
         case BOAT_DTYPE_BITS1:
             return index / 8;
@@ -314,7 +314,7 @@ size_t boat_packed_element_offset(boat_dtype_t dtype, size_t index) {
     }
 }
 
-uint8_t boat_packed_read_element(const uint8_t* data, boat_dtype_t dtype, size_t index) {
+BOAT_API uint8_t boat_packed_read_element(const uint8_t* data, boat_dtype_t dtype, size_t index) {
     switch (dtype) {
         case BOAT_DTYPE_BITS1: {
             size_t byte_idx = index / 8;
@@ -341,7 +341,7 @@ uint8_t boat_packed_read_element(const uint8_t* data, boat_dtype_t dtype, size_t
     }
 }
 
-void boat_packed_write_element(uint8_t* data, boat_dtype_t dtype, size_t index, uint8_t value) {
+BOAT_API void boat_packed_write_element(uint8_t* data, boat_dtype_t dtype, size_t index, uint8_t value) {
     switch (dtype) {
         case BOAT_DTYPE_BITS1: {
             size_t byte_idx = index / 8;

@@ -20,7 +20,7 @@ struct boat_transform_chain_t {
     size_t capacity;
 };
 
-boat_transform_chain_t* boat_transform_chain_create(void) {
+BOAT_API boat_transform_chain_t* boat_transform_chain_create(void) {
     boat_transform_chain_t* chain = boat_malloc(sizeof(boat_transform_chain_t), BOAT_DEVICE_CPU);
     if (!chain) return NULL;
 
@@ -39,14 +39,14 @@ boat_transform_chain_t* boat_transform_chain_create(void) {
     return chain;
 }
 
-void boat_transform_chain_free(boat_transform_chain_t* chain) {
+BOAT_API void boat_transform_chain_free(boat_transform_chain_t* chain) {
     if (!chain) return;
     boat_free(chain->fns);
     boat_free(chain->contexts);
     boat_free(chain);
 }
 
-void boat_transform_chain_add(boat_transform_chain_t* chain,
+BOAT_API void boat_transform_chain_add(boat_transform_chain_t* chain,
                               boat_transform_func_t fn, void* context) {
     if (!chain || !fn) return;
 
@@ -71,7 +71,7 @@ void boat_transform_chain_add(boat_transform_chain_t* chain,
     chain->count++;
 }
 
-boat_tensor_t* boat_transform_chain_apply(boat_transform_chain_t* chain,
+BOAT_API boat_tensor_t* boat_transform_chain_apply(boat_transform_chain_t* chain,
                                           boat_tensor_t* sample) {
     if (!chain || !sample) return NULL;
 
@@ -108,7 +108,7 @@ static float frand(uint32_t* state) {
 // ---------------------------------------------------------------------------
 // Normalize
 // ---------------------------------------------------------------------------
-boat_tensor_t* boat_transform_normalize(boat_tensor_t* sample, void* context) {
+BOAT_API boat_tensor_t* boat_transform_normalize(boat_tensor_t* sample, void* context) {
     if (!sample) return NULL;
 
     boat_dtype_t dt = boat_tensor_dtype(sample);
@@ -140,7 +140,7 @@ boat_tensor_t* boat_transform_normalize(boat_tensor_t* sample, void* context) {
 // ---------------------------------------------------------------------------
 // Random horizontal flip (50%, in-place on [C,H,W] float32)
 // ---------------------------------------------------------------------------
-boat_tensor_t* boat_transform_random_hflip(boat_tensor_t* sample, void* context) {
+BOAT_API boat_tensor_t* boat_transform_random_hflip(boat_tensor_t* sample, void* context) {
     (void)context;
     if (!sample) return NULL;
 
@@ -176,7 +176,7 @@ boat_tensor_t* boat_transform_random_hflip(boat_tensor_t* sample, void* context)
 // ---------------------------------------------------------------------------
 // Random crop (in-place on [C,H,W] float32)
 // ---------------------------------------------------------------------------
-boat_tensor_t* boat_transform_random_crop(boat_tensor_t* sample, void* context) {
+BOAT_API boat_tensor_t* boat_transform_random_crop(boat_tensor_t* sample, void* context) {
     if (!sample) return NULL;
 
     if (boat_tensor_ndim(sample) != 3 || boat_tensor_dtype(sample) != BOAT_DTYPE_FLOAT32) {

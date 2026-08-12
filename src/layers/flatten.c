@@ -12,7 +12,7 @@ struct boat_flatten_layer_t {
     size_t cached_ndim;       // Number of dimensions
 };
 
-BOAT_API boat_flatten_layer_t* BOAT_CALL boat_flatten_layer_create() {
+BOAT_API BOAT_API boat_flatten_layer_t* BOAT_CALL boat_flatten_layer_create() {
     boat_flatten_layer_t* layer = (boat_flatten_layer_t*)boat_malloc(sizeof(boat_flatten_layer_t), BOAT_DEVICE_CPU);
     if (!layer) {
         return NULL;
@@ -22,7 +22,7 @@ BOAT_API boat_flatten_layer_t* BOAT_CALL boat_flatten_layer_create() {
     return layer;
 }
 
-BOAT_API void BOAT_CALL boat_flatten_layer_free(boat_flatten_layer_t* layer) {
+BOAT_API BOAT_API void BOAT_CALL boat_flatten_layer_free(boat_flatten_layer_t* layer) {
     if (!layer) {
         return;
     }
@@ -32,7 +32,7 @@ BOAT_API void BOAT_CALL boat_flatten_layer_free(boat_flatten_layer_t* layer) {
     boat_free(layer);
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_forward(boat_flatten_layer_t* layer, const boat_tensor_t* input) {
+BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_forward(boat_flatten_layer_t* layer, const boat_tensor_t* input) {
     if (!layer || !input) {
         return NULL;
     }
@@ -70,7 +70,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_forward(boat_flatten_layer_
     return boat_tensor_reshape(input, output_shape, 2);
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_backward(const boat_flatten_layer_t* layer, const boat_tensor_t* grad_output) {
+BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_backward(const boat_flatten_layer_t* layer, const boat_tensor_t* grad_output) {
     if (!layer || !grad_output) {
         return NULL;
     }
@@ -85,7 +85,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_backward(const boat_flatten
     return boat_tensor_reshape(grad_output, layer->cached_shape, layer->cached_ndim);
 }
 
-BOAT_API void BOAT_CALL boat_flatten_layer_update(boat_flatten_layer_t* layer, float learning_rate) {
+BOAT_API BOAT_API void BOAT_CALL boat_flatten_layer_update(boat_flatten_layer_t* layer, float learning_rate) {
     (void)layer;
     (void)learning_rate;
     // Flatten layer has no parameters to update

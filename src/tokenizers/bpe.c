@@ -197,7 +197,7 @@ static int json_skip_to_key(json_reader_t* jr, const char* key) {
 // Implementation
 // =========================================================================
 
-boat_bpe_tokenizer_t* boat_bpe_tokenizer_create(const char* tokenizer_json_path) {
+BOAT_API boat_bpe_tokenizer_t* boat_bpe_tokenizer_create(const char* tokenizer_json_path) {
     if (!tokenizer_json_path) return NULL;
 
     // Read file
@@ -353,7 +353,7 @@ boat_bpe_tokenizer_t* boat_bpe_tokenizer_create(const char* tokenizer_json_path)
     return tok;
 }
 
-void boat_bpe_tokenizer_free(boat_bpe_tokenizer_t* tok) {
+BOAT_API void boat_bpe_tokenizer_free(boat_bpe_tokenizer_t* tok) {
     if (!tok) return;
     if (tok->vocab) {
         for (size_t i = 0; i < tok->vocab_size; i++) {
@@ -371,7 +371,7 @@ void boat_bpe_tokenizer_free(boat_bpe_tokenizer_t* tok) {
     boat_free(tok);
 }
 
-char* boat_bpe_tokenizer_decode(const boat_bpe_tokenizer_t* tok,
+BOAT_API char* boat_bpe_tokenizer_decode(const boat_bpe_tokenizer_t* tok,
                                   const int32_t* ids, size_t n_ids)
 {
     if (!tok || !ids || n_ids == 0) return NULL;
@@ -451,7 +451,7 @@ char* boat_bpe_tokenizer_decode(const boat_bpe_tokenizer_t* tok,
     return result;
 }
 
-int32_t* boat_bpe_tokenizer_encode(const boat_bpe_tokenizer_t* tok,
+BOAT_API int32_t* boat_bpe_tokenizer_encode(const boat_bpe_tokenizer_t* tok,
                                     const char* text, size_t* out_len)
 {
     // For now: encode each character individually (placeholder)
@@ -490,8 +490,8 @@ int32_t* boat_bpe_tokenizer_encode(const boat_bpe_tokenizer_t* tok,
     return ids;
 }
 
-int32_t boat_bpe_tokenizer_bos_id(const boat_bpe_tokenizer_t* tok) { return tok ? tok->bos_id : 0; }
-int32_t boat_bpe_tokenizer_eos_id(const boat_bpe_tokenizer_t* tok) { return tok ? tok->eos_id : 2; }
-int32_t boat_bpe_tokenizer_pad_id(const boat_bpe_tokenizer_t* tok) { return tok ? tok->pad_id : 1; }
-int32_t boat_bpe_tokenizer_unk_id(const boat_bpe_tokenizer_t* tok) { return tok ? tok->unk_id : 3; }
-size_t  boat_bpe_tokenizer_vocab_size(const boat_bpe_tokenizer_t* tok) { return tok ? tok->vocab_size : 0; }
+BOAT_API int32_t boat_bpe_tokenizer_bos_id(const boat_bpe_tokenizer_t* tok) { return tok ? tok->bos_id : 0; }
+BOAT_API int32_t boat_bpe_tokenizer_eos_id(const boat_bpe_tokenizer_t* tok) { return tok ? tok->eos_id : 2; }
+BOAT_API int32_t boat_bpe_tokenizer_pad_id(const boat_bpe_tokenizer_t* tok) { return tok ? tok->pad_id : 1; }
+BOAT_API int32_t boat_bpe_tokenizer_unk_id(const boat_bpe_tokenizer_t* tok) { return tok ? tok->unk_id : 3; }
+BOAT_API size_t  boat_bpe_tokenizer_vocab_size(const boat_bpe_tokenizer_t* tok) { return tok ? tok->vocab_size : 0; }

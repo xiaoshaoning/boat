@@ -321,7 +321,7 @@ static boat_model_t* build_model(const onnx_model_t* onnx) {
 // Public API
 // -----------------------------------------------------------------------
 
-boat_model_t* boat_onnx_load_from_memory(const void* data, size_t size) {
+BOAT_API boat_model_t* boat_onnx_load_from_memory(const void* data, size_t size) {
     if (!data || size == 0) {
         BOAT_DEBUG_PRINT("[ONNX] load_from_memory: NULL or size=0\n");
         return NULL;
@@ -358,7 +358,7 @@ boat_model_t* boat_onnx_load_from_memory(const void* data, size_t size) {
     return model;
 }
 
-boat_model_t* boat_onnx_load(const char* filename) {
+BOAT_API boat_model_t* boat_onnx_load(const char* filename) {
     if (!filename) return NULL;
 
     FILE* f = fopen(filename, "rb");
@@ -386,7 +386,7 @@ boat_model_t* boat_onnx_load(const char* filename) {
     return model;
 }
 
-bool boat_onnx_check(const char* filename) {
+BOAT_API bool boat_onnx_check(const char* filename) {
     if (!filename) return false;
     FILE* f = fopen(filename, "rb");
     if (!f) return false;
@@ -422,7 +422,7 @@ bool boat_onnx_check(const char* filename) {
     return ok;
 }
 
-bool boat_onnx_get_version(const char* filename, int* major, int* minor, int* patch) {
+BOAT_API bool boat_onnx_get_version(const char* filename, int* major, int* minor, int* patch) {
     if (!filename) return false;
 
     FILE* f = fopen(filename, "rb");
@@ -525,7 +525,7 @@ static void write_simple_node(pb_builder_t* b, const char* input_name,
 // ONNX public API — save
 // -----------------------------------------------------------------------
 
-bool boat_onnx_save_to_memory(const boat_model_t* model, void** out_data, size_t* out_size) {
+BOAT_API bool boat_onnx_save_to_memory(const boat_model_t* model, void** out_data, size_t* out_size) {
     if (!model || !out_data || !out_size) return false;
 
     size_t layer_count = boat_model_layer_count(model);
@@ -741,7 +741,7 @@ bool boat_onnx_save_to_memory(const boat_model_t* model, void** out_data, size_t
     return true;
 }
 
-bool boat_onnx_save(const boat_model_t* model, const char* filename) {
+BOAT_API bool boat_onnx_save(const boat_model_t* model, const char* filename) {
     if (!model || !filename) return false;
 
     void* data;
@@ -1080,7 +1080,7 @@ static bool onnx_rt_build(boat_onnx_runtime_t* rt) {
     return true;
 }
 
-boat_onnx_runtime_t* boat_onnx_runtime_load(const char* filename) {
+BOAT_API boat_onnx_runtime_t* boat_onnx_runtime_load(const char* filename) {
     if (!filename) { fprintf(stderr, "[ONNX] NULL filename\n"); return NULL; }
 
     FILE* f = fopen(filename, "rb");
@@ -1120,7 +1120,7 @@ boat_onnx_runtime_t* boat_onnx_runtime_load(const char* filename) {
     return rt;
 }
 
-void boat_onnx_runtime_free(boat_onnx_runtime_t* rt) {
+BOAT_API void boat_onnx_runtime_free(boat_onnx_runtime_t* rt) {
     if (!rt) return;
 
     // Free all tensors
@@ -1165,7 +1165,7 @@ void boat_onnx_runtime_free(boat_onnx_runtime_t* rt) {
     free(rt);
 }
 
-boat_tensor_t* boat_onnx_runtime_run(boat_onnx_runtime_t* rt, const boat_tensor_t* input) {
+BOAT_API boat_tensor_t* boat_onnx_runtime_run(boat_onnx_runtime_t* rt, const boat_tensor_t* input) {
     if (!rt || !input) return NULL;
 
     // Clear activation tensors from previous run

@@ -34,7 +34,7 @@ static size_t compute_elements_before(const int64_t* shape, size_t ndim, size_t 
 }
 
 // Softmax along a specific axis
-BOAT_API boat_tensor_t* boat_softmax(const boat_tensor_t* a, int axis) {
+BOAT_API BOAT_API boat_tensor_t* boat_softmax(const boat_tensor_t* a, int axis) {
     if (!a) return NULL;
 
     size_t ndim = boat_tensor_ndim(a);
@@ -157,7 +157,7 @@ BOAT_API boat_tensor_t* boat_softmax(const boat_tensor_t* a, int axis) {
 }
 
 // Log softmax along a specific axis
-boat_tensor_t* boat_log_softmax(const boat_tensor_t* a, int axis) {
+BOAT_API boat_tensor_t* boat_log_softmax(const boat_tensor_t* a, int axis) {
     if (!a) return NULL;
 
     size_t ndim = boat_tensor_ndim(a);
@@ -269,7 +269,7 @@ boat_tensor_t* boat_log_softmax(const boat_tensor_t* a, int axis) {
 }
 
 // Other activation functions
-BOAT_API boat_tensor_t* boat_relu(const boat_tensor_t* a) {
+BOAT_API BOAT_API boat_tensor_t* boat_relu(const boat_tensor_t* a) {
 
     if (!a) {
         return NULL;
@@ -312,7 +312,7 @@ BOAT_API boat_tensor_t* boat_relu(const boat_tensor_t* a) {
 }
 
 
-boat_tensor_t* boat_sigmoid(const boat_tensor_t* a) {
+BOAT_API boat_tensor_t* boat_sigmoid(const boat_tensor_t* a) {
     if (!a) return NULL;
 
     boat_tensor_t* out = boat_tensor_create_like(a);
@@ -351,7 +351,7 @@ boat_tensor_t* boat_sigmoid(const boat_tensor_t* a) {
     return NULL;
 }
 
-boat_tensor_t* boat_silu(const boat_tensor_t* a) {
+BOAT_API boat_tensor_t* boat_silu(const boat_tensor_t* a) {
     if (!a) return NULL;
 
     boat_tensor_t* out = boat_tensor_create_like(a);
@@ -390,7 +390,7 @@ boat_tensor_t* boat_silu(const boat_tensor_t* a) {
     return NULL;
 }
 
-boat_tensor_t* boat_tanh(const boat_tensor_t* a) {
+BOAT_API boat_tensor_t* boat_tanh(const boat_tensor_t* a) {
     if (!a) return NULL;
 
     boat_tensor_t* out = boat_tensor_create_like(a);
@@ -429,7 +429,7 @@ boat_tensor_t* boat_tanh(const boat_tensor_t* a) {
     return NULL;
 }
 
-boat_tensor_t* boat_gelu(const boat_tensor_t* a) {
+BOAT_API boat_tensor_t* boat_gelu(const boat_tensor_t* a) {
     if (!a) return NULL;
 
     boat_tensor_t* out = boat_tensor_create_like(a);
@@ -462,7 +462,7 @@ boat_tensor_t* boat_gelu(const boat_tensor_t* a) {
     return NULL;
 }
 
-boat_tensor_t* boat_selu(const boat_tensor_t* a) {
+BOAT_API boat_tensor_t* boat_selu(const boat_tensor_t* a) {
     if (!a) return NULL;
 
     boat_tensor_t* out = boat_tensor_create_like(a);
@@ -499,7 +499,7 @@ boat_tensor_t* boat_selu(const boat_tensor_t* a) {
     return NULL;
 }
 
-boat_tensor_t* boat_sinusoidal_embedding(size_t seq_len, size_t embedding_dim, float theta) {
+BOAT_API boat_tensor_t* boat_sinusoidal_embedding(size_t seq_len, size_t embedding_dim, float theta) {
     if (seq_len == 0 || embedding_dim == 0 || embedding_dim % 2 != 0) {
         return NULL;
     }

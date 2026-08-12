@@ -10,7 +10,7 @@ struct boat_prelu_layer_t {
     boat_tensor_t* slope;  // per-channel slope, shape [C, 1, 1]
 };
 
-BOAT_API boat_prelu_layer_t* BOAT_CALL boat_prelu_layer_create(size_t num_params) {
+BOAT_API BOAT_API boat_prelu_layer_t* BOAT_CALL boat_prelu_layer_create(size_t num_params) {
     boat_prelu_layer_t* layer = (boat_prelu_layer_t*)boat_malloc(sizeof(boat_prelu_layer_t), BOAT_DEVICE_CPU);
     if (!layer) return NULL;
     layer->slope = NULL;
@@ -25,13 +25,13 @@ BOAT_API boat_prelu_layer_t* BOAT_CALL boat_prelu_layer_create(size_t num_params
     return layer;
 }
 
-BOAT_API void BOAT_CALL boat_prelu_layer_free(boat_prelu_layer_t* layer) {
+BOAT_API BOAT_API void BOAT_CALL boat_prelu_layer_free(boat_prelu_layer_t* layer) {
     if (!layer) return;
     if (layer->slope) boat_tensor_unref(layer->slope);
     boat_free(layer);
 }
 
-BOAT_API void BOAT_CALL boat_prelu_layer_set_slope(boat_prelu_layer_t* layer, const boat_tensor_t* slope) {
+BOAT_API BOAT_API void BOAT_CALL boat_prelu_layer_set_slope(boat_prelu_layer_t* layer, const boat_tensor_t* slope) {
     if (!layer || !slope) return;
     if (layer->slope) boat_tensor_unref(layer->slope);
     layer->slope = boat_tensor_create(boat_tensor_shape(slope), boat_tensor_ndim(slope),
@@ -42,11 +42,11 @@ BOAT_API void BOAT_CALL boat_prelu_layer_set_slope(boat_prelu_layer_t* layer, co
     }
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_prelu_layer_get_slope(const boat_prelu_layer_t* layer) {
+BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_prelu_layer_get_slope(const boat_prelu_layer_t* layer) {
     return layer ? layer->slope : NULL;
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_prelu_layer_forward(const boat_prelu_layer_t* layer, const boat_tensor_t* input) {
+BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_prelu_layer_forward(const boat_prelu_layer_t* layer, const boat_tensor_t* input) {
     if (!layer || !input) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[PReLULayer] NULL input or layer\n");
         return NULL;

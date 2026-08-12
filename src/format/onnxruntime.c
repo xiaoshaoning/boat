@@ -213,7 +213,7 @@ fail:
 // Public API
 // -----------------------------------------------------------------------
 
-boat_onnxruntime_session_t* boat_onnxruntime_create(
+BOAT_API boat_onnxruntime_session_t* boat_onnxruntime_create(
     const char* model_path,
     boat_onnxruntime_provider_t provider) {
     if (!model_path) {
@@ -224,7 +224,7 @@ boat_onnxruntime_session_t* boat_onnxruntime_create(
     return create_session_impl(model_path, 0, 0, provider);
 }
 
-boat_onnxruntime_session_t* boat_onnxruntime_create_from_buffer(
+BOAT_API boat_onnxruntime_session_t* boat_onnxruntime_create_from_buffer(
     const void* data, size_t size,
     boat_onnxruntime_provider_t provider) {
     if (!data || size == 0) {
@@ -235,7 +235,7 @@ boat_onnxruntime_session_t* boat_onnxruntime_create_from_buffer(
     return create_session_impl(data, size, 1, provider);
 }
 
-void boat_onnxruntime_free(boat_onnxruntime_session_t* session) {
+BOAT_API void boat_onnxruntime_free(boat_onnxruntime_session_t* session) {
     if (!session) return;
     const OrtApi* api = session->api;
 
@@ -264,21 +264,21 @@ void boat_onnxruntime_free(boat_onnxruntime_session_t* session) {
 // Introspection
 // -----------------------------------------------------------------------
 
-size_t boat_onnxruntime_input_count(const boat_onnxruntime_session_t* session) {
+BOAT_API size_t boat_onnxruntime_input_count(const boat_onnxruntime_session_t* session) {
     return session ? session->num_inputs : 0;
 }
 
-size_t boat_onnxruntime_output_count(const boat_onnxruntime_session_t* session) {
+BOAT_API size_t boat_onnxruntime_output_count(const boat_onnxruntime_session_t* session) {
     return session ? session->num_outputs : 0;
 }
 
-const char* boat_onnxruntime_input_name(
+BOAT_API const char* boat_onnxruntime_input_name(
     const boat_onnxruntime_session_t* session, size_t index) {
     if (!session || index >= session->num_inputs) return NULL;
     return session->input_names[index];
 }
 
-const char* boat_onnxruntime_output_name(
+BOAT_API const char* boat_onnxruntime_output_name(
     const boat_onnxruntime_session_t* session, size_t index) {
     if (!session || index >= session->num_outputs) return NULL;
     return session->output_names[index];
@@ -394,7 +394,7 @@ static boat_tensor_t* ort_value_to_boat_tensor(
     return result;
 }
 
-boat_tensor_t* boat_onnxruntime_run(
+BOAT_API boat_tensor_t* boat_onnxruntime_run(
     boat_onnxruntime_session_t* session,
     const boat_tensor_t* input) {
 
@@ -455,7 +455,7 @@ boat_tensor_t* boat_onnxruntime_run(
     return result;
 }
 
-boat_tensor_t** boat_onnxruntime_run_multi(
+BOAT_API boat_tensor_t** boat_onnxruntime_run_multi(
     boat_onnxruntime_session_t* session,
     boat_tensor_t* const* inputs,
     const char** input_names,

@@ -38,7 +38,7 @@ boat_edge_t* boat_edge_create(const boat_node_t* from, const boat_node_t* to,
     return edge;
 }
 
-void boat_edge_free(const boat_edge_t* edge) {
+BOAT_API void boat_edge_free(const boat_edge_t* edge) {
     if (!edge) {
         return;
     }
@@ -51,26 +51,26 @@ void boat_edge_free(const boat_edge_t* edge) {
 }
 
 // Edge properties (public API implementations)
-boat_node_t* boat_edge_source(const boat_edge_t* edge) {
+BOAT_API boat_node_t* boat_edge_source(const boat_edge_t* edge) {
     return edge ? edge->from : NULL;
 }
 
-boat_node_t* boat_edge_target(const boat_edge_t* edge) {
+BOAT_API boat_node_t* boat_edge_target(const boat_edge_t* edge) {
     return edge ? edge->to : NULL;
 }
 
-boat_edge_direction_t boat_edge_direction(const boat_edge_t* edge) {
+BOAT_API boat_edge_direction_t boat_edge_direction(const boat_edge_t* edge) {
     return edge ? edge->direction : BOAT_EDGE_DIRECTION_FORWARD;
 }
 
 // Edge comparison (internal)
-bool boat_edge_equal(const boat_edge_t* a, const boat_edge_t* b) {
+BOAT_API bool boat_edge_equal(const boat_edge_t* a, const boat_edge_t* b) {
     if (!a || !b) return false;
     return a->from == b->from && a->to == b->to && a->direction == b->direction;
 }
 
 
-boat_edge_list_t* boat_edge_list_create() {
+BOAT_API boat_edge_list_t* boat_edge_list_create() {
     boat_edge_list_t* list = boat_malloc(sizeof(boat_edge_list_t), BOAT_DEVICE_CPU);
     if (!list) return NULL;
 
@@ -80,14 +80,14 @@ boat_edge_list_t* boat_edge_list_create() {
     return list;
 }
 
-void boat_edge_list_free(boat_edge_list_t* list) {
+BOAT_API void boat_edge_list_free(boat_edge_list_t* list) {
     if (!list) return;
     // Note: we don't free edges themselves, graph owns them
     boat_free(list->edges);
     boat_free(list);
 }
 
-bool boat_edge_list_add(boat_edge_list_t* list, const boat_edge_t* edge) {
+BOAT_API bool boat_edge_list_add(boat_edge_list_t* list, const boat_edge_t* edge) {
     if (!list || !edge) return false;
 
     if (list->count >= list->capacity) {
@@ -105,7 +105,7 @@ bool boat_edge_list_add(boat_edge_list_t* list, const boat_edge_t* edge) {
     return true;
 }
 
-bool boat_edge_list_remove(boat_edge_list_t* list, const boat_edge_t* edge) {
+BOAT_API bool boat_edge_list_remove(boat_edge_list_t* list, const boat_edge_t* edge) {
     if (!list || !edge) return false;
 
     for (size_t i = 0; i < list->count; i++) {
@@ -121,7 +121,7 @@ bool boat_edge_list_remove(boat_edge_list_t* list, const boat_edge_t* edge) {
     return false;
 }
 
-bool boat_edge_list_contains(const boat_edge_list_t* list, const boat_edge_t* edge) {
+BOAT_API bool boat_edge_list_contains(const boat_edge_list_t* list, const boat_edge_t* edge) {
     if (!list || !edge) return false;
     for (size_t i = 0; i < list->count; i++) {
         if (list->edges[i] == edge) return true;
@@ -129,11 +129,11 @@ bool boat_edge_list_contains(const boat_edge_list_t* list, const boat_edge_t* ed
     return false;
 }
 
-size_t boat_edge_list_count(const boat_edge_list_t* list) {
+BOAT_API size_t boat_edge_list_count(const boat_edge_list_t* list) {
     return list ? list->count : 0;
 }
 
-boat_edge_t* boat_edge_list_get(const boat_edge_list_t* list, size_t index) {
+BOAT_API boat_edge_t* boat_edge_list_get(const boat_edge_list_t* list, size_t index) {
     if (!list || index >= list->count) return NULL;
     return list->edges[index];
 }

@@ -114,7 +114,7 @@ static boat_optimizer_type_t get_optimizer_type(const boat_optimizer_t* optimize
 }
 
 // Generic optimizer functions
-BOAT_API void boat_optimizer_add_parameter(boat_optimizer_t* optimizer,
+BOAT_API BOAT_API void boat_optimizer_add_parameter(boat_optimizer_t* optimizer,
                                   boat_tensor_t* param,
                                   boat_tensor_t* grad) {
     if (!optimizer) return;
@@ -137,7 +137,7 @@ BOAT_API void boat_optimizer_add_parameter(boat_optimizer_t* optimizer,
     }
 }
 
-BOAT_API void boat_optimizer_step(boat_optimizer_t* optimizer) {
+BOAT_API BOAT_API void boat_optimizer_step(boat_optimizer_t* optimizer) {
     if (!optimizer) return;
 
     switch (get_optimizer_type(optimizer)) {
@@ -158,7 +158,7 @@ BOAT_API void boat_optimizer_step(boat_optimizer_t* optimizer) {
     }
 }
 
-BOAT_API void boat_optimizer_zero_grad(boat_optimizer_t* optimizer) {
+BOAT_API BOAT_API void boat_optimizer_zero_grad(boat_optimizer_t* optimizer) {
     if (!optimizer) return;
 
     switch (get_optimizer_type(optimizer)) {
@@ -179,7 +179,7 @@ BOAT_API void boat_optimizer_zero_grad(boat_optimizer_t* optimizer) {
     }
 }
 
-BOAT_API void boat_optimizer_free(boat_optimizer_t* optimizer) {
+BOAT_API BOAT_API void boat_optimizer_free(boat_optimizer_t* optimizer) {
     if (!optimizer) return;
 
     switch (get_optimizer_type(optimizer)) {
@@ -201,7 +201,7 @@ BOAT_API void boat_optimizer_free(boat_optimizer_t* optimizer) {
 }
 
 // Generic optimizer get learning rate function
-BOAT_API float boat_optimizer_get_learning_rate(const boat_optimizer_t* optimizer) {
+BOAT_API BOAT_API float boat_optimizer_get_learning_rate(const boat_optimizer_t* optimizer) {
     if (!optimizer) return 0.0f;
 
     switch (get_optimizer_type(optimizer)) {
@@ -219,7 +219,7 @@ BOAT_API float boat_optimizer_get_learning_rate(const boat_optimizer_t* optimize
 }
 
 // Generic optimizer set learning rate function
-BOAT_API void boat_optimizer_set_learning_rate(boat_optimizer_t* optimizer, float learning_rate) {
+BOAT_API BOAT_API void boat_optimizer_set_learning_rate(boat_optimizer_t* optimizer, float learning_rate) {
     if (!optimizer) return;
 
     switch (get_optimizer_type(optimizer)) {
@@ -240,7 +240,7 @@ BOAT_API void boat_optimizer_set_learning_rate(boat_optimizer_t* optimizer, floa
     }
 }
 
-BOAT_API float boat_optimizer_get_weight_decay(const boat_optimizer_t* optimizer) {
+BOAT_API BOAT_API float boat_optimizer_get_weight_decay(const boat_optimizer_t* optimizer) {
     if (!optimizer) return 0.0f;
     switch (get_optimizer_type(optimizer)) {
         case BOAT_OPTIMIZER_ADAM:
@@ -257,7 +257,7 @@ BOAT_API float boat_optimizer_get_weight_decay(const boat_optimizer_t* optimizer
     return 0.0f;
 }
 
-BOAT_API void boat_optimizer_set_weight_decay(boat_optimizer_t* optimizer, float weight_decay) {
+BOAT_API BOAT_API void boat_optimizer_set_weight_decay(boat_optimizer_t* optimizer, float weight_decay) {
     if (!optimizer) return;
     switch (get_optimizer_type(optimizer)) {
         case BOAT_OPTIMIZER_ADAM:
