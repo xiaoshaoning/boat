@@ -116,6 +116,10 @@ target_link_libraries(test_reduce_autodiff boat)
 boat_add_test_executable(test_softmax_ce unit/test_softmax_ce.c)
 target_link_libraries(test_softmax_ce boat)
 
+# Matmul batch broadcasting + softmax/log_softmax axis
+boat_add_test_executable(test_matmul_softmax unit/test_matmul_softmax.c)
+target_link_libraries(test_matmul_softmax boat)
+
 # Graph robustness tests (merge, to_dot, node-removal adjacency, sequential lifecycle)
 boat_add_test_executable(test_graph_phase4 unit/test_graph_phase4.c)
 target_link_libraries(test_graph_phase4 boat)

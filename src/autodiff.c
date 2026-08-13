@@ -78,6 +78,15 @@ static void free_reduce_params(void* data) {
     boat_free(p);
 }
 
+// Softmax/log_softmax axis stored in extra_data.
+typedef struct {
+    int axis;
+} softmax_params_t;
+
+static void free_softmax_params(void* data) {
+    boat_free(data);
+}
+
 // Internal context structure
 struct boat_autodiff_context_t {
     bool grad_enabled;
@@ -110,8 +119,7 @@ static boat_tensor_t* compute_forward_tanh(const boat_tensor_t* a);
 static boat_tensor_t* compute_forward_matmul(const boat_tensor_t* a, const boat_tensor_t* b);
 static boat_variable_t* create_reduce_operation(boat_op_type_t op_type, const boat_variable_t* a,
                                                 const int64_t* dims, size_t n_dims, bool keepdim);
-static boat_tensor_t* compute_forward_softmax(const boat_tensor_t* a);
-static boat_tensor_t* compute_forward_log_softmax(const boat_tensor_t* a);
+static boat_variable_t* create_softmax_operation(boat_op_type_t op_type, const boat_variable_t* a, int axis);
 static void compute_backward_conv(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
 static void compute_backward_pool(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
 static boat_tensor_t* compute_forward_flatten(const boat_tensor_t* input);
@@ -697,9 +705,7 @@ BOAT_API boat_variable_t* boat_var_tanh(const boat_variable_t* a) {
 
 BOAT_API boat_variable_t* boat_var_softmax(const boat_variable_t* a, int axis) {
     if (!a) return NULL;
-    (void)axis; // TODO: support axis parameter
-    boat_variable_t* inputs[] = {(boat_variable_t*)a};
-    return create_operation(BOAT_OP_SOFTMAX, inputs, 1, NULL, compute_forward_softmax);
+    return create_softmax_operation(BOAT_OP_SOFTMAX, a, axis);
 }
 
 BOAT_API boat_variable_t* boat_var_flatten(const boat_variable_t* a) {
@@ -710,9 +716,7 @@ BOAT_API boat_variable_t* boat_var_flatten(const boat_variable_t* a) {
 
 BOAT_API boat_variable_t* boat_var_log_softmax(const boat_variable_t* a, int axis) {
     if (!a) return NULL;
-    (void)axis; // TODO: support axis parameter
-    boat_variable_t* inputs[] = {(boat_variable_t*)a};
-    return create_operation(BOAT_OP_LOG_SOFTMAX, inputs, 1, NULL, compute_forward_log_softmax);
+    return create_softmax_operation(BOAT_OP_LOG_SOFTMAX, a, axis);
 }
 
 // Convolution operation with gradient tracking
@@ -1482,50 +1486,82 @@ static void compute_backward_tanh(boat_op_node_data_t* op_data, const boat_tenso
     }
 }
 
+// Reduce the leading batch dims of `t` (shape = full batch + matrix) that were
+// broadcast from a size-1 dim in `target_shape` (right-aligned). Returns a new
+// tensor with the target batch shape, or `t` itself if no reduction is needed.
+static boat_tensor_t* reduce_broadcast_batch(boat_tensor_t* t, const int64_t* target_shape,
+                                             const int64_t* full_shape, size_t full_bd,
+                                             size_t target_bd) {
+    int64_t reduce_dims[4];
+    size_t n_reduce = 0;
+    size_t off = full_bd - target_bd;  // target is right-aligned to full
+    for (size_t i = 0; i < full_bd; i++) {
+        int64_t tdim = (i >= off) ? target_shape[i - off] : 1;
+        if (tdim == 1 && full_shape[i] > 1) {
+            reduce_dims[n_reduce++] = (int64_t)i;
+        }
+    }
+    if (n_reduce == 0) return t;
+    boat_tensor_t* result = boat_sum(t, reduce_dims, n_reduce, false);
+    boat_tensor_unref(t);
+    return result;
+}
+
 static void compute_backward_matmul(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 2 || !grad_output) return;
 
     boat_variable_t* a = op_data->inputs[0];
     boat_variable_t* b = op_data->inputs[1];
-    // boat_variable_t* c = op_data->output; // Not used in this implementation
+
+    size_t a_ndim = boat_tensor_ndim(a->data);
+    size_t b_ndim = boat_tensor_ndim(b->data);
+    const int64_t* a_shape = boat_tensor_shape(a->data);
+    const int64_t* b_shape = boat_tensor_shape(b->data);
+    const int64_t* out_shape = boat_tensor_shape(grad_output);
+    size_t out_bd = boat_tensor_ndim(grad_output) - 2;
 
     if (a->requires_grad) {
-        // ∂L/∂A = ∂L/∂C @ Bᵀ
-        boat_tensor_t* b_transposed = boat_transpose(b->data, 0, 1);
-        if (b_transposed) {
-            boat_tensor_t* grad_a = boat_matmul(grad_output, b_transposed);
-            boat_tensor_unref(b_transposed);
-
-            if (grad_a) {
-                if (!a->grad) {
-                    a->grad = grad_a;
-                } else {
-                    boat_add_(a->grad, grad_a);
-                    boat_tensor_unref(grad_a);
+        // grad_a = (grad_output @ B^T), summed over dims where A was broadcast.
+        boat_tensor_t* b_T = boat_transpose(b->data, (int)b_ndim - 2, (int)b_ndim - 1);
+        if (b_T) {
+            boat_tensor_t* grad_a_full = boat_matmul(grad_output, b_T);
+            boat_tensor_unref(b_T);
+            if (grad_a_full) {
+                boat_tensor_t* grad_a = reduce_broadcast_batch(
+                    grad_a_full, a_shape, out_shape, out_bd, a_ndim - 2);
+                if (grad_a) {
+                    if (!a->grad) {
+                        a->grad = grad_a;
+                    } else {
+                        boat_add_(a->grad, grad_a);
+                        boat_tensor_unref(grad_a);
+                    }
                 }
             }
         }
     }
 
     if (b->requires_grad) {
-        // ∂L/∂B = Aᵀ @ ∂L/∂C
-        boat_tensor_t* a_transposed = boat_transpose(a->data, 0, 1);
-        if (a_transposed) {
-            boat_tensor_t* grad_b = boat_matmul(a_transposed, grad_output);
-            boat_tensor_unref(a_transposed);
-
-            if (grad_b) {
-                if (!b->grad) {
-                    b->grad = grad_b;
-                } else {
-                    boat_add_(b->grad, grad_b);
-                    boat_tensor_unref(grad_b);
+        // grad_b = (A^T @ grad_output), summed over dims where B was broadcast.
+        boat_tensor_t* a_T = boat_transpose(a->data, (int)a_ndim - 2, (int)a_ndim - 1);
+        if (a_T) {
+            boat_tensor_t* grad_b_full = boat_matmul(a_T, grad_output);
+            boat_tensor_unref(a_T);
+            if (grad_b_full) {
+                boat_tensor_t* grad_b = reduce_broadcast_batch(
+                    grad_b_full, b_shape, out_shape, out_bd, b_ndim - 2);
+                if (grad_b) {
+                    if (!b->grad) {
+                        b->grad = grad_b;
+                    } else {
+                        boat_add_(b->grad, grad_b);
+                        boat_tensor_unref(grad_b);
+                    }
                 }
             }
         }
     }
 }
-
 static void compute_backward_reduce(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 1 || !grad_output) return;
     boat_variable_t* a = op_data->inputs[0];
@@ -1743,272 +1779,86 @@ static bool unify_variable_graphs(boat_variable_t** inputs, size_t num_inputs, b
 // Generic operation creation function
 
 // Softmax operations
-static boat_tensor_t* compute_forward_softmax(const boat_tensor_t* a) {
-    // Numerical stable softmax along last dimension
-    // softmax(x_i) = exp(x_i - max(x)) / sum(exp(x_j - max(x)))
-    boat_tensor_t* out = boat_tensor_create_like(a);
-    if (!out) return NULL;
-
-    size_t nelements = boat_tensor_nelements(a);
-    if (nelements == 0) return out;
-
-    const void* a_data = boat_tensor_const_data(a);
-    void* out_data = boat_tensor_data(out);
-    boat_dtype_t dtype = boat_tensor_dtype(a);
-
-    // Get shape information for last dimension
-    const int64_t* shape = boat_tensor_shape(a);
-    size_t ndim = boat_tensor_ndim(a);
-    size_t last_dim = ndim > 0 ? shape[ndim - 1] : 1;
-    size_t n_rows = nelements / last_dim;
-
-    switch (dtype) {
-        case BOAT_DTYPE_FLOAT32: {
-            const float* a_ptr = (const float*)a_data;
-            float* out_ptr = (float*)out_data;
-
-            for (size_t row = 0; row < n_rows; row++) {
-                size_t row_offset = row * last_dim;
-
-                // Find max in this row for numerical stability
-                float row_max = a_ptr[row_offset];
-                for (size_t i = 1; i < last_dim; i++) {
-                    float val = a_ptr[row_offset + i];
-                    if (val > row_max) row_max = val;
-                }
-
-                // Compute exp(x - max) and sum
-                float exp_sum = 0.0f;
-                for (size_t i = 0; i < last_dim; i++) {
-                    float val = a_ptr[row_offset + i] - row_max;
-                    float exp_val = expf(val);
-                    out_ptr[row_offset + i] = exp_val;
-                    exp_sum += exp_val;
-                }
-
-                // Normalize
-                if (exp_sum != 0.0f) {
-                    float inv_exp_sum = 1.0f / exp_sum;
-                    for (size_t i = 0; i < last_dim; i++) {
-                        out_ptr[row_offset + i] *= inv_exp_sum;
-                    }
-                }
-            }
-            break;
-        }
-        case BOAT_DTYPE_FLOAT64: {
-            const double* a_ptr = (const double*)a_data;
-            double* out_ptr = (double*)out_data;
-
-            for (size_t row = 0; row < n_rows; row++) {
-                size_t row_offset = row * last_dim;
-
-                // Find max in this row for numerical stability
-                double row_max = a_ptr[row_offset];
-                for (size_t i = 1; i < last_dim; i++) {
-                    double val = a_ptr[row_offset + i];
-                    if (val > row_max) row_max = val;
-                }
-
-                // Compute exp(x - max) and sum
-                double exp_sum = 0.0;
-                for (size_t i = 0; i < last_dim; i++) {
-                    double val = a_ptr[row_offset + i] - row_max;
-                    double exp_val = exp(val);
-                    out_ptr[row_offset + i] = exp_val;
-                    exp_sum += exp_val;
-                }
-
-                // Normalize
-                if (exp_sum != 0.0) {
-                    double inv_exp_sum = 1.0 / exp_sum;
-                    for (size_t i = 0; i < last_dim; i++) {
-                        out_ptr[row_offset + i] *= inv_exp_sum;
-                    }
-                }
-            }
-            break;
-        }
-        default:
-            // Only support float types for softmax
-            boat_tensor_free(out);
-            return NULL;
-    }
-
-    return out;
-}
-
-static boat_tensor_t* compute_forward_log_softmax(const boat_tensor_t* a) {
-    // Numerical stable log_softmax along last dimension
-    // log_softmax(x_i) = x_i - max(x) - log(sum(exp(x_j - max(x))))
-    boat_tensor_t* out = boat_tensor_create_like(a);
-    if (!out) return NULL;
-
-    size_t nelements = boat_tensor_nelements(a);
-    if (nelements == 0) return out;
-
-    const void* a_data = boat_tensor_const_data(a);
-    void* out_data = boat_tensor_data(out);
-    boat_dtype_t dtype = boat_tensor_dtype(a);
-
-    // Get shape information for last dimension
-    const int64_t* shape = boat_tensor_shape(a);
-    size_t ndim = boat_tensor_ndim(a);
-    size_t last_dim = ndim > 0 ? shape[ndim - 1] : 1;
-    size_t n_rows = nelements / last_dim;
-
-    switch (dtype) {
-        case BOAT_DTYPE_FLOAT32: {
-            const float* a_ptr = (const float*)a_data;
-            float* out_ptr = (float*)out_data;
-
-            for (size_t row = 0; row < n_rows; row++) {
-                size_t row_offset = row * last_dim;
-
-                // Find max in this row for numerical stability
-                float row_max = a_ptr[row_offset];
-                for (size_t i = 1; i < last_dim; i++) {
-                    float val = a_ptr[row_offset + i];
-                    if (val > row_max) row_max = val;
-                }
-
-                // Compute exp(x - max) and sum
-                float exp_sum = 0.0f;
-                for (size_t i = 0; i < last_dim; i++) {
-                    float val = a_ptr[row_offset + i] - row_max;
-                    float exp_val = expf(val);
-                    exp_sum += exp_val;
-                }
-
-                // Compute log_softmax
-                float log_exp_sum = logf(fmaxf(exp_sum, FLT_MIN));
-                for (size_t i = 0; i < last_dim; i++) {
-                    out_ptr[row_offset + i] = a_ptr[row_offset + i] - row_max - log_exp_sum;
-                }
-            }
-            break;
-        }
-        case BOAT_DTYPE_FLOAT64: {
-            const double* a_ptr = (const double*)a_data;
-            double* out_ptr = (double*)out_data;
-
-            for (size_t row = 0; row < n_rows; row++) {
-                size_t row_offset = row * last_dim;
-
-                // Find max in this row for numerical stability
-                double row_max = a_ptr[row_offset];
-                for (size_t i = 1; i < last_dim; i++) {
-                    double val = a_ptr[row_offset + i];
-                    if (val > row_max) row_max = val;
-                }
-
-                // Compute exp(x - max) and sum
-                double exp_sum = 0.0;
-                for (size_t i = 0; i < last_dim; i++) {
-                    double val = a_ptr[row_offset + i] - row_max;
-                    double exp_val = exp(val);
-                    exp_sum += exp_val;
-                }
-
-                // Compute log_softmax
-                double log_exp_sum = log(fmax(exp_sum, DBL_MIN));
-                for (size_t i = 0; i < last_dim; i++) {
-                    out_ptr[row_offset + i] = a_ptr[row_offset + i] - row_max - log_exp_sum;
-                }
-            }
-            break;
-        }
-        default:
-            // Only support float types for softmax
-            boat_tensor_free(out);
-            return NULL;
-    }
-
-    return out;
-}
-
 static void compute_backward_softmax(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
     if (!op_data || op_data->num_inputs != 1 || !grad_output || !op_data->output) return;
 
-    // Gradient for softmax: ∂L/∂x_i = y_i * (∂L/∂y_i - sum(y_j * ∂L/∂y_j))
-    // where y = softmax(x)
+    // Gradient for softmax: dL/dx_i = y_i * (dL/dy_i - sum_k(y_k * dL/dy_k)),
+    // computed per softmax slice (along the stored axis).
     boat_variable_t* a = op_data->inputs[0];
     const boat_variable_t* y_var = op_data->output;
-
     if (!a->requires_grad) return;
 
+    softmax_params_t* params = (softmax_params_t*)op_data->extra_data;
     const boat_tensor_t* y = y_var->data;
     size_t nelements = boat_tensor_nelements(y);
     if (nelements == 0) return;
-
-    const void* y_data = boat_tensor_data(y);
-    const void* grad_output_data = boat_tensor_data(grad_output);
     boat_dtype_t dtype = boat_tensor_dtype(y);
 
-    // Get shape information for last dimension
     const int64_t* shape = boat_tensor_shape(y);
     size_t ndim = boat_tensor_ndim(y);
-    size_t last_dim = ndim > 0 ? shape[ndim - 1] : 1;
-    size_t n_rows = nelements / last_dim;
 
-    // Create gradient tensor for input
+    int axis = params ? params->axis : -1;
+    if (axis < 0) axis += (int)ndim;
+    if (axis < 0 || (size_t)axis >= ndim) return;
+
+    size_t axis_size = (size_t)shape[axis];
+    size_t outer_elements = 1;
+    for (size_t i = 0; i < (size_t)axis; i++) outer_elements *= (size_t)shape[i];
+    size_t inner_stride = 1;
+    for (size_t i = (size_t)axis + 1; i < ndim; i++) inner_stride *= (size_t)shape[i];
+
     boat_tensor_t* grad = boat_tensor_create_like(y);
     if (!grad) return;
-
     void* grad_data = boat_tensor_data(grad);
+    const void* y_data = boat_tensor_data(y);
+    const void* grad_output_data = boat_tensor_data(grad_output);
 
     switch (dtype) {
         case BOAT_DTYPE_FLOAT32: {
             const float* y_ptr = (const float*)y_data;
-            const float* grad_out_ptr = (const float*)grad_output_data;
-            float* grad_ptr = (float*)grad_data;
-
-            for (size_t row = 0; row < n_rows; row++) {
-                size_t row_offset = row * last_dim;
-
-                // Compute sum(y_j * ∂L/∂y_j) for this row
-                float sum_y_grad = 0.0f;
-                for (size_t i = 0; i < last_dim; i++) {
-                    sum_y_grad += y_ptr[row_offset + i] * grad_out_ptr[row_offset + i];
-                }
-
-                // Compute gradient: y_i * (∂L/∂y_i - sum_y_grad)
-                for (size_t i = 0; i < last_dim; i++) {
-                    float grad_out = grad_out_ptr[row_offset + i];
-                    grad_ptr[row_offset + i] = y_ptr[row_offset + i] * (grad_out - sum_y_grad);
+            const float* go_ptr = (const float*)grad_output_data;
+            float* g_ptr = (float*)grad_data;
+            for (size_t outer = 0; outer < outer_elements; outer++) {
+                for (size_t inner = 0; inner < inner_stride; inner++) {
+                    size_t base = outer * axis_size * inner_stride + inner;
+                    float sum_y_grad = 0.0f;
+                    for (size_t k = 0; k < axis_size; k++) {
+                        size_t idx = base + k * inner_stride;
+                        sum_y_grad += y_ptr[idx] * go_ptr[idx];
+                    }
+                    for (size_t k = 0; k < axis_size; k++) {
+                        size_t idx = base + k * inner_stride;
+                        g_ptr[idx] = y_ptr[idx] * (go_ptr[idx] - sum_y_grad);
+                    }
                 }
             }
             break;
         }
         case BOAT_DTYPE_FLOAT64: {
             const double* y_ptr = (const double*)y_data;
-            const double* grad_out_ptr = (const double*)grad_output_data;
-            double* grad_ptr = (double*)grad_data;
-
-            for (size_t row = 0; row < n_rows; row++) {
-                size_t row_offset = row * last_dim;
-
-                // Compute sum(y_j * ∂L/∂y_j) for this row
-                double sum_y_grad = 0.0;
-                for (size_t i = 0; i < last_dim; i++) {
-                    sum_y_grad += y_ptr[row_offset + i] * grad_out_ptr[row_offset + i];
-                }
-
-                // Compute gradient: y_i * (∂L/∂y_i - sum_y_grad)
-                for (size_t i = 0; i < last_dim; i++) {
-                    double grad_out = grad_out_ptr[row_offset + i];
-                    grad_ptr[row_offset + i] = y_ptr[row_offset + i] * (grad_out - sum_y_grad);
+            const double* go_ptr = (const double*)grad_output_data;
+            double* g_ptr = (double*)grad_data;
+            for (size_t outer = 0; outer < outer_elements; outer++) {
+                for (size_t inner = 0; inner < inner_stride; inner++) {
+                    size_t base = outer * axis_size * inner_stride + inner;
+                    double sum_y_grad = 0.0;
+                    for (size_t k = 0; k < axis_size; k++) {
+                        size_t idx = base + k * inner_stride;
+                        sum_y_grad += y_ptr[idx] * go_ptr[idx];
+                    }
+                    for (size_t k = 0; k < axis_size; k++) {
+                        size_t idx = base + k * inner_stride;
+                        g_ptr[idx] = y_ptr[idx] * (go_ptr[idx] - sum_y_grad);
+                    }
                 }
             }
             break;
         }
         default:
-            // Only support float types for softmax gradient
             boat_tensor_unref(grad);
             return;
     }
 
-    // Accumulate gradient
     if (!a->grad) {
         a->grad = grad;
     } else {
@@ -2018,93 +1868,83 @@ static void compute_backward_softmax(boat_op_node_data_t* op_data, const boat_te
 }
 
 static void compute_backward_log_softmax(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
-    BOAT_DEBUG_PRINT("[autodiff] compute_backward_log_softmax: op_data=%p, grad_output=%p\n", op_data, grad_output);
     if (!op_data || op_data->num_inputs != 1 || !grad_output || !op_data->output) return;
 
-    // Gradient for log_softmax: ∂L/∂x_i = ∂L/∂y_i - exp(y_i) * sum(∂L/∂y_j)
-    // where y = log_softmax(x), and exp(y) = softmax(x)
-    // Actually simpler: ∂L/∂x_i = ∂L/∂y_i - softmax(x_i) * sum(∂L/∂y_j)
+    // Gradient for log_softmax: dL/dx_i = dL/dy_i - exp(y_i) * sum_k(dL/dy_k),
+    // computed per slice (along the stored axis).
     boat_variable_t* a = op_data->inputs[0];
     const boat_variable_t* y_var = op_data->output;
-
     if (!a->requires_grad) return;
 
-    // Need softmax(x) = exp(y) for gradient computation
-    // Since we don't store softmax separately, compute it from log_softmax output
+    softmax_params_t* params = (softmax_params_t*)op_data->extra_data;
     const boat_tensor_t* y = y_var->data;
     size_t nelements = boat_tensor_nelements(y);
     if (nelements == 0) return;
-
-    const void* y_data = boat_tensor_data(y);
-    const void* grad_output_data = boat_tensor_data(grad_output);
     boat_dtype_t dtype = boat_tensor_dtype(y);
 
-    // Get shape information for last dimension
     const int64_t* shape = boat_tensor_shape(y);
     size_t ndim = boat_tensor_ndim(y);
-    size_t last_dim = ndim > 0 ? shape[ndim - 1] : 1;
-    size_t n_rows = nelements / last_dim;
 
-    // Create gradient tensor for input
+    int axis = params ? params->axis : -1;
+    if (axis < 0) axis += (int)ndim;
+    if (axis < 0 || (size_t)axis >= ndim) return;
+
+    size_t axis_size = (size_t)shape[axis];
+    size_t outer_elements = 1;
+    for (size_t i = 0; i < (size_t)axis; i++) outer_elements *= (size_t)shape[i];
+    size_t inner_stride = 1;
+    for (size_t i = (size_t)axis + 1; i < ndim; i++) inner_stride *= (size_t)shape[i];
+
     boat_tensor_t* grad = boat_tensor_create_like(y);
     if (!grad) return;
-
     void* grad_data = boat_tensor_data(grad);
+    const void* y_data = boat_tensor_data(y);
+    const void* grad_output_data = boat_tensor_data(grad_output);
 
     switch (dtype) {
         case BOAT_DTYPE_FLOAT32: {
             const float* y_ptr = (const float*)y_data;
-            const float* grad_out_ptr = (const float*)grad_output_data;
-            float* grad_ptr = (float*)grad_data;
-
-            for (size_t row = 0; row < n_rows; row++) {
-                size_t row_offset = row * last_dim;
-
-                // Compute sum(∂L/∂y_j) for this row
-                float sum_grad = 0.0f;
-                for (size_t i = 0; i < last_dim; i++) {
-                    sum_grad += grad_out_ptr[row_offset + i];
-                }
-
-                // Compute softmax(x_i) = exp(y_i)
-                // Then gradient: ∂L/∂x_i = ∂L/∂y_i - exp(y_i) * sum_grad
-                for (size_t i = 0; i < last_dim; i++) {
-                    float softmax_val = expf(y_ptr[row_offset + i]);
-                    grad_ptr[row_offset + i] = grad_out_ptr[row_offset + i] - softmax_val * sum_grad;
+            const float* go_ptr = (const float*)grad_output_data;
+            float* g_ptr = (float*)grad_data;
+            for (size_t outer = 0; outer < outer_elements; outer++) {
+                for (size_t inner = 0; inner < inner_stride; inner++) {
+                    size_t base = outer * axis_size * inner_stride + inner;
+                    float sum_grad = 0.0f;
+                    for (size_t k = 0; k < axis_size; k++) {
+                        sum_grad += go_ptr[base + k * inner_stride];
+                    }
+                    for (size_t k = 0; k < axis_size; k++) {
+                        size_t idx = base + k * inner_stride;
+                        g_ptr[idx] = go_ptr[idx] - expf(y_ptr[idx]) * sum_grad;
+                    }
                 }
             }
             break;
         }
         case BOAT_DTYPE_FLOAT64: {
             const double* y_ptr = (const double*)y_data;
-            const double* grad_out_ptr = (const double*)grad_output_data;
-            double* grad_ptr = (double*)grad_data;
-
-            for (size_t row = 0; row < n_rows; row++) {
-                size_t row_offset = row * last_dim;
-
-                // Compute sum(∂L/∂y_j) for this row
-                double sum_grad = 0.0;
-                for (size_t i = 0; i < last_dim; i++) {
-                    sum_grad += grad_out_ptr[row_offset + i];
-                }
-
-                // Compute softmax(x_i) = exp(y_i)
-                // Then gradient: ∂L/∂x_i = ∂L/∂y_i - exp(y_i) * sum_grad
-                for (size_t i = 0; i < last_dim; i++) {
-                    double softmax_val = exp(y_ptr[row_offset + i]);
-                    grad_ptr[row_offset + i] = grad_out_ptr[row_offset + i] - softmax_val * sum_grad;
+            const double* go_ptr = (const double*)grad_output_data;
+            double* g_ptr = (double*)grad_data;
+            for (size_t outer = 0; outer < outer_elements; outer++) {
+                for (size_t inner = 0; inner < inner_stride; inner++) {
+                    size_t base = outer * axis_size * inner_stride + inner;
+                    double sum_grad = 0.0;
+                    for (size_t k = 0; k < axis_size; k++) {
+                        sum_grad += go_ptr[base + k * inner_stride];
+                    }
+                    for (size_t k = 0; k < axis_size; k++) {
+                        size_t idx = base + k * inner_stride;
+                        g_ptr[idx] = go_ptr[idx] - exp(y_ptr[idx]) * sum_grad;
+                    }
                 }
             }
             break;
         }
         default:
-            // Only support float types for log_softmax gradient
             boat_tensor_unref(grad);
             return;
     }
 
-    // Accumulate gradient
     if (!a->grad) {
         a->grad = grad;
     } else {
@@ -2240,6 +2080,58 @@ static boat_variable_t* create_reduce_operation(boat_op_type_t op_type, const bo
         }
         op_data->extra_data = params;
         op_data->free_extra_data = free_reduce_params;
+
+        boat_graph_t* graph = NULL;
+        if (!unify_variable_graphs(inputs, 1, &graph)) {
+            free_op_node_data(op_data);
+            boat_variable_free(output_var);
+            return NULL;
+        }
+
+        boat_node_t* op_node = boat_graph_add_node(graph, op_data, BOAT_NODE_TYPE_OPERATION, free_op_node_data);
+        if (!op_node) {
+            if (graph != a->graph) boat_graph_free(graph);
+            free_op_node_data(op_data);
+            boat_variable_free(output_var);
+            return NULL;
+        }
+        output_var->producer_node = op_node;
+
+        if (a->node) {
+            boat_graph_add_edge(graph, a->node, op_node, BOAT_EDGE_DIRECTION_FORWARD);
+        }
+        if (output_var->node) {
+            boat_graph_add_edge(graph, op_node, output_var->node, BOAT_EDGE_DIRECTION_FORWARD);
+        }
+        output_var->graph = graph;
+    }
+
+    return output_var;
+}
+
+// Create a softmax/log_softmax operation along the given axis. The axis is
+// stored in op_data->extra_data for the backward pass.
+static boat_variable_t* create_softmax_operation(boat_op_type_t op_type, const boat_variable_t* a, int axis) {
+    if (!a) return NULL;
+
+    boat_tensor_t* output_tensor = (op_type == BOAT_OP_SOFTMAX)
+        ? boat_softmax(a->data, axis) : boat_log_softmax(a->data, axis);
+    if (!output_tensor) return NULL;
+
+    boat_variable_t* output_var = boat_variable_create(output_tensor, a->requires_grad);
+    boat_tensor_unref(output_tensor);
+    if (!output_var) return NULL;
+
+    if (a->requires_grad) {
+        boat_variable_t* inputs[] = {(boat_variable_t*)a};
+        boat_op_node_data_t* op_data = create_op_node_data(op_type, inputs, 1, output_var);
+        if (!op_data) { boat_variable_free(output_var); return NULL; }
+
+        softmax_params_t* params = boat_malloc(sizeof(softmax_params_t), BOAT_DEVICE_CPU);
+        if (!params) { free_op_node_data(op_data); boat_variable_free(output_var); return NULL; }
+        params->axis = axis;
+        op_data->extra_data = params;
+        op_data->free_extra_data = free_softmax_params;
 
         boat_graph_t* graph = NULL;
         if (!unify_variable_graphs(inputs, 1, &graph)) {

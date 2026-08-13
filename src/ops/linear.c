@@ -17,6 +17,9 @@
 #endif
 
 // Matrix multiplication with batch support
+// Matrix multiplication with batch support and batch-dim broadcasting.
+// The last two dims of each tensor are the matrix dims; the leading dims are
+// batch dims that broadcast right-aligned (e.g. [B,H,T,D] @ [D,K] -> [B,H,T,K]).
 BOAT_API boat_tensor_t* boat_matmul(const boat_tensor_t* a, const boat_tensor_t* b) {
     if (!a || !b) {
         return NULL;
@@ -24,11 +27,9 @@ BOAT_API boat_tensor_t* boat_matmul(const boat_tensor_t* a, const boat_tensor_t*
 
     size_t a_ndim = boat_tensor_ndim(a);
     size_t b_ndim = boat_tensor_ndim(b);
-
     const int64_t* a_shape = boat_tensor_shape(a);
     const int64_t* b_shape = boat_tensor_shape(b);
 
-    // Validate dimensions: support 2D, 3D, or 4D tensors
     if (a_ndim < 2 || a_ndim > 4 || b_ndim < 2 || b_ndim > 4) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
                         "[Linear] matmul expects 2D..4D tensors, got a_ndim=%zu b_ndim=%zu\n",
@@ -36,126 +37,120 @@ BOAT_API boat_tensor_t* boat_matmul(const boat_tensor_t* a, const boat_tensor_t*
         return NULL;
     }
 
-    // Determine batch dimensions (all dimensions except last two)
-    size_t a_batch_dims = (a_ndim > 2) ? a_ndim - 2 : 0;
-    size_t b_batch_dims = (b_ndim > 2) ? b_ndim - 2 : 0;
-
-    // For now, require same number of batch dimensions
-    // TODO: Support broadcasting (e.g., 3D matmul with 4D)
-    if (a_batch_dims != b_batch_dims) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
-                        "[Linear] matmul batch dim mismatch: %zu != %zu\n",
-                        a_batch_dims, b_batch_dims);
-        return NULL;
-    }
-
-    size_t batch_dims = a_batch_dims; // same as b_batch_dims
-    int64_t batch_size = 1;
-
-    // Check that batch dimensions match
-    for (size_t i = 0; i < batch_dims; i++) {
-        if (a_shape[i] != b_shape[i]) {
-            return NULL;
-        }
-        batch_size *= a_shape[i];
-    }
-
-    // Matrix dimensions: last two dimensions of each tensor
-    int64_t m, k_a, k_b, n;
-
-    if (batch_dims > 0) {
-        // a_shape indices: batch_dims, batch_dims+1
-        m = a_shape[batch_dims];
-        k_a = a_shape[batch_dims + 1];
-        k_b = b_shape[batch_dims];
-        n = b_shape[batch_dims + 1];
-    } else {
-        // 2D case
-        m = a_shape[0];
-        k_a = a_shape[1];
-        k_b = b_shape[0];
-        n = b_shape[1];
-    }
-
-    // Check dimension compatibility
+    // Matrix dimensions (last two dims of each tensor).
+    int64_t m = a_shape[a_ndim - 2];
+    int64_t k_a = a_shape[a_ndim - 1];
+    int64_t k_b = b_shape[b_ndim - 2];
+    int64_t n = b_shape[b_ndim - 1];
     if (k_a != k_b) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
                         "[Linear] matmul inner dim mismatch: %lld != %lld\n",
                         (long long)k_a, (long long)k_b);
         return NULL;
     }
-
     int64_t k = k_a;
 
-    // Determine output shape: batch dimensions + (m, n)
-    size_t out_ndim = batch_dims + 2;
-    int64_t out_shape[4]; // max 4 dimensions (batch_dims up to 2)
+    // Batch dimensions (all leading dims).
+    size_t a_bd = a_ndim - 2;
+    size_t b_bd = b_ndim - 2;
+    size_t out_bd = a_bd > b_bd ? a_bd : b_bd;
 
-    // Copy batch dimensions
-    for (size_t i = 0; i < batch_dims; i++) {
-        out_shape[i] = a_shape[i];
+    // Broadcast the batch shapes (right-aligned).
+    int64_t out_shape[4];
+    size_t out_batch_nelems = 1;
+    for (size_t i = 0; i < out_bd; i++) {
+        int64_t a_dim = (i >= out_bd - a_bd) ? a_shape[i - (out_bd - a_bd)] : 1;
+        int64_t b_dim = (i >= out_bd - b_bd) ? b_shape[i - (out_bd - b_bd)] : 1;
+        if (a_dim != b_dim && a_dim != 1 && b_dim != 1) {
+            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                            "[Linear] matmul batch broadcast mismatch at dim %zu: %lld vs %lld\n",
+                            i, (long long)a_dim, (long long)b_dim);
+            return NULL;
+        }
+        out_shape[i] = a_dim > b_dim ? a_dim : b_dim;
+        out_batch_nelems *= (size_t)out_shape[i];
     }
-    // Add matrix dimensions
-    out_shape[batch_dims] = m;
-    out_shape[batch_dims + 1] = n;
+    out_shape[out_bd] = m;
+    out_shape[out_bd + 1] = n;
+    size_t out_ndim = out_bd + 2;
 
     boat_dtype_t dtype = boat_tensor_dtype(a);
     if (dtype != boat_tensor_dtype(b)) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
                         "[Linear] matmul dtype mismatch: %d != %d\n",
                         (int)dtype, (int)boat_tensor_dtype(b));
-        return NULL; // TODO: Type promotion
+        return NULL;
     }
 
     boat_tensor_t* out = boat_tensor_create(out_shape, out_ndim, dtype, boat_tensor_device(a));
     if (!out) return NULL;
 
-    // Get data pointers
     const void* a_data = boat_tensor_data(a);
     const void* b_data = boat_tensor_data(b);
     void* out_data = boat_tensor_data(out);
 
-    // Perform matrix multiplication based on data type
+    // Batch strides in matrix-block units (m*k for a, k*n for b, m*n for out).
+    size_t a_bs[4] = {0}, b_bs[4] = {0}, out_bs[4] = {0};
+    if (a_bd > 0) {
+        a_bs[a_bd - 1] = 1;
+        for (int i = (int)a_bd - 2; i >= 0; i--) a_bs[i] = a_bs[i + 1] * (size_t)a_shape[i + 1];
+    }
+    if (b_bd > 0) {
+        b_bs[b_bd - 1] = 1;
+        for (int i = (int)b_bd - 2; i >= 0; i--) b_bs[i] = b_bs[i + 1] * (size_t)b_shape[i + 1];
+    }
+    if (out_bd > 0) {
+        out_bs[out_bd - 1] = 1;
+        for (int i = (int)out_bd - 2; i >= 0; i--) out_bs[i] = out_bs[i + 1] * (size_t)out_shape[i + 1];
+    }
+
+    // Map an output batch linear index to the a/b batch offsets (in matrix blocks).
+#define MATMUL_BATCH_OFFSETS(ob, a_off, b_off)                                              \
+    do {                                                                                    \
+        size_t _rem = (ob);                                                                 \
+        (a_off) = 0;                                                                        \
+        (b_off) = 0;                                                                        \
+        for (size_t _i = 0; _i < out_bd; _i++) {                                            \
+            size_t _coord = _rem / out_bs[_i];                                              \
+            _rem %= out_bs[_i];                                                             \
+            if (_i >= out_bd - a_bd && a_shape[_i - (out_bd - a_bd)] != 1) {                \
+                (a_off) += _coord * a_bs[_i - (out_bd - a_bd)];                             \
+            }                                                                               \
+            if (_i >= out_bd - b_bd && b_shape[_i - (out_bd - b_bd)] != 1) {                \
+                (b_off) += _coord * b_bs[_i - (out_bd - b_bd)];                             \
+            }                                                                               \
+        }                                                                                   \
+    } while (0)
+
     switch (dtype) {
         case BOAT_DTYPE_FLOAT32: {
             const float* a_ptr = (const float*)a_data;
             const float* b_ptr = (const float*)b_data;
             float* out_ptr = (float*)out_data;
 
-            // Initialize output to zero (device-aware — use cudaMemset for CUDA tensors)
             size_t out_elements = boat_tensor_nelements(out);
             boat_memory_set(out_ptr, 0, out_elements * sizeof(float), boat_tensor_device(a));
 
-            // Compute strides for batch dimension (flattened batch dimensions)
-            bool has_batch = (batch_dims > 0);
-            size_t a_batch_stride = has_batch ? (m * k) : 0;
-            size_t b_batch_stride = has_batch ? (k * n) : 0;
-            size_t out_batch_stride = has_batch ? (m * n) : 0;
-
-            // Dispatch to cuBLAS for CUDA tensors, CPU SGEMM otherwise
-            int batch_count = (int)batch_size;
 #ifdef BOAT_WITH_CUDA
-            if (boat_tensor_device(a) == BOAT_DEVICE_CUDA) {
-                if (batch_count == 1) {
+            if (boat_tensor_device(a) == BOAT_DEVICE_CUDA && a_bd == b_bd) {
+                if (out_batch_nelems == 1) {
                     boat_cuda_matmul_f32_cublas(a_ptr, b_ptr, out_ptr, (size_t)m, (size_t)n, (size_t)k);
                 } else {
                     boat_cuda_matmul_f32_strided_batched(
-                        a_ptr, b_ptr, out_ptr,
-                        (size_t)m, (size_t)n, (size_t)k,
-                        (size_t)batch_count,
-                        a_batch_stride, b_batch_stride, out_batch_stride);
+                        a_ptr, b_ptr, out_ptr, (size_t)m, (size_t)n, (size_t)k,
+                        (size_t)out_batch_nelems,
+                        (size_t)(m * k), (size_t)(k * n), (size_t)(m * n));
                 }
             } else
 #endif
             {
-                int batch;
-                BOAT_OMP_PARALLEL_FOR
-                for (batch = 0; batch < batch_count; batch++) {
-                    const float* a_batch_ptr = a_ptr + batch * a_batch_stride;
-                    const float* b_batch_ptr = b_ptr + batch * b_batch_stride;
-                    float* out_batch_ptr = out_ptr + batch * out_batch_stride;
-
-                    boat_sgemm(m, n, k, a_batch_ptr, b_batch_ptr, out_batch_ptr);
+                for (size_t ob = 0; ob < out_batch_nelems; ob++) {
+                    size_t a_off, b_off;
+                    MATMUL_BATCH_OFFSETS(ob, a_off, b_off);
+                    boat_sgemm(m, n, k,
+                               a_ptr + a_off * (size_t)(m * k),
+                               b_ptr + b_off * (size_t)(k * n),
+                               out_ptr + ob * (size_t)(m * n));
                 }
             }
             break;
@@ -168,15 +163,12 @@ BOAT_API boat_tensor_t* boat_matmul(const boat_tensor_t* a, const boat_tensor_t*
             size_t out_elements = boat_tensor_nelements(out);
             boat_memory_set(out_ptr, 0, out_elements * sizeof(double), boat_tensor_device(a));
 
-            bool has_batch = (batch_dims > 0);
-            size_t a_batch_stride = has_batch ? (m * k) : 0;
-            size_t b_batch_stride = has_batch ? (k * n) : 0;
-            size_t out_batch_stride = has_batch ? (m * n) : 0;
-
-            for (int64_t batch = 0; batch < batch_size; batch++) {
-                const double* a_batch_ptr = a_ptr + batch * a_batch_stride;
-                const double* b_batch_ptr = b_ptr + batch * b_batch_stride;
-                double* out_batch_ptr = out_ptr + batch * out_batch_stride;
+            for (size_t ob = 0; ob < out_batch_nelems; ob++) {
+                size_t a_off, b_off;
+                MATMUL_BATCH_OFFSETS(ob, a_off, b_off);
+                const double* a_batch_ptr = a_ptr + a_off * (size_t)(m * k);
+                const double* b_batch_ptr = b_ptr + b_off * (size_t)(k * n);
+                double* out_batch_ptr = out_ptr + ob * (size_t)(m * n);
 
                 for (int64_t i = 0; i < m; i++) {
                     for (int64_t j = 0; j < n; j++) {
@@ -191,11 +183,11 @@ BOAT_API boat_tensor_t* boat_matmul(const boat_tensor_t* a, const boat_tensor_t*
             break;
         }
         default:
-            // Unsupported data type for matrix multiplication
             boat_tensor_unref(out);
             return NULL;
     }
 
+#undef MATMUL_BATCH_OFFSETS
     return out;
 }
 
