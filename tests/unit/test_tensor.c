@@ -202,6 +202,49 @@ int main() {
         boat_tensor_unref(t); boat_tensor_unref(sl); boat_tensor_unref(contig);
     }
 
+    // Regression: non-unit-step slicing materializes correctly.
+    {
+        int64_t shape[] = {6};
+        float d[] = {0, 1, 2, 3, 4, 5};
+        boat_tensor_t* t = boat_tensor_from_data(shape, 1, BOAT_DTYPE_FLOAT32, d);
+        size_t start[] = {0}, end[] = {6}, step[] = {2};
+        boat_tensor_t* sl = boat_tensor_slice(t, start, end, step);
+        assert(sl != NULL);
+        assert(boat_tensor_shape(sl)[0] == 3);
+        assert(!boat_tensor_is_contiguous(sl));
+        boat_tensor_t* contig = boat_tensor_contiguous(sl);
+        float* cd = (float*)boat_tensor_data(contig);
+        float expected[] = {0, 2, 4};
+        for (int i = 0; i < 3; i++) assert(cd[i] == expected[i]);
+        boat_tensor_unref(t); boat_tensor_unref(sl); boat_tensor_unref(contig);
+    }
+
+    // Regression: 2D step-2 slice on the last dim materializes correctly.
+    {
+        int64_t shape[] = {2, 4};
+        float d[] = {0, 1, 2, 3, 4, 5, 6, 7};
+        boat_tensor_t* t = boat_tensor_from_data(shape, 2, BOAT_DTYPE_FLOAT32, d);
+        size_t start[] = {0, 0}, end[] = {2, 4}, step[] = {1, 2};
+        boat_tensor_t* sl = boat_tensor_slice(t, start, end, step);
+        assert(sl != NULL);
+        assert(boat_tensor_shape(sl)[0] == 2 && boat_tensor_shape(sl)[1] == 2);
+        boat_tensor_t* contig = boat_tensor_contiguous(sl);
+        float* cd = (float*)boat_tensor_data(contig);
+        float expected[] = {0, 2, 4, 6};
+        for (int i = 0; i < 4; i++) assert(cd[i] == expected[i]);
+        boat_tensor_unref(t); boat_tensor_unref(sl); boat_tensor_unref(contig);
+    }
+
+    // Regression: zero step is rejected.
+    {
+        int64_t shape[] = {4};
+        float d[] = {0, 1, 2, 3};
+        boat_tensor_t* t = boat_tensor_from_data(shape, 1, BOAT_DTYPE_FLOAT32, d);
+        size_t start[] = {0}, end[] = {4}, step[] = {0};
+        assert(boat_tensor_slice(t, start, end, step) == NULL);
+        boat_tensor_unref(t);
+    }
+
     printf("Tensor tests passed!\n");
     return 0;
 }

@@ -448,10 +448,8 @@ BOAT_API boat_tensor_t* boat_tensor_slice(const boat_tensor_t* tensor, const siz
     size_t dtype_sz = dtype_size(tensor->dtype);
     size_t offset = 0;
 
-    // For simple case where step is 1 for all dimensions and tensor is contiguous,
-    // we can compute offset using strides.
-    // For now, implement simple offset calculation for contiguous tensors only.
-    // TODO: Support non-contiguous tensors and non-unit steps.
+    // For now, we only slice contiguous tensors (views of views are not
+    // supported); the offset is computed from row-major strides.
 
     // Check if tensor is contiguous
     if (!tensor->is_contiguous) {
@@ -469,22 +467,6 @@ BOAT_API boat_tensor_t* boat_tensor_slice(const boat_tensor_t* tensor, const siz
         stride *= tensor->shape[i];
     }
     offset *= dtype_sz;
-
-    // Check if any step != 1
-    bool has_non_unit_step = false;
-    for (size_t i = 0; i < ndim; i++) {
-        if (effective_step[i] != 1) {
-            has_non_unit_step = true;
-            break;
-        }
-    }
-
-    if (has_non_unit_step) {
-        boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Tensor] Non-unit step slicing not yet implemented\n");
-        boat_free(new_shape);
-        boat_free(effective_step);
-        return NULL;
-    }
 
     // Create new tensor structure (view)
     boat_tensor_t* new_tensor = (boat_tensor_t*)boat_malloc(sizeof(boat_tensor_t), tensor->device);
@@ -510,9 +492,9 @@ BOAT_API boat_tensor_t* boat_tensor_slice(const boat_tensor_t* tensor, const siz
     new_tensor->data = (char*)tensor->data + offset;
     new_tensor->nbytes = new_nelements * dtype_sz;
 
-    // A unit-step slice keeps the parent's element spacing (strides); it is
+    // A slice keeps the parent's element spacing scaled by the step; it is
     // contiguous only when those strides are the row-major strides of the
-    // sliced shape (i.e. all trailing dimensions are sliced in full).
+    // sliced shape (i.e. unit step on all trailing dimensions).
     new_tensor->strides = (int64_t*)boat_malloc(sizeof(int64_t) * ndim, BOAT_DEVICE_CPU);
     if (!new_tensor->strides) {
         boat_free(new_tensor->shape);
@@ -521,7 +503,7 @@ BOAT_API boat_tensor_t* boat_tensor_slice(const boat_tensor_t* tensor, const siz
         return NULL;
     }
     for (size_t i = 0; i < ndim; i++) {
-        new_tensor->strides[i] = tensor->strides[i];
+        new_tensor->strides[i] = tensor->strides[i] * (int64_t)effective_step[i];
     }
     new_tensor->is_contiguous = strides_are_contiguous(new_tensor->shape, new_tensor->strides, ndim);
 
