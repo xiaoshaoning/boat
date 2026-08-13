@@ -45,9 +45,9 @@ typedef struct {
     boat_tensor_t* proj_bias;           // [dim]
     boat_tensor_t* norm2_weight;        // [dim]
     boat_tensor_t* norm2_bias;          // [dim]
-    boat_tensor_t* mlp_fc1_weight;      // [4*dim, dim]
+    boat_tensor_t* mlp_fc1_weight;      // [dim, 4*dim] ([in, out], matmul layout)
     boat_tensor_t* mlp_fc1_bias;        // [4*dim]
-    boat_tensor_t* mlp_fc2_weight;      // [dim, 4*dim]
+    boat_tensor_t* mlp_fc2_weight;      // [4*dim, dim]
     boat_tensor_t* mlp_fc2_bias;        // [dim]
     boat_tensor_t* rel_pos_bias_table;  // [(2*ws-1)^2, num_heads]
     boat_tensor_t* rel_pos_index;       // [ws*ws, ws*ws] int64
