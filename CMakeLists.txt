@@ -24,6 +24,16 @@ else()
     set(GIT_DESCRIBE "unknown")
 endif()
 
+# Fall back to "unknown" when git is present but the source tree has no
+# repository (e.g. a release tarball), so BOAT_GIT_HASH/BOAT_GIT_DESCRIBE
+# are never empty -- matching the Makefile's `|| echo unknown` behavior.
+if(NOT GIT_HASH)
+    set(GIT_HASH "unknown")
+endif()
+if(NOT GIT_DESCRIBE)
+    set(GIT_DESCRIBE "unknown")
+endif()
+
 # Set version variables
 set(BOAT_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
 set(BOAT_VERSION_MINOR ${PROJECT_VERSION_MINOR})
