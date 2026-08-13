@@ -669,3 +669,20 @@ BOAT_API BOAT_NOINLINE float BOAT_CALL boat_batchnorm2d_layer_get_momentum(const
 BOAT_API BOAT_NOINLINE bool BOAT_CALL boat_batchnorm2d_layer_get_affine(const boat_batchnorm2d_layer_t* layer) {
     return layer ? layer->affine : false;
 }
+
+BOAT_API BOAT_NOINLINE void BOAT_CALL boat_batchnorm2d_layer_set_training(boat_batchnorm2d_layer_t* layer, bool training) {
+    if (!layer) return;
+    layer->training = training;
+}
+
+BOAT_API BOAT_NOINLINE bool BOAT_CALL boat_batchnorm2d_layer_get_training(const boat_batchnorm2d_layer_t* layer) {
+    return layer ? layer->training : false;
+}
+
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_get_grad_weight(const boat_batchnorm2d_layer_t* layer) {
+    return layer ? layer->grad_weight : NULL;
+}
+
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_batchnorm2d_layer_get_grad_bias(const boat_batchnorm2d_layer_t* layer) {
+    return layer ? layer->grad_bias : NULL;
+}

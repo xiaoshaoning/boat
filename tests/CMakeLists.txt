@@ -124,6 +124,14 @@ target_link_libraries(test_matmul_softmax boat)
 boat_add_test_executable(test_layer_gradcheck unit/test_layer_gradcheck.c)
 target_link_libraries(test_layer_gradcheck boat)
 
+# PReLU + BatchNorm2d backward gradient checks
+boat_add_test_executable(test_prelu_batchnorm unit/test_prelu_batchnorm.c)
+target_link_libraries(test_prelu_batchnorm boat)
+
+# Swin Transformer encoder forward
+boat_add_test_executable(test_swin unit/test_swin.c)
+target_link_libraries(test_swin boat)
+
 # Matrix inverse
 boat_add_test_executable(test_inverse unit/test_inverse.c)
 target_link_libraries(test_inverse boat)
