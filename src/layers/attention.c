@@ -517,31 +517,14 @@ BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* attention,
                                         boat_tensor_t** grad_key,
                                         boat_tensor_t** grad_value) {
     if (!attention || !grad_output) {
-        printf("[ERROR] boat_attention_backward: invalid arguments\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Attention] boat_attention_backward: invalid arguments\n");
         return false;
     }
 
-    FILE* f = fopen("C:\\\\temp\\\\debug.txt", "a"); if (f) { fprintf(f, "boat_attention_backward called, attention=%p, grad_output=%p\\n", (void*)attention, (void*)grad_output); fclose(f); }
-    printf("[DEBUG] boat_attention_backward called, attention=%p, grad_output=%p\n", (void*)attention, (void*)grad_output);
-    printf("[DEBUG] cache pointers:\n");
-    printf("  cache_query=%p, cache_key=%p, cache_value=%p\n",
-           (void*)attention->cache_query, (void*)attention->cache_key, (void*)attention->cache_value);
-    printf("  cache_q_proj=%p, cache_k_proj=%p, cache_v_proj=%p\n",
-           (void*)attention->cache_q_proj, (void*)attention->cache_k_proj, (void*)attention->cache_v_proj);
-    printf("  cache_attention_weights=%p, cache_attention_output=%p\n",
-           (void*)attention->cache_attention_weights, (void*)attention->cache_attention_output);
-    fflush(stdout);
-    fflush(stderr);
     // Check that all required cached tensors exist
     if (!attention->cache_query || !attention->cache_key || !attention->cache_value ||
         !attention->cache_q_proj || !attention->cache_k_proj || !attention->cache_v_proj) {
-        printf("[ERROR] boat_attention_backward: missing cached tensors\n");
-        printf("  cache_query=%p, cache_key=%p, cache_value=%p\n",
-                (void*)attention->cache_query, (void*)attention->cache_key, (void*)attention->cache_value);
-        fflush(stdout);
-        printf("  cache_q_proj=%p, cache_k_proj=%p, cache_v_proj=%p\n",
-                (void*)attention->cache_q_proj, (void*)attention->cache_k_proj, (void*)attention->cache_v_proj);
-        fflush(stdout);
+        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[Attention] boat_attention_backward: missing cached tensors\n");
         return false;
     }
 
@@ -552,9 +535,7 @@ BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* attention,
 
     // Check that we have cached attention output
     if (!attention->cache_attention_output) {
-        printf("[ERROR] boat_attention_backward: missing cache_attention_output (%p)\n",
-                (void*)attention->cache_attention_output);
-        fflush(stdout);
+        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[Attention] boat_attention_backward: missing cache_attention_output\n");
         return false;
     }
 
@@ -570,7 +551,7 @@ BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* attention,
                                    &grad_attention_output,
                                    &grad_weight_o_local,
                                    &grad_bias_o_local)) {
-        printf("[ERROR] boat_attention_backward: linear_projection_backward failed for final projection\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[Attention] boat_attention_backward: linear_projection_backward failed for final projection\n");
         return false;
     }
 
@@ -596,7 +577,7 @@ BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* attention,
 
     // Verify hidden == num_heads * head_size
     if (hidden != (int64_t)(num_heads * head_size)) {
-        printf("[ERROR] boat_attention_backward: hidden size mismatch\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Attention] boat_attention_backward: hidden size mismatch\n");
         boat_tensor_unref(grad_attention_output);
         if (grad_weight_o_local) boat_tensor_unref(grad_weight_o_local);
         if (grad_bias_o_local) boat_tensor_unref(grad_bias_o_local);
@@ -611,7 +592,7 @@ BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* attention,
 
 
     if (!cache_q_proj_4d || !cache_k_proj_4d || !cache_v_proj_4d || !grad_attention_output_4d) {
-        printf("[ERROR] boat_attention_backward: failed to create 4D tensors\n");
+        boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[Attention] boat_attention_backward: failed to create 4D tensors\n");
         if (cache_k_proj_4d) boat_tensor_unref(cache_k_proj_4d);
         if (cache_v_proj_4d) boat_tensor_unref(cache_v_proj_4d);
         if (grad_attention_output_4d) boat_tensor_unref(grad_attention_output_4d);
@@ -628,7 +609,7 @@ BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* attention,
 
     // Check that attention weights are cached
     if (!attention->cache_attention_weights) {
-        printf("[ERROR] boat_attention_backward: missing cache_attention_weights\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[Attention] boat_attention_backward: missing cache_attention_weights\n");
         boat_tensor_unref(cache_q_proj_4d);
         boat_tensor_unref(cache_k_proj_4d);
         boat_tensor_unref(cache_v_proj_4d);
@@ -644,7 +625,7 @@ BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* attention,
                            attention->cache_attention_weights,
                            grad_attention_output_4d,
                            &grad_q_proj_4d, &grad_k_proj_4d, &grad_v_proj_4d)) {
-        printf("[ERROR] boat_attention_backward: attention_backward failed\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[Attention] boat_attention_backward: attention_backward failed\n");
         boat_tensor_unref(cache_q_proj_4d);
         boat_tensor_unref(cache_k_proj_4d);
         boat_tensor_unref(cache_v_proj_4d);
@@ -781,7 +762,6 @@ BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* attention,
         boat_tensor_unref(grad_v);
     }
 
-    printf("[DEBUG] boat_attention_backward: success\n");
     return true;
 }
 
@@ -1403,8 +1383,7 @@ static bool linear_projection_backward(const boat_tensor_t* input,
 
         return true;
     } else {
-        printf("[ERROR] linear_projection_backward: unsupported input/grad_output dimensions: input_ndim=%zu, grad_ndim=%zu\n",
-                input_ndim, grad_ndim);
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Attention] linear_projection_backward: unsupported input/grad_output dimensions: input_ndim=%zu, grad_ndim=%zu\n", input_ndim, grad_ndim);
         return false;
     }
 }
