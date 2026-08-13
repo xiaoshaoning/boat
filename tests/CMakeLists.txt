@@ -108,6 +108,10 @@ target_link_libraries(test_tensor boat)
 boat_add_test_executable(test_autodiff unit/test_autodiff.c)
 target_link_libraries(test_autodiff boat)
 
+# Autodiff graph visualization (graph_to_dot / print_graph / retain_grad)
+boat_add_test_executable(test_autodiff_graph unit/test_autodiff_graph.c)
+target_link_libraries(test_autodiff_graph boat)
+
 # Reduction ops with axis support (sum/mean/max/min + backward)
 boat_add_test_executable(test_reduce_autodiff unit/test_reduce_autodiff.c)
 target_link_libraries(test_reduce_autodiff boat)

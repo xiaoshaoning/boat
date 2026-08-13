@@ -15,6 +15,7 @@
 #include <math.h>
 #include <float.h>
 #include <boat.h>
+#include <stdarg.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -25,6 +26,7 @@ struct boat_variable_t {
     boat_tensor_t* data;           // Tensor data
     boat_tensor_t* grad;           // Gradient tensor (nullable)
     bool requires_grad;            // Whether gradient is required
+    bool retain_grad;              // Hint to keep this variable's grad (reserved)
     boat_node_t* node;             // Corresponding graph node
     boat_graph_t* graph;           // Computational graph containing variable
     boat_node_t* producer_node;    // Operation node that produced this variable (nullable)
@@ -268,6 +270,7 @@ BOAT_API boat_variable_t* boat_variable_create(boat_tensor_t* tensor, bool requi
     boat_tensor_ref(tensor);  // Take ownership of the tensor reference
     var->grad = NULL;
     var->requires_grad = requires_grad;
+    var->retain_grad = false;
     var->node = NULL;
     var->graph = NULL;
     var->producer_node = NULL;
@@ -457,8 +460,10 @@ BOAT_API void boat_variable_zero_grad(boat_variable_t* variable) {
 
 BOAT_API void boat_variable_retain_grad(const boat_variable_t* variable, bool retain) {
     if (!variable) return;
-    (void)retain;
-    boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Autodiff] retain_grad not implemented\n");
+    // This framework retains every variable's grad after backward (intermediate
+    // gradients are never freed), so retain_grad is currently a stored hint with
+    // no observable effect; it is kept for future memory-optimization work.
+    ((boat_variable_t*)variable)->retain_grad = retain;
 }
 
 BOAT_API void boat_variable_backward(boat_variable_t* variable, boat_tensor_t* grad_output) {
@@ -831,9 +836,12 @@ static void boat_autodiff_atexit_cleanup(void) {
 }
 
 // Gradient checkpointing
+// Gradient checkpointing toggle (stored; the recompute-on-backward memory
+// optimization is not yet wired into boat_variable_backward).
+static bool g_grad_checkpointing = false;
+
 BOAT_API void boat_autodiff_set_grad_checkpointing(bool enabled) {
-    (void)enabled;
-    boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Autodiff] gradient checkpointing not implemented\n");
+    g_grad_checkpointing = enabled;
 }
 
 BOAT_API void boat_autodiff_clear_computation_graph() {
@@ -906,15 +914,120 @@ BOAT_API void boat_autodiff_clear_computation_graph() {
 }
 
 // Utility functions
+// Map an operation type to a short name for graph visualization.
+static const char* op_type_name(boat_op_type_t t) {
+    switch (t) {
+        case BOAT_OP_ADD: return "add";
+        case BOAT_OP_SUB: return "sub";
+        case BOAT_OP_MUL: return "mul";
+        case BOAT_OP_DIV: return "div";
+        case BOAT_OP_RELU: return "relu";
+        case BOAT_OP_SIGMOID: return "sigmoid";
+        case BOAT_OP_TANH: return "tanh";
+        case BOAT_OP_MATMUL: return "matmul";
+        case BOAT_OP_DOT: return "dot";
+        case BOAT_OP_SUM: return "sum";
+        case BOAT_OP_MEAN: return "mean";
+        case BOAT_OP_MAX: return "max";
+        case BOAT_OP_MIN: return "min";
+        case BOAT_OP_SOFTMAX: return "softmax";
+        case BOAT_OP_LOG_SOFTMAX: return "log_softmax";
+        case BOAT_OP_CONV: return "conv";
+        case BOAT_OP_POOL: return "pool";
+        case BOAT_OP_FLATTEN: return "flatten";
+        case BOAT_OP_DENSE: return "dense";
+        case BOAT_OP_ATTENTION: return "attention";
+        default: return "op";
+    }
+}
+
+// Format a tensor's shape and dtype into `out`.
+static void tensor_shape_str(const boat_tensor_t* t, char* out, size_t out_size) {
+    if (!t) { snprintf(out, out_size, "NULL"); return; }
+    size_t ndim = boat_tensor_ndim(t);
+    const int64_t* shape = boat_tensor_shape(t);
+    size_t pos = 0;
+    pos += (size_t)snprintf(out + pos, out_size - pos, "[");
+    for (size_t i = 0; i < ndim && pos < out_size; i++) {
+        pos += (size_t)snprintf(out + pos, out_size - pos, "%s%lld",
+                                i ? "," : "", (long long)shape[i]);
+    }
+    snprintf(out + pos, out_size - pos, "] %s", boat_dtype_name(boat_tensor_dtype(t)));
+}
+
+// Simple growable string buffer.
+typedef struct { char* buf; size_t len; size_t cap; } strbuf_t;
+
+static void sb_appendf(strbuf_t* sb, const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    int n = vsnprintf(NULL, 0, fmt, args);
+    va_end(args);
+    if (n < 0) return;
+    size_t need = (size_t)n + 1;
+    if (sb->len + need > sb->cap) {
+        size_t newcap = sb->cap ? sb->cap * 2 : 256;
+        while (newcap < sb->len + need) newcap *= 2;
+        char* nb = (char*)boat_realloc(sb->buf, newcap, BOAT_DEVICE_CPU);
+        if (!nb) return;
+        sb->buf = nb;
+        sb->cap = newcap;
+    }
+    va_start(args, fmt);
+    vsnprintf(sb->buf + sb->len, sb->cap - sb->len, fmt, args);
+    va_end(args);
+    sb->len += (size_t)n;
+}
+
 BOAT_API void boat_autodiff_print_graph(const boat_variable_t* variable) {
-    if (!variable) return;
-    boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Autodiff] graph printing not implemented\n");
+    char* dot = boat_autodiff_graph_to_dot(variable);
+    if (dot) {
+        printf("%s", dot);
+        boat_free(dot);
+    }
 }
 
 BOAT_API char* boat_autodiff_graph_to_dot(const boat_variable_t* variable) {
-    if (!variable) return NULL;
-    boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Autodiff] DOT generation not implemented\n");
-    return NULL;
+    if (!variable || !variable->graph) return NULL;
+    const boat_graph_t* graph = variable->graph;
+
+    strbuf_t sb = {0, 0, 0};
+    sb_appendf(&sb, "digraph autodiff {\n  rankdir=TB;\n  node [shape=record, fontname=\"Courier\"];\n");
+
+    size_t node_count = boat_graph_node_count(graph);
+    for (size_t i = 0; i < node_count; i++) {
+        boat_node_t* node = boat_graph_get_node_at_index(graph, i);
+        if (!node) continue;
+        size_t id = boat_graph_node_id(node);
+        boat_node_type_t type = boat_node_type(node);
+        void* nd = boat_node_data(node);
+
+        if (type == BOAT_NODE_TYPE_VARIABLE) {
+            boat_variable_t* var = (boat_variable_t*)nd;
+            char shape[128];
+            tensor_shape_str(var ? var->data : NULL, shape, sizeof(shape));
+            sb_appendf(&sb, "  node%zu [label=\"var\\n%s\"];\n", id, shape);
+        } else if (type == BOAT_NODE_TYPE_OPERATION) {
+            boat_op_node_data_t* od = (boat_op_node_data_t*)nd;
+            sb_appendf(&sb, "  node%zu [label=\"%s\"];\n", id, od ? op_type_name(od->op_type) : "op");
+        } else {
+            sb_appendf(&sb, "  node%zu [label=\"%s\"];\n", id, boat_node_type_name(type));
+        }
+    }
+
+    size_t edge_count = boat_graph_edge_count(graph);
+    for (size_t i = 0; i < edge_count; i++) {
+        boat_edge_t* edge = boat_graph_get_edge_at_index(graph, i);
+        if (!edge) continue;
+        boat_node_t* from = boat_edge_source(edge);
+        boat_node_t* to = boat_edge_target(edge);
+        if (!from || !to) continue;
+        sb_appendf(&sb, "  node%zu -> node%zu;\n",
+                   boat_graph_node_id(from), boat_graph_node_id(to));
+    }
+
+    sb_appendf(&sb, "}\n");
+    return sb.buf;
 }
 
 // Helper function implementations
