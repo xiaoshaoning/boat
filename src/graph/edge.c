@@ -27,8 +27,8 @@ boat_edge_t* boat_edge_create(const boat_node_t* from, const boat_node_t* to,
         return NULL;
     }
 
-    edge->from = from;
-    edge->to = to;
+    edge->from = (boat_node_t*)from;
+    edge->to = (boat_node_t*)to;
     edge->direction = direction;
 
     // Increment reference counts
@@ -47,7 +47,7 @@ BOAT_API void boat_edge_free(const boat_edge_t* edge) {
     boat_node_unref(edge->from);
     boat_node_unref(edge->to);
 
-    boat_free(edge);
+    boat_free((void*)edge);
 }
 
 // Edge properties (public API implementations)
@@ -101,7 +101,7 @@ BOAT_API bool boat_edge_list_add(boat_edge_list_t* list, const boat_edge_t* edge
         list->capacity = new_capacity;
     }
 
-    list->edges[list->count++] = edge;
+    list->edges[list->count++] = (boat_edge_t*)edge;
     return true;
 }
 

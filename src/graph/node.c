@@ -51,14 +51,14 @@ BOAT_API void boat_node_free(boat_node_t* node) {
     }
 }
 
-BOAT_API void boat_node_ref(boat_node_t* node) {
+BOAT_API void boat_node_ref(const boat_node_t* node) {
     if (node) {
-        node->ref_count++;
+        ((boat_node_t*)node)->ref_count++;
     }
 }
 
-BOAT_API void boat_node_unref(boat_node_t* node) {
-    boat_node_free(node);
+BOAT_API void boat_node_unref(const boat_node_t* node) {
+    boat_node_free((boat_node_t*)node);
 }
 
 // Node properties

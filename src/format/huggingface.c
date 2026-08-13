@@ -79,30 +79,30 @@ static char* read_file_to_string(const char* filename);
 // Layer operations for dense layers
 static boat_tensor_t* dense_layer_forward(const boat_layer_t* layer, const boat_tensor_t* input) {
     if (!layer || !layer->data || !input) return NULL;
-    const boat_dense_layer_t* dense_layer = (const boat_dense_layer_t*)layer->data;
+    boat_dense_layer_t* dense_layer = (boat_dense_layer_t*)layer->data;
     return boat_dense_layer_forward(dense_layer, input);
 }
 
 static boat_tensor_t* dense_layer_backward(const boat_layer_t* layer, const boat_tensor_t* grad_output) {
     if (!layer || !layer->data || !grad_output) return NULL;
-    const boat_dense_layer_t* dense_layer = (const boat_dense_layer_t*)layer->data;
+    boat_dense_layer_t* dense_layer = (boat_dense_layer_t*)layer->data;
     return boat_dense_layer_backward(dense_layer, grad_output);
 }
 
 static void dense_layer_update(const boat_layer_t* layer, float learning_rate) {
     if (!layer || !layer->data) return;
-    const boat_dense_layer_t* dense_layer = (const boat_dense_layer_t*)layer->data;
+    boat_dense_layer_t* dense_layer = (boat_dense_layer_t*)layer->data;
     boat_dense_layer_update(dense_layer, learning_rate);
 }
 
 static void dense_layer_free(const boat_layer_t* layer) {
     if (!layer || !layer->data) return;
 
-    const boat_dense_layer_t* dense_layer = (const boat_dense_layer_t*)layer->data;
+    boat_dense_layer_t* dense_layer = (boat_dense_layer_t*)layer->data;
     boat_dense_layer_free(dense_layer);
 
     // Free the layer wrapper itself
-    free(layer);
+    free((void*)layer);
 }
 
 static const boat_layer_ops_t dense_layer_ops = {
@@ -138,7 +138,7 @@ static void layernorm_layer_free(const boat_layer_t* layer) {
     boat_layernorm_free(layernorm);
 
     // Free the layer wrapper itself
-    free(layer);
+    free((void*)layer);
 }
 
 static const boat_layer_ops_t layernorm_layer_ops = {
@@ -176,7 +176,7 @@ static void wrapper_layer_free(const boat_layer_t* layer) {
     free_layer_wrapper(wrapper);
 
     // Free the layer wrapper itself
-    free(layer);
+    free((void*)layer);
 }
 
 static const boat_layer_ops_t wrapper_layer_ops = {
@@ -428,7 +428,7 @@ static bool set_builder_bias(hf_layer_builder_t* builder, boat_tensor_t* bias) {
     // If layer already exists (created from weight), set bias directly
     if (builder->layer) {
         if (strcmp(builder->layer_type, "dense") == 0) {
-            const boat_dense_layer_t* dense_layer = (const boat_dense_layer_t*)builder->layer;
+            boat_dense_layer_t* dense_layer = (boat_dense_layer_t*)builder->layer;
             boat_dense_layer_set_bias(dense_layer, bias);
             printf("    Updated existing dense layer with bias tensor\n");
             return true;
@@ -621,15 +621,6 @@ static boat_dtype_t boat_dtype_from_safetensors(safetensors_dtype_t sdtype) {
         case SAFETENSORS_DTYPE_BOOL: return BOAT_DTYPE_BOOL;
         default: return BOAT_DTYPE_FLOAT32; // Default fallback
     }
-}
-
-// Simple JSON parsing helper (minimal implementation without cJSON)
-static char* extract_json_string(const char* json, const char* key) {
-    // TODO: Implement proper JSON parsing
-    // This is a placeholder that returns NULL
-    (void)json;
-    (void)key;
-    return NULL;
 }
 
 // Parse safetensors header
@@ -968,7 +959,7 @@ static boat_layer_t* create_layer_from_config(const hf_config_t* config, const c
         }
 
         // Create or find builder for this layer
-        hf_layer_builder_t* builder = find_or_create_builder(config, base_name, "dense");
+        hf_layer_builder_t* builder = find_or_create_builder((hf_config_t*)config, base_name, "dense");
         free(base_name);
 
         if (!builder) {
@@ -1028,7 +1019,7 @@ static boat_layer_t* create_layer_from_config(const hf_config_t* config, const c
         }
 
         // Create or find builder for this layer
-        hf_layer_builder_t* builder = find_or_create_builder(config, base_name, "layer_norm");
+        hf_layer_builder_t* builder = find_or_create_builder((hf_config_t*)config, base_name, "layer_norm");
         free(base_name);
 
         if (!builder) {

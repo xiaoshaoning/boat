@@ -40,8 +40,8 @@ BOAT_API boat_model_t* boat_graph_model_create(const boat_graph_t* graph, const 
     }
 
     private->model = model;
-    private->input_node = input_node;
-    private->output_node = output_node;
+    private->input_node = (boat_node_t*)input_node;
+    private->output_node = (boat_node_t*)output_node;
     private->parameters = NULL;
     private->parameter_count = 0;
     private->parameter_capacity = 0;

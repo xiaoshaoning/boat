@@ -8,8 +8,8 @@
 #include <boat/memory.h>
 
 // Node reference counting (implemented in node.c)
-void boat_node_ref(boat_node_t* node);
-void boat_node_unref(boat_node_t* node);
+void boat_node_ref(const boat_node_t* node);
+void boat_node_unref(const boat_node_t* node);
 void boat_node_free(boat_node_t* node);
 
 // Graph structure definition (must match node.c)

@@ -70,7 +70,7 @@ BOAT_API boat_model_t* boat_model_create_with_graph(const boat_graph_t* graph) {
         return NULL;
     }
 
-    model->graph = graph;
+    model->graph = (boat_graph_t*)graph;
     // Note: graph ownership is transferred to model
     model->name = NULL;
     model->device = boat_graph_device(graph);
@@ -141,7 +141,7 @@ BOAT_API void boat_model_set_graph(boat_model_t* model, boat_graph_t* graph) {
         boat_graph_free(model->graph);
     }
 
-    model->graph = graph;
+    model->graph = (boat_graph_t*)graph;
     // Note: graph ownership is transferred to model
     model->device = boat_graph_device(graph);
 }

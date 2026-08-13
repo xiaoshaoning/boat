@@ -291,7 +291,7 @@ BOAT_API boat_variable_t* boat_variable_create(boat_tensor_t* tensor, bool requi
             boat_free(var);
             return NULL;
         }
-        boat_autodiff_context_set_graph(ctx, graph);
+        boat_autodiff_context_set_graph((boat_autodiff_context_t*)ctx, graph);
     }
 
     // Always associate variable with graph (even if requires_grad is false)
@@ -612,49 +612,49 @@ BOAT_API void boat_variable_backward_full(const boat_variable_t* variable) {
 
     // For now, just call backward with NULL gradient (scalar loss)
     // In the future, implement full graph traversal
-    boat_variable_backward(variable, NULL);
+    boat_variable_backward((boat_variable_t*)variable, NULL);
 }
 
 // Arithmetic operations with gradient tracking
 BOAT_API boat_variable_t* boat_var_add(const boat_variable_t* a, const boat_variable_t* b) {
     if (!a || !b) return NULL;
 
-    boat_variable_t* inputs[] = {a, b};
+    boat_variable_t* inputs[] = {(boat_variable_t*)a, (boat_variable_t*)b};
     return create_operation(BOAT_OP_ADD, inputs, 2, compute_forward_add, NULL);
 }
 
 BOAT_API boat_variable_t* boat_var_sub(const boat_variable_t* a, const boat_variable_t* b) {
     if (!a || !b) return NULL;
 
-    boat_variable_t* inputs[] = {a, b};
+    boat_variable_t* inputs[] = {(boat_variable_t*)a, (boat_variable_t*)b};
     return create_operation(BOAT_OP_SUB, inputs, 2, compute_forward_sub, NULL);
 }
 
 BOAT_API boat_variable_t* boat_var_mul(const boat_variable_t* a, const boat_variable_t* b) {
     if (!a || !b) return NULL;
 
-    boat_variable_t* inputs[] = {a, b};
+    boat_variable_t* inputs[] = {(boat_variable_t*)a, (boat_variable_t*)b};
     return create_operation(BOAT_OP_MUL, inputs, 2, compute_forward_mul, NULL);
 }
 
 BOAT_API boat_variable_t* boat_var_div(const boat_variable_t* a, const boat_variable_t* b) {
     if (!a || !b) return NULL;
 
-    boat_variable_t* inputs[] = {a, b};
+    boat_variable_t* inputs[] = {(boat_variable_t*)a, (boat_variable_t*)b};
     return create_operation(BOAT_OP_DIV, inputs, 2, compute_forward_div, NULL);
 }
 
 BOAT_API boat_variable_t* boat_var_matmul(const boat_variable_t* a, const boat_variable_t* b) {
     if (!a || !b) return NULL;
 
-    boat_variable_t* inputs[] = {a, b};
+    boat_variable_t* inputs[] = {(boat_variable_t*)a, (boat_variable_t*)b};
     return create_operation(BOAT_OP_MATMUL, inputs, 2, compute_forward_matmul, NULL);
 }
 
 BOAT_API boat_variable_t* boat_var_dot(const boat_variable_t* a, const boat_variable_t* b) {
     if (!a || !b) return NULL;
 
-    boat_variable_t* inputs[] = {a, b};
+    boat_variable_t* inputs[] = {(boat_variable_t*)a, (boat_variable_t*)b};
     return create_operation(BOAT_OP_DOT, inputs, 2, compute_forward_dot, NULL);
 }
 
@@ -662,41 +662,41 @@ BOAT_API boat_variable_t* boat_var_dot(const boat_variable_t* a, const boat_vari
 BOAT_API boat_variable_t* boat_var_relu(const boat_variable_t* a) {
     if (!a) return NULL;
 
-    boat_variable_t* inputs[] = {a};
+    boat_variable_t* inputs[] = {(boat_variable_t*)a};
     return create_operation(BOAT_OP_RELU, inputs, 1, NULL, compute_forward_relu);
 }
 
 BOAT_API boat_variable_t* boat_var_sigmoid(const boat_variable_t* a) {
     if (!a) return NULL;
 
-    boat_variable_t* inputs[] = {a};
+    boat_variable_t* inputs[] = {(boat_variable_t*)a};
     return create_operation(BOAT_OP_SIGMOID, inputs, 1, NULL, compute_forward_sigmoid);
 }
 
 BOAT_API boat_variable_t* boat_var_tanh(const boat_variable_t* a) {
     if (!a) return NULL;
 
-    boat_variable_t* inputs[] = {a};
+    boat_variable_t* inputs[] = {(boat_variable_t*)a};
     return create_operation(BOAT_OP_TANH, inputs, 1, NULL, compute_forward_tanh);
 }
 
 BOAT_API boat_variable_t* boat_var_softmax(const boat_variable_t* a, int axis) {
     if (!a) return NULL;
     (void)axis; // TODO: support axis parameter
-    boat_variable_t* inputs[] = {a};
+    boat_variable_t* inputs[] = {(boat_variable_t*)a};
     return create_operation(BOAT_OP_SOFTMAX, inputs, 1, NULL, compute_forward_softmax);
 }
 
 BOAT_API boat_variable_t* boat_var_flatten(const boat_variable_t* a) {
     if (!a) return NULL;
-    boat_variable_t* inputs[] = {a};
+    boat_variable_t* inputs[] = {(boat_variable_t*)a};
     return create_operation(BOAT_OP_FLATTEN, inputs, 1, NULL, compute_forward_flatten);
 }
 
 BOAT_API boat_variable_t* boat_var_log_softmax(const boat_variable_t* a, int axis) {
     if (!a) return NULL;
     (void)axis; // TODO: support axis parameter
-    boat_variable_t* inputs[] = {a};
+    boat_variable_t* inputs[] = {(boat_variable_t*)a};
     return create_operation(BOAT_OP_LOG_SOFTMAX, inputs, 1, NULL, compute_forward_log_softmax);
 }
 
@@ -736,7 +736,7 @@ BOAT_API boat_variable_t* boat_var_sum(const boat_variable_t* a, const int64_t* 
         return NULL;
     }
 
-    boat_variable_t* inputs[] = {a};
+    boat_variable_t* inputs[] = {(boat_variable_t*)a};
     return create_operation(BOAT_OP_SUM, inputs, 1, NULL, compute_forward_sum_single);
 }
 
@@ -800,7 +800,7 @@ BOAT_API bool boat_autodiff_context_grad_enabled(const boat_autodiff_context_t* 
 
 BOAT_API void boat_autodiff_context_set_graph(boat_autodiff_context_t* context, const boat_graph_t* graph) {
     if (!context) return;
-    context->graph = graph;
+    context->graph = (boat_graph_t*)graph;
 }
 
 BOAT_API boat_graph_t* boat_autodiff_context_get_graph(const boat_autodiff_context_t* context) {

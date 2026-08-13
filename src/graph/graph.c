@@ -12,7 +12,7 @@
 #include "graph_private.h"
 
 // Helper function to remove all edges connected to a node
-static void remove_all_edges_for_node(const boat_graph_t* graph, const boat_node_t* node) {
+static void remove_all_edges_for_node(boat_graph_t* graph, const boat_node_t* node) {
     if (!graph || !node) return;
 
     // Create a list of edges to remove (we can't modify while iterating)
@@ -1493,7 +1493,7 @@ BOAT_API bool boat_graph_safe_remove_node(boat_graph_t* graph, const boat_node_t
     }
 
     // Remove the node
-    boat_graph_remove_node(graph, node);
+    boat_graph_remove_node(graph, (boat_node_t*)node);
     return true;
 }
 
@@ -1757,7 +1757,7 @@ BOAT_API bool boat_graph_migrate_node(boat_graph_t* dest_graph, boat_graph_t* sr
     }
 
     for (size_t i = 0; i < src_graph->edge_count; i++) {
-        const struct boat_edge_t* edge = src_graph->edges[i];
+        struct boat_edge_t* edge = src_graph->edges[i];
         if (!edge) continue;
         const boat_node_t* source = boat_edge_source(edge);
         const boat_node_t* target = boat_edge_target(edge);
@@ -1799,7 +1799,7 @@ BOAT_API bool boat_graph_migrate_node(boat_graph_t* dest_graph, boat_graph_t* sr
     }
 
     // Add node to destination graph's nodes array
-    dest_graph->nodes[dest_graph->node_count++] = node;
+    dest_graph->nodes[dest_graph->node_count++] = (boat_node_t*)node;
 
     // Update node's ID? Keep original ID for now
     // Note: boat_graph_add_node assigns new ID, but we're reusing existing node

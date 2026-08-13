@@ -616,7 +616,7 @@ BOAT_API boat_tensor_t* boat_swin_forward(
     // ===================================================================
     // Patch Embed: Conv2d + LayerNorm
     // ===================================================================
-    boat_swin_patch_embed_weights_t* pe = &weights->patch_embed;
+    const boat_swin_patch_embed_weights_t* pe = &weights->patch_embed;
 
     // For CPU: implement conv2d directly (no im2col needed for 4x4 small kernel)
     int Hp = H / ps, Wp = W / ps;
