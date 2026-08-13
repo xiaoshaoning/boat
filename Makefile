@@ -70,8 +70,27 @@ LIB = $(LIB_DIR)/$(LIB_NAME)
 # Main targets
 all: $(VERSION_H) $(LIB)
 
-$(VERSION_H): include/boat/version.h.in
-	@HASH=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); DESC=$$(git describe --tags --always --dirty 2>/dev/null || echo unknown); sed -e s/@BOAT_VERSION_MAJOR@/$(VERSION_MAJOR)/ -e s/@BOAT_VERSION_MINOR@/$(VERSION_MINOR)/ -e s/@BOAT_VERSION_PATCH@/$(VERSION_PATCH)/ -e s/@BOAT_VERSION_STRING@/$(VERSION_STRING)/ -e s/@BOAT_GIT_HASH@/$$HASH/ -e s/@BOAT_GIT_DESCRIBE@/$$DESC/ $< > $@
+# Regenerate version.h from version.h.in on every build (FORCE), but only
+# touch it when the content actually differs. This propagates version-number
+# bumps and git-metadata changes (hash/describe) to version.o, while a no-op
+# build stays incremental (sed + git + cmp are cheap).
+$(VERSION_H): include/boat/version.h.in FORCE
+	@HASH=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); \
+	DESC=$$(git describe --tags --always --dirty 2>/dev/null || echo unknown); \
+	sed -e s/@BOAT_VERSION_MAJOR@/$(VERSION_MAJOR)/ \
+	    -e s/@BOAT_VERSION_MINOR@/$(VERSION_MINOR)/ \
+	    -e s/@BOAT_VERSION_PATCH@/$(VERSION_PATCH)/ \
+	    -e s/@BOAT_VERSION_STRING@/$(VERSION_STRING)/ \
+	    -e s/@BOAT_GIT_HASH@/$$HASH/ \
+	    -e s/@BOAT_GIT_DESCRIBE@/$$DESC/ $< > $@.tmp; \
+	if [ ! -f $@ ] || ! cmp -s $@.tmp $@; then mv $@.tmp $@; else rm -f $@.tmp; fi
+
+FORCE:
+.PHONY: FORCE
+
+# version.c embeds BOAT_VERSION_* / BOAT_GIT_* from version.h; recompile it
+# (and relink the library) whenever version.h content changes.
+$(OBJ_DIR)/core/version.o: $(VERSION_H)
 
 $(LIB): $(OBJS)
 	@mkdir -p $(LIB_DIR)
