@@ -8,6 +8,7 @@ if(TARGET boat)
     target_link_libraries(regression PRIVATE boat)
     target_compile_definitions(regression PRIVATE BOAT_STATIC_BUILD)
     set_target_properties(regression PROPERTIES C_STANDARD 11)
+    add_test(NAME regression COMMAND regression)
     return()
 endif()
 

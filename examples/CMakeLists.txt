@@ -7,6 +7,13 @@ add_subdirectory(serialization)
 add_subdirectory(transformer)
 add_subdirectory(translator)
 
+# Learning rate scheduler usage example (CPU, self-contained)
+add_executable(scheduler_usage scheduler_usage.c)
+target_link_libraries(scheduler_usage PRIVATE boat)
+target_compile_definitions(scheduler_usage PRIVATE BOAT_STATIC_BUILD)
+set_target_properties(scheduler_usage PROPERTIES C_STANDARD 11)
+add_test(NAME scheduler_usage COMMAND scheduler_usage)
+
 # NanoChat CUDA inference example (requires BOAT_WITH_CUDA=ON)
 add_subdirectory(nanochat)
 

@@ -8,6 +8,7 @@ if(TARGET boat)
     target_link_libraries(serialization PRIVATE boat)
     target_compile_definitions(serialization PRIVATE BOAT_STATIC_BUILD)
     set_target_properties(serialization PROPERTIES C_STANDARD 11)
+    add_test(NAME serialization COMMAND serialization)
     return()
 endif()
 

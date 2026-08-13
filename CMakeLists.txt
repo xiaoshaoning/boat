@@ -642,6 +642,11 @@ install(EXPORT boat-targets
     DESTINATION lib/cmake/boat
 )
 
+# Enable CTest before examples/tests so both can register tests.
+if(BOAT_WITH_EXAMPLES OR BOAT_WITH_TESTS)
+    enable_testing()
+endif()
+
 # Examples
 if(BOAT_WITH_EXAMPLES)
     add_subdirectory(examples)
@@ -649,7 +654,6 @@ endif()
 
 # Tests
 if(BOAT_WITH_TESTS)
-    enable_testing()
     add_subdirectory(tests)
 
     # Benchmarks

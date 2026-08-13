@@ -467,6 +467,11 @@ int main(void) {
     int seq_len = MAX_SEQ_LEN;
     int vocab_size = VOCAB_SIZE;
     int n_epochs = N_EPOCHS;
+    // Allow shortening the run for CI/valgrind (default is N_EPOCHS).
+    const char* env_epochs = getenv("BOAT_TRANSFORMER_EPOCHS");
+    if (env_epochs && atoi(env_epochs) > 0) {
+        n_epochs = atoi(env_epochs);
+    }
     float lr = LR;
 
     printf("=== Transformer Character-Level Language Model ===\n\n");

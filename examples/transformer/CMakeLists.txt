@@ -9,6 +9,7 @@ if(TARGET boat)
     target_link_libraries(transformer PRIVATE boat)
     target_compile_definitions(transformer PRIVATE BOAT_STATIC_BUILD)
     set_target_properties(transformer PROPERTIES C_STANDARD 11)
+    add_test(NAME transformer COMMAND transformer)
     return()
 endif()
 
