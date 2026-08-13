@@ -233,6 +233,7 @@ set(BOAT_SOURCES
     src/loss/mse.c
     src/loss/cross_entropy.c
     src/loss/huber.c
+    src/loss/softmax_cross_entropy.c
     src/layers/embedding.c
     src/layers/swin.c
     src/layers/transformer_decoder.c

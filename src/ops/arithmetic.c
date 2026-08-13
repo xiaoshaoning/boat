@@ -900,118 +900,166 @@ BOAT_API boat_tensor_t* boat_broadcast_to(const boat_tensor_t* a, const int64_t*
 }
 
 // Reduction operations
-BOAT_API boat_tensor_t* boat_sum(const boat_tensor_t* a, const int64_t* dims, size_t n_dims, bool keepdim) {
-    if (!a) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Null input in boat_sum\n");
-        return NULL;
-    }
+// ========== Reduction operations (sum, mean, max, min) with axis support ==========
 
-    // For now, implement only full reduction (dims == NULL, n_dims == 0)
-    if (dims != NULL || n_dims != 0) {
-        // TODO: Implement reduction along specific dimensions
-        return NULL;
-    }
+typedef enum {
+    BOAT_REDUCE_SUM,
+    BOAT_REDUCE_MEAN,
+    BOAT_REDUCE_MAX,
+    BOAT_REDUCE_MIN
+} boat_reduce_kind_t;
 
+// Fill `reduced[d]` = true for each dimension to reduce. dims==NULL or
+// n_dims==0 means full reduction. Negative dims are Python-style (from the end).
+// Returns false on an out-of-range dim.
+static bool normalize_reduce_dims(size_t ndim, const int64_t* dims, size_t n_dims, bool* reduced) {
+    for (size_t i = 0; i < ndim; i++) reduced[i] = false;
+    if (dims == NULL || n_dims == 0) {
+        for (size_t i = 0; i < ndim; i++) reduced[i] = true;
+        return true;
+    }
+    for (size_t d = 0; d < n_dims; d++) {
+        int64_t dim = dims[d];
+        if (dim < 0) dim += (int64_t)ndim;
+        if (dim < 0 || dim >= (int64_t)ndim) return false;
+        reduced[(size_t)dim] = true;
+    }
+    return true;
+}
+
+// Generic axis reduction for float32/float64 tensors. Returns a new tensor.
+static boat_tensor_t* reduce_axis(const boat_tensor_t* a, const int64_t* dims, size_t n_dims,
+                                  bool keepdim, boat_reduce_kind_t kind) {
+    if (!a) return NULL;
+    size_t ndim = boat_tensor_ndim(a);
+    const int64_t* shape = boat_tensor_shape(a);
     boat_dtype_t dtype = boat_tensor_dtype(a);
-    size_t nelements = boat_tensor_nelements(a);
-    const void* data = boat_tensor_data(a);
 
-    // Create output tensor: scalar if keepdim == false, otherwise shape with ones?
-    // For simplicity, always return a scalar tensor.
-    const int64_t out_shape[] = {1};
-    size_t out_ndim = 1;
-    if (keepdim) {
-        // If keepdim is true, output shape should have same ndim with ones
-        // For now, just return scalar as well
+    if (dtype != BOAT_DTYPE_FLOAT32 && dtype != BOAT_DTYPE_FLOAT64) {
+        boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED,
+                        "[Arithmetic] reduction only supports float32/float64\n");
+        return NULL;
+    }
+
+    if (ndim == 0) {
+        // Reducing a scalar is the identity operation.
+        return boat_tensor_clone(a);
+    }
+
+    bool reduced[BOAT_MAX_DIMS];
+    if (!normalize_reduce_dims(ndim, dims, n_dims, reduced)) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] invalid reduction dim\n");
+        return NULL;
+    }
+
+    // Input row-major strides.
+    size_t in_stride[BOAT_MAX_DIMS];
+    in_stride[ndim - 1] = 1;
+    for (int i = (int)ndim - 2; i >= 0; i--) in_stride[i] = in_stride[i + 1] * (size_t)shape[i + 1];
+
+    // Reduced dims (ascending order) and their sizes/strides.
+    size_t red_sizes[BOAT_MAX_DIMS];
+    size_t red_strides[BOAT_MAX_DIMS];
+    size_t n_red = 0;
+    size_t red_total = 1;
+    for (size_t i = 0; i < ndim; i++) {
+        if (reduced[i]) {
+            red_sizes[n_red] = (size_t)shape[i];
+            red_strides[n_red] = in_stride[i];
+            red_total *= (size_t)shape[i];
+            n_red++;
+        }
+    }
+
+    // Output shape and dim mapping.
+    int64_t out_shape[BOAT_MAX_DIMS];
+    size_t out_to_in[BOAT_MAX_DIMS];
+    size_t out_ndim = 0;
+    for (size_t i = 0; i < ndim; i++) {
+        if (!reduced[i]) {
+            out_to_in[out_ndim] = i;
+            out_shape[out_ndim++] = shape[i];
+        } else if (keepdim) {
+            out_to_in[out_ndim] = i;
+            out_shape[out_ndim++] = 1;
+        }
+    }
+
+    size_t out_stride[BOAT_MAX_DIMS];
+    size_t out_nelements = 1;
+    if (out_ndim > 0) {
+        out_stride[out_ndim - 1] = 1;
+        for (int i = (int)out_ndim - 2; i >= 0; i--) out_stride[i] = out_stride[i + 1] * (size_t)out_shape[i + 1];
+        for (size_t i = 0; i < out_ndim; i++) out_nelements *= (size_t)out_shape[i];
     }
 
     boat_tensor_t* out = boat_tensor_create(out_shape, out_ndim, dtype, boat_tensor_device(a));
     if (!out) return NULL;
 
+    const void* in = boat_tensor_const_data(a);
     void* out_data = boat_tensor_data(out);
+    const float* f_in = (const float*)in;
+    const double* d_in = (const double*)in;
+    float* f_out = (float*)out_data;
+    double* d_out = (double*)out_data;
+    bool is_f64 = (dtype == BOAT_DTYPE_FLOAT64);
 
-#ifdef BOAT_WITH_CUDA
-    if (boat_tensor_device(a) == BOAT_DEVICE_CUDA) {
-        if (dtype == BOAT_DTYPE_FLOAT32) {
-            float result = boat_cuda_sum_f32((const float*)data, nelements);
-            *((float*)out_data) = result;
-            return out;
+    for (size_t oi = 0; oi < out_nelements; oi++) {
+        // Decode output linear index to the base input offset.
+        size_t rem = oi;
+        size_t base_off = 0;
+        for (size_t d = 0; d < out_ndim; d++) {
+            size_t coord = rem / out_stride[d];
+            rem %= out_stride[d];
+            base_off += coord * in_stride[out_to_in[d]];
         }
-    }
-#endif
 
-    switch (dtype) {
-        case BOAT_DTYPE_FLOAT32: {
-            const float* ptr = (const float*)data;
-            float sum;
-            if (nelements >= 16) {
-                sum = boat_simd_sum_reduce_f32(ptr, nelements);
-            } else {
-                sum = 0.0f;
-                for (size_t i = 0; i < nelements; i++) sum += ptr[i];
+        double acc = 0.0;
+        bool first = true;
+        for (size_t r = 0; r < red_total; r++) {
+            size_t rr = r;
+            size_t red_off = 0;
+            for (size_t d = 0; d < n_red; d++) {
+                size_t coord = rr % red_sizes[d];
+                rr /= red_sizes[d];
+                red_off += coord * red_strides[d];
             }
-            *((float*)out_data) = sum;
-            break;
-        }
-        case BOAT_DTYPE_FLOAT64: {
-            const double* ptr = (const double*)data;
-            double sum = 0.0;
-            for (size_t i = 0; i < nelements; i++) {
-                sum += ptr[i];
+            double v = is_f64 ? d_in[base_off + red_off] : (double)f_in[base_off + red_off];
+            switch (kind) {
+                case BOAT_REDUCE_SUM:
+                case BOAT_REDUCE_MEAN:
+                    acc += v;
+                    break;
+                case BOAT_REDUCE_MAX:
+                    if (first || v > acc) acc = v;
+                    break;
+                case BOAT_REDUCE_MIN:
+                    if (first || v < acc) acc = v;
+                    break;
             }
-            *((double*)out_data) = sum;
-            break;
+            first = false;
         }
-        case BOAT_DTYPE_BFLOAT16: {
-            const uint16_t* ptr = (const uint16_t*)data;
-            float sum = 0.0f;
-            for (size_t i = 0; i < nelements; i++) {
-                sum += boat_bf16_to_f32(ptr[i]);
-            }
-            *((uint16_t*)out_data) = boat_f32_to_bf16(sum);
-            break;
-        }
-        case BOAT_DTYPE_INT32: {
-            const int32_t* ptr = (const int32_t*)data;
-            int32_t sum = 0;
-            for (size_t i = 0; i < nelements; i++) {
-                sum += ptr[i];
-            }
-            *((int32_t*)out_data) = sum;
-            break;
-        }
-        case BOAT_DTYPE_INT64: {
-            const int64_t* ptr = (const int64_t*)data;
-            int64_t sum = 0;
-            for (size_t i = 0; i < nelements; i++) {
-                sum += ptr[i];
-            }
-            *((int64_t*)out_data) = sum;
-            break;
-        }
-        case BOAT_DTYPE_UINT8: {
-            const uint8_t* ptr = (const uint8_t*)data;
-            uint8_t sum = 0;
-            for (size_t i = 0; i < nelements; i++) {
-                sum += ptr[i];
-            }
-            *((uint8_t*)out_data) = sum;
-            break;
-        }
-        case BOAT_DTYPE_INT8: {
-            const int8_t* ptr = (const int8_t*)data;
-            int8_t sum = 0;
-            for (size_t i = 0; i < nelements; i++) {
-                sum += ptr[i];
-            }
-            *((int8_t*)out_data) = sum;
-            break;
-        }
-        default:
-            // Unsupported dtype
-            boat_tensor_free(out);
-            return NULL;
+        if (kind == BOAT_REDUCE_MEAN && red_total > 0) acc /= (double)red_total;
+
+        if (is_f64) d_out[oi] = acc;
+        else f_out[oi] = (float)acc;
     }
 
     return out;
+}
+
+BOAT_API boat_tensor_t* boat_sum(const boat_tensor_t* a, const int64_t* dims, size_t n_dims, bool keepdim) {
+    return reduce_axis(a, dims, n_dims, keepdim, BOAT_REDUCE_SUM);
+}
+
+BOAT_API boat_tensor_t* boat_mean(const boat_tensor_t* a, const int64_t* dims, size_t n_dims, bool keepdim) {
+    return reduce_axis(a, dims, n_dims, keepdim, BOAT_REDUCE_MEAN);
+}
+
+BOAT_API boat_tensor_t* boat_max(const boat_tensor_t* a, const int64_t* dims, size_t n_dims, bool keepdim) {
+    return reduce_axis(a, dims, n_dims, keepdim, BOAT_REDUCE_MAX);
+}
+
+BOAT_API boat_tensor_t* boat_min(const boat_tensor_t* a, const int64_t* dims, size_t n_dims, bool keepdim) {
+    return reduce_axis(a, dims, n_dims, keepdim, BOAT_REDUCE_MIN);
 }

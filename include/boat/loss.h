@@ -12,10 +12,12 @@ extern "C" {
 #endif
 
 // Loss function types
+// NOTE: append new types at the end to keep existing values stable.
 typedef enum {
     BOAT_LOSS_MSE,
     BOAT_LOSS_CROSS_ENTROPY,
-    BOAT_LOSS_HUBER
+    BOAT_LOSS_HUBER,
+    BOAT_LOSS_SOFTMAX_CROSS_ENTROPY
 } boat_loss_type_t;
 
 #include <boat/tensor.h>
@@ -27,6 +29,9 @@ typedef struct boat_loss_t boat_loss_t;
 BOAT_API boat_loss_t* boat_mse_loss_create();
 BOAT_API boat_loss_t* boat_cross_entropy_loss_create();
 BOAT_API boat_loss_t* boat_huber_loss_create(float delta);
+// Softmax cross-entropy: predictions are unnormalized logits [batch, classes],
+// targets are integer class labels [batch] (INT32 or INT64).
+BOAT_API boat_loss_t* boat_softmax_cross_entropy_loss_create();
 
 // Loss operations
 BOAT_API float boat_loss_compute(boat_loss_t* loss, const void* predictions, const void* targets);

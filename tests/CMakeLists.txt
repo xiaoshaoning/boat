@@ -108,6 +108,14 @@ target_link_libraries(test_tensor boat)
 boat_add_test_executable(test_autodiff unit/test_autodiff.c)
 target_link_libraries(test_autodiff boat)
 
+# Reduction ops with axis support (sum/mean/max/min + backward)
+boat_add_test_executable(test_reduce_autodiff unit/test_reduce_autodiff.c)
+target_link_libraries(test_reduce_autodiff boat)
+
+# Softmax cross-entropy loss
+boat_add_test_executable(test_softmax_ce unit/test_softmax_ce.c)
+target_link_libraries(test_softmax_ce boat)
+
 # Graph robustness tests (merge, to_dot, node-removal adjacency, sequential lifecycle)
 boat_add_test_executable(test_graph_phase4 unit/test_graph_phase4.c)
 target_link_libraries(test_graph_phase4 boat)
