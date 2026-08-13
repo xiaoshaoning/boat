@@ -100,6 +100,14 @@ target_link_libraries(test_gradient_check boat)
 boat_add_test_executable(test_transpose unit/test_transpose.c)
 target_link_libraries(test_transpose boat)
 
+# Tensor operation tests (creation, reshape, slice, concatenate, stack, views)
+boat_add_test_executable(test_tensor unit/test_tensor.c)
+target_link_libraries(test_tensor boat)
+
+# Autodiff engine tests (variables, operations, backward pass)
+boat_add_test_executable(test_autodiff unit/test_autodiff.c)
+target_link_libraries(test_autodiff boat)
+
 # Serialization integration test (train -> save -> load -> inference round-trip)
 boat_add_test_executable(test_serialization_integration test_serialization_integration.c)
 target_link_libraries(test_serialization_integration boat)

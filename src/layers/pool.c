@@ -30,7 +30,7 @@ struct boat_pool_layer_t {
     int64_t cache_width_out;
 };
 
-BOAT_API BOAT_API boat_pool_layer_t* BOAT_CALL boat_pool_layer_create(size_t pool_size, size_t stride, size_t padding) {
+BOAT_API boat_pool_layer_t* BOAT_CALL boat_pool_layer_create(size_t pool_size, size_t stride, size_t padding) {
     boat_pool_layer_t* layer = (boat_pool_layer_t*)boat_malloc(sizeof(boat_pool_layer_t), BOAT_DEVICE_CPU);
     if (!layer) {
         return NULL;
@@ -51,7 +51,7 @@ BOAT_API BOAT_API boat_pool_layer_t* BOAT_CALL boat_pool_layer_create(size_t poo
     return layer;
 }
 
-BOAT_API BOAT_API void BOAT_CALL boat_pool_layer_free(boat_pool_layer_t* layer) {
+BOAT_API void BOAT_CALL boat_pool_layer_free(boat_pool_layer_t* layer) {
     if (!layer) {
         return;
     }
@@ -64,7 +64,7 @@ BOAT_API BOAT_API void BOAT_CALL boat_pool_layer_free(boat_pool_layer_t* layer) 
     boat_free(layer);
 }
 
-BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_forward(boat_pool_layer_t* layer, const boat_tensor_t* input) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_forward(boat_pool_layer_t* layer, const boat_tensor_t* input) {
     if (!layer || !input) {
         return NULL;
     }
@@ -217,7 +217,7 @@ BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_forward(boat_pool_lay
     return output;
 }
 
-BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_backward(boat_pool_layer_t* layer, const boat_tensor_t* grad_output) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_backward(boat_pool_layer_t* layer, const boat_tensor_t* grad_output) {
     if (!layer || !grad_output || !layer->cache_input || !layer->max_indices) {
         return NULL;
     }
@@ -285,20 +285,20 @@ BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_backward(boat_pool_la
     return grad_input;
 }
 
-BOAT_API BOAT_API void BOAT_CALL boat_pool_layer_update(boat_pool_layer_t* layer, float learning_rate) {
+BOAT_API void BOAT_CALL boat_pool_layer_update(boat_pool_layer_t* layer, float learning_rate) {
     (void)layer;
     (void)learning_rate;
     // Pooling layers have no parameters to update
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API size_t BOAT_CALL boat_pool_layer_get_pool_size(const boat_pool_layer_t* layer) {
+BOAT_API BOAT_NOINLINE size_t BOAT_CALL boat_pool_layer_get_pool_size(const boat_pool_layer_t* layer) {
     return layer ? layer->pool_size : 0;
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API size_t BOAT_CALL boat_pool_layer_get_stride(const boat_pool_layer_t* layer) {
+BOAT_API BOAT_NOINLINE size_t BOAT_CALL boat_pool_layer_get_stride(const boat_pool_layer_t* layer) {
     return layer ? layer->stride : 0;
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API size_t BOAT_CALL boat_pool_layer_get_padding(const boat_pool_layer_t* layer) {
+BOAT_API BOAT_NOINLINE size_t BOAT_CALL boat_pool_layer_get_padding(const boat_pool_layer_t* layer) {
     return layer ? layer->padding : 0;
 }

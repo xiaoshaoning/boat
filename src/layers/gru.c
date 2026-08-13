@@ -148,7 +148,7 @@ static void gru_update_tensor(boat_tensor_t* w, boat_tensor_t* gw, float learnin
 }
 
 // Create GRU layer
-BOAT_API BOAT_API boat_gru_layer_t* BOAT_CALL boat_gru_layer_create(size_t input_size, size_t hidden_size,
+BOAT_API boat_gru_layer_t* BOAT_CALL boat_gru_layer_create(size_t input_size, size_t hidden_size,
                                         size_t num_layers, bool bidirectional,
                                         float dropout) {
     boat_gru_layer_t* layer = (boat_gru_layer_t*)boat_malloc(sizeof(boat_gru_layer_t), BOAT_DEVICE_CPU);
@@ -187,7 +187,7 @@ BOAT_API BOAT_API boat_gru_layer_t* BOAT_CALL boat_gru_layer_create(size_t input
 }
 
 // Free GRU layer
-BOAT_API BOAT_API void BOAT_CALL boat_gru_layer_free(boat_gru_layer_t* layer) {
+BOAT_API void BOAT_CALL boat_gru_layer_free(boat_gru_layer_t* layer) {
     if (!layer) return;
 
     if (layer->weight_ih) boat_tensor_unref(layer->weight_ih);
@@ -206,7 +206,7 @@ BOAT_API BOAT_API void BOAT_CALL boat_gru_layer_free(boat_gru_layer_t* layer) {
 }
 
 // Forward pass
-BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_forward(boat_gru_layer_t* layer, const boat_tensor_t* input) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_forward(boat_gru_layer_t* layer, const boat_tensor_t* input) {
     if (!layer || !input) {
         return NULL;
     }
@@ -368,7 +368,7 @@ BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_forward(boat_gru_layer
 }
 
 // Backward pass
-BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_backward(boat_gru_layer_t* layer, const boat_tensor_t* grad_output) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_backward(boat_gru_layer_t* layer, const boat_tensor_t* grad_output) {
     if (!layer || !grad_output) {
         return NULL;
     }
@@ -571,7 +571,7 @@ BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_backward(boat_gru_laye
 }
 
 // Update parameters
-BOAT_API BOAT_API void BOAT_CALL boat_gru_layer_update(boat_gru_layer_t* layer, float learning_rate) {
+BOAT_API void BOAT_CALL boat_gru_layer_update(boat_gru_layer_t* layer, float learning_rate) {
     if (!layer) return;
     gru_update_tensor(layer->weight_ih, layer->grad_weight_ih, learning_rate);
     gru_update_tensor(layer->weight_hh, layer->grad_weight_hh, learning_rate);
@@ -580,47 +580,47 @@ BOAT_API BOAT_API void BOAT_CALL boat_gru_layer_update(boat_gru_layer_t* layer, 
 }
 
 // Parameter setters for model loading
-BOAT_API BOAT_API void BOAT_CALL boat_gru_layer_set_weight_ih(boat_gru_layer_t* layer, boat_tensor_t* weight) {
+BOAT_API void BOAT_CALL boat_gru_layer_set_weight_ih(boat_gru_layer_t* layer, boat_tensor_t* weight) {
     if (layer->weight_ih) boat_tensor_unref(layer->weight_ih);
     layer->weight_ih = weight;
     if (weight) boat_tensor_ref(weight);
 }
 
-BOAT_API BOAT_API void BOAT_CALL boat_gru_layer_set_weight_hh(boat_gru_layer_t* layer, boat_tensor_t* weight) {
+BOAT_API void BOAT_CALL boat_gru_layer_set_weight_hh(boat_gru_layer_t* layer, boat_tensor_t* weight) {
     if (layer->weight_hh) boat_tensor_unref(layer->weight_hh);
     layer->weight_hh = weight;
     if (weight) boat_tensor_ref(weight);
 }
 
-BOAT_API BOAT_API void BOAT_CALL boat_gru_layer_set_bias_ih(boat_gru_layer_t* layer, boat_tensor_t* bias) {
+BOAT_API void BOAT_CALL boat_gru_layer_set_bias_ih(boat_gru_layer_t* layer, boat_tensor_t* bias) {
     if (layer->bias_ih) boat_tensor_unref(layer->bias_ih);
     layer->bias_ih = bias;
     if (bias) boat_tensor_ref(bias);
 }
 
-BOAT_API BOAT_API void BOAT_CALL boat_gru_layer_set_bias_hh(boat_gru_layer_t* layer, boat_tensor_t* bias) {
+BOAT_API void BOAT_CALL boat_gru_layer_set_bias_hh(boat_gru_layer_t* layer, boat_tensor_t* bias) {
     if (layer->bias_hh) boat_tensor_unref(layer->bias_hh);
     layer->bias_hh = bias;
     if (bias) boat_tensor_ref(bias);
 }
 
 // Gradient tensor getters
-BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_get_grad_weight_ih(const boat_gru_layer_t* layer) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_get_grad_weight_ih(const boat_gru_layer_t* layer) {
     if (!layer) return NULL;
     return layer->grad_weight_ih;
 }
 
-BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_get_grad_weight_hh(const boat_gru_layer_t* layer) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_get_grad_weight_hh(const boat_gru_layer_t* layer) {
     if (!layer) return NULL;
     return layer->grad_weight_hh;
 }
 
-BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_get_grad_bias_ih(const boat_gru_layer_t* layer) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_get_grad_bias_ih(const boat_gru_layer_t* layer) {
     if (!layer) return NULL;
     return layer->grad_bias_ih;
 }
 
-BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_get_grad_bias_hh(const boat_gru_layer_t* layer) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_get_grad_bias_hh(const boat_gru_layer_t* layer) {
     if (!layer) return NULL;
     return layer->grad_bias_hh;
 }

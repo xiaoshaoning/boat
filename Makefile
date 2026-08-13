@@ -112,7 +112,7 @@ build/test/%.exe: tests/%.c $(LIB)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(INCLUDES) $< -o $@ $(TEST_LIBS)
 
 test: all $(TEST_BINS)
-	@echo "Running $$(words $(TEST_BINS)) tests..."
+	@echo "Running $(words $(TEST_BINS)) tests..."
 	@fail=0; pass=0; \
 	for t in $(TEST_BINS); do \
 		if PATH="$(LIB_DIR):$$PATH" ./$$t > build/test/$$(basename $$t).log 2>&1; then \

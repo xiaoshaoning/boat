@@ -32,7 +32,7 @@ static void rmsprop_expand_capacity(boat_rmsprop_state_t* state);
 static void rmsprop_update_parameter(boat_rmsprop_state_t* state, size_t idx);
 
 // Create RMSprop optimizer
-BOAT_API BOAT_API boat_optimizer_t* boat_rmsprop_optimizer_create(float learning_rate,
+BOAT_API boat_optimizer_t* boat_rmsprop_optimizer_create(float learning_rate,
                                                 float alpha,
                                                 float epsilon) {
     // Parameter validation

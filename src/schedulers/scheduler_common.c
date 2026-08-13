@@ -45,7 +45,7 @@ static boat_scheduler_type_t get_scheduler_type(const boat_scheduler_t* schedule
 }
 
 // Generic scheduler step function (dispatches to specific implementation)
-BOAT_API BOAT_API void boat_scheduler_step(boat_scheduler_t* scheduler) {
+BOAT_API void boat_scheduler_step(boat_scheduler_t* scheduler) {
     if (!scheduler) return;
 
     switch (get_scheduler_type(scheduler)) {
@@ -65,7 +65,7 @@ BOAT_API BOAT_API void boat_scheduler_step(boat_scheduler_t* scheduler) {
 }
 
 // Generic scheduler reset function
-BOAT_API BOAT_API void boat_scheduler_reset(boat_scheduler_t* scheduler) {
+BOAT_API void boat_scheduler_reset(boat_scheduler_t* scheduler) {
     if (!scheduler) return;
 
     switch (get_scheduler_type(scheduler)) {
@@ -85,7 +85,7 @@ BOAT_API BOAT_API void boat_scheduler_reset(boat_scheduler_t* scheduler) {
 }
 
 // Generic scheduler get last learning rate function
-BOAT_API BOAT_API float boat_scheduler_get_last_lr(const boat_scheduler_t* scheduler) {
+BOAT_API float boat_scheduler_get_last_lr(const boat_scheduler_t* scheduler) {
     if (!scheduler) return 0.0f;
 
     switch (get_scheduler_type(scheduler)) {
@@ -101,7 +101,7 @@ BOAT_API BOAT_API float boat_scheduler_get_last_lr(const boat_scheduler_t* sched
 }
 
 // Generic scheduler get next learning rate function
-BOAT_API BOAT_API float boat_scheduler_get_next_lr(const boat_scheduler_t* scheduler) {
+BOAT_API float boat_scheduler_get_next_lr(const boat_scheduler_t* scheduler) {
     if (!scheduler) return 0.0f;
 
     switch (get_scheduler_type(scheduler)) {
@@ -117,7 +117,7 @@ BOAT_API BOAT_API float boat_scheduler_get_next_lr(const boat_scheduler_t* sched
 }
 
 // Generic scheduler free function
-BOAT_API BOAT_API void boat_scheduler_free(boat_scheduler_t* scheduler) {
+BOAT_API void boat_scheduler_free(boat_scheduler_t* scheduler) {
     if (!scheduler) return;
 
     switch (get_scheduler_type(scheduler)) {
@@ -138,7 +138,7 @@ BOAT_API BOAT_API void boat_scheduler_free(boat_scheduler_t* scheduler) {
 }
 
 // Convenience function to update optimizer learning rate
-BOAT_API BOAT_API void boat_scheduler_update_optimizer(const boat_scheduler_t* scheduler,
+BOAT_API void boat_scheduler_update_optimizer(const boat_scheduler_t* scheduler,
                                               boat_optimizer_t* optimizer) {
     if (!scheduler || !optimizer) return;
 

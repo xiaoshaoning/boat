@@ -16,7 +16,7 @@
 #include "schedulers_internal.h"
 
 // Create StepLR scheduler
-BOAT_API BOAT_API boat_scheduler_t* boat_step_lr_scheduler_create(float base_learning_rate,
+BOAT_API boat_scheduler_t* boat_step_lr_scheduler_create(float base_learning_rate,
                                                          int step_size,
                                                          float gamma) {
     // Validate hyperparameters

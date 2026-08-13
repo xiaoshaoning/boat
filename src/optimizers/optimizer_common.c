@@ -21,30 +21,9 @@ typedef struct boat_optimizer_header_t {
     boat_optimizer_type_t type;
 } boat_optimizer_header_t;
 
-// RMSprop optimizer state structure
-typedef struct boat_rmsprop_state_t {
-    boat_optimizer_header_t header;
-    float learning_rate;
-    float alpha;
-    float epsilon;
-    boat_tensor_t** params;
-    boat_tensor_t** grads;
-    boat_tensor_t** square_avg;  // Running average of squared gradients
-    size_t num_params;
-    size_t capacity;
-} boat_rmsprop_state_t;
-
-// Adagrad optimizer state structure
-typedef struct boat_adagrad_state_t {
-    boat_optimizer_header_t header;
-    float learning_rate;
-    float epsilon;
-    boat_tensor_t** params;
-    boat_tensor_t** grads;
-    boat_tensor_t** sum_square_grad;  // Sum of squared gradients
-    size_t num_params;
-    size_t capacity;
-} boat_adagrad_state_t;
+// NOTE: each concrete optimizer (sgd.c, adam.c, rmsprop.c, adagrad.c) defines
+// its own state struct whose FIRST field is `boat_optimizer_type_t type` so the
+// generic dispatch below can read the type through boat_optimizer_header_t.
 
 // Create SGD optimizer (implemented in sgd.c)
 // boat_optimizer_t* boat_sgd_optimizer_create(float learning_rate, float momentum);
@@ -114,7 +93,7 @@ static boat_optimizer_type_t get_optimizer_type(const boat_optimizer_t* optimize
 }
 
 // Generic optimizer functions
-BOAT_API BOAT_API void boat_optimizer_add_parameter(boat_optimizer_t* optimizer,
+BOAT_API void boat_optimizer_add_parameter(boat_optimizer_t* optimizer,
                                   boat_tensor_t* param,
                                   boat_tensor_t* grad) {
     if (!optimizer) return;
@@ -137,7 +116,7 @@ BOAT_API BOAT_API void boat_optimizer_add_parameter(boat_optimizer_t* optimizer,
     }
 }
 
-BOAT_API BOAT_API void boat_optimizer_step(boat_optimizer_t* optimizer) {
+BOAT_API void boat_optimizer_step(boat_optimizer_t* optimizer) {
     if (!optimizer) return;
 
     switch (get_optimizer_type(optimizer)) {
@@ -158,7 +137,7 @@ BOAT_API BOAT_API void boat_optimizer_step(boat_optimizer_t* optimizer) {
     }
 }
 
-BOAT_API BOAT_API void boat_optimizer_zero_grad(boat_optimizer_t* optimizer) {
+BOAT_API void boat_optimizer_zero_grad(boat_optimizer_t* optimizer) {
     if (!optimizer) return;
 
     switch (get_optimizer_type(optimizer)) {
@@ -179,7 +158,7 @@ BOAT_API BOAT_API void boat_optimizer_zero_grad(boat_optimizer_t* optimizer) {
     }
 }
 
-BOAT_API BOAT_API void boat_optimizer_free(boat_optimizer_t* optimizer) {
+BOAT_API void boat_optimizer_free(boat_optimizer_t* optimizer) {
     if (!optimizer) return;
 
     switch (get_optimizer_type(optimizer)) {
@@ -201,7 +180,7 @@ BOAT_API BOAT_API void boat_optimizer_free(boat_optimizer_t* optimizer) {
 }
 
 // Generic optimizer get learning rate function
-BOAT_API BOAT_API float boat_optimizer_get_learning_rate(const boat_optimizer_t* optimizer) {
+BOAT_API float boat_optimizer_get_learning_rate(const boat_optimizer_t* optimizer) {
     if (!optimizer) return 0.0f;
 
     switch (get_optimizer_type(optimizer)) {
@@ -219,7 +198,7 @@ BOAT_API BOAT_API float boat_optimizer_get_learning_rate(const boat_optimizer_t*
 }
 
 // Generic optimizer set learning rate function
-BOAT_API BOAT_API void boat_optimizer_set_learning_rate(boat_optimizer_t* optimizer, float learning_rate) {
+BOAT_API void boat_optimizer_set_learning_rate(boat_optimizer_t* optimizer, float learning_rate) {
     if (!optimizer) return;
 
     switch (get_optimizer_type(optimizer)) {
@@ -240,7 +219,7 @@ BOAT_API BOAT_API void boat_optimizer_set_learning_rate(boat_optimizer_t* optimi
     }
 }
 
-BOAT_API BOAT_API float boat_optimizer_get_weight_decay(const boat_optimizer_t* optimizer) {
+BOAT_API float boat_optimizer_get_weight_decay(const boat_optimizer_t* optimizer) {
     if (!optimizer) return 0.0f;
     switch (get_optimizer_type(optimizer)) {
         case BOAT_OPTIMIZER_ADAM:
@@ -257,7 +236,7 @@ BOAT_API BOAT_API float boat_optimizer_get_weight_decay(const boat_optimizer_t* 
     return 0.0f;
 }
 
-BOAT_API BOAT_API void boat_optimizer_set_weight_decay(boat_optimizer_t* optimizer, float weight_decay) {
+BOAT_API void boat_optimizer_set_weight_decay(boat_optimizer_t* optimizer, float weight_decay) {
     if (!optimizer) return;
     switch (get_optimizer_type(optimizer)) {
         case BOAT_OPTIMIZER_ADAM:

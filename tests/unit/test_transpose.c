@@ -166,7 +166,7 @@ static bool test_transpose_different_dtypes() {
         if (t) boat_tensor_unref(t);
     }
 
-    // Test uint8 (should fall back to memcpy, no actual transposition)
+    // Test uint8 (generic byte-wise transpose path)
     {
         int64_t shape[] = {2, 3};
         boat_tensor_t* t = boat_tensor_create(shape, 2, BOAT_DTYPE_UINT8, BOAT_DEVICE_CPU);
@@ -178,17 +178,21 @@ static bool test_transpose_different_dtypes() {
         boat_tensor_t* t_t = boat_transpose(t, 0, 1);
         if (!t_t) all_pass = false;
 
-        // For unsupported types, we just expect a tensor with swapped shape
         if (t_t) {
             const int64_t* out_shape = boat_tensor_shape(t_t);
             if (!(out_shape[0] == 3 && out_shape[1] == 2)) all_pass = false;
-
+            // Verify data is actually transposed: [1 2 3; 4 5 6] -> [1 4; 2 5; 3 6]
+            uint8_t* td = (uint8_t*)boat_tensor_data(t_t);
+            uint8_t expected[] = {1, 4, 2, 5, 3, 6};
+            for (int i = 0; i < 6; i++) {
+                if (td[i] != expected[i]) all_pass = false;
+            }
             boat_tensor_unref(t_t);
         }
         if (t) boat_tensor_unref(t);
     }
 
-    // Test int8 (same fallback path as uint8)
+    // Test int8 (same generic transpose path as uint8)
     {
         int64_t shape[] = {2, 3};
         boat_tensor_t* t = boat_tensor_create(shape, 2, BOAT_DTYPE_INT8, BOAT_DEVICE_CPU);
@@ -203,6 +207,11 @@ static bool test_transpose_different_dtypes() {
         if (t_t) {
             const int64_t* out_shape = boat_tensor_shape(t_t);
             if (!(out_shape[0] == 3 && out_shape[1] == 2)) all_pass = false;
+            int8_t* td = (int8_t*)boat_tensor_data(t_t);
+            int8_t expected[] = {1, 4, 2, 5, 3, 6};
+            for (int i = 0; i < 6; i++) {
+                if (td[i] != expected[i]) all_pass = false;
+            }
             boat_tensor_unref(t_t);
         }
         if (t) boat_tensor_unref(t);

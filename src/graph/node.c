@@ -27,8 +27,8 @@ static boat_node_t* boat_node_create(void* data, boat_node_type_t type,
         return NULL;
     }
 
-    static size_t next_global_id = 1;
-    node->id = next_global_id++;
+    // id is assigned by boat_graph_add_node; initialize to 0 here.
+    node->id = 0;
     node->data = data;
     node->type = type;
     node->free_fn = free_fn;
@@ -93,6 +93,9 @@ BOAT_API boat_node_t* boat_graph_add_node(boat_graph_t* graph, void* data,
 
     // Ensure capacity for new node (including adjacency lists)
     if (!ensure_node_capacity(graph, graph->node_count + 1)) {
+        // The node struct would leak here; free it. Its user data is still
+        // owned by the caller, who frees it on failure (free_fn is not called).
+        boat_free(node);
         return NULL;
     }
 

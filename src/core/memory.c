@@ -164,11 +164,11 @@ BOAT_API void boat_memory_free_safe(void** ptr_ptr) {
 }
 
 // Memory statistics functions
-BOAT_API BOAT_API boat_memory_stats_t boat_memory_get_stats() {
+BOAT_API boat_memory_stats_t boat_memory_get_stats() {
     return g_memory_stats;
 }
 
-BOAT_API BOAT_API void boat_memory_reset_stats() {
+BOAT_API void boat_memory_reset_stats() {
     g_memory_stats.allocated_bytes = 0;
     g_memory_stats.allocated_blocks = 0;
     g_memory_stats.peak_allocated_bytes = 0;
@@ -226,26 +226,33 @@ BOAT_API void boat_memory_free_device(void* ptr, boat_device_t device) {
 BOAT_API void* boat_memory_allocate_aligned(size_t size, size_t alignment,
                                    boat_device_t device,
                                    const char* file, int line) {
+    // Normalize alignment to a power of two >= sizeof(void*) so the two
+    // bookkeeping slots stored just before the aligned address always fit
+    // inside the allocation.
     if (alignment < sizeof(void*)) {
         alignment = sizeof(void*);
     }
+    if ((alignment & (alignment - 1)) != 0) {
+        size_t power = 1;
+        while (power < alignment) power <<= 1;
+        alignment = power;
+    }
 
-    size_t total_size = size + alignment + sizeof(size_t);
+    size_t total_size = size + alignment + 2 * sizeof(void*);
     void* ptr = boat_memory_allocate(total_size, device, file, line);
     if (!ptr) {
         return NULL;
     }
 
-    // Align pointer
     uintptr_t addr = (uintptr_t)ptr;
-    uintptr_t aligned_addr = (addr + alignment + sizeof(size_t)) & ~(alignment - 1);
+    uintptr_t aligned_addr = (addr + 2 * sizeof(void*) + (alignment - 1))
+                             & ~((uintptr_t)alignment - 1);
 
-    // Store original pointer before aligned address
-    void** original_ptr = (void**)(aligned_addr - sizeof(size_t));
+    // Store the original pointer (and the size, for introspection) immediately
+    // before the aligned address.
+    void** original_ptr = (void**)(aligned_addr - sizeof(void*));
     *original_ptr = ptr;
-
-    // Store size for deallocation
-    size_t* size_ptr = (size_t*)(aligned_addr - 2 * sizeof(size_t));
+    size_t* size_ptr = (size_t*)(aligned_addr - 2 * sizeof(void*));
     *size_ptr = total_size;
 
     return (void*)aligned_addr;
@@ -256,9 +263,8 @@ BOAT_API void boat_memory_free_aligned(const void* aligned_ptr) {
         return;
     }
 
-    // Get original pointer
     uintptr_t addr = (uintptr_t)aligned_ptr;
-    void* original_ptr = *(void**)(addr - sizeof(size_t));
+    void* original_ptr = *(void**)(addr - sizeof(void*));
 
     boat_memory_free(original_ptr);
 }
@@ -546,10 +552,10 @@ BOAT_API void boat_memory_arena_reset(boat_memory_arena_t* arena) {
     }
 }
 
-BOAT_API BOAT_API size_t boat_memory_arena_used(const boat_memory_arena_t* arena) {
+BOAT_API size_t boat_memory_arena_used(const boat_memory_arena_t* arena) {
     return arena ? arena->used : 0;
 }
 
-BOAT_API BOAT_API size_t boat_memory_arena_capacity(const boat_memory_arena_t* arena) {
+BOAT_API size_t boat_memory_arena_capacity(const boat_memory_arena_t* arena) {
     return arena ? arena->capacity : 0;
 }

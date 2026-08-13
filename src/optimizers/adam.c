@@ -59,7 +59,7 @@ static void adam_expand_capacity(boat_adam_state_t* state);
 static void adam_update_parameter(boat_adam_state_t* state, size_t idx);
 
 // Create Adam optimizer
-BOAT_API BOAT_API boat_optimizer_t* boat_adam_optimizer_create(float learning_rate,
+BOAT_API boat_optimizer_t* boat_adam_optimizer_create(float learning_rate,
                                              float beta1, float beta2,
                                              float epsilon) {
     // Validate hyperparameters

@@ -186,7 +186,7 @@ typedef enum {
 } boat_dtype_t;
 
 // Tensor creation
-boat_tensor_t* boat_tensor_create(const int64_t* shape, size_t ndim, boat_dtype_t dtype);
+boat_tensor_t* boat_tensor_create(const int64_t* shape, size_t ndim, boat_dtype_t dtype, boat_device_t device);
 boat_tensor_t* boat_tensor_from_data(const int64_t* shape, size_t ndim, boat_dtype_t dtype, const void* data);
 
 // Tensor properties
@@ -341,18 +341,18 @@ int main() {
     boat_sequential_model_t* model = boat_sequential_create();
 
     // Add layers
-    boat_layer_t* dense1 = boat_dense_layer_create(784, 128);
+    boat_layer_t* dense1 = boat_dense_layer_create(784, 128, true);
     boat_layer_t* relu1 = boat_relu_layer_create();
-    boat_layer_t* dense2 = boat_dense_layer_create(128, 10);
-    boat_layer_t* softmax = boat_softmax_layer_create();
+    boat_layer_t* dense2 = boat_dense_layer_create(128, 10, true);
+    boat_layer_t* softmax = boat_softmax_layer_create(-1);
 
     boat_sequential_add(model, dense1);
     boat_sequential_add(model, relu1);
     boat_sequential_add(model, dense2);
     boat_sequential_add(model, softmax);
 
-    // Create optimizer
-    boat_optimizer_t* optimizer = boat_adam_optimizer_create(model, 0.001);
+    // Create optimizer (params are registered via boat_optimizer_add_parameter)
+    boat_optimizer_t* optimizer = boat_adam_optimizer_create(0.001f, 0.9f, 0.999f, 1e-8f);
 
     // Create loss function
     boat_loss_t* loss = boat_cross_entropy_loss_create();
@@ -400,7 +400,7 @@ int main() {
 
     // Prepare input tensor
     int64_t shape[] = {1, 3, 224, 224};
-    boat_tensor_t* input = boat_tensor_create(shape, 4, BOAT_DTYPE_FLOAT32);
+    boat_tensor_t* input = boat_tensor_create(shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
 
     // Run inference
     boat_tensor_t* output = boat_model_forward(model, input);
@@ -491,7 +491,8 @@ make install
 
 ### Coding Standards
 
-- Use `clang-format` with provided `.clang-format` file
+- Follow the code style in this document (4-space indent, snake_case, 100-col lines);
+  no `.clang-format` file is checked in yet
 - Write descriptive commit messages in English only
 - Add documentation for public APIs
 - Include unit tests for new features

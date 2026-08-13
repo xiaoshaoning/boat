@@ -66,7 +66,7 @@ typedef struct {
 struct boat_autodiff_context_t {
     bool grad_enabled;
     boat_graph_t* graph;  // Computational graph associated with this context
-    // TODO: add more context fields
+    bool auto_created;    // true if created implicitly (freed at process exit)
 };
 
 
@@ -80,6 +80,10 @@ static _Thread_local boat_autodiff_context_t* current_context = NULL;
 
 // Debug counter for tracking function execution
 static volatile int debug_counter = 0;
+
+// At-exit cleanup for implicitly-created contexts (see boat_variable_create).
+static bool atexit_cleanup_registered = false;
+static void boat_autodiff_atexit_cleanup(void);
 
 
 // Forward declarations for helper functions
@@ -231,7 +235,7 @@ static boat_variable_t* create_pool_operation(const boat_variable_t* input, cons
 static boat_variable_t* create_dense_operation(const boat_variable_t* input, const struct boat_dense_layer_t* layer);
 
 // Variable creation and destruction
-BOAT_API BOAT_API boat_variable_t* boat_variable_create(boat_tensor_t* tensor, bool requires_grad) {
+BOAT_API boat_variable_t* boat_variable_create(boat_tensor_t* tensor, bool requires_grad) {
 
 #ifdef _WIN32
     // Debug buffer removed as unused
@@ -262,6 +266,7 @@ BOAT_API BOAT_API boat_variable_t* boat_variable_create(boat_tensor_t* tensor, b
     // Use current context graph for explicit graph passing architecture
     const boat_autodiff_context_t* ctx = boat_autodiff_get_current_context();
     boat_graph_t* graph = NULL;
+    bool context_auto_created = false;
 
     if (ctx) {
         graph = boat_autodiff_context_get_graph(ctx);
@@ -272,14 +277,24 @@ BOAT_API BOAT_API boat_variable_t* boat_variable_create(boat_tensor_t* tensor, b
             boat_free(var);
             return NULL;
         }
+        ((boat_autodiff_context_t*)ctx)->auto_created = true;
+        context_auto_created = true;
         boat_autodiff_set_current_context(ctx);
+        // Implicitly-created contexts have no owner, so free them at process
+        // exit to avoid a leak (explicitly-created contexts are caller-owned).
+        if (!atexit_cleanup_registered) {
+            atexit_cleanup_registered = true;
+            atexit(boat_autodiff_atexit_cleanup);
+        }
     }
 
     // If context has no graph, create one
     if (!graph) {
         graph = boat_graph_create_with_device(boat_tensor_device(tensor));
         if (!graph) {
-            if (ctx) boat_autodiff_context_free(ctx);
+            // Only tear down a context we created ourselves; never free a
+            // caller-provided context here.
+            if (context_auto_created) boat_autodiff_context_free(ctx);
             boat_tensor_unref(tensor);
             boat_free(var);
             return NULL;
@@ -340,7 +355,7 @@ static void boat_variable_free_internal(boat_variable_t* var) {
     boat_free(var);
 }
 
-BOAT_API BOAT_API void boat_variable_free(const boat_variable_t* variable) {
+BOAT_API void boat_variable_free(const boat_variable_t* variable) {
     if (!variable) return;
 
     boat_variable_t* var = (boat_variable_t*)variable;
@@ -367,11 +382,11 @@ BOAT_API BOAT_API void boat_variable_free(const boat_variable_t* variable) {
 }
 
 // Variable properties
-BOAT_API BOAT_API boat_tensor_t* boat_variable_data(const boat_variable_t* variable) {
+BOAT_API boat_tensor_t* boat_variable_data(const boat_variable_t* variable) {
     return variable ? variable->data : NULL;
 }
 
-BOAT_API BOAT_API boat_tensor_t* boat_variable_grad(const boat_variable_t* variable) {
+BOAT_API boat_tensor_t* boat_variable_grad(const boat_variable_t* variable) {
     return variable ? variable->grad : NULL;
 }
 
@@ -385,7 +400,7 @@ BOAT_API void boat_variable_set_requires_grad(boat_variable_t* variable, bool re
 }
 
 // Variable data reset/reuse
-BOAT_API BOAT_API bool boat_variable_reset_data(boat_variable_t* variable, boat_tensor_t* new_tensor) {
+BOAT_API bool boat_variable_reset_data(boat_variable_t* variable, boat_tensor_t* new_tensor) {
     if (!variable || !new_tensor) {
         return false;
     }
@@ -427,7 +442,8 @@ BOAT_API void boat_variable_zero_grad(boat_variable_t* variable) {
 
 BOAT_API void boat_variable_retain_grad(const boat_variable_t* variable, bool retain) {
     if (!variable) return;
-    // TODO: implement gradient retention
+    (void)retain;
+    boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Autodiff] retain_grad not implemented\n");
 }
 
 BOAT_API void boat_variable_backward(boat_variable_t* variable, boat_tensor_t* grad_output) {
@@ -598,7 +614,7 @@ BOAT_API void boat_variable_backward(boat_variable_t* variable, boat_tensor_t* g
     }
 }
 
-BOAT_API BOAT_API void boat_variable_backward_full(const boat_variable_t* variable) {
+BOAT_API void boat_variable_backward_full(const boat_variable_t* variable) {
     BOAT_DEBUG_PRINT("[autodiff] boat_variable_backward_full: variable=%p, requires_grad=%d\n", variable, variable ? variable->requires_grad : -1);
     if (!variable || !variable->requires_grad) return;
 
@@ -608,42 +624,42 @@ BOAT_API BOAT_API void boat_variable_backward_full(const boat_variable_t* variab
 }
 
 // Arithmetic operations with gradient tracking
-BOAT_API BOAT_API boat_variable_t* boat_var_add(const boat_variable_t* a, const boat_variable_t* b) {
+BOAT_API boat_variable_t* boat_var_add(const boat_variable_t* a, const boat_variable_t* b) {
     if (!a || !b) return NULL;
 
     boat_variable_t* inputs[] = {a, b};
     return create_operation(BOAT_OP_ADD, inputs, 2, compute_forward_add, NULL);
 }
 
-BOAT_API BOAT_API boat_variable_t* boat_var_sub(const boat_variable_t* a, const boat_variable_t* b) {
+BOAT_API boat_variable_t* boat_var_sub(const boat_variable_t* a, const boat_variable_t* b) {
     if (!a || !b) return NULL;
 
     boat_variable_t* inputs[] = {a, b};
     return create_operation(BOAT_OP_SUB, inputs, 2, compute_forward_sub, NULL);
 }
 
-BOAT_API BOAT_API boat_variable_t* boat_var_mul(const boat_variable_t* a, const boat_variable_t* b) {
+BOAT_API boat_variable_t* boat_var_mul(const boat_variable_t* a, const boat_variable_t* b) {
     if (!a || !b) return NULL;
 
     boat_variable_t* inputs[] = {a, b};
     return create_operation(BOAT_OP_MUL, inputs, 2, compute_forward_mul, NULL);
 }
 
-BOAT_API BOAT_API boat_variable_t* boat_var_div(const boat_variable_t* a, const boat_variable_t* b) {
+BOAT_API boat_variable_t* boat_var_div(const boat_variable_t* a, const boat_variable_t* b) {
     if (!a || !b) return NULL;
 
     boat_variable_t* inputs[] = {a, b};
     return create_operation(BOAT_OP_DIV, inputs, 2, compute_forward_div, NULL);
 }
 
-BOAT_API BOAT_API boat_variable_t* boat_var_matmul(const boat_variable_t* a, const boat_variable_t* b) {
+BOAT_API boat_variable_t* boat_var_matmul(const boat_variable_t* a, const boat_variable_t* b) {
     if (!a || !b) return NULL;
 
     boat_variable_t* inputs[] = {a, b};
     return create_operation(BOAT_OP_MATMUL, inputs, 2, compute_forward_matmul, NULL);
 }
 
-BOAT_API BOAT_API boat_variable_t* boat_var_dot(const boat_variable_t* a, const boat_variable_t* b) {
+BOAT_API boat_variable_t* boat_var_dot(const boat_variable_t* a, const boat_variable_t* b) {
     if (!a || !b) return NULL;
 
     boat_variable_t* inputs[] = {a, b};
@@ -651,7 +667,7 @@ BOAT_API BOAT_API boat_variable_t* boat_var_dot(const boat_variable_t* a, const 
 }
 
 // Activation functions with gradient tracking
-BOAT_API BOAT_API boat_variable_t* boat_var_relu(const boat_variable_t* a) {
+BOAT_API boat_variable_t* boat_var_relu(const boat_variable_t* a) {
     if (!a) return NULL;
 
     boat_variable_t* inputs[] = {a};
@@ -679,13 +695,13 @@ BOAT_API boat_variable_t* boat_var_softmax(const boat_variable_t* a, int axis) {
     return create_operation(BOAT_OP_SOFTMAX, inputs, 1, NULL, compute_forward_softmax);
 }
 
-BOAT_API BOAT_API boat_variable_t* boat_var_flatten(const boat_variable_t* a) {
+BOAT_API boat_variable_t* boat_var_flatten(const boat_variable_t* a) {
     if (!a) return NULL;
     boat_variable_t* inputs[] = {a};
     return create_operation(BOAT_OP_FLATTEN, inputs, 1, NULL, compute_forward_flatten);
 }
 
-BOAT_API BOAT_API boat_variable_t* boat_var_log_softmax(const boat_variable_t* a, int axis) {
+BOAT_API boat_variable_t* boat_var_log_softmax(const boat_variable_t* a, int axis) {
     if (!a) return NULL;
     (void)axis; // TODO: support axis parameter
     boat_variable_t* inputs[] = {a};
@@ -693,19 +709,19 @@ BOAT_API BOAT_API boat_variable_t* boat_var_log_softmax(const boat_variable_t* a
 }
 
 // Convolution operation with gradient tracking
-BOAT_API BOAT_API boat_variable_t* boat_var_conv(const boat_variable_t* input, const struct boat_conv_layer_t* layer) {
+BOAT_API boat_variable_t* boat_var_conv(const boat_variable_t* input, const struct boat_conv_layer_t* layer) {
     if (!input || !layer) return NULL;
     return create_conv_operation(input, layer);
 }
 
 // Pooling operation with gradient tracking
-BOAT_API BOAT_API boat_variable_t* boat_var_pool(const boat_variable_t* input, const struct boat_pool_layer_t* layer) {
+BOAT_API boat_variable_t* boat_var_pool(const boat_variable_t* input, const struct boat_pool_layer_t* layer) {
     if (!input || !layer) return NULL;
     return create_pool_operation(input, layer);
 }
 
 // Dense operation with gradient tracking
-BOAT_API BOAT_API boat_variable_t* boat_var_dense(const boat_variable_t* input, const struct boat_dense_layer_t* layer) {
+BOAT_API boat_variable_t* boat_var_dense(const boat_variable_t* input, const struct boat_dense_layer_t* layer) {
     if (!input || !layer) return NULL;
     return create_dense_operation(input, layer);
 }
@@ -717,7 +733,7 @@ BOAT_API boat_variable_t* boat_var_attention(const boat_variable_t* query, const
 }
 
 // Reduction operations with gradient tracking
-BOAT_API BOAT_API boat_variable_t* boat_var_sum(const boat_variable_t* a, const int64_t* dims, size_t n_dims, bool keepdim) {
+BOAT_API boat_variable_t* boat_var_sum(const boat_variable_t* a, const int64_t* dims, size_t n_dims, bool keepdim) {
     if (!a) return NULL;
 
     // For now, only support full reduction (dims == NULL, n_dims == 0)
@@ -734,16 +750,19 @@ BOAT_API BOAT_API boat_variable_t* boat_var_sum(const boat_variable_t* a, const 
 
 BOAT_API boat_variable_t* boat_var_mean(const boat_variable_t* a, int64_t* dims, size_t n_dims, bool keepdim) {
     (void)a; (void)dims; (void)n_dims; (void)keepdim;
+    boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Autodiff] boat_var_mean not implemented\n");
     return NULL;
 }
 
 BOAT_API boat_variable_t* boat_var_max(const boat_variable_t* a, int64_t* dims, size_t n_dims, bool keepdim) {
     (void)a; (void)dims; (void)n_dims; (void)keepdim;
+    boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Autodiff] boat_var_max not implemented\n");
     return NULL;
 }
 
 BOAT_API boat_variable_t* boat_var_min(const boat_variable_t* a, int64_t* dims, size_t n_dims, bool keepdim) {
     (void)a; (void)dims; (void)n_dims; (void)keepdim;
+    boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Autodiff] boat_var_min not implemented\n");
     return NULL;
 }
 
@@ -754,6 +773,7 @@ BOAT_API boat_autodiff_context_t* boat_autodiff_context_create() {
 
     ctx->grad_enabled = true;
     ctx->graph = NULL;
+    ctx->auto_created = false;
     return ctx;
 }
 
@@ -803,10 +823,19 @@ BOAT_API boat_autodiff_context_t* boat_autodiff_get_current_context() {
     return current_context;
 }
 
+// Frees an implicitly-created context (if any) at process exit so it is not
+// reported as a leak. Explicitly-created contexts are owned by the caller.
+static void boat_autodiff_atexit_cleanup(void) {
+    boat_autodiff_context_t* ctx = current_context;
+    if (ctx && ctx->auto_created) {
+        boat_autodiff_context_free(ctx);
+    }
+}
+
 // Gradient checkpointing
 BOAT_API void boat_autodiff_set_grad_checkpointing(bool enabled) {
     (void)enabled;
-    // TODO: implement gradient checkpointing
+    boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Autodiff] gradient checkpointing not implemented\n");
 }
 
 BOAT_API void boat_autodiff_clear_computation_graph() {
@@ -881,12 +910,12 @@ BOAT_API void boat_autodiff_clear_computation_graph() {
 // Utility functions
 BOAT_API void boat_autodiff_print_graph(const boat_variable_t* variable) {
     if (!variable) return;
-    // TODO: implement graph printing
+    boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Autodiff] graph printing not implemented\n");
 }
 
 BOAT_API char* boat_autodiff_graph_to_dot(const boat_variable_t* variable) {
     if (!variable) return NULL;
-    // TODO: implement DOT generation
+    boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Autodiff] DOT generation not implemented\n");
     return NULL;
 }
 

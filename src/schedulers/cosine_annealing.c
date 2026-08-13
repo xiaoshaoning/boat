@@ -16,7 +16,7 @@
 #include "schedulers_internal.h"
 
 // Create CosineAnnealing scheduler
-BOAT_API BOAT_API boat_scheduler_t* boat_cosine_annealing_scheduler_create(float base_learning_rate,
+BOAT_API boat_scheduler_t* boat_cosine_annealing_scheduler_create(float base_learning_rate,
                                                                   int T_max,
                                                                   float eta_min) {
     // Validate hyperparameters

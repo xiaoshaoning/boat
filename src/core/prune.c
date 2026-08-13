@@ -54,7 +54,7 @@ static boat_tensor_t* get_layer_weight(void* layer_data, boat_layer_type_t type)
 // Public API
 // ---------------------------------------------------------------------------
 
-BOAT_API BOAT_API boat_prune_config_t boat_prune_config_default(void) {
+BOAT_API boat_prune_config_t boat_prune_config_default(void) {
     boat_prune_config_t cfg;
     cfg.sparsity = 0.5f;
     cfg.structured = false;
@@ -69,7 +69,7 @@ BOAT_API BOAT_API boat_prune_config_t boat_prune_config_default(void) {
 // Context management
 // ---------------------------------------------------------------------------
 
-BOAT_API BOAT_API boat_prune_context_t* boat_prune_context_create(boat_model_t* model) {
+BOAT_API boat_prune_context_t* boat_prune_context_create(boat_model_t* model) {
     if (!model) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Prune] NULL model\n");
         return NULL;
@@ -120,7 +120,7 @@ BOAT_API BOAT_API boat_prune_context_t* boat_prune_context_create(boat_model_t* 
     return ctx;
 }
 
-BOAT_API BOAT_API void boat_prune_context_free(boat_prune_context_t* ctx) {
+BOAT_API void boat_prune_context_free(boat_prune_context_t* ctx) {
     if (!ctx) return;
     for (size_t i = 0; i < ctx->num_entries; i++) {
         if (ctx->entries[i].mask) {
@@ -131,7 +131,7 @@ BOAT_API BOAT_API void boat_prune_context_free(boat_prune_context_t* ctx) {
     boat_free(ctx);
 }
 
-BOAT_API BOAT_API boat_tensor_t* boat_prune_get_mask(const boat_prune_context_t* ctx, size_t layer_index) {
+BOAT_API boat_tensor_t* boat_prune_get_mask(const boat_prune_context_t* ctx, size_t layer_index) {
     if (!ctx) return NULL;
     for (size_t i = 0; i < ctx->num_entries; i++) {
         if (ctx->entries[i].layer_index == layer_index) {
@@ -153,7 +153,7 @@ static int compare_float_asc(const void* a, const void* b) {
     return 0;
 }
 
-BOAT_API BOAT_API float boat_compute_prune_threshold(const boat_tensor_t* weight, float sparsity) {
+BOAT_API float boat_compute_prune_threshold(const boat_tensor_t* weight, float sparsity) {
     if (!weight) return 0.0f;
     if (sparsity <= 0.0f) return -FLT_MAX;
     if (sparsity >= 1.0f) return FLT_MAX;
@@ -186,7 +186,7 @@ BOAT_API BOAT_API float boat_compute_prune_threshold(const boat_tensor_t* weight
 // Mask creation
 // ---------------------------------------------------------------------------
 
-BOAT_API BOAT_API boat_tensor_t* boat_create_magnitude_mask(const boat_tensor_t* weight, float threshold) {
+BOAT_API boat_tensor_t* boat_create_magnitude_mask(const boat_tensor_t* weight, float threshold) {
     if (!weight) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Prune] NULL weight in create_magnitude_mask\n");
         return NULL;
@@ -209,7 +209,7 @@ BOAT_API BOAT_API boat_tensor_t* boat_create_magnitude_mask(const boat_tensor_t*
     return mask;
 }
 
-BOAT_API BOAT_API boat_tensor_t* boat_create_structured_mask(const boat_tensor_t* weight, size_t dim,
+BOAT_API boat_tensor_t* boat_create_structured_mask(const boat_tensor_t* weight, size_t dim,
                                                      float threshold, float min_keep_ratio) {
     if (!weight) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Prune] NULL weight in create_structured_mask\n");
@@ -311,7 +311,7 @@ BOAT_API BOAT_API boat_tensor_t* boat_create_structured_mask(const boat_tensor_t
 // Mask application
 // ---------------------------------------------------------------------------
 
-BOAT_API BOAT_API bool boat_apply_mask(boat_tensor_t* weight, const boat_tensor_t* mask) {
+BOAT_API bool boat_apply_mask(boat_tensor_t* weight, const boat_tensor_t* mask) {
     if (!weight || !mask) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Prune] NULL argument in apply_mask\n");
         return false;
@@ -341,7 +341,7 @@ BOAT_API BOAT_API bool boat_apply_mask(boat_tensor_t* weight, const boat_tensor_
 // Per-layer pruning
 // ---------------------------------------------------------------------------
 
-BOAT_API BOAT_API bool boat_prune_layer(boat_prune_context_t* ctx, size_t layer_index,
+BOAT_API bool boat_prune_layer(boat_prune_context_t* ctx, size_t layer_index,
                                 const boat_prune_config_t* config) {
     if (!ctx || !config) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Prune] NULL argument\n");
@@ -408,7 +408,7 @@ BOAT_API BOAT_API bool boat_prune_layer(boat_prune_context_t* ctx, size_t layer_
     return true;
 }
 
-BOAT_API BOAT_API bool boat_prune_model(boat_prune_context_t* ctx, const boat_prune_config_t* config) {
+BOAT_API bool boat_prune_model(boat_prune_context_t* ctx, const boat_prune_config_t* config) {
     if (!ctx || !config) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Prune] NULL argument\n");
         return false;
@@ -423,7 +423,7 @@ BOAT_API BOAT_API bool boat_prune_model(boat_prune_context_t* ctx, const boat_pr
     return true;
 }
 
-BOAT_API BOAT_API bool boat_prune_apply_masks(const boat_prune_context_t* ctx) {
+BOAT_API bool boat_prune_apply_masks(const boat_prune_context_t* ctx) {
     if (!ctx) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Prune] NULL context\n");
         return false;
@@ -450,7 +450,7 @@ BOAT_API BOAT_API bool boat_prune_apply_masks(const boat_prune_context_t* ctx) {
     return true;
 }
 
-BOAT_API BOAT_API bool boat_prune_remove_mask(boat_prune_context_t* ctx, size_t layer_index) {
+BOAT_API bool boat_prune_remove_mask(boat_prune_context_t* ctx, size_t layer_index) {
     if (!ctx) return false;
 
     for (size_t i = 0; i < ctx->num_entries; i++) {
@@ -465,7 +465,7 @@ BOAT_API BOAT_API bool boat_prune_remove_mask(boat_prune_context_t* ctx, size_t 
     return false;
 }
 
-BOAT_API BOAT_API void boat_prune_remove_all_masks(boat_prune_context_t* ctx) {
+BOAT_API void boat_prune_remove_all_masks(boat_prune_context_t* ctx) {
     if (!ctx) return;
     for (size_t i = 0; i < ctx->num_entries; i++) {
         if (ctx->entries[i].mask) {
@@ -479,7 +479,7 @@ BOAT_API BOAT_API void boat_prune_remove_all_masks(boat_prune_context_t* ctx) {
 // QAT fine-tuning after pruning
 // ---------------------------------------------------------------------------
 
-BOAT_API BOAT_API bool boat_prune_fake_quantize_model(const boat_prune_context_t* ctx,
+BOAT_API bool boat_prune_fake_quantize_model(const boat_prune_context_t* ctx,
                                               const boat_quant_config_t* quant_config) {
     if (!ctx || !quant_config) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Prune] NULL argument\n");
@@ -504,7 +504,7 @@ BOAT_API BOAT_API bool boat_prune_fake_quantize_model(const boat_prune_context_t
 // Sparsity computation
 // ---------------------------------------------------------------------------
 
-BOAT_API BOAT_API float boat_compute_sparsity(const boat_tensor_t* weight) {
+BOAT_API float boat_compute_sparsity(const boat_tensor_t* weight) {
     if (!weight) return 0.0f;
 
     size_t n = boat_tensor_nelements(weight);
@@ -519,7 +519,7 @@ BOAT_API BOAT_API float boat_compute_sparsity(const boat_tensor_t* weight) {
     return (float)zero_count / (float)n;
 }
 
-BOAT_API BOAT_API float boat_compute_structured_sparsity(const boat_tensor_t* weight, size_t dim) {
+BOAT_API float boat_compute_structured_sparsity(const boat_tensor_t* weight, size_t dim) {
     if (!weight) return 0.0f;
 
     size_t ndim = boat_tensor_ndim(weight);

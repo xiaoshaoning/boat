@@ -9,6 +9,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "export.h"
+
 /* Forward declaration needed for device transfer functions */
 typedef struct boat_tensor_t boat_tensor_t;
 

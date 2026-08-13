@@ -30,6 +30,9 @@ BOAT_API boat_tensor_t* boat_matmul(const boat_tensor_t* a, const boat_tensor_t*
 
     // Validate dimensions: support 2D, 3D, or 4D tensors
     if (a_ndim < 2 || a_ndim > 4 || b_ndim < 2 || b_ndim > 4) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                        "[Linear] matmul expects 2D..4D tensors, got a_ndim=%zu b_ndim=%zu\n",
+                        a_ndim, b_ndim);
         return NULL;
     }
 
@@ -40,6 +43,9 @@ BOAT_API boat_tensor_t* boat_matmul(const boat_tensor_t* a, const boat_tensor_t*
     // For now, require same number of batch dimensions
     // TODO: Support broadcasting (e.g., 3D matmul with 4D)
     if (a_batch_dims != b_batch_dims) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                        "[Linear] matmul batch dim mismatch: %zu != %zu\n",
+                        a_batch_dims, b_batch_dims);
         return NULL;
     }
 
@@ -73,6 +79,9 @@ BOAT_API boat_tensor_t* boat_matmul(const boat_tensor_t* a, const boat_tensor_t*
 
     // Check dimension compatibility
     if (k_a != k_b) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                        "[Linear] matmul inner dim mismatch: %lld != %lld\n",
+                        (long long)k_a, (long long)k_b);
         return NULL;
     }
 
@@ -92,6 +101,9 @@ BOAT_API boat_tensor_t* boat_matmul(const boat_tensor_t* a, const boat_tensor_t*
 
     boat_dtype_t dtype = boat_tensor_dtype(a);
     if (dtype != boat_tensor_dtype(b)) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                        "[Linear] matmul dtype mismatch: %d != %d\n",
+                        (int)dtype, (int)boat_tensor_dtype(b));
         return NULL; // TODO: Type promotion
     }
 
@@ -469,10 +481,60 @@ BOAT_API boat_tensor_t* boat_transpose(const boat_tensor_t* a, int dim0, int dim
             boat_free(out_stride);
             break;
         }
-        default:
-            // For unsupported types, fall back to memcpy (no actual transposition)
-            memcpy(out_data, in_data, boat_tensor_nbytes(a));
+        default: {
+            // Generic byte-wise transpose for any remaining dtype (int8/uint8,
+            // int32, bf16, ...). Reuses the same row-major stride logic as the
+            // float paths so the data is actually transposed, not flat-copied.
+            size_t elem_size = boat_dtype_size(boat_tensor_dtype(a));
+            const uint8_t* in_ptr = (const uint8_t*)in_data;
+            uint8_t* out_ptr = (uint8_t*)out_data;
+
+            size_t* in_stride = boat_malloc(sizeof(size_t) * ndim, BOAT_DEVICE_CPU);
+            size_t* out_stride = boat_malloc(sizeof(size_t) * ndim, BOAT_DEVICE_CPU);
+            if (!in_stride || !out_stride) {
+                if (in_stride) boat_free(in_stride);
+                if (out_stride) boat_free(out_stride);
+                boat_tensor_unref(out);
+                return NULL;
+            }
+            in_stride[ndim - 1] = 1;
+            for (int i = ndim - 2; i >= 0; i--) {
+                in_stride[i] = in_stride[i + 1] * (size_t)shape[i + 1];
+            }
+            out_stride[ndim - 1] = 1;
+            for (int i = ndim - 2; i >= 0; i--) {
+                out_stride[i] = out_stride[i + 1] * (size_t)out_shape_ptr[i + 1];
+            }
+
+            size_t* coords = boat_malloc(sizeof(size_t) * ndim, BOAT_DEVICE_CPU);
+            if (!coords) {
+                boat_free(in_stride);
+                boat_free(out_stride);
+                boat_tensor_unref(out);
+                return NULL;
+            }
+
+            for (size_t idx = 0; idx < total_elements; idx++) {
+                size_t temp = idx;
+                for (int i = ndim - 1; i >= 0; i--) {
+                    coords[i] = temp % (size_t)shape[i];
+                    temp /= (size_t)shape[i];
+                }
+                size_t tmp = coords[dim0];
+                coords[dim0] = coords[dim1];
+                coords[dim1] = tmp;
+
+                size_t out_idx = 0;
+                for (size_t i = 0; i < ndim; i++) {
+                    out_idx += coords[i] * out_stride[i];
+                }
+                memcpy(out_ptr + out_idx * elem_size, in_ptr + idx * elem_size, elem_size);
+            }
+            boat_free(coords);
+            boat_free(in_stride);
+            boat_free(out_stride);
             break;
+        }
     }
 
     return out;
@@ -481,6 +543,6 @@ BOAT_API boat_tensor_t* boat_transpose(const boat_tensor_t* a, int dim0, int dim
 // Matrix inverse (placeholder)
 BOAT_API boat_tensor_t* boat_inverse(const boat_tensor_t* a) {
     (void)a;
-    // TODO: Implement matrix inverse
+    boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Linear] matrix inverse not implemented\n");
     return NULL;
 }

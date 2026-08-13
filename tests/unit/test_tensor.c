@@ -135,6 +135,73 @@ int main() {
         boat_tensor_unref(bool_tensor);
     }
 
+    // Regression: scalar tensor holds exactly one element
+    {
+        boat_tensor_t* scalar = boat_tensor_create(NULL, 0, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+        assert(scalar != NULL);
+        assert(boat_tensor_ndim(scalar) == 0);
+        assert(boat_tensor_nelements(scalar) == 1);
+        assert(boat_tensor_nbytes(scalar) == sizeof(float));
+        boat_tensor_unref(scalar);
+    }
+
+    // Regression: concatenate along a non-zero axis interleaves correctly
+    {
+        int64_t shape[] = {2, 2};
+        float d1[] = {1, 2, 3, 4};
+        float d2[] = {5, 6, 7, 8};
+        boat_tensor_t* a = boat_tensor_from_data(shape, 2, BOAT_DTYPE_FLOAT32, d1);
+        boat_tensor_t* b = boat_tensor_from_data(shape, 2, BOAT_DTYPE_FLOAT32, d2);
+        const boat_tensor_t* tensors[2] = {a, b};
+        boat_tensor_t* c = boat_tensor_concatenate(tensors, 2, 1);
+        assert(c != NULL);
+        assert(boat_tensor_shape(c)[0] == 2);
+        assert(boat_tensor_shape(c)[1] == 4);
+        float* cd = (float*)boat_tensor_data(c);
+        float expected[] = {1, 2, 5, 6, 3, 4, 7, 8};
+        for (int i = 0; i < 8; i++) assert(cd[i] == expected[i]);
+        boat_tensor_unref(a); boat_tensor_unref(b); boat_tensor_unref(c);
+    }
+
+    // Regression: stack along a non-zero axis interleaves correctly
+    {
+        int64_t shape[] = {2, 2};
+        float d1[] = {1, 2, 3, 4};
+        float d2[] = {5, 6, 7, 8};
+        boat_tensor_t* a = boat_tensor_from_data(shape, 2, BOAT_DTYPE_FLOAT32, d1);
+        boat_tensor_t* b = boat_tensor_from_data(shape, 2, BOAT_DTYPE_FLOAT32, d2);
+        const boat_tensor_t* tensors[2] = {a, b};
+        boat_tensor_t* s = boat_tensor_stack(tensors, 2, 1);  // -> [2, 2, 2]
+        assert(s != NULL);
+        assert(boat_tensor_ndim(s) == 3);
+        assert(boat_tensor_shape(s)[0] == 2);
+        assert(boat_tensor_shape(s)[1] == 2);
+        assert(boat_tensor_shape(s)[2] == 2);
+        float* sd = (float*)boat_tensor_data(s);
+        float expected[] = {1, 2, 5, 6, 3, 4, 7, 8};
+        for (int i = 0; i < 8; i++) assert(sd[i] == expected[i]);
+        boat_tensor_unref(a); boat_tensor_unref(b); boat_tensor_unref(s);
+    }
+
+    // Regression: contiguous() materializes a non-full-row slice correctly
+    {
+        int64_t shape[] = {2, 3};
+        float d[] = {0, 1, 2, 3, 4, 5};
+        boat_tensor_t* t = boat_tensor_from_data(shape, 2, BOAT_DTYPE_FLOAT32, d);
+        size_t start[] = {0, 0};
+        size_t end[] = {2, 2};
+        boat_tensor_t* sl = boat_tensor_slice(t, start, end, NULL);
+        assert(sl != NULL);
+        assert(!boat_tensor_is_contiguous(sl));
+        boat_tensor_t* contig = boat_tensor_contiguous(sl);
+        assert(contig != NULL);
+        assert(boat_tensor_is_contiguous(contig));
+        float* cd = (float*)boat_tensor_data(contig);
+        float expected[] = {0, 1, 3, 4};
+        for (int i = 0; i < 4; i++) assert(cd[i] == expected[i]);
+        boat_tensor_unref(t); boat_tensor_unref(sl); boat_tensor_unref(contig);
+    }
+
     printf("Tensor tests passed!\n");
     return 0;
 }

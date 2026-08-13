@@ -123,7 +123,7 @@ static boat_tensor_t* create_bias_vector(size_t features) {
     return bias;
 }
 
-BOAT_API BOAT_API boat_attention_t* BOAT_CALL boat_attention_create(const boat_attention_config_t* config) {
+BOAT_API boat_attention_t* BOAT_CALL boat_attention_create(const boat_attention_config_t* config) {
     if (!config || config->hidden_size == 0 || config->num_heads == 0) {
         return NULL;
     }
@@ -206,7 +206,7 @@ BOAT_API BOAT_API boat_attention_t* BOAT_CALL boat_attention_create(const boat_a
     return attention;
 }
 
-BOAT_API BOAT_API void BOAT_CALL boat_attention_free(boat_attention_t* attention) {
+BOAT_API void BOAT_CALL boat_attention_free(boat_attention_t* attention) {
     if (!attention) {
         return;
     }
@@ -312,7 +312,7 @@ static boat_tensor_t* linear_projection(const boat_tensor_t* input,
     return projected;
 }
 
-BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_attention_forward(boat_attention_t* attention,
+BOAT_API boat_tensor_t* BOAT_CALL boat_attention_forward(boat_attention_t* attention,
                                        const boat_tensor_t* query,
                                        const boat_tensor_t* key,
                                        const boat_tensor_t* value,
@@ -510,7 +510,7 @@ BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_attention_forward(boat_attention
     return final_output;
 }
 
-BOAT_API BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* attention,
+BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* attention,
                                         const boat_tensor_t* grad_output,
                                         boat_tensor_t** grad_query,
                                         boat_tensor_t** grad_key,
@@ -784,7 +784,7 @@ BOAT_API BOAT_API bool BOAT_CALL boat_attention_backward(boat_attention_t* atten
     return true;
 }
 
-BOAT_API BOAT_API void BOAT_CALL boat_attention_update(boat_attention_t* attention, float learning_rate) {
+BOAT_API void BOAT_CALL boat_attention_update(boat_attention_t* attention, float learning_rate) {
     if (!attention) {
         return;
     }
@@ -867,20 +867,20 @@ BOAT_API BOAT_API void BOAT_CALL boat_attention_update(boat_attention_t* attenti
 
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API void BOAT_CALL boat_attention_set_dropout(boat_attention_t* attention, float dropout_prob) {
+BOAT_API BOAT_NOINLINE void BOAT_CALL boat_attention_set_dropout(boat_attention_t* attention, float dropout_prob) {
     if (attention) {
         attention->config.dropout_prob = dropout_prob;
     }
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API void BOAT_CALL boat_attention_set_causal(boat_attention_t* attention, bool causal) {
+BOAT_API BOAT_NOINLINE void BOAT_CALL boat_attention_set_causal(boat_attention_t* attention, bool causal) {
     if (attention) {
         attention->config.causal_mask = causal;
     }
 }
 
 // Simplified multi-head attention function
-BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_multihead_attention(const boat_tensor_t* input,
+BOAT_API boat_tensor_t* BOAT_CALL boat_multihead_attention(const boat_tensor_t* input,
                                          size_t num_heads,
                                          float dropout_prob,
                                          bool causal_mask,
@@ -1055,7 +1055,7 @@ static boat_tensor_t* scaled_dot_product_attention_impl(const boat_tensor_t* que
 }
 
 // Public API wrapper (maintains backward compatibility)
-BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_scaled_dot_product_attention(const boat_tensor_t* query,
+BOAT_API boat_tensor_t* BOAT_CALL boat_scaled_dot_product_attention(const boat_tensor_t* query,
                                                   const boat_tensor_t* key,
                                                   const boat_tensor_t* value,
                                                   float scale_factor,
@@ -1067,7 +1067,7 @@ BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_scaled_dot_product_attention(con
 }
 
 // Rotary position encoding
-BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_rotary_position_encoding(const boat_tensor_t* tensor,
+BOAT_API boat_tensor_t* BOAT_CALL boat_rotary_position_encoding(const boat_tensor_t* tensor,
                                               size_t seq_len,
                                               size_t head_size,
                                               float theta) {
@@ -1105,7 +1105,7 @@ BOAT_API BOAT_API boat_tensor_t* BOAT_CALL boat_rotary_position_encoding(const b
     return out;
 }
 
-BOAT_API BOAT_API void BOAT_CALL boat_apply_rotary_embedding(boat_tensor_t* query,
+BOAT_API void BOAT_CALL boat_apply_rotary_embedding(boat_tensor_t* query,
                                   boat_tensor_t* key,
                                   size_t seq_len,
                                   size_t head_size,
@@ -1160,7 +1160,7 @@ BOAT_API BOAT_API void BOAT_CALL boat_apply_rotary_embedding(boat_tensor_t* quer
 // Adapter for generic attention layer interface (layers.h)
 typedef boat_attention_t boat_attention_layer_t;
 
-BOAT_API BOAT_API boat_attention_t* BOAT_CALL boat_attention_create_gqa(size_t hidden_size, size_t num_heads,
+BOAT_API boat_attention_t* BOAT_CALL boat_attention_create_gqa(size_t hidden_size, size_t num_heads,
                                           size_t num_kv_heads, size_t head_size,
                                           bool causal_mask, float rotary_theta) {
     boat_attention_config_t config = {
@@ -1177,7 +1177,7 @@ BOAT_API BOAT_API boat_attention_t* BOAT_CALL boat_attention_create_gqa(size_t h
     return boat_attention_create(&config);
 }
 
-BOAT_API BOAT_API boat_attention_layer_t* BOAT_CALL boat_attention_layer_create(size_t hidden_size, size_t num_heads,
+BOAT_API boat_attention_layer_t* BOAT_CALL boat_attention_layer_create(size_t hidden_size, size_t num_heads,
                                                               size_t num_kv_heads,
                                                               float dropout_prob, bool causal_mask) {
     boat_attention_config_t config = {
@@ -1197,11 +1197,11 @@ BOAT_API BOAT_API boat_attention_layer_t* BOAT_CALL boat_attention_layer_create(
     return boat_attention_create(&config);
 }
 
-BOAT_API BOAT_API void BOAT_CALL boat_attention_layer_free(boat_attention_layer_t* layer) {
+BOAT_API void BOAT_CALL boat_attention_layer_free(boat_attention_layer_t* layer) {
     boat_attention_free(layer);
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_layer_forward(boat_attention_layer_t* layer,
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_attention_layer_forward(boat_attention_layer_t* layer,
                                                       const boat_tensor_t* query,
                                                       const boat_tensor_t* key,
                                                       const boat_tensor_t* value,
@@ -1213,7 +1213,7 @@ BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_layer_fo
     return result;
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_layer_backward(boat_attention_layer_t* layer,
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_attention_layer_backward(boat_attention_layer_t* layer,
                                                        const boat_tensor_t* grad_output) {
     boat_tensor_t* grad_query = NULL;
     boat_tensor_t* grad_key = NULL;
@@ -1228,7 +1228,7 @@ BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_layer_ba
     return NULL;
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API void BOAT_CALL boat_attention_layer_update(boat_attention_layer_t* layer, float learning_rate) {
+BOAT_API BOAT_NOINLINE void BOAT_CALL boat_attention_layer_update(boat_attention_layer_t* layer, float learning_rate) {
     boat_attention_update(layer, learning_rate);
 }
 
@@ -1592,104 +1592,104 @@ static bool attention_backward(const boat_tensor_t* query,  // [batch, num_heads
 }
 
 // Accessor functions for testing
-BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_get_weight_q(const boat_attention_t* attention) {
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_attention_get_weight_q(const boat_attention_t* attention) {
     const struct boat_attention_t* attn = (const struct boat_attention_t*)attention;
     if (!attn) return NULL;
     return attn->weight_q;
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_get_weight_k(const boat_attention_t* attention) {
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_attention_get_weight_k(const boat_attention_t* attention) {
     const struct boat_attention_t* attn = (const struct boat_attention_t*)attention;
     if (!attn) return NULL;
     return attn->weight_k;
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_get_weight_v(const boat_attention_t* attention) {
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_attention_get_weight_v(const boat_attention_t* attention) {
     const struct boat_attention_t* attn = (const struct boat_attention_t*)attention;
     if (!attn) return NULL;
     return attn->weight_v;
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_get_weight_o(const boat_attention_t* attention) {
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_attention_get_weight_o(const boat_attention_t* attention) {
     const struct boat_attention_t* attn = (const struct boat_attention_t*)attention;
     if (!attn) return NULL;
     return attn->weight_o;
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_get_bias_q(const boat_attention_t* attention) {
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_attention_get_bias_q(const boat_attention_t* attention) {
     const struct boat_attention_t* attn = (const struct boat_attention_t*)attention;
     if (!attn) return NULL;
     return attn->bias_q;
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_get_bias_k(const boat_attention_t* attention) {
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_attention_get_bias_k(const boat_attention_t* attention) {
     const struct boat_attention_t* attn = (const struct boat_attention_t*)attention;
     if (!attn) return NULL;
     return attn->bias_k;
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_get_bias_v(const boat_attention_t* attention) {
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_attention_get_bias_v(const boat_attention_t* attention) {
     const struct boat_attention_t* attn = (const struct boat_attention_t*)attention;
     if (!attn) return NULL;
     return attn->bias_v;
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_get_bias_o(const boat_attention_t* attention) {
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_attention_get_bias_o(const boat_attention_t* attention) {
     const struct boat_attention_t* attn = (const struct boat_attention_t*)attention;
     if (!attn) return NULL;
     return attn->bias_o;
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_get_grad_weight_q(const boat_attention_t* attention) {
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_attention_get_grad_weight_q(const boat_attention_t* attention) {
     const struct boat_attention_t* attn = (const struct boat_attention_t*)attention;
     if (!attn) return NULL;
     return attn->grad_weight_q;
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_get_grad_weight_k(const boat_attention_t* attention) {
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_attention_get_grad_weight_k(const boat_attention_t* attention) {
     const struct boat_attention_t* attn = (const struct boat_attention_t*)attention;
     if (!attn) return NULL;
     return attn->grad_weight_k;
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_get_grad_weight_v(const boat_attention_t* attention) {
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_attention_get_grad_weight_v(const boat_attention_t* attention) {
     const struct boat_attention_t* attn = (const struct boat_attention_t*)attention;
     if (!attn) return NULL;
     return attn->grad_weight_v;
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_get_grad_weight_o(const boat_attention_t* attention) {
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_attention_get_grad_weight_o(const boat_attention_t* attention) {
     const struct boat_attention_t* attn = (const struct boat_attention_t*)attention;
     if (!attn) return NULL;
     return attn->grad_weight_o;
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_get_grad_bias_q(const boat_attention_t* attention) {
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_attention_get_grad_bias_q(const boat_attention_t* attention) {
     const struct boat_attention_t* attn = (const struct boat_attention_t*)attention;
     if (!attn) return NULL;
     return attn->grad_bias_q;
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_get_grad_bias_k(const boat_attention_t* attention) {
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_attention_get_grad_bias_k(const boat_attention_t* attention) {
     const struct boat_attention_t* attn = (const struct boat_attention_t*)attention;
     if (!attn) return NULL;
     return attn->grad_bias_k;
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_get_grad_bias_v(const boat_attention_t* attention) {
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_attention_get_grad_bias_v(const boat_attention_t* attention) {
     const struct boat_attention_t* attn = (const struct boat_attention_t*)attention;
     if (!attn) return NULL;
     return attn->grad_bias_v;
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API boat_tensor_t* BOAT_CALL boat_attention_get_grad_bias_o(const boat_attention_t* attention) {
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_attention_get_grad_bias_o(const boat_attention_t* attention) {
     const struct boat_attention_t* attn = (const struct boat_attention_t*)attention;
     if (!attn) return NULL;
     return attn->grad_bias_o;
 }
 
 // Weight setters for model loading
-BOAT_API BOAT_NOINLINE BOAT_API void BOAT_CALL boat_attention_set_weight_q(boat_attention_t* attention, boat_tensor_t* w) {
+BOAT_API BOAT_NOINLINE void BOAT_CALL boat_attention_set_weight_q(boat_attention_t* attention, boat_tensor_t* w) {
     struct boat_attention_t* attn = (struct boat_attention_t*)attention;
     if (!attn || !w) return;
     if (attn->weight_q) boat_tensor_free(attn->weight_q);
@@ -1697,7 +1697,7 @@ BOAT_API BOAT_NOINLINE BOAT_API void BOAT_CALL boat_attention_set_weight_q(boat_
     boat_tensor_ref(w);
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API void BOAT_CALL boat_attention_set_weight_k(boat_attention_t* attention, boat_tensor_t* w) {
+BOAT_API BOAT_NOINLINE void BOAT_CALL boat_attention_set_weight_k(boat_attention_t* attention, boat_tensor_t* w) {
     struct boat_attention_t* attn = (struct boat_attention_t*)attention;
     if (!attn || !w) return;
     if (attn->weight_k) boat_tensor_free(attn->weight_k);
@@ -1705,7 +1705,7 @@ BOAT_API BOAT_NOINLINE BOAT_API void BOAT_CALL boat_attention_set_weight_k(boat_
     boat_tensor_ref(w);
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API void BOAT_CALL boat_attention_set_weight_v(boat_attention_t* attention, boat_tensor_t* w) {
+BOAT_API BOAT_NOINLINE void BOAT_CALL boat_attention_set_weight_v(boat_attention_t* attention, boat_tensor_t* w) {
     struct boat_attention_t* attn = (struct boat_attention_t*)attention;
     if (!attn || !w) return;
     if (attn->weight_v) boat_tensor_free(attn->weight_v);
@@ -1713,7 +1713,7 @@ BOAT_API BOAT_NOINLINE BOAT_API void BOAT_CALL boat_attention_set_weight_v(boat_
     boat_tensor_ref(w);
 }
 
-BOAT_API BOAT_NOINLINE BOAT_API void BOAT_CALL boat_attention_set_weight_o(boat_attention_t* attention, boat_tensor_t* w) {
+BOAT_API BOAT_NOINLINE void BOAT_CALL boat_attention_set_weight_o(boat_attention_t* attention, boat_tensor_t* w) {
     struct boat_attention_t* attn = (struct boat_attention_t*)attention;
     if (!attn || !w) return;
     if (attn->weight_o) boat_tensor_free(attn->weight_o);

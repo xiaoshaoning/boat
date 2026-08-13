@@ -129,7 +129,7 @@ __global__ void sum_axis_f32_kernel(const float* __restrict__ a,
         if (tid < s) sdata[tid] += sdata[tid + s];
         __syncthreads();
     }
-    if (tid == 0) c[col] = sdata[0];
+    if (tid == 0) c[col] += sdata[0];
 }
 
 extern "C" {
