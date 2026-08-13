@@ -37,6 +37,11 @@ struct boat_graph_t {
 
     // Batch modification state
     bool in_batch_mode;           // Whether batch modifications are active
+
+    // Reference counting: boat_graph_copy/subgraph hold a reference to the
+    // source graph so its node data stays alive while the shallow copy exists.
+    size_t ref_count;
+    struct boat_graph_t* backing; // Source graph this graph shares node data with
 };
 
 // Edge list structure for adjacency lists

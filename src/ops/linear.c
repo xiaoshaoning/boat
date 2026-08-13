@@ -289,7 +289,7 @@ BOAT_API boat_tensor_t* boat_transpose(const boat_tensor_t* a, int dim0, int dim
     if (!a) return NULL;
 
     size_t ndim = boat_tensor_ndim(a);
-    if (dim0 >= ndim || dim1 >= ndim) {
+    if ((size_t)dim0 >= ndim || (size_t)dim1 >= ndim) {
         return NULL;
     }
 

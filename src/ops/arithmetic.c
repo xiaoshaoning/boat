@@ -110,6 +110,7 @@ static boat_tensor_t* create_broadcasted_output(const boat_tensor_t* a,
         size_t b_ndim = boat_tensor_ndim(b);
         const int64_t* a_shape = boat_tensor_shape(a);
         const int64_t* b_shape = boat_tensor_shape(b);
+        (void)a_shape; (void)b_shape;  // used only in BOAT_DEBUG_PRINT below
         BOAT_DEBUG_PRINT("  a shape: [");
         for (size_t i = 0; i < a_ndim; i++) {
             BOAT_DEBUG_PRINT("%ld", a_shape[i]);

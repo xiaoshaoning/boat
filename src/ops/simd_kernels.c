@@ -11,13 +11,6 @@
 // Helper: process tail elements that don't fill a full vector
 // ---------------------------------------------------------------------------
 
-static void tail_loop_f32(const float* a, const float* b, float* dst,
-                          size_t start, size_t n)
-{
-    for (size_t i = start; i < n; i++) {
-        dst[i] = a[i] + (b ? b[i] : 0.0f);
-    }
-}
 
 // ---------------------------------------------------------------------------
 // boat_simd_add_f32

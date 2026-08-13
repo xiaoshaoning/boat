@@ -142,12 +142,6 @@ BOAT_API void boat_graph_simplify(const boat_graph_t* graph);
 #define BOAT_OPTIMIZE_SIMPLIFY      0x08  // Graph simplification
 #define BOAT_OPTIMIZE_ALL           0x0F  // All optimizations
 
-// Computational graph specific functions (for autodiff)
-BOAT_API boat_graph_t* boat_computation_graph_create();
-BOAT_API void boat_computation_graph_forward(const boat_graph_t* graph);
-BOAT_API void boat_computation_graph_backward(const boat_graph_t* graph);
-BOAT_API void boat_computation_graph_clear_gradients(const boat_graph_t* graph);
-
 #ifdef __cplusplus
 }
 #endif

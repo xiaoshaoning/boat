@@ -7,12 +7,10 @@
 #include <string.h>
 #include <stdarg.h>
 
-// Thread-local error state
-#ifdef _WIN32
-#define BOAT_THREAD_LOCAL __declspec(thread)
-#else
-#define BOAT_THREAD_LOCAL __thread
-#endif
+// Thread-local error state. C11 _Thread_local works on both gcc/mingw and
+// modern MSVC, and avoids the "thread attribute ignored" warning that
+// __declspec(thread) produces under mingw64.
+#define BOAT_THREAD_LOCAL _Thread_local
 
 static BOAT_THREAD_LOCAL boat_error_t boat_last_error = BOAT_SUCCESS;
 static BOAT_THREAD_LOCAL char boat_last_error_msg[256] = "";

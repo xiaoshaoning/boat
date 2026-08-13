@@ -22,9 +22,6 @@ static float* tensor_data_f32(const boat_tensor_t* t) {
     return (float*)boat_tensor_data(t);
 }
 
-static int64_t* tensor_shape(const boat_tensor_t* t) {
-    return (int64_t*)boat_tensor_shape(t);
-}
 
 // Apply LayerNorm + affine to last dim.
 // input: [..., D], returns [..., D]
@@ -45,6 +42,7 @@ static boat_tensor_t* apply_layernorm(
     // Flatten to 2D [outer, D] for simpler affine transform
     int64_t outer = (int64_t)(boat_tensor_nelements(y) / (size_t)D);
     boat_device_t dev = boat_tensor_device(y);
+    (void)dev;
 
     if (gamma || beta) {
         int64_t flat_shape[] = { outer, D };
@@ -646,6 +644,7 @@ BOAT_API boat_tensor_t* boat_swin_forward(
 #endif
     {
         int ps2 = ps * ps;
+        (void)ps2;
         for (int n = 0; n < N; n++) {
             for (int hi = 0; hi < Hp; hi++) {
                 for (int wi = 0; wi < Wp; wi++) {

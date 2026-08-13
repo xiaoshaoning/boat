@@ -197,6 +197,10 @@ BOAT_API boat_graph_t* boat_graph_create_with_device(boat_device_t device) {
     graph->device = device;
     graph->in_batch_mode = false;
 
+    // Reference counting for shallow copies (boat_graph_copy/subgraph).
+    graph->ref_count = 1;
+    graph->backing = NULL;
+
     return graph;
 }
 
@@ -214,6 +218,13 @@ BOAT_API void boat_graph_set_device(boat_graph_t* graph, boat_device_t device) {
 
 BOAT_API void boat_graph_free(boat_graph_t* graph) {
     if (!graph) {
+        return;
+    }
+
+    // Reference counting: shallow copies hold an extra reference to their
+    // source graph, so only free when the last reference is released.
+    if (graph->ref_count > 1) {
+        graph->ref_count--;
         return;
     }
 
@@ -255,6 +266,12 @@ BOAT_API void boat_graph_free(boat_graph_t* graph) {
 
     // Free nodes array
     boat_free(graph->nodes);
+
+    // Release the backing graph (if this is a shallow copy) before freeing
+    // this graph's own structure.
+    if (graph->backing) {
+        boat_graph_free(graph->backing);
+    }
 
     // Free graph structure
     boat_free(graph);

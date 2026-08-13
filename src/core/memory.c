@@ -207,6 +207,7 @@ BOAT_API void* boat_memory_allocate_device(size_t size, boat_device_t device,
         return ptr;
     }
 #endif
+    (void)device;
     return boat_memory_allocate(size, BOAT_DEVICE_CPU, file, line);
 }
 

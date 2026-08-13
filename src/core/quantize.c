@@ -551,6 +551,7 @@ BOAT_API boat_tensor_t* boat_quantize_tensor_per_channel(
         inner_elements *= shape[i];
     }
     size_t channel_stride = inner_elements;
+    (void)channel_stride;
     size_t total_elements = boat_tensor_nelements(fp32_tensor);
 
     const float* src = (const float*)boat_tensor_const_data(fp32_tensor);

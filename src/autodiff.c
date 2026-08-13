@@ -72,11 +72,7 @@ struct boat_autodiff_context_t {
 
 
 // Thread-local current autodiff context
-#ifdef _WIN32
-static __declspec(thread) boat_autodiff_context_t* current_context = NULL;
-#else
 static _Thread_local boat_autodiff_context_t* current_context = NULL;
-#endif
 
 // Debug counter for tracking function execution
 static volatile int debug_counter = 0;
@@ -98,16 +94,12 @@ static boat_tensor_t* compute_forward_tanh(const boat_tensor_t* a);
 static boat_tensor_t* compute_forward_matmul(const boat_tensor_t* a, const boat_tensor_t* b);
 static boat_tensor_t* compute_forward_sum(const boat_tensor_t* a, const int64_t* dims, size_t n_dims, bool keepdim);
 static boat_tensor_t* compute_forward_sum_single(const boat_tensor_t* a);
-static boat_tensor_t* compute_forward_mean(const boat_tensor_t* a, const int64_t* dims, size_t n_dims, bool keepdim);
 static boat_tensor_t* compute_forward_softmax(const boat_tensor_t* a);
 static boat_tensor_t* compute_forward_log_softmax(const boat_tensor_t* a);
-static boat_tensor_t* compute_forward_conv(const boat_tensor_t* input, const void* layer_ptr);
 static void compute_backward_conv(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
-static boat_tensor_t* compute_forward_pool(const boat_tensor_t* input, void* layer_ptr);
 static void compute_backward_pool(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
 static boat_tensor_t* compute_forward_flatten(const boat_tensor_t* input);
 static void compute_backward_flatten(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
-static boat_tensor_t* compute_forward_dense(const boat_tensor_t* input, const void* layer_ptr);
 static void compute_backward_dense(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
 static boat_variable_t* create_attention_operation(const boat_variable_t* query, const boat_variable_t* key, const boat_variable_t* value, const struct boat_attention_t* attention, const boat_tensor_t* attention_mask);
 static void compute_backward_attention(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output);
@@ -904,7 +896,7 @@ BOAT_API void boat_autodiff_clear_computation_graph() {
     boat_free(nodes_to_remove);
 
     // Clear gradients as well
-    // boat_computation_graph_clear_gradients(graph); // Not compatible with autodiff graph structure
+    // (the computation-graph executor was removed; autodiff manages grads itself)
 }
 
 // Utility functions
@@ -1129,64 +1121,8 @@ static boat_tensor_t* compute_forward_sum_single(const boat_tensor_t* a) {
     return compute_forward_sum(a, NULL, 0, false);
 }
 
-static boat_tensor_t* compute_forward_mean(const boat_tensor_t* a, const int64_t* dims, size_t n_dims, bool keepdim) {
-    // Mean reduction
-    // TODO: Implement proper mean with dimension support
-    // For now, implement simple total mean
-    (void)dims; (void)n_dims; (void)keepdim;
-
-    boat_tensor_t* out = boat_tensor_create_like(a);
-    if (!out) return NULL;
-
-    size_t nelements = boat_tensor_nelements(a);
-    if (nelements == 0) {
-        boat_tensor_free(out);
-        return NULL;
-    }
-
-    const void* a_data = boat_tensor_const_data(a);
-    void* out_data = boat_tensor_data(out);
-    boat_dtype_t dtype = boat_tensor_dtype(a);
-
-    // Simple total mean (all elements)
-    switch (dtype) {
-        case BOAT_DTYPE_FLOAT32: {
-            const float* a_ptr = (const float*)a_data;
-            float sum = 0.0f;
-            for (size_t i = 0; i < nelements; i++) {
-                sum += a_ptr[i];
-            }
-            float* out_ptr = (float*)out_data;
-            out_ptr[0] = sum / (float)nelements;
-            break;
-        }
-        case BOAT_DTYPE_FLOAT64: {
-            const double* a_ptr = (const double*)a_data;
-            double sum = 0.0;
-            for (size_t i = 0; i < nelements; i++) {
-                sum += a_ptr[i];
-            }
-            double* out_ptr = (double*)out_data;
-            out_ptr[0] = sum / (double)nelements;
-            break;
-        }
-        default:
-            boat_tensor_free(out);
-            return NULL;
-    }
-
-    return out;
-}
 
 // Convolution forward computation
-static boat_tensor_t* compute_forward_conv(const boat_tensor_t* input, const void* layer_ptr) {
-    if (!input || !layer_ptr) {
-        return NULL;
-    }
-    const boat_conv_layer_t* layer = (const boat_conv_layer_t*)layer_ptr;
-    boat_tensor_t* output = boat_conv_layer_forward((boat_conv_layer_t*)layer, input);
-    return output;
-}
 
 // Backward computation functions
 static void compute_backward_sub(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
@@ -1730,11 +1666,9 @@ static bool unify_variable_graphs(boat_variable_t** inputs, size_t num_inputs, b
 
     // Find the first variable with a graph to use as target
     boat_graph_t* target = NULL;
-    size_t target_index = SIZE_MAX;
     for (size_t i = 0; i < num_inputs; i++) {
         if (inputs[i] && inputs[i]->graph) {
             target = inputs[i]->graph;
-            target_index = i;
             break;
         }
     }
@@ -2726,11 +2660,6 @@ static void compute_backward_flatten(boat_op_node_data_t* op_data, const boat_te
 }
 
 // Pooling operation forward pass
-static boat_tensor_t* compute_forward_pool(const boat_tensor_t* input, void* layer_ptr) {
-    if (!input || !layer_ptr) return NULL;
-    boat_pool_layer_t* layer = (boat_pool_layer_t*)layer_ptr;
-    return boat_pool_layer_forward(layer, input);
-}
 
 // Pooling operation backward pass
 static void compute_backward_pool(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {
@@ -2767,11 +2696,6 @@ static void compute_backward_pool(boat_op_node_data_t* op_data, const boat_tenso
 }
 
 // Dense operation forward pass
-static boat_tensor_t* compute_forward_dense(const boat_tensor_t* input, const void* layer_ptr) {
-    if (!input || !layer_ptr) return NULL;
-    const boat_dense_layer_t* layer = (const boat_dense_layer_t*)layer_ptr;
-    return boat_dense_layer_forward((boat_dense_layer_t*)layer, input);
-}
 
 // Dense operation backward pass
 static void compute_backward_dense(boat_op_node_data_t* op_data, const boat_tensor_t* grad_output) {

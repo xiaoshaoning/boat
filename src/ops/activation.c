@@ -26,6 +26,7 @@ static size_t compute_stride(const int64_t* shape, size_t ndim, size_t axis) {
 
 // Helper function to compute total number of elements up to a dimension
 static size_t compute_elements_before(const int64_t* shape, size_t ndim, size_t axis) {
+    (void)ndim;
     size_t elements = 1;
     for (size_t i = 0; i < axis; i++) {
         elements *= shape[i];
@@ -44,7 +45,7 @@ BOAT_API boat_tensor_t* boat_softmax(const boat_tensor_t* a, int axis) {
     if (axis < 0) {
         axis += ndim;
     }
-    if (axis < 0 || axis >= ndim) {
+    if (axis < 0 || (size_t)axis >= ndim) {
         return NULL; // Invalid axis
     }
 
@@ -166,7 +167,7 @@ BOAT_API boat_tensor_t* boat_log_softmax(const boat_tensor_t* a, int axis) {
     if (axis < 0) {
         axis += ndim;
     }
-    if (axis < 0 || axis >= ndim) {
+    if (axis < 0 || (size_t)axis >= ndim) {
         return NULL;
     }
 

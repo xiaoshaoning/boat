@@ -73,13 +73,6 @@ static bool gemm_transB(const onnx_node_t* node) {
 }
 
 // Attribute lookup helpers (return default if not found)
-static int64_t get_attr_int(const onnx_node_t* node, const char* name, int64_t def) {
-    for (int i = 0; i < node->num_attrs; i++) {
-        if (strcmp(node->attr_names[i], name) == 0)
-            return node->attr_ints[i];
-    }
-    return def;
-}
 
 static float get_attr_float(const onnx_node_t* node, const char* name, float def) {
     for (int i = 0; i < node->num_attrs; i++) {
@@ -983,6 +976,7 @@ static bool onnx_rt_build(boat_onnx_runtime_t* rt) {
             }
 
             size_t num_params = (size_t)slope_init->dims[0];
+            (void)num_params;
             boat_prelu_layer_t* prelu = boat_prelu_layer_create(0); // no default slope
             if (!prelu) return false;
 

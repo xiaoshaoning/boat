@@ -87,6 +87,7 @@ struct boat_attention_t {
 
 // Helper function to create linear projection weights
 static boat_tensor_t* create_linear_weights(size_t in_features, size_t out_features, bool use_bias) {
+    (void)use_bias;
     const int64_t weight_shape[] = { (int64_t)in_features, (int64_t)out_features };
     boat_tensor_t* weights = boat_tensor_create(weight_shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
 
@@ -943,6 +944,7 @@ static boat_tensor_t* scaled_dot_product_attention_impl(const boat_tensor_t* que
                                                          bool causal_mask,
                                                          float dropout_prob,
                                                          boat_tensor_t** cache_weights) {
+    (void)dropout_prob;
     if (!query || !key || !value) {
         return NULL;
     }
@@ -1408,37 +1410,6 @@ static bool linear_projection_backward(const boat_tensor_t* input,
 }
 
 // Helper function: sum over last dimension of 4D tensor, keepdim=true
-static boat_tensor_t* sum_last_dim_4d(const boat_tensor_t* tensor) {
-    if (!tensor || boat_tensor_ndim(tensor) != 4) {
-        return NULL;
-    }
-    const int64_t* shape = boat_tensor_shape(tensor);
-    int64_t batch = shape[0];
-    int64_t num_heads = shape[1];
-    int64_t seq_len = shape[2];
-    int64_t seq_len2 = shape[3];
-    // Create output tensor with same shape but last dimension kept as 1 (keepdim)
-    const int64_t out_shape[] = {batch, num_heads, seq_len, 1};
-    boat_tensor_t* out = boat_tensor_create(out_shape, 4, boat_tensor_dtype(tensor), boat_tensor_device(tensor));
-    if (!out) return NULL;
-    const float* data = (float*)boat_tensor_data(tensor);
-    float* out_data = (float*)boat_tensor_data(out);
-    // For each batch, head, seq_len position, sum over last dimension (seq_len2)
-    for (int64_t b = 0; b < batch; b++) {
-        for (int64_t h = 0; h < num_heads; h++) {
-            for (int64_t i = 0; i < seq_len; i++) {
-                float sum = 0.0f;
-                for (int64_t j = 0; j < seq_len2; j++) {
-                    int64_t idx = ((b * num_heads + h) * seq_len + i) * seq_len2 + j;
-                    sum += data[idx];
-                }
-                int64_t out_idx = ((b * num_heads + h) * seq_len + i);
-                out_data[out_idx] = sum;
-            }
-        }
-    }
-    return out;
-}
 
 // Gradient for scaled dot-product attention
 // Computes gradients for Q, K, V given attention weights and grad_output

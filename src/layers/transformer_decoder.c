@@ -394,6 +394,7 @@ static boat_tensor_t* cross_attention(
     // Cache them if not already cached
     if (cache && !cache->cross_k && enc_out) {
         int S = (int)boat_tensor_shape(enc_out)[1];
+        (void)S;
         cache->cross_k = linear(enc_out, w->cross_k_weight, w->cross_k_bias);
         cache->cross_v = linear(enc_out, w->cross_v_weight, w->cross_v_bias);
         if (!cache->cross_k || !cache->cross_v) {
@@ -663,6 +664,7 @@ BOAT_API boat_decoder_cache_t* boat_decoder_cache_create_ex(
     int32_t encoder_seq_len,
     boat_device_t device)
 {
+    (void)encoder_seq_len;
     boat_decoder_cache_t* cache = (boat_decoder_cache_t*)boat_malloc(
         sizeof(boat_decoder_cache_t), BOAT_DEVICE_CPU);
     if (!cache) return NULL;

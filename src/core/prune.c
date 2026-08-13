@@ -529,6 +529,7 @@ BOAT_API float boat_compute_structured_sparsity(const boat_tensor_t* weight, siz
 
     size_t n_channels = (size_t)shape[dim];
     size_t n = boat_tensor_nelements(weight);
+    (void)n;
     const float* d = (const float*)boat_tensor_const_data(weight);
 
     size_t outer_count = 1;

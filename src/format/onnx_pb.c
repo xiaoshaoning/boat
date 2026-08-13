@@ -138,6 +138,7 @@ void pb_write_float(pb_builder_t* b, uint32_t field, float val) {
 }
 
 void pb_write_int32(pb_builder_t* b, uint32_t field, int32_t val) {
+    (void)field;
     pb_write_varint(b, (uint64_t)(int64_t)val);
 }
 
@@ -444,13 +445,6 @@ static bool parse_tensor(pb_reader_t* r, onnx_tensor_t* tensor) {
 
 static bool parse_graph(pb_reader_t* r, onnx_graph_t* graph);
 
-// Parse a ValueInfoProto (minimal: just read the name)
-// We don't need the type/shape info for inference
-static void skip_value_info(pb_reader_t* r) {
-    (void)r;
-    // ValueInfoProto { name(1), type(2) }
-    // We just skip all fields since we don't need them for graph construction
-}
 
 // Parse the full ONNX model
 bool onnx_parse(pb_reader_t* r, onnx_model_t* model) {

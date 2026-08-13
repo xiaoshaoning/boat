@@ -610,6 +610,10 @@ BOAT_API boat_graph_t* boat_graph_copy(const boat_graph_t* graph) {
     boat_graph_t* copy = boat_graph_create_with_device(graph->device);
     if (!copy) return NULL;
 
+    // Keep the source graph alive while this shallow copy shares its node data.
+    copy->backing = (boat_graph_t*)graph;
+    ((boat_graph_t*)graph)->ref_count++;
+
     // Copy basic properties
     copy->next_node_id = graph->next_node_id;
     copy->checkpointing_enabled = graph->checkpointing_enabled;
@@ -753,6 +757,10 @@ BOAT_API boat_graph_t* boat_graph_subgraph(const boat_graph_t* graph, boat_node_
     // Create new graph for subgraph with same device
     boat_graph_t* subgraph = boat_graph_create_with_device(graph->device);
     if (!subgraph) return NULL;
+
+    // Keep the source graph alive while this shallow copy shares its node data.
+    subgraph->backing = (boat_graph_t*)graph;
+    ((boat_graph_t*)graph)->ref_count++;
 
     // Map from original node to index in nodes array
     bool* node_in_subgraph = boat_calloc(graph->node_count * sizeof(bool), BOAT_DEVICE_CPU);
@@ -1062,6 +1070,12 @@ BOAT_API void boat_graph_merge(boat_graph_t* dest, const boat_graph_t* src) {
     if (src->checkpointing_enabled) {
         dest->checkpointing_enabled = true;
         // Would need to merge checkpoint_nodes arrays
+    }
+
+    // Keep src alive while dest shares its node data (merge is a shallow copy).
+    if (!dest->backing) {
+        dest->backing = (boat_graph_t*)src;
+        ((boat_graph_t*)src)->ref_count++;
     }
 
     boat_free(node_index_map);
@@ -1489,16 +1503,12 @@ BOAT_API bool boat_graph_safe_replace_node(boat_graph_t* graph, const boat_node_
     // Check if old_node is in graph
     bool old_in_graph = false;
     bool new_in_graph = false;
-    size_t old_index = SIZE_MAX;
-    size_t new_index = SIZE_MAX;
     for (size_t i = 0; i < graph->node_count; i++) {
         if (graph->nodes[i] == old_node) {
             old_in_graph = true;
-            old_index = i;
         }
         if (graph->nodes[i] == new_node) {
             new_in_graph = true;
-            new_index = i;
         }
         if (old_in_graph && new_in_graph) break;
     }
@@ -1609,6 +1619,7 @@ BOAT_API bool boat_graph_to_device(boat_graph_t* graph, boat_device_t device) {
 BOAT_API size_t boat_graph_device_memory_usage(const boat_graph_t* graph, boat_device_t device) {
     if (!graph) return 0;
 
+    (void)device;  // placeholder: device-specific accounting not yet implemented
     size_t total_memory = 0;
 
     // For Phase 2, we return a placeholder value

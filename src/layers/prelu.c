@@ -68,6 +68,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_prelu_layer_forward(const boat_prelu_laye
     const int64_t* ishape = boat_tensor_shape(input);
     size_t ndim = boat_tensor_ndim(input);
     size_t spatial = 1;
+    (void)spatial;
     // For NCHW: dims are [N, C, H, W] or [N, C, H, W, D] etc.
     // Channel dim is always 1, spatial dims are 2..ndim-1
     size_t ch_dim = (ndim > 1) ? 1 : 0;
