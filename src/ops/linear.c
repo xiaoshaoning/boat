@@ -532,9 +532,132 @@ BOAT_API boat_tensor_t* boat_transpose(const boat_tensor_t* a, int dim0, int dim
     return out;
 }
 
-// Matrix inverse (placeholder)
+// Invert a single n x n matrix using Gauss-Jordan elimination with partial
+// pivoting on an augmented [A | I] matrix (n rows, 2n columns). Sets *OK to
+// false if the matrix is singular.
+#define BOAT_INVERT_SINGLE(T, AUG, N, ABSFN, OK)                                   \
+    do {                                                                           \
+        size_t _n = (N);                                                           \
+        (OK) = true;                                                               \
+        for (size_t _c = 0; _c < _n && (OK); _c++) {                               \
+            size_t _p = _c;                                                        \
+            T _maxv = ABSFN((AUG)[_c * (2 * _n) + _c]);                            \
+            for (size_t _r = _c + 1; _r < _n; _r++) {                              \
+                T _v = ABSFN((AUG)[_r * (2 * _n) + _c]);                           \
+                if (_v > _maxv) { _maxv = _v; _p = _r; }                           \
+            }                                                                      \
+            if (_maxv < (T)1e-12) { (OK) = false; }                                \
+            else {                                                                 \
+                if (_p != _c) {                                                    \
+                    for (size_t _j = 0; _j < 2 * _n; _j++) {                       \
+                        T _t = (AUG)[_c * (2 * _n) + _j];                          \
+                        (AUG)[_c * (2 * _n) + _j] = (AUG)[_p * (2 * _n) + _j];     \
+                        (AUG)[_p * (2 * _n) + _j] = _t;                            \
+                    }                                                              \
+                }                                                                  \
+                T _inv = (T)1 / (AUG)[_c * (2 * _n) + _c];                         \
+                for (size_t _j = 0; _j < 2 * _n; _j++)                             \
+                    (AUG)[_c * (2 * _n) + _j] *= _inv;                             \
+                for (size_t _r = 0; _r < _n; _r++) {                               \
+                    if (_r == _c) continue;                                        \
+                    T _f = (AUG)[_r * (2 * _n) + _c];                              \
+                    for (size_t _j = 0; _j < 2 * _n; _j++)                         \
+                        (AUG)[_r * (2 * _n) + _j] -= _f * (AUG)[_c * (2 * _n) + _j]; \
+                }                                                                  \
+            }                                                                      \
+        }                                                                          \
+    } while (0)
+
+// Matrix inverse: Gauss-Jordan elimination with partial pivoting.
+// Supports 2D square matrices and batched matrices (leading dims are batch).
 BOAT_API boat_tensor_t* boat_inverse(const boat_tensor_t* a) {
-    (void)a;
-    boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Linear] matrix inverse not implemented\n");
-    return NULL;
+    if (!a) return NULL;
+    size_t ndim = boat_tensor_ndim(a);
+    const int64_t* shape = boat_tensor_shape(a);
+    boat_dtype_t dtype = boat_tensor_dtype(a);
+
+    if (ndim < 2) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Linear] inverse expects a >=2D tensor\n");
+        return NULL;
+    }
+    if (dtype != BOAT_DTYPE_FLOAT32 && dtype != BOAT_DTYPE_FLOAT64) {
+        boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED,
+                        "[Linear] inverse only supports float32/float64\n");
+        return NULL;
+    }
+
+    int64_t n = shape[ndim - 1];
+    if (shape[ndim - 2] != n) {
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Linear] inverse requires square matrices\n");
+        return NULL;
+    }
+    if (n == 0) return NULL;
+
+    size_t batch = 1;
+    for (size_t i = 0; i < ndim - 2; i++) batch *= (size_t)shape[i];
+
+    boat_tensor_t* out = boat_tensor_create(shape, ndim, dtype, boat_tensor_device(a));
+    if (!out) return NULL;
+
+    const void* in = boat_tensor_const_data(a);
+    void* out_data = boat_tensor_data(out);
+    size_t nn = (size_t)n;
+
+    if (dtype == BOAT_DTYPE_FLOAT32) {
+        const float* in_f = (const float*)in;
+        float* out_f = (float*)out_data;
+        float* aug = (float*)malloc(2 * nn * nn * sizeof(float));
+        if (!aug) { boat_tensor_unref(out); return NULL; }
+        for (size_t b = 0; b < batch; b++) {
+            const float* A = in_f + b * nn * nn;
+            for (size_t i = 0; i < nn; i++) {
+                for (size_t j = 0; j < nn; j++) {
+                    aug[i * (2 * nn) + j] = A[i * nn + j];
+                    aug[i * (2 * nn) + nn + j] = (i == j) ? 1.0f : 0.0f;
+                }
+            }
+            bool ok;
+            BOAT_INVERT_SINGLE(float, aug, nn, fabsf, ok);
+            if (!ok) {
+                free(aug);
+                boat_tensor_unref(out);
+                boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Linear] matrix is singular\n");
+                return NULL;
+            }
+            float* Ainv = out_f + b * nn * nn;
+            for (size_t i = 0; i < nn; i++)
+                for (size_t j = 0; j < nn; j++)
+                    Ainv[i * nn + j] = aug[i * (2 * nn) + nn + j];
+        }
+        free(aug);
+    } else {
+        const double* in_d = (const double*)in;
+        double* out_d = (double*)out_data;
+        double* aug = (double*)malloc(2 * nn * nn * sizeof(double));
+        if (!aug) { boat_tensor_unref(out); return NULL; }
+        for (size_t b = 0; b < batch; b++) {
+            const double* A = in_d + b * nn * nn;
+            for (size_t i = 0; i < nn; i++) {
+                for (size_t j = 0; j < nn; j++) {
+                    aug[i * (2 * nn) + j] = A[i * nn + j];
+                    aug[i * (2 * nn) + nn + j] = (i == j) ? 1.0 : 0.0;
+                }
+            }
+            bool ok;
+            BOAT_INVERT_SINGLE(double, aug, nn, fabs, ok);
+            if (!ok) {
+                free(aug);
+                boat_tensor_unref(out);
+                boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Linear] matrix is singular\n");
+                return NULL;
+            }
+            double* Ainv = out_d + b * nn * nn;
+            for (size_t i = 0; i < nn; i++)
+                for (size_t j = 0; j < nn; j++)
+                    Ainv[i * nn + j] = aug[i * (2 * nn) + nn + j];
+        }
+        free(aug);
+    }
+
+    return out;
 }

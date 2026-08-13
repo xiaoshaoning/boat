@@ -120,6 +120,10 @@ target_link_libraries(test_softmax_ce boat)
 boat_add_test_executable(test_matmul_softmax unit/test_matmul_softmax.c)
 target_link_libraries(test_matmul_softmax boat)
 
+# Matrix inverse
+boat_add_test_executable(test_inverse unit/test_inverse.c)
+target_link_libraries(test_inverse boat)
+
 # Graph robustness tests (merge, to_dot, node-removal adjacency, sequential lifecycle)
 boat_add_test_executable(test_graph_phase4 unit/test_graph_phase4.c)
 target_link_libraries(test_graph_phase4 boat)
