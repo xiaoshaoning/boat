@@ -134,6 +134,64 @@ static inline float boat_bf16_to_f32(uint16_t bf16) {
     return f;
 }
 
+// FP16 (IEEE 754 half) conversion utilities
+static inline float boat_f16_to_f32(uint16_t h) {
+    uint32_t sign = (uint32_t)(h >> 15) << 31;
+    int exp = (int)((h >> 10) & 0x1F);
+    uint32_t mant = (uint32_t)(h & 0x3FF);
+    uint32_t r;
+    if (exp == 0) {
+        if (mant == 0) {
+            r = sign;
+        } else {
+            // subnormal: normalize
+            while ((mant & 0x400) == 0) { mant <<= 1; exp--; }
+            exp++;
+            mant &= 0x3FF;
+            r = sign | ((uint32_t)(exp + 112) << 23) | (mant << 13);
+        }
+    } else if (exp == 31) {
+        r = sign | 0x7F800000u | (mant << 13);  // inf / nan
+    } else {
+        r = sign | ((uint32_t)(exp + 112) << 23) | (mant << 13);
+    }
+    float f;
+    memcpy(&f, &r, sizeof(f));
+    return f;
+}
+
+static inline uint16_t boat_f32_to_f16(float f) {
+    uint32_t x;
+    memcpy(&x, &f, sizeof(x));
+    uint32_t sign = (x >> 16) & 0x8000u;
+    uint32_t exponent = (x >> 23) & 0xFFu;
+    uint32_t mantissa = x & 0x7FFFFFu;
+    uint16_t h;
+
+    if (exponent == 0xFFu) {
+        // inf / nan
+        h = (uint16_t)(sign | 0x7C00u | (mantissa ? 0x200u : 0u));
+    } else if (exponent >= 113u) {
+        // normal half (abs >= 2^-14)
+        uint32_t e = exponent - 112u;
+        uint32_t m = mantissa + 0x1000u;  // round to nearest
+        if (m >> 24) { e++; m = 0; }      // mantissa overflow carries
+        if (e >= 31u) {
+            h = (uint16_t)(sign | 0x7C00u);  // overflow to inf
+        } else {
+            h = (uint16_t)(sign | (e << 10) | (m >> 13));
+        }
+    } else if (exponent >= 103u) {
+        // subnormal half: [2^-24, 2^-14)
+        uint32_t shift = 126u - exponent;
+        uint32_t m = ((mantissa | 0x800000u) + (1u << (shift - 1))) >> shift;
+        h = (uint16_t)(sign | (m >= 0x400u ? 0x400u : m));  // round up to min normal
+    } else {
+        h = (uint16_t)sign;  // too small -> (signed) zero
+    }
+    return h;
+}
+
 #ifdef __cplusplus
 }
 #endif

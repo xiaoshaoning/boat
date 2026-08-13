@@ -104,6 +104,10 @@ target_link_libraries(test_transpose boat)
 boat_add_test_executable(test_tensor unit/test_tensor.c)
 target_link_libraries(test_tensor boat)
 
+# FP16 conversion + element-wise arithmetic
+boat_add_test_executable(test_float16 unit/test_float16.c)
+target_link_libraries(test_float16 boat)
+
 # Autodiff engine tests (variables, operations, backward pass)
 boat_add_test_executable(test_autodiff unit/test_autodiff.c)
 target_link_libraries(test_autodiff boat)

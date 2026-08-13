@@ -285,10 +285,19 @@ BOAT_API boat_tensor_t* boat_add(const boat_tensor_t* a, const boat_tensor_t* b)
             }
             break;
         }
-        case BOAT_DTYPE_FLOAT16:
-            boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Arithmetic] float16 not supported in boat_add\n");
-            boat_tensor_free(out);
-            return NULL;
+        case BOAT_DTYPE_FLOAT16: {
+            const uint16_t* a_ptr = (const uint16_t*)a_data;
+            const uint16_t* b_ptr = (const uint16_t*)b_data;
+            uint16_t* out_ptr = (uint16_t*)out_data;
+            for (size_t i = 0; i < nelements; i++) {
+                size_t a_idx = broadcast_index(a, i, out_shape, out_ndim);
+                size_t b_idx = broadcast_index(b, i, out_shape, out_ndim);
+                float av = boat_f16_to_f32(a_ptr[a_idx]);
+                float bv = boat_f16_to_f32(b_ptr[b_idx]);
+                out_ptr[i] = boat_f32_to_f16(av + bv);
+            }
+            break;
+        }
         case BOAT_DTYPE_BFLOAT16: {
             const uint16_t* a_ptr = (const uint16_t*)a_data;
             const uint16_t* b_ptr = (const uint16_t*)b_data;
@@ -351,6 +360,7 @@ BOAT_API boat_tensor_t* boat_sub(const boat_tensor_t* a, const boat_tensor_t* b)
         case BOAT_DTYPE_UINT8: { const uint8_t* a_ptr = (const uint8_t*)a_data; const uint8_t* b_ptr = (const uint8_t*)b_data; uint8_t* out_ptr = (uint8_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] - b_ptr[b_idx]; } break; }
         case BOAT_DTYPE_INT8: { const int8_t* a_ptr = (const int8_t*)a_data; const int8_t* b_ptr = (const int8_t*)b_data; int8_t* out_ptr = (int8_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] - b_ptr[b_idx]; } break; }
         case BOAT_DTYPE_BOOL: { const bool* a_ptr = (const bool*)a_data; const bool* b_ptr = (const bool*)b_data; bool* out_ptr = (bool*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] - b_ptr[b_idx]; } break; }
+        case BOAT_DTYPE_FLOAT16: { const uint16_t* a_ptr = (const uint16_t*)a_data; const uint16_t* b_ptr = (const uint16_t*)b_data; uint16_t* out_ptr = (uint16_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = boat_f32_to_f16(boat_f16_to_f32(a_ptr[a_idx]) - boat_f16_to_f32(b_ptr[b_idx])); } break; }
         case BOAT_DTYPE_BFLOAT16: { const uint16_t* a_ptr = (const uint16_t*)a_data; const uint16_t* b_ptr = (const uint16_t*)b_data; uint16_t* out_ptr = (uint16_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = boat_f32_to_bf16(boat_bf16_to_f32(a_ptr[a_idx]) - boat_bf16_to_f32(b_ptr[b_idx])); } break; }
         default: boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Unsupported dtype in boat_sub\n"); boat_tensor_free(out); return NULL;
     }
@@ -394,6 +404,7 @@ BOAT_API boat_tensor_t* boat_mul(const boat_tensor_t* a, const boat_tensor_t* b)
         case BOAT_DTYPE_UINT8: { const uint8_t* a_ptr = (const uint8_t*)a_data; const uint8_t* b_ptr = (const uint8_t*)b_data; uint8_t* out_ptr = (uint8_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] * b_ptr[b_idx]; } break; }
         case BOAT_DTYPE_INT8: { const int8_t* a_ptr = (const int8_t*)a_data; const int8_t* b_ptr = (const int8_t*)b_data; int8_t* out_ptr = (int8_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] * b_ptr[b_idx]; } break; }
         case BOAT_DTYPE_BOOL: { const bool* a_ptr = (const bool*)a_data; const bool* b_ptr = (const bool*)b_data; bool* out_ptr = (bool*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] * b_ptr[b_idx]; } break; }
+        case BOAT_DTYPE_FLOAT16: { const uint16_t* a_ptr = (const uint16_t*)a_data; const uint16_t* b_ptr = (const uint16_t*)b_data; uint16_t* out_ptr = (uint16_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = boat_f32_to_f16(boat_f16_to_f32(a_ptr[a_idx]) * boat_f16_to_f32(b_ptr[b_idx])); } break; }
         case BOAT_DTYPE_BFLOAT16: { const uint16_t* a_ptr = (const uint16_t*)a_data; const uint16_t* b_ptr = (const uint16_t*)b_data; uint16_t* out_ptr = (uint16_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = boat_f32_to_bf16(boat_bf16_to_f32(a_ptr[a_idx]) * boat_bf16_to_f32(b_ptr[b_idx])); } break; }
         default: boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Unsupported dtype in boat_mul\n"); boat_tensor_free(out); return NULL;
     }
@@ -437,6 +448,7 @@ BOAT_API boat_tensor_t* boat_div(const boat_tensor_t* a, const boat_tensor_t* b)
         case BOAT_DTYPE_UINT8: { const uint8_t* a_ptr = (const uint8_t*)a_data; const uint8_t* b_ptr = (const uint8_t*)b_data; uint8_t* out_ptr = (uint8_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] / b_ptr[b_idx]; } break; }
         case BOAT_DTYPE_INT8: { const int8_t* a_ptr = (const int8_t*)a_data; const int8_t* b_ptr = (const int8_t*)b_data; int8_t* out_ptr = (int8_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] / b_ptr[b_idx]; } break; }
         case BOAT_DTYPE_BOOL: { const bool* a_ptr = (const bool*)a_data; const bool* b_ptr = (const bool*)b_data; bool* out_ptr = (bool*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = a_ptr[a_idx] / b_ptr[b_idx]; } break; }
+        case BOAT_DTYPE_FLOAT16: { const uint16_t* a_ptr = (const uint16_t*)a_data; const uint16_t* b_ptr = (const uint16_t*)b_data; uint16_t* out_ptr = (uint16_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = boat_f32_to_f16(boat_f16_to_f32(a_ptr[a_idx]) / boat_f16_to_f32(b_ptr[b_idx])); } break; }
         case BOAT_DTYPE_BFLOAT16: { const uint16_t* a_ptr = (const uint16_t*)a_data; const uint16_t* b_ptr = (const uint16_t*)b_data; uint16_t* out_ptr = (uint16_t*)out_data; for (size_t i = 0; i < nelements; i++) { size_t a_idx = broadcast_index(a, i, out_shape, out_ndim); size_t b_idx = broadcast_index(b, i, out_shape, out_ndim); out_ptr[i] = boat_f32_to_bf16(boat_bf16_to_f32(a_ptr[a_idx]) / boat_bf16_to_f32(b_ptr[b_idx])); } break; }
         default: boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Unsupported dtype in boat_div\n"); boat_tensor_free(out); return NULL;
     }
@@ -522,6 +534,17 @@ BOAT_API boat_tensor_t* boat_mod(const boat_tensor_t* a, const boat_tensor_t* b)
                 size_t a_idx = broadcast_index(a, i, out_shape, out_ndim);
                 size_t b_idx = broadcast_index(b, i, out_shape, out_ndim);
                 out_ptr[i] = a_ptr[a_idx] % b_ptr[b_idx];
+            }
+            break;
+        }
+        case BOAT_DTYPE_FLOAT16: {
+            const uint16_t* a_ptr = (const uint16_t*)a_data;
+            const uint16_t* b_ptr = (const uint16_t*)b_data;
+            uint16_t* out_ptr = (uint16_t*)out_data;
+            for (size_t i = 0; i < nelements; i++) {
+                size_t a_idx = broadcast_index(a, i, out_shape, out_ndim);
+                size_t b_idx = broadcast_index(b, i, out_shape, out_ndim);
+                out_ptr[i] = boat_f32_to_f16(fmodf(boat_f16_to_f32(a_ptr[a_idx]), boat_f16_to_f32(b_ptr[b_idx])));
             }
             break;
         }
