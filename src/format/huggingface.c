@@ -69,13 +69,15 @@ typedef struct {
 // Forward declarations for static functions
 static void free_config(hf_config_t* config);
 static void init_builders(hf_config_t* config);
+#ifdef BOAT_USE_CJSON
 static boat_layer_t* create_layer_from_config(const hf_config_t* config, const char* layer_name, boat_tensor_t* weight);
 static hf_layer_wrapper_t* create_layer_wrapper(const char* layer_type, boat_tensor_t* weight);
 static void free_layer_wrapper(hf_layer_wrapper_t* wrapper);
 static char* get_base_layer_name(const char* tensor_name);
-static boat_layer_t* create_actual_layer_from_tensor(const char* base_name, const char* tensor_name, boat_tensor_t* tensor);
+#endif
 static char* read_file_to_string(const char* filename);
 
+#ifdef BOAT_USE_CJSON
 // Layer operations for dense layers
 static boat_tensor_t* dense_layer_forward(const boat_layer_t* layer, const boat_tensor_t* input) {
     if (!layer || !layer->data || !input) return NULL;
@@ -147,7 +149,9 @@ static const boat_layer_ops_t layernorm_layer_ops = {
     .update = layernorm_layer_update,
     .free = layernorm_layer_free
 };
+#endif
 
+#ifdef BOAT_USE_CJSON
 // Layer operations for wrapper layers (layer_norm, conv, etc.)
 static boat_tensor_t* wrapper_layer_forward(const boat_layer_t* layer, const boat_tensor_t* input) {
     (void)layer;
@@ -185,6 +189,7 @@ static const boat_layer_ops_t wrapper_layer_ops = {
     .update = wrapper_layer_update,
     .free = wrapper_layer_free
 };
+#endif
 
 // Structure to track layer creation during loading
 typedef struct hf_layer_builder_t {
@@ -361,6 +366,7 @@ static void free_builders(hf_config_t* config) {
     config->builder_capacity = 0;
 }
 
+#ifdef BOAT_USE_CJSON
 // Find or create a layer builder by base name
 static hf_layer_builder_t* find_or_create_builder(hf_config_t* config, const char* base_name, const char* layer_type) {
     if (!config || !base_name || !layer_type) return NULL;
@@ -573,6 +579,7 @@ static boat_layer_t* complete_builder(hf_layer_builder_t* builder, const hf_conf
         return NULL;
     }
 }
+#endif
 
 // Free configuration
 static void free_config(hf_config_t* config) {
@@ -581,6 +588,7 @@ static void free_config(hf_config_t* config) {
     free_builders(config);
     free(config);
 }
+#ifdef BOAT_USE_CJSON
 
 // Convert safetensors dtype string to enum
 static safetensors_dtype_t safetensors_dtype_from_string(const char* dtype_str) {
@@ -622,6 +630,7 @@ static boat_dtype_t boat_dtype_from_safetensors(safetensors_dtype_t sdtype) {
         default: return BOAT_DTYPE_FLOAT32; // Default fallback
     }
 }
+#endif
 
 // Parse safetensors header
 static char* parse_safetensors_header(const uint8_t* data, size_t size, size_t* header_len) {
@@ -871,6 +880,7 @@ static bool load_pytorch_bin(const void* data, size_t size, const hf_config_t* c
     return false;
 }
 
+#ifdef BOAT_USE_CJSON
 // Create a simple layer wrapper for Hugging Face model loading
 static hf_layer_wrapper_t* create_layer_wrapper(const char* layer_type, boat_tensor_t* weight) {
     hf_layer_wrapper_t* wrapper = malloc(sizeof(hf_layer_wrapper_t));
@@ -898,7 +908,9 @@ static void free_layer_wrapper(hf_layer_wrapper_t* wrapper) {
     free(wrapper->layer_type);
     free(wrapper);
 }
+#endif
 
+#ifdef BOAT_USE_CJSON
 // Create layers based on configuration
 static boat_layer_t* create_layer_from_config(const hf_config_t* config, const char* layer_name, boat_tensor_t* weight) {
     if (!config || !layer_name || !weight) return NULL;
@@ -1091,6 +1103,7 @@ static boat_layer_t* create_layer_from_config(const hf_config_t* config, const c
     printf("  No specific layer mapping for: %s\n", layer_name);
     return NULL;
 }
+#endif
 
 // Load Hugging Face model from directory
 BOAT_API boat_model_t* boat_huggingface_load(const char* model_dir) {
@@ -1289,6 +1302,7 @@ BOAT_API bool boat_huggingface_save(const boat_model_t* model, const char* model
     return false;
 }
 
+#ifdef BOAT_USE_CJSON
 // Extract base layer name from tensor name (e.g., "lin.weight" -> "lin")
 static char* get_base_layer_name(const char* tensor_name) {
     if (!tensor_name) return NULL;
@@ -1311,67 +1325,8 @@ static char* get_base_layer_name(const char* tensor_name) {
 
     return base;
 }
+#endif
 
-// Create actual Boat layer from tensor
-static boat_layer_t* create_actual_layer_from_tensor(const char* base_name, const char* tensor_name, boat_tensor_t* tensor) {
-    if (!base_name || !tensor_name || !tensor) return NULL;
-
-    size_t ndim = boat_tensor_ndim(tensor);
-    const int64_t* shape = boat_tensor_shape(tensor);
-
-    printf("Creating actual layer for tensor: %s (base: %s, shape: [", tensor_name, base_name);
-    for (size_t i = 0; i < ndim; i++) {
-        printf("%" PRId64, shape[i]);
-        if (i < ndim - 1) printf(", ");
-    }
-    printf("])\n");
-
-    // Check for dense/linear layers (weight tensor with 2 dimensions)
-    if (strstr(tensor_name, ".weight") != NULL && ndim == 2) {
-        printf("  Creating dense layer for weight tensor\n");
-
-        // Extract dimensions from weight shape
-        size_t input_features = shape[0];
-        size_t output_features = shape[1];
-
-        // Create dense layer with bias (will be set later if bias tensor exists)
-        boat_dense_layer_t* dense_layer = boat_dense_layer_create(input_features, output_features, true);
-        if (!dense_layer) {
-            boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[HuggingFace] Failed to create dense layer\n");
-            return NULL;
-        }
-
-        // Set weight tensor
-        boat_dense_layer_set_weight(dense_layer, tensor);
-
-        // Create boat_layer_t wrapper
-        boat_layer_t* layer = malloc(sizeof(boat_layer_t));
-        if (!layer) {
-            boat_dense_layer_free(dense_layer);
-            return NULL;
-        }
-        layer->data = dense_layer;
-        layer->type = BOAT_LAYER_TYPE_DENSE;
-        printf("    Created dense layer with dimensions %zu -> %zu\n", input_features, output_features);
-        return layer;
-    }
-    // Check for bias tensor (1D) - we need to find the corresponding layer
-    else if (strstr(tensor_name, ".bias") != NULL && ndim == 1) {
-        printf("  Bias tensor detected, will be associated with existing layer\n");
-        // Bias will be handled when the corresponding weight is processed
-        return NULL;
-    }
-    // Check for layer normalization parameters
-    else if ((strstr(tensor_name, ".weight") != NULL || strstr(tensor_name, ".bias") != NULL) &&
-             (strstr(base_name, "layer_norm") != NULL || strstr(base_name, "ln") != NULL) && ndim == 1) {
-        printf("  Layer normalization parameter detected\n");
-        // TODO: Implement layer normalization layer creation
-        return NULL;
-    }
-
-    printf("  No actual layer implementation for this tensor type\n");
-    return NULL;
-}
 
 // Read file contents into a string (caller must free)
 static char* read_file_to_string(const char* filename) {

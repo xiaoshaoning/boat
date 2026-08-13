@@ -2,7 +2,6 @@
 // Copyright (c) 2026 Shaoning, Xiao 萧少宁
 // Licensed under the Apache License, Version 2.0
 
-#define BOAT_BUILDING_DLL
 #include <boat/quantize.h>
 #include <boat/tensor.h>
 #include <boat/layers.h>
