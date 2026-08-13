@@ -41,6 +41,8 @@ typedef enum {
 BOAT_API boat_graph_t* boat_graph_create();
 BOAT_API boat_graph_t* boat_graph_create_with_device(boat_device_t device);
 BOAT_API void boat_graph_free(boat_graph_t* graph);
+// Shallow copy: nodes in the returned graph share the source nodes' data
+// pointers (free_fn is not copied), so the source graph must outlive the copy.
 BOAT_API boat_graph_t* boat_graph_copy(const boat_graph_t* graph);
 
 // Node operations
@@ -92,8 +94,12 @@ BOAT_API bool boat_graph_is_connected(const boat_graph_t* graph);
 BOAT_API bool boat_graph_has_path(const boat_graph_t* graph, const boat_node_t* from, const boat_node_t* to);
 
 // Subgraph operations
+// Shallow copy: subgraph nodes share the source nodes' data pointers
+// (free_fn is not copied), so the source graph must outlive the subgraph.
 BOAT_API boat_graph_t* boat_graph_subgraph(const boat_graph_t* graph, boat_node_t** nodes,
                                   size_t node_count);
+// Shallow merge: node data pointers are shared; the source graph must outlive
+// the destination graph.
 BOAT_API void boat_graph_merge(boat_graph_t* dest, const boat_graph_t* src);
 
 // Graph visualization

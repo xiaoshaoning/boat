@@ -13,15 +13,13 @@
 typedef struct {
     boat_loss_type_t type;  // Always BOAT_LOSS_HUBER
     float delta;            // Huber delta parameter
-    float sum;              // Accumulated sum for batch averaging
-    int count;              // Number of accumulated elements
 } huber_loss_t;
 
 // Forward declaration for dispatch
 float huber_loss_compute(boat_loss_t* loss_ptr, const void* predictions_ptr, const void* targets_ptr);
 
 // Create Huber loss function with specified delta
-BOAT_API boat_loss_t* BOAT_API boat_huber_loss_create(float delta) {
+BOAT_API boat_loss_t* boat_huber_loss_create(float delta) {
     if (delta <= 0.0f) {
         return NULL;
     }
@@ -33,8 +31,6 @@ BOAT_API boat_loss_t* BOAT_API boat_huber_loss_create(float delta) {
 
     loss->type = BOAT_LOSS_HUBER;
     loss->delta = delta;
-    loss->sum = 0.0f;
-    loss->count = 0;
 
     return (boat_loss_t*)loss;
 }
@@ -75,7 +71,10 @@ float huber_loss_compute(boat_loss_t* loss_ptr, const void* predictions_ptr, con
 
     const float* pred_data = (const float*)boat_tensor_data(predictions);
     const float* target_data = (const float*)boat_tensor_data(targets);
-    size_t num_elements = boat_tensor_nbytes(predictions) / sizeof(float);
+    size_t num_elements = boat_tensor_nelements(predictions);
+    if (num_elements == 0) {
+        return 0.0f;
+    }
     float delta = loss->delta;
 
     float sum_loss = 0.0f;
@@ -90,13 +89,7 @@ float huber_loss_compute(boat_loss_t* loss_ptr, const void* predictions_ptr, con
         }
     }
 
-    float huber = sum_loss / num_elements;
-
-    // Update accumulated stats
-    loss->sum += sum_loss;
-    loss->count += num_elements;
-
-    return huber;
+    return sum_loss / (float)num_elements;
 }
 
 // Compute Huber backward gradient

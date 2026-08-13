@@ -4,6 +4,7 @@
 
 #include <boat/graph.h>
 #include <boat/memory.h>
+#include <boat/ops.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -21,6 +22,15 @@ struct boat_computation_node_data {
     boat_tensor_t* output;
     boat_tensor_t* gradient;
 };
+
+// Frees node data, releasing any output/gradient tensors it still owns.
+static void computation_node_data_free(void* data) {
+    struct boat_computation_node_data* d = (struct boat_computation_node_data*)data;
+    if (!d) return;
+    if (d->output) boat_tensor_unref(d->output);
+    if (d->gradient) boat_tensor_unref(d->gradient);
+    boat_free(d);
+}
 
 BOAT_API boat_graph_t* boat_computation_graph_create() {
     boat_graph_t* graph = boat_graph_create();
@@ -231,12 +241,12 @@ BOAT_API void boat_computation_graph_backward(const boat_graph_t* graph) {
                     const boat_node_t* source_node = boat_edge_source(edge);
                     struct boat_computation_node_data* source_data = boat_node_data(source_node);
                     if (source_data && input_idx < num_inputs) {
-                        // If this input node expects gradient (e.g., is a variable),
-                        // store or accumulate the gradient
+                        // If this input node expects a gradient, store it; if it
+                        // already has one (gradient flows from multiple consumers),
+                        // accumulate the sum and release our reference.
                         if (source_data->gradient) {
-                            // Already has gradient, accumulate
-                            // For now, just replace (should be +=)
-                            source_data->gradient = input_grads[input_idx];
+                            boat_add_(source_data->gradient, input_grads[input_idx]);
+                            boat_tensor_unref(input_grads[input_idx]);
                         } else {
                             source_data->gradient = input_grads[input_idx];
                         }
@@ -292,7 +302,7 @@ BOAT_API boat_node_t* boat_computation_graph_add_operation(const boat_graph_t* g
     data->output = NULL;
     data->gradient = NULL;
 
-    boat_node_t* node = boat_graph_add_node(graph, data, BOAT_NODE_TYPE_OPERATION, boat_memory_free);
+    boat_node_t* node = boat_graph_add_node(graph, data, BOAT_NODE_TYPE_OPERATION, computation_node_data_free);
     if (!node) {
         boat_memory_free(data);
         return NULL;
@@ -313,11 +323,12 @@ BOAT_API boat_node_t* boat_computation_graph_add_variable(const boat_graph_t* gr
     data->backward_fn = NULL;
     data->user_data = NULL;
     data->output = tensor;
+    boat_tensor_ref(tensor);  // node owns a reference
     data->gradient = NULL;
 
-    boat_node_t* node = boat_graph_add_node(graph, data, BOAT_NODE_TYPE_VARIABLE, boat_memory_free);
+    boat_node_t* node = boat_graph_add_node(graph, data, BOAT_NODE_TYPE_VARIABLE, computation_node_data_free);
     if (!node) {
-        boat_memory_free(data);
+        computation_node_data_free(data);
         return NULL;
     }
 

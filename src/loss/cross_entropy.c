@@ -19,20 +19,16 @@ float cross_entropy_loss_compute(boat_loss_t* loss_ptr, const void* predictions_
 // Cross entropy loss structure
 typedef struct {
     boat_loss_type_t type;  // Always BOAT_LOSS_CROSS_ENTROPY
-    float sum;              // Accumulated sum for batch averaging
-    int count;              // Number of accumulated elements
 } cross_entropy_loss_t;
 
 // Create cross entropy loss function
-BOAT_API boat_loss_t* BOAT_API boat_cross_entropy_loss_create() {
+BOAT_API boat_loss_t* boat_cross_entropy_loss_create() {
     cross_entropy_loss_t* loss = (cross_entropy_loss_t*)boat_malloc(sizeof(cross_entropy_loss_t), BOAT_DEVICE_CPU);
     if (!loss) {
         return NULL;
     }
 
     loss->type = BOAT_LOSS_CROSS_ENTROPY;
-    loss->sum = 0.0f;
-    loss->count = 0;
 
     return (boat_loss_t*)loss;
 }
@@ -54,7 +50,6 @@ float cross_entropy_loss_compute(boat_loss_t* loss_ptr, const void* predictions_
         return 0.0f;
     }
 
-    cross_entropy_loss_t* loss = (cross_entropy_loss_t*)loss_ptr;
     const boat_tensor_t* predictions = (const boat_tensor_t*)predictions_ptr;
     const boat_tensor_t* targets = (const boat_tensor_t*)targets_ptr;
 
@@ -82,14 +77,15 @@ float cross_entropy_loss_compute(boat_loss_t* loss_ptr, const void* predictions_
         return 0.0f;
     }
 
-    // For simplicity, assume predictions are logits (not probabilities)
-    // and targets are one-hot encoded
+    // Predictions are expected to be probabilities (already softmaxed), and
+    // targets are one-hot encoded. Cross entropy = -mean(target * log(pred)).
     const float* pred_data = (const float*)boat_tensor_data(predictions);
     const float* target_data = (const float*)boat_tensor_data(targets);
-    size_t num_elements = boat_tensor_nbytes(predictions) / sizeof(float);
+    size_t num_elements = boat_tensor_nelements(predictions);
+    if (num_elements == 0) {
+        return 0.0f;
+    }
 
-    // Simple cross entropy: -sum(target * log(softmax(pred)))
-    // For now, use a simplified version: -sum(target * log(clip(pred)))
     float sum_loss = 0.0f;
     float epsilon = 1e-7f;
 
@@ -98,11 +94,7 @@ float cross_entropy_loss_compute(boat_loss_t* loss_ptr, const void* predictions_
         sum_loss += target_data[i] * logf(pred_clipped);
     }
 
-    float cross_entropy = -sum_loss / num_elements;
-
-    // Update accumulated stats
-    loss->sum += sum_loss;
-    loss->count += num_elements;
+    float cross_entropy = -sum_loss / (float)num_elements;
 
     return cross_entropy;
 }

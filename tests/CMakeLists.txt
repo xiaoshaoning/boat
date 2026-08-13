@@ -108,6 +108,30 @@ target_link_libraries(test_tensor boat)
 boat_add_test_executable(test_autodiff unit/test_autodiff.c)
 target_link_libraries(test_autodiff boat)
 
+# Graph robustness tests (merge, to_dot, node-removal adjacency, sequential lifecycle)
+boat_add_test_executable(test_graph_phase4 unit/test_graph_phase4.c)
+target_link_libraries(test_graph_phase4 boat)
+
+# Graph feature tests (device-aware creation, copy/subgraph, safe edge/node ops)
+boat_add_test_executable(test_graph_phase2 unit/test_graph_phase2.c)
+target_link_libraries(test_graph_phase2 boat)
+
+boat_add_test_executable(test_graph_phase3 unit/test_graph_phase3.c)
+target_link_libraries(test_graph_phase3 boat)
+
+# Layer link and memory management tests
+boat_add_test_executable(test_layer_link unit/test_layer_link.c)
+target_link_libraries(test_layer_link boat)
+
+boat_add_test_executable(test_memory unit/test_memory.c)
+target_link_libraries(test_memory boat)
+
+boat_add_test_executable(test_simple unit/test_simple.c)
+target_link_libraries(test_simple boat)
+
+boat_add_test_executable(test_basic test_basic.c)
+target_link_libraries(test_basic boat)
+
 # Serialization integration test (train -> save -> load -> inference round-trip)
 boat_add_test_executable(test_serialization_integration test_serialization_integration.c)
 target_link_libraries(test_serialization_integration boat)

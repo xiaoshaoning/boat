@@ -132,6 +132,22 @@ BOAT_API void boat_graph_remove_node(boat_graph_t* graph, boat_node_t* node) {
     }
     graph->node_count--;
 
+    // Keep the adjacency arrays aligned with the (now shifted) nodes array so
+    // node indices stay consistent. Callers should have removed the node's
+    // edges first via boat_graph_safe_remove_node.
+    if (graph->outgoing) {
+        for (size_t i = index; i < graph->node_capacity - 1; i++) {
+            graph->outgoing[i] = graph->outgoing[i + 1];
+        }
+        graph->outgoing[graph->node_capacity - 1] = NULL;
+    }
+    if (graph->incoming) {
+        for (size_t i = index; i < graph->node_capacity - 1; i++) {
+            graph->incoming[i] = graph->incoming[i + 1];
+        }
+        graph->incoming[graph->node_capacity - 1] = NULL;
+    }
+
     // Free the node
     boat_node_free(node);
 }

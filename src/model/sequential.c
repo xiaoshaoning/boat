@@ -18,6 +18,17 @@ typedef struct {
     size_t layer_capacity;       // Capacity of layers array
 } boat_sequential_model_private_t;
 
+// Frees the sequential private state. The layer pointers themselves are owned
+// by the model (freed by boat_model_free); only the array is freed here.
+static void boat_sequential_private_free(void* data) {
+    boat_sequential_model_private_t* private = (boat_sequential_model_private_t*)data;
+    if (!private) return;
+    if (private->layers) {
+        boat_free(private->layers);
+    }
+    boat_free(private);
+}
+
 // Sequential model creation
 BOAT_API boat_sequential_model_t* boat_sequential_create() {
     // Create base model
@@ -38,7 +49,7 @@ BOAT_API boat_sequential_model_t* boat_sequential_create() {
     private->layer_capacity = 0;
 
     // Store private data in model's user_data field
-    boat_model_set_user_data(model, private, boat_memory_free);
+    boat_model_set_user_data(model, private, boat_sequential_private_free);
 
     return (boat_sequential_model_t*)model;
 }

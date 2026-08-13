@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include "graph_private.h"
 
 // Helper function to remove all edges connected to a node
@@ -938,7 +939,7 @@ BOAT_API void boat_graph_merge(boat_graph_t* dest, const boat_graph_t* src) {
     // This will create duplicates if nodes/edges already exist
 
     // Create a mapping from src node indices to dest node indices
-    size_t* node_index_map = boat_calloc(src->node_count, sizeof(size_t));
+    size_t* node_index_map = boat_calloc(src->node_count * sizeof(size_t), BOAT_DEVICE_CPU);
     if (!node_index_map) return;
 
     // First, copy all nodes from src to dest
@@ -1364,6 +1365,19 @@ BOAT_API boat_edge_t* boat_graph_get_edge_at_index(const boat_graph_t* graph, si
     return graph->edges[index];
 }
 
+// Append formatted text to a buffer, clamping so the position never exceeds the
+// buffer capacity. Prevents OOB writes when the estimated buffer size is too small.
+static size_t dot_append(char* buf, size_t buf_size, size_t pos, const char* fmt, ...) {
+    if (pos >= buf_size) return buf_size;
+    va_list args;
+    va_start(args, fmt);
+    int n = vsnprintf(buf + pos, buf_size - pos, fmt, args);
+    va_end(args);
+    if (n < 0) return pos;
+    if ((size_t)n >= buf_size - pos) return buf_size;  // truncated
+    return pos + (size_t)n;
+}
+
 BOAT_API char* boat_graph_to_dot(const boat_graph_t* graph) {
     if (!graph) return NULL;
 
@@ -1376,7 +1390,7 @@ BOAT_API char* boat_graph_to_dot(const boat_graph_t* graph) {
     if (!dot) return NULL;
 
     // Start DOT graph
-    size_t pos = snprintf(dot, buffer_size,
+    size_t pos = dot_append(dot, buffer_size, 0,
         "digraph computation_graph {\n"
         "  rankdir=TB;\n"
         "  node [shape=record, fontname=\"Courier\", fontsize=10];\n"
@@ -1392,7 +1406,7 @@ BOAT_API char* boat_graph_to_dot(const boat_graph_t* graph) {
         const char* type_name = boat_node_type_name(type);
 
         // Create node label
-        pos += snprintf(dot + pos, buffer_size - pos,
+        pos = dot_append(dot, buffer_size, pos,
             "  node%zu [label=\"{%s|ID: %zu}\"];\n",
             node_id, type_name, node_id);
     }
@@ -1414,15 +1428,13 @@ BOAT_API char* boat_graph_to_dot(const boat_graph_t* graph) {
         const char* dir_label = (direction == BOAT_EDGE_DIRECTION_FORWARD) ? "forward" : "backward";
         const char* dir_color = (direction == BOAT_EDGE_DIRECTION_FORWARD) ? "blue" : "red";
 
-        pos += snprintf(dot + pos, buffer_size - pos,
+        pos = dot_append(dot, buffer_size, pos,
             "  node%zu -> node%zu [label=\"%s\", color=\"%s\", style=\"solid\"];\n",
             from_id, to_id, dir_label, dir_color);
     }
 
     // Close graph
-    pos += snprintf(dot + pos, buffer_size - pos, "}\n");
-
-    (void)pos; // Suppress unused variable warning
+    dot_append(dot, buffer_size, pos, "}\n");
 
     return dot;
 }

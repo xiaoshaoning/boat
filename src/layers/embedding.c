@@ -60,8 +60,15 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_embedding_forward(boat_embedding_t* emb, 
         return NULL;
     }
 
-    // Get indices shape and data
-    size_t ndim = boat_tensor_ndim(indices);
+    // The gather reads host memory directly; device tensors are not supported.
+    if (boat_tensor_device(indices) != BOAT_DEVICE_CPU ||
+        boat_tensor_device(emb->weight) != BOAT_DEVICE_CPU) {
+        boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED,
+                        "[Embedding] only CPU gather is implemented\n");
+        return NULL;
+    }
+
+    // Get indices data
     size_t num_indices = (size_t)boat_tensor_nelements(indices);
 
     // Create output tensor [num_indices, embedding_dim]
