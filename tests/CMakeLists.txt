@@ -120,6 +120,10 @@ target_link_libraries(test_softmax_ce boat)
 boat_add_test_executable(test_matmul_softmax unit/test_matmul_softmax.c)
 target_link_libraries(test_matmul_softmax boat)
 
+# Dense + max-pool backward gradient checks
+boat_add_test_executable(test_layer_gradcheck unit/test_layer_gradcheck.c)
+target_link_libraries(test_layer_gradcheck boat)
+
 # Matrix inverse
 boat_add_test_executable(test_inverse unit/test_inverse.c)
 target_link_libraries(test_inverse boat)
