@@ -46,6 +46,12 @@ The model weights are not in this repo; download `needle2.cact` from
 
 On this machine the mirror lives at `D:\hugginface\needle2\needle2.cact`.
 
+```sh
+make needle2           # builds examples/needle/needle2(.exe) in place
+```
+
+See [VALGRIND.md](VALGRIND.md) for the recorded WSL2 valgrind run.
+
 ## Notes
 
 - Pure CPU, no external dependencies beyond the boat library (used for the

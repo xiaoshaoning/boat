@@ -495,6 +495,11 @@ static int forward(const needle_model_t* m, const int32_t* tokens, uint32_t S,
     float* gate = (float*)xcalloc((size_t)S * d, sizeof(float));
     float* z = (float*)xcalloc((size_t)S * d, sizeof(float));
     float* y = (float*)xcalloc((size_t)S * d, sizeof(float));
+    // Engram buffers for this block (positions pos..pos+S-1). Declared with
+    // the other buffers so the oom cleanup always sees them initialized.
+    float* ekv_k[2] = {NULL, NULL};
+    float* ekv_v[2] = {NULL, NULL};
+
     // Score scratch (bounded by the sliding window).
     float* scbuf = (float*)xcalloc((size_t)m->kv_window, sizeof(float));
     if (!x || !u || !nx || !hpre || !hpost || !res || !hres || !h || !q || !k ||
@@ -517,8 +522,6 @@ static int forward(const needle_model_t* m, const int32_t* tokens, uint32_t S,
     }
 
     // Engram for this block (positions pos..pos+S-1).
-    float* ekv_k[2] = {NULL, NULL};
-    float* ekv_v[2] = {NULL, NULL};
     for (uint32_t si = 0; si < m->num_engram_sites; si++) {
         ekv_k[si] = (float*)xcalloc((size_t)S * d, sizeof(float));
         ekv_v[si] = (float*)xcalloc((size_t)S * d, sizeof(float));

@@ -16,12 +16,14 @@ UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)
     LIB_NAME = libboat.so
     IMPLIB =
+    EXE_SUFFIX =
 else
     # Windows/MinGW: PE DLL + import lib. GNU ld crashes (silent "ld
     # returned 5") on objects with many PE import relocations in this
     # environment; LLVM lld links the same objects correctly, so the
     # Windows build uses -fuse-ld=lld (D:\llvm on PATH).
     LIB_NAME = boat.dll
+    EXE_SUFFIX = .exe
     # export hygiene (2026-08): all public declarations now carry
     # BOAT_API, so the dllexport attributes drive the exports; the old
     # --export-all-symbols workaround is gone.
@@ -161,9 +163,21 @@ $(LIB_STATIC): $(STATIC_OBJS)
 static: $(VERSION_H) $(LIB_STATIC)
 
 # Examples
-examples:
-	@echo "Building examples..."
-	# TODO: Build examples
+# Needle 2 example (self-contained C: .cact loader, SAN executor, tokenizer).
+# The sources use no boat symbols, so this compiles directly.
+NEEDLE2_SRCS = examples/needle/cact.c examples/needle/tokenizer.c \
+               examples/needle/san.c examples/needle/main.c
+NEEDLE2_EXE = examples/needle/needle2$(EXE_SUFFIX)
+.PHONY: needle2
+needle2: $(NEEDLE2_EXE)
+$(NEEDLE2_EXE): $(NEEDLE2_SRCS)
+	@mkdir -p examples/needle
+	$(CC) -std=c11 -O2 -Wall -Wextra -Iexamples/needle $(NEEDLE2_SRCS) \
+	    -o $(NEEDLE2_EXE) -lm
+
+# Build all CPU examples.
+examples: needle2
+	@echo "Built examples: needle2 (run $(NEEDLE2_EXE))"
 
 # Development
 dev: CFLAGS += -g -DDEBUG
