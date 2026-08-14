@@ -1,0 +1,53 @@
+# clang-format for the Boat Deep Learning Framework.
+#
+# Mirrors the style described in CLAUDE.md:
+#   - 4-space indentation, no tabs
+#   - 100-column line limit
+#   - K&R braces (opening brace on the same line)
+#   - pointer/reference attached to the type (`int* p`)
+#
+# (snake_case naming is not enforced by clang-format; it is a manual
+# convention.)
+
+BasedOnStyle: LLVM
+
+# --- Indentation and width ---
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ContinuationIndentWidth: 4
+ColumnLimit: 100
+
+# --- Braces: K&R / "Attach" (open brace on the same line) ---
+BreakBeforeBraces: Attach
+
+# --- Pointer / reference: attached to the type ---
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+# --- Short statements on a single line (matches existing code) ---
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: None
+AllowShortCaseLabelsOnASingleLine: true
+
+# --- Spacing ---
+SpaceBeforeParens: ControlStatements
+SpaceAfterCStyleCast: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+SpaceBeforeSquareBrackets: false
+
+# --- Alignment ---
+AlignTrailingComments: true
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+
+# --- Includes: keep order as-is (the codebase is not include-sorted) ---
+SortIncludes: false
+
+# --- Misc ---
+IndentCaseLabels: false
+IndentPPDirectives: None
+MaxEmptyLinesToKeep: 1
