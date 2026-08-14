@@ -4,6 +4,7 @@
 
 #include <boat.h>
 #include <boat/cuda_runtime.h>
+#include <boat/simd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -336,6 +337,91 @@ BOAT_API void BOAT_CALL boat_conv_layer_free(boat_conv_layer_t* layer) {
     boat_free(layer);
 }
 
+// ---------------------------------------------------------------------------
+// Stride-1 SIMD convolution over the interior output-width range.
+//
+// For a fixed (batch, output channel, output row, input channel, kh, kw) the
+// valid input positions iw = ow + kw - pad are exactly those with ow in
+// [max(0, pad-kw), min(wo, wi+pad-kw)), so the accumulation over ow is a
+// contiguous, in-bounds vectorized FMA with no boundary branches.
+// ---------------------------------------------------------------------------
+static void conv2d_forward_stride1(const float* in, const float* w, const float* bias,
+                                   float* out, int64_t batch, int64_t in_ch,
+                                   int64_t out_ch, int64_t h, int64_t wi,
+                                   int64_t ho, int64_t wo, size_t ks, size_t pad,
+                                   size_t groups) {
+    const size_t ocpg = out_ch / groups;
+    const size_t icpg = in_ch / groups;
+    for (int64_t b = 0; b < batch; b++) {
+        for (size_t g = 0; g < groups; g++) {
+            const size_t oc0 = g * ocpg;
+            const size_t ic0 = g * icpg;
+            for (size_t oc = oc0; oc < oc0 + ocpg; oc++) {
+                for (int64_t oh = 0; oh < ho; oh++) {
+                    const int64_t ih_base = oh - (int64_t)pad;
+                    float* orow = out + ((b * out_ch + (int64_t)oc) * ho + oh) * wo;
+                    for (size_t ic = ic0; ic < ic0 + icpg; ic++) {
+                        const size_t icl = ic - ic0;
+                        for (size_t kh = 0; kh < ks; kh++) {
+                            const int64_t ih = ih_base + (int64_t)kh;
+                            if (ih < 0 || ih >= h) continue;
+                            const float* in_row =
+                                in + ((b * in_ch + (int64_t)ic) * h + ih) * wi;
+                            const float* w_row =
+                                w + ((oc * icpg + icl) * ks + kh) * ks;
+                            for (size_t kw = 0; kw < ks; kw++) {
+                                const int64_t iw_off = (int64_t)kw - (int64_t)pad;
+                                const int64_t lo = iw_off < 0 ? -iw_off : 0;
+                                const int64_t hi = (wi - iw_off < wo) ? (wi - iw_off) : wo;
+                                if (lo >= hi) continue;
+                                const float wv = w_row[kw];
+                                const float* in_off = in_row + iw_off;
+#if BOAT_HAVE_AVX2
+                                int64_t ow = lo;
+                                const __m256 vw = _mm256_set1_ps(wv);
+                                for (; ow + 8 <= hi; ow += 8) {
+                                    __m256 va = _mm256_loadu_ps(orow + ow);
+                                    __m256 vb = _mm256_loadu_ps(in_off + ow);
+#if BOAT_HAVE_FMA
+                                    va = _mm256_fmadd_ps(vb, vw, va);
+#else
+                                    va = _mm256_add_ps(va, _mm256_mul_ps(vb, vw));
+#endif
+                                    _mm256_storeu_ps(orow + ow, va);
+                                }
+                                for (; ow < hi; ow++) orow[ow] += in_off[ow] * wv;
+#elif BOAT_HAVE_NEON
+                                int64_t ow = lo;
+                                const float32x4_t vw = vdupq_n_f32(wv);
+                                for (; ow + 4 <= hi; ow += 4) {
+                                    float32x4_t va = vld1q_f32(orow + ow);
+                                    float32x4_t vb = vld1q_f32(in_off + ow);
+#if BOAT_HAVE_FMA
+                                    va = vfmaq_f32(va, vb, vw);
+#else
+                                    va = vmlaq_f32(va, vb, vw);
+#endif
+                                    vst1q_f32(orow + ow, va);
+                                }
+                                for (; ow < hi; ow++) orow[ow] += in_off[ow] * wv;
+#else
+                                for (int64_t ow = lo; ow < hi; ow++) orow[ow] += in_off[ow] * wv;
+#endif
+                            }
+                        }
+                    }
+                }
+                if (bias) {
+                    const float bv = bias[oc];
+                    float* op = out + (b * out_ch + (int64_t)oc) * ho * wo;
+                    const size_t plane = (size_t)ho * wo;
+                    for (size_t i = 0; i < plane; i++) op[i] += bv;
+                }
+            }
+        }
+    }
+}
+
 BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* layer, const boat_tensor_t* input) {
     if (!layer || !input) {
         return NULL;
@@ -442,11 +528,22 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
     size_t output_elements = boat_tensor_nelements(output);
     memset(output_data, 0, output_elements * sizeof(float));
 
-    // Perform convolution with group support
-    size_t out_channels_per_group = layer->out_channels / layer->groups;
-    size_t in_channels_per_group = layer->in_channels / layer->groups;
+    // Perform convolution with group support.
+    // Stride-1 uses the SIMD interior fast path; other strides use the general
+    // scalar loop below (identical semantics; accumulation order differs).
+    if (layer->stride == 1) {
+        conv2d_forward_stride1(input_data, weight_data, bias_data, output_data,
+                               batch, (int64_t)in_channels,
+                               (int64_t)layer->out_channels, height, width,
+                               height_out, width_out, layer->kernel_size,
+                               layer->padding, layer->groups);
+        if (dequantized_weight) boat_tensor_free(dequantized_weight);
+        return output;
+    }
 
     // For each sample in batch
+    size_t out_channels_per_group = layer->out_channels / layer->groups;
+    size_t in_channels_per_group = layer->in_channels / layer->groups;
     for (int64_t b = 0; b < batch; b++) {
         // For each group
         for (size_t g = 0; g < layer->groups; g++) {

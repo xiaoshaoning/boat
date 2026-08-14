@@ -79,8 +79,16 @@ BOAT_API void boat_simd_relu_f32(const float* a, float* dst, size_t n);
 // Reduction: return max(a[0..n-1])
 BOAT_API float boat_simd_max_reduce_f32(const float* a, size_t n);
 
+// Reduction: return min(a[0..n-1])
+BOAT_API float boat_simd_min_reduce_f32(const float* a, size_t n);
+
 // Reduction: return sum(a[0..n-1])
 BOAT_API float boat_simd_sum_reduce_f32(const float* a, size_t n);
+
+// 2D transpose of a contiguous [rows, cols] f32 matrix (row-major):
+// dst[c * rows + r] = src[r * cols + c]. Tiled SIMD when available.
+BOAT_API void boat_simd_transpose2d_f32(const float* src, float* dst,
+                                        size_t rows, size_t cols);
 
 // Check if two arrays are element-wise equal within tolerance
 BOAT_API bool boat_simd_allclose_f32(const float* a, const float* b, size_t n,

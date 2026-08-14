@@ -8,6 +8,11 @@
 SHELL := /bin/bash
 CC = gcc
 CFLAGS = -std=c11 -Wall -Wextra -O2 -fPIC -DBOAT_BUILDING_DLL
+# SIMD: AVX2+FMA is the framework's baseline (no AVX-512 -- some laptops do
+# not support it). Enable only if the compiler accepts the flags; simd.h then
+# selects AVX2/SSE4.1/NEON/scalar accordingly.
+SIMD_FLAGS := $(shell echo | $(CC) -mavx2 -mfma -x c -E - >/dev/null 2>&1 && echo '-mavx2 -mfma')
+CFLAGS += $(SIMD_FLAGS)
 INCLUDES = -Iinclude
 LIBS = -lm
 

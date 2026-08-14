@@ -120,6 +120,9 @@ target_link_libraries(test_autodiff_graph boat)
 boat_add_test_executable(test_reduce_autodiff unit/test_reduce_autodiff.c)
 target_link_libraries(test_reduce_autodiff boat)
 
+boat_add_test_executable(test_simd unit/test_simd.c)
+target_link_libraries(test_simd boat)
+
 # Softmax cross-entropy loss
 boat_add_test_executable(test_softmax_ce unit/test_softmax_ce.c)
 target_link_libraries(test_softmax_ce boat)

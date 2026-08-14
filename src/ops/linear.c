@@ -353,6 +353,21 @@ BOAT_API boat_tensor_t* boat_transpose(const boat_tensor_t* a, int dim0, int dim
             const float* in_ptr = (const float*)in_data;
             float* out_ptr = (float*)out_data;
 
+            // Fast path: transposing the trailing two dims is a batch of 2D
+            // matrix transposes -- use the tiled SIMD kernel.
+            if ((dim0 == (int)ndim - 2 && dim1 == (int)ndim - 1) ||
+                (dim0 == (int)ndim - 1 && dim1 == (int)ndim - 2)) {
+                size_t rows = (size_t)shape[dim0];
+                size_t cols = (size_t)shape[dim1];
+                size_t n_mat = (rows && cols) ? total_elements / (rows * cols) : 0;
+                for (size_t m = 0; m < n_mat; m++) {
+                    boat_simd_transpose2d_f32(in_ptr + m * rows * cols,
+                                              out_ptr + m * rows * cols,
+                                              rows, cols);
+                }
+                return out;
+            }
+
             // Compute strides for input and output (dynamic allocation for MSVC compatibility)
             size_t* in_stride = boat_malloc(sizeof(size_t) * ndim, BOAT_DEVICE_CPU);
             size_t* out_stride = boat_malloc(sizeof(size_t) * ndim, BOAT_DEVICE_CPU);

@@ -1,0 +1,419 @@
+// test_simd.c - SIMD kernels (transpose2d, reductions) and their wiring into
+// boat_transpose / boat_sum|mean|max|min / boat_conv_layer_forward.
+// Copyright (c) 2026 Shaoning, Xiao 萧少宁
+// Licensed under the Apache License, Version 2.0
+
+#include <boat/layers.h>
+#include <boat/ops.h>
+#include <boat/simd.h>
+#include <boat/tensor.h>
+#include <assert.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+static unsigned g_seed = 0x9E3779B9u;
+static float rnd(void) {
+    g_seed = g_seed * 1103515245u + 12345u;
+    return ((float)((int)(g_seed >> 8) % 2001) - 1000.0f) / 100.0f;
+}
+
+static int g_fail = 0;
+#define CHECK(cond, msg)                                                      \
+    do {                                                                      \
+        if (!(cond)) {                                                        \
+            printf("FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__);            \
+            g_fail++;                                                         \
+        }                                                                     \
+    } while (0)
+
+// ---------------------------------------------------------------------------
+// SIMD kernels vs scalar
+// ---------------------------------------------------------------------------
+
+static void test_transpose2d_kernel(void) {
+    const size_t rows_list[] = {1, 2, 3, 4, 5, 7, 8, 9, 16, 17, 33};
+    const size_t cols_list[] = {1, 3, 4, 5, 7, 8, 9, 16, 17, 33, 64};
+    for (size_t ri = 0; ri < sizeof(rows_list) / sizeof(rows_list[0]); ri++) {
+        for (size_t ci = 0; ci < sizeof(cols_list) / sizeof(cols_list[0]); ci++) {
+            size_t rows = rows_list[ri], cols = cols_list[ci];
+            float* a = (float*)malloc(rows * cols * sizeof(float));
+            float* b = (float*)malloc(rows * cols * sizeof(float));
+            for (size_t i = 0; i < rows * cols; i++) a[i] = rnd();
+            boat_simd_transpose2d_f32(a, b, rows, cols);
+            int ok = 1;
+            for (size_t i = 0; i < rows && ok; i++) {
+                for (size_t j = 0; j < cols && ok; j++) {
+                    if (fabsf(b[j * rows + i] - a[i * cols + j]) > 1e-4f) ok = 0;
+                }
+            }
+            char msg[64];
+            snprintf(msg, sizeof(msg), "transpose2d kernel %zux%zu", rows, cols);
+            CHECK(ok, msg);
+            free(a);
+            free(b);
+        }
+    }
+}
+
+static void test_reduce_kernels(void) {
+    const size_t lens[] = {1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 100, 1000};
+    for (size_t li = 0; li < sizeof(lens) / sizeof(lens[0]); li++) {
+        size_t n = lens[li];
+        float* a = (float*)malloc(n * sizeof(float));
+        float sum = 0.0f, mx = 1e30f, mn = -1e30f;
+        for (size_t i = 0; i < n; i++) {
+            a[i] = rnd();
+            sum += a[i];
+            if (a[i] > mn) mn = a[i];
+            if (a[i] < mx) mx = a[i];
+        }
+        char msg[64];
+        snprintf(msg, sizeof(msg), "sum reduce n=%zu", n);
+        CHECK(fabsf(sum - boat_simd_sum_reduce_f32(a, n)) <= 1e-3f * (float)(n + 1), msg);
+        snprintf(msg, sizeof(msg), "max reduce n=%zu", n);
+        CHECK(fabsf(mn - boat_simd_max_reduce_f32(a, n)) < 1e-4f, msg);
+        snprintf(msg, sizeof(msg), "min reduce n=%zu", n);
+        CHECK(fabsf(mx - boat_simd_min_reduce_f32(a, n)) < 1e-4f, msg);
+        free(a);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// boat_transpose (fast trailing-2-dims path + general path)
+// ---------------------------------------------------------------------------
+
+static void scalar_transpose(const float* in, float* out, const int64_t* shape,
+                             size_t ndim, int dim0, int dim1) {
+    size_t stride[8], oshape[8], ostride[8];
+    stride[ndim - 1] = 1;
+    for (int i = (int)ndim - 2; i >= 0; i--) stride[i] = stride[i + 1] * (size_t)shape[i + 1];
+    size_t total = 1;
+    for (size_t i = 0; i < ndim; i++) total *= (size_t)shape[i];
+    for (size_t i = 0; i < ndim; i++) oshape[i] = shape[i];
+    oshape[dim0] = shape[dim1];
+    oshape[dim1] = shape[dim0];
+    ostride[ndim - 1] = 1;
+    for (int i = (int)ndim - 2; i >= 0; i--) ostride[i] = ostride[i + 1] * oshape[i + 1];
+    for (size_t idx = 0; idx < total; idx++) {
+        size_t coords[8], t = idx;
+        for (int i = (int)ndim - 1; i >= 0; i--) {
+            coords[i] = t % (size_t)shape[i];
+            t /= (size_t)shape[i];
+        }
+        size_t tmp = coords[dim0];
+        coords[dim0] = coords[dim1];
+        coords[dim1] = tmp;
+        size_t oidx = 0;
+        for (size_t i = 0; i < ndim; i++) oidx += coords[i] * ostride[i];
+        out[oidx] = in[idx];
+    }
+}
+
+static void test_transpose_op(void) {
+    // Trailing-2-dims (SIMD fast path).
+    {
+        int64_t sh[] = {2, 3, 5, 7};
+        float a[2 * 3 * 5 * 7], ref[2 * 3 * 5 * 7];
+        for (size_t i = 0; i < sizeof(a) / sizeof(a[0]); i++) a[i] = rnd();
+        boat_tensor_t* t = boat_tensor_from_data(sh, 4, BOAT_DTYPE_FLOAT32, a);
+        boat_tensor_t* o = boat_transpose(t, 2, 3);
+        CHECK(o != NULL, "transpose 4D trailing dims returns tensor");
+        const float* od = (const float*)boat_tensor_const_data(o);
+        scalar_transpose(a, ref, sh, 4, 2, 3);
+        int ok = 1;
+        for (size_t i = 0; i < sizeof(a) / sizeof(a[0]) && ok; i++) {
+            if (fabsf(od[i] - ref[i]) > 1e-4f) ok = 0;
+        }
+        CHECK(ok, "transpose 4D trailing dims matches scalar");
+        boat_tensor_unref(o);
+        boat_tensor_unref(t);
+    }
+    // 2D (fast path).
+    {
+        int64_t sh[] = {7, 5};
+        float a[35], ref[35];
+        for (size_t i = 0; i < 35; i++) a[i] = rnd();
+        boat_tensor_t* t = boat_tensor_from_data(sh, 2, BOAT_DTYPE_FLOAT32, a);
+        boat_tensor_t* o = boat_transpose(t, 0, 1);
+        scalar_transpose(a, ref, sh, 2, 0, 1);
+        const float* od = (const float*)boat_tensor_const_data(o);
+        int ok = 1;
+        for (size_t i = 0; i < 35 && ok; i++) {
+            if (fabsf(od[i] - ref[i]) > 1e-4f) ok = 0;
+        }
+        CHECK(ok, "transpose 2D matches scalar");
+        boat_tensor_unref(o);
+        boat_tensor_unref(t);
+    }
+    // General path: swap dims 0 and 2 of a 4D tensor.
+    {
+        int64_t sh[] = {3, 4, 5, 2};
+        float a[3 * 4 * 5 * 2], ref[3 * 4 * 5 * 2];
+        for (size_t i = 0; i < sizeof(a) / sizeof(a[0]); i++) a[i] = rnd();
+        boat_tensor_t* t = boat_tensor_from_data(sh, 4, BOAT_DTYPE_FLOAT32, a);
+        boat_tensor_t* o = boat_transpose(t, 0, 2);
+        scalar_transpose(a, ref, sh, 4, 0, 2);
+        const float* od = (const float*)boat_tensor_const_data(o);
+        int ok = 1;
+        for (size_t i = 0; i < sizeof(a) / sizeof(a[0]) && ok; i++) {
+            if (fabsf(od[i] - ref[i]) > 1e-4f) ok = 0;
+        }
+        CHECK(ok, "transpose general dims matches scalar");
+        boat_tensor_unref(o);
+        boat_tensor_unref(t);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Reductions (boat_sum/mean/max/min) vs a scalar reference
+// ---------------------------------------------------------------------------
+
+typedef enum { R_SUM, R_MEAN, R_MAX, R_MIN } rkind_t;
+
+static void scalar_reduce(const float* in, float* out, const int64_t* shape, size_t ndim,
+                          const int64_t* dims, size_t n_dims, int keepdim, rkind_t kind) {
+    bool red[8];
+    for (size_t i = 0; i < ndim; i++) red[i] = false;
+    if (n_dims == 0) {
+        for (size_t i = 0; i < ndim; i++) red[i] = true;
+    } else {
+        for (size_t i = 0; i < n_dims; i++) red[dims[i]] = true;
+    }
+    size_t stride[8];
+    stride[ndim - 1] = 1;
+    for (int i = (int)ndim - 2; i >= 0; i--) stride[i] = stride[i + 1] * (size_t)shape[i + 1];
+
+    // Reduced dims (ascending), same order as the implementation.
+    size_t rd_size[8], rd_stride[8], nrd = 0;
+    size_t red_total = 1;
+    for (size_t d = 0; d < ndim; d++) {
+        if (red[d]) {
+            rd_size[nrd] = (size_t)shape[d];
+            rd_stride[nrd] = stride[d];
+            red_total *= (size_t)shape[d];
+            nrd++;
+        }
+    }
+
+    // Output shape + input-dim mapping.
+    int64_t oshape[8];
+    size_t out_to_in[8];
+    size_t ondim = 0;
+    for (size_t d = 0; d < ndim; d++) {
+        if (!red[d]) {
+            out_to_in[ondim] = d;
+            oshape[ondim++] = shape[d];
+        } else if (keepdim) {
+            out_to_in[ondim] = d;
+            oshape[ondim++] = 1;
+        }
+    }
+    size_t ostride[8];
+    size_t onelems = 1;
+    if (ondim > 0) {
+        ostride[ondim - 1] = 1;
+        for (int i = (int)ondim - 2; i >= 0; i--) ostride[i] = ostride[i + 1] * (size_t)oshape[i + 1];
+        for (size_t i = 0; i < ondim; i++) onelems *= (size_t)oshape[i];
+    }
+
+    for (size_t oi = 0; oi < onelems; oi++) {
+        size_t rem = oi;
+        size_t base = 0;
+        for (size_t d = 0; d < ondim; d++) {
+            size_t c = rem / ostride[d];
+            rem %= ostride[d];
+            base += c * stride[out_to_in[d]];
+        }
+        // Walk reduced dims ascending; the last reduced dim is innermost.
+        size_t outer = nrd ? nrd - 1 : 0;
+        size_t outer_total = 1;
+        for (size_t d = 0; d < outer; d++) outer_total *= rd_size[d];
+        size_t inner_n = nrd ? rd_size[nrd - 1] : 0;
+        size_t inner_stride = nrd ? rd_stride[nrd - 1] : 0;
+        double acc = 0.0;
+        bool first = true;
+        for (size_t ro = 0; ro < outer_total; ro++) {
+            size_t rr = ro;
+            size_t off = 0;
+            for (size_t d = 0; d < outer; d++) {
+                size_t c = rr % rd_size[d];
+                rr /= rd_size[d];
+                off += c * rd_stride[d];
+            }
+            for (size_t j = 0; j < inner_n; j++) {
+                float v = in[base + off + j * inner_stride];
+                if (kind == R_SUM || kind == R_MEAN) {
+                    acc += v;
+                } else if (kind == R_MAX) {
+                    if (first || v > acc) acc = v;
+                    first = false;
+                } else {
+                    if (first || v < acc) acc = v;
+                    first = false;
+                }
+            }
+        }
+        if (kind == R_MEAN && red_total > 0) acc /= (double)red_total;
+        out[oi] = (float)acc;
+    }
+}
+
+static void test_reduce_op(void) {
+    int64_t sh[] = {2, 3, 4};
+    float a[24];
+    for (size_t i = 0; i < 24; i++) a[i] = rnd();
+    boat_tensor_t* t = boat_tensor_from_data(sh, 3, BOAT_DTYPE_FLOAT32, a);
+
+    struct {
+        const int64_t* dims;
+        size_t ndims;
+        int keepdim;
+    } cases[] = {
+        {NULL, 0, 0},        // all dims
+        {NULL, 0, 1},        // all dims keepdim
+        {(int64_t[]) {2}, 1, 0},  // last dim (SIMD path)
+        {(int64_t[]) {1}, 1, 0},  // middle dim (strided)
+        {(int64_t[]) {0}, 1, 0},  // first dim (strided)
+        {(int64_t[]) {1, 2}, 2, 0},  // two dims, contiguous inner
+        {(int64_t[]) {0, 2}, 2, 0},  // two dims, strided inner
+    };
+
+    for (size_t ci = 0; ci < sizeof(cases) / sizeof(cases[0]); ci++) {
+        rkind_t kinds[] = {R_SUM, R_MEAN, R_MAX, R_MIN};
+        for (size_t ki = 0; ki < sizeof(kinds) / sizeof(kinds[0]); ki++) {
+            boat_tensor_t* o = NULL;
+            const int64_t* dims = cases[ci].dims;
+            size_t nd = cases[ci].ndims;
+            int kd = cases[ci].keepdim;
+            switch (kinds[ki]) {
+                case R_SUM: o = boat_sum(t, dims, nd, kd); break;
+                case R_MEAN: o = boat_mean(t, dims, nd, kd); break;
+                case R_MAX: o = boat_max(t, dims, nd, kd); break;
+                case R_MIN: o = boat_min(t, dims, nd, kd); break;
+            }
+            CHECK(o != NULL, "reduce returns tensor");
+            // Compute reference output shape via boat_tensor_shape(o).
+            const int64_t* osh = boat_tensor_shape(o);
+            size_t ondim = boat_tensor_ndim(o);
+            size_t onelems = 1;
+            for (size_t i = 0; i < ondim; i++) onelems *= (size_t)osh[i];
+            float* ref = (float*)malloc(onelems * sizeof(float));
+            scalar_reduce(a, ref, sh, 3, dims, nd, kd, kinds[ki]);
+            const float* od = (const float*)boat_tensor_const_data(o);
+            int ok = 1;
+            for (size_t i = 0; i < onelems && ok; i++) {
+                float d = od[i] - ref[i];
+                if (d < 0) d = -d;
+                if (d > 1e-3f) ok = 0;
+            }
+            char msg[96];
+            snprintf(msg, sizeof(msg), "reduce case %zu kind %zu", ci, ki);
+            CHECK(ok, msg);
+            free(ref);
+            boat_tensor_unref(o);
+        }
+    }
+    boat_tensor_unref(t);
+}
+
+// ---------------------------------------------------------------------------
+// Conv2d stride-1 forward vs an independent scalar reference
+// ---------------------------------------------------------------------------
+
+static void scalar_conv2d(const float* in, const float* w, const float* bias, float* out,
+                          int batch, int in_ch, int out_ch, int h, int wi,
+                          int kh, int kw, int pad, int stride, int groups) {
+    int ho = (h + 2 * pad - kh) / stride + 1;
+    int wo = (wi + 2 * pad - kw) / stride + 1;
+    int och_per_g = out_ch / groups, ich_per_g = in_ch / groups;
+    for (int i = 0; i < batch * out_ch * ho * wo; i++) out[i] = 0.0f;
+    for (int b = 0; b < batch; b++) {
+        for (int g = 0; g < groups; g++) {
+            for (int oc = g * och_per_g; oc < (g + 1) * och_per_g; oc++) {
+                for (int ic = g * ich_per_g; ic < (g + 1) * ich_per_g; ic++) {
+                    int icl = ic - g * ich_per_g;
+                    for (int oh = 0; oh < ho; oh++) {
+                        for (int ow = 0; ow < wo; ow++) {
+                            float s = 0.0f;
+                            for (int i = 0; i < kh; i++) {
+                                int ih = oh * stride - pad + i;
+                                if (ih < 0 || ih >= h) continue;
+                                for (int j = 0; j < kw; j++) {
+                                    int iw = ow * stride - pad + j;
+                                    if (iw < 0 || iw >= wi) continue;
+                                    s += in[((b * in_ch + ic) * h + ih) * wi + iw] *
+                                         w[((oc * ich_per_g + icl) * kh + i) * kw + j];
+                                }
+                            }
+                            out[((b * out_ch + oc) * ho + oh) * wo + ow] += s;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (bias) {
+        for (int b = 0; b < batch; b++) {
+            for (int oc = 0; oc < out_ch; oc++) {
+                for (int i = 0; i < ho * wo; i++) {
+                    out[((b * out_ch + oc) * ho * wo) + i] += bias[oc];
+                }
+            }
+        }
+    }
+}
+
+static void test_conv_stride1(void) {
+    // Input [1, 2, 8, 8], 2 out channels, 3x3 kernel, pad 1, stride 1.
+    int batch = 1, in_ch = 2, out_ch = 2, h = 8, wi = 8, kh = 3, kw = 3, pad = 1, stride = 1;
+    int ho = h, wo = wi;
+    float in[1 * 2 * 8 * 8], w[2 * 2 * 3 * 3], bias[2];
+    for (size_t i = 0; i < sizeof(in) / sizeof(in[0]); i++) in[i] = rnd();
+    for (size_t i = 0; i < sizeof(w) / sizeof(w[0]); i++) w[i] = rnd();
+    for (size_t i = 0; i < 2; i++) bias[i] = rnd();
+
+    int64_t ish[] = {batch, in_ch, h, wi};
+    int64_t wsh[] = {out_ch, in_ch, kh, kw};
+    int64_t bsh[] = {out_ch};
+    boat_tensor_t* it = boat_tensor_from_data(ish, 4, BOAT_DTYPE_FLOAT32, in);
+    boat_tensor_t* wt = boat_tensor_from_data(wsh, 4, BOAT_DTYPE_FLOAT32, w);
+    boat_tensor_t* bt = boat_tensor_from_data(bsh, 1, BOAT_DTYPE_FLOAT32, bias);
+
+    boat_conv_layer_t* conv = boat_conv_layer_create(in_ch, out_ch, kh, stride, pad, 1);
+    CHECK(conv != NULL, "conv layer create");
+    boat_conv_layer_set_weight(conv, wt);
+    boat_conv_layer_set_bias(conv, bt);
+    boat_tensor_t* o = boat_conv_layer_forward(conv, it);
+    CHECK(o != NULL, "conv forward");
+
+    float* ref = (float*)malloc((size_t)batch * out_ch * ho * wo * sizeof(float));
+    scalar_conv2d(in, w, bias, ref, batch, in_ch, out_ch, h, wi, kh, kw, pad, stride, 1);
+    const float* od = (const float*)boat_tensor_const_data(o);
+    int ok = 1;
+    for (int i = 0; i < batch * out_ch * ho * wo; i++) {
+        if (fabsf(od[i] - ref[i]) > 1e-3f) ok = 0;
+    }
+    CHECK(ok, "conv2d stride-1 forward matches scalar reference");
+
+    free(ref);
+    boat_tensor_unref(o);
+    boat_tensor_unref(it);
+    boat_tensor_unref(wt);
+    boat_tensor_unref(bt);
+    boat_conv_layer_free(conv);
+}
+
+int main(void) {
+    test_transpose2d_kernel();
+    test_reduce_kernels();
+    test_transpose_op();
+    test_reduce_op();
+    test_conv_stride1();
+    if (g_fail) {
+        printf("%d test(s) FAILED\n", g_fail);
+        return 1;
+    }
+    printf("All SIMD tests passed.\n");
+    return 0;
+}
