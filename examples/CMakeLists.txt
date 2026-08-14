@@ -7,6 +7,9 @@ add_subdirectory(serialization)
 add_subdirectory(transformer)
 add_subdirectory(translator)
 
+# Needle 2 (Simple Attention Network) inference from the .cact blob (CPU).
+add_subdirectory(needle)
+
 # Learning rate scheduler usage example (CPU, self-contained)
 add_executable(scheduler_usage scheduler_usage.c)
 target_link_libraries(scheduler_usage PRIVATE boat)
