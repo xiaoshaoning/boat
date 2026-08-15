@@ -424,6 +424,175 @@ BOAT_API void boat_simd_transpose2d_f32(const float* src, float* dst, size_t row
 }
 
 // ---------------------------------------------------------------------------
+// Transcendental / activation kernels (AVX2 via a fast exp2-based exp).
+// ---------------------------------------------------------------------------
+
+#if BOAT_HAVE_AVX2
+// exp(x) = 2^(x*log2(e)): split into an integer exponent and a fractional
+// part evaluated with a degree-7 Horner polynomial (~1e-7 relative error).
+BOAT_API __m256 boat_simd_exp256(__m256 x) {
+    const __m256 log2e = _mm256_set1_ps(1.4426950408889634f);
+    const __m256 ln2 = _mm256_set1_ps(0.6931471805599453f);
+    x = _mm256_min_ps(x, _mm256_set1_ps(87.33654f));
+    x = _mm256_max_ps(x, _mm256_set1_ps(-87.33654f));
+    __m256 f = _mm256_mul_ps(x, log2e);
+    f = _mm256_round_ps(f, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+    __m256 z = _mm256_fnmadd_ps(f, ln2, x);
+    __m256 y = _mm256_set1_ps(1.0f / 5040.0f);
+    y = _mm256_fmadd_ps(y, z, _mm256_set1_ps(1.0f / 720.0f));
+    y = _mm256_fmadd_ps(y, z, _mm256_set1_ps(1.0f / 120.0f));
+    y = _mm256_fmadd_ps(y, z, _mm256_set1_ps(1.0f / 24.0f));
+    y = _mm256_fmadd_ps(y, z, _mm256_set1_ps(1.0f / 6.0f));
+    y = _mm256_fmadd_ps(y, z, _mm256_set1_ps(0.5f));
+    y = _mm256_fmadd_ps(y, z, _mm256_set1_ps(1.0f));
+    y = _mm256_fmadd_ps(y, z, _mm256_set1_ps(1.0f));
+    __m256i i = _mm256_cvtps_epi32(f);
+    i = _mm256_add_epi32(i, _mm256_set1_epi32(127));
+    i = _mm256_slli_epi32(i, 23);
+    return _mm256_mul_ps(y, _mm256_castsi256_ps(i));
+}
+
+// tanh(x) = 1 - 2/(exp(2x)+1), with 2x clamped to the exp range.
+BOAT_API __m256 boat_simd_tanh256(__m256 x) {
+    const __m256 two = _mm256_set1_ps(2.0f);
+    const __m256 one = _mm256_set1_ps(1.0f);
+    __m256 t = _mm256_min_ps(_mm256_mul_ps(x, two), _mm256_set1_ps(87.33654f));
+    t = _mm256_max_ps(t, _mm256_set1_ps(-87.33654f));
+    __m256 e = boat_simd_exp256(t);
+    __m256 r = _mm256_div_ps(two, _mm256_add_ps(one, e));
+    return _mm256_sub_ps(one, r);
+}
+
+BOAT_API __m256 boat_simd_sigmoid256(__m256 x) {
+    const __m256 one = _mm256_set1_ps(1.0f);
+    __m256 e = boat_simd_exp256(_mm256_sub_ps(_mm256_setzero_ps(), x));
+    return _mm256_div_ps(one, _mm256_add_ps(one, e));
+}
+#endif
+
+BOAT_API void boat_simd_exp_f32(const float* a, float* dst, size_t n) {
+#if BOAT_HAVE_AVX2
+    size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        __m256 v = _mm256_loadu_ps(a + i);
+        _mm256_storeu_ps(dst + i, boat_simd_exp256(v));
+    }
+    for (; i < n; i++) dst[i] = expf(a[i]);
+#else
+    for (size_t i = 0; i < n; i++) dst[i] = expf(a[i]);
+#endif
+}
+
+BOAT_API void boat_simd_sigmoid_f32(const float* a, float* dst, size_t n) {
+#if BOAT_HAVE_AVX2
+    const __m256 one = _mm256_set1_ps(1.0f);
+    const __m256 zero = _mm256_setzero_ps();
+    size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        __m256 e = boat_simd_exp256(_mm256_sub_ps(zero, _mm256_loadu_ps(a + i)));
+        _mm256_storeu_ps(dst + i, _mm256_div_ps(one, _mm256_add_ps(one, e)));
+    }
+    for (; i < n; i++) dst[i] = 1.0f / (1.0f + expf(-a[i]));
+#else
+    for (size_t i = 0; i < n; i++) dst[i] = 1.0f / (1.0f + expf(-a[i]));
+#endif
+}
+
+BOAT_API void boat_simd_tanh_f32(const float* a, float* dst, size_t n) {
+#if BOAT_HAVE_AVX2
+    size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        __m256 v = _mm256_loadu_ps(a + i);
+        _mm256_storeu_ps(dst + i, boat_simd_tanh256(v));
+    }
+    for (; i < n; i++) dst[i] = tanhf(a[i]);
+#else
+    for (size_t i = 0; i < n; i++) dst[i] = tanhf(a[i]);
+#endif
+}
+
+BOAT_API void boat_simd_silu_f32(const float* a, float* dst, size_t n) {
+#if BOAT_HAVE_AVX2
+    const __m256 one = _mm256_set1_ps(1.0f);
+    const __m256 zero = _mm256_setzero_ps();
+    size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        __m256 x = _mm256_loadu_ps(a + i);
+        __m256 e = boat_simd_exp256(_mm256_sub_ps(zero, x));
+        __m256 s = _mm256_div_ps(one, _mm256_add_ps(one, e));
+        _mm256_storeu_ps(dst + i, _mm256_mul_ps(x, s));
+    }
+    for (; i < n; i++) dst[i] = a[i] / (1.0f + expf(-a[i]));
+#else
+    for (size_t i = 0; i < n; i++) dst[i] = a[i] / (1.0f + expf(-a[i]));
+#endif
+}
+
+BOAT_API void boat_simd_gelu_f32(const float* a, float* dst, size_t n) {
+    // 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
+    const float k = 0.7978845608028654f;   // sqrt(2/pi)
+    const float c = 0.044715f;
+#if BOAT_HAVE_AVX2
+    const __m256 vk = _mm256_set1_ps(k);
+    const __m256 vc = _mm256_set1_ps(c);
+    const __m256 half = _mm256_set1_ps(0.5f);
+    const __m256 one = _mm256_set1_ps(1.0f);
+    size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        __m256 x = _mm256_loadu_ps(a + i);
+        __m256 x3 = _mm256_mul_ps(x, _mm256_mul_ps(x, x));
+        __m256 t = boat_simd_tanh256(_mm256_mul_ps(vk, _mm256_add_ps(x, _mm256_mul_ps(vc, x3))));
+        _mm256_storeu_ps(dst + i, _mm256_mul_ps(half, _mm256_mul_ps(x, _mm256_add_ps(one, t))));
+    }
+    for (; i < n; i++) {
+        float x = a[i];
+        dst[i] = 0.5f * x * (1.0f + tanhf(k * (x + c * x * x * x)));
+    }
+#else
+    for (size_t i = 0; i < n; i++) {
+        float x = a[i];
+        dst[i] = 0.5f * x * (1.0f + tanhf(k * (x + c * x * x * x)));
+    }
+#endif
+}
+
+BOAT_API void boat_simd_softmax_f32(const float* a, float* dst, size_t rows, size_t cols) {
+    if (rows == 0 || cols == 0) return;
+    for (size_t r = 0; r < rows; r++) {
+        const float* row = a + r * cols;
+        float* drow = dst + r * cols;
+        float mx = row[0];
+        for (size_t c = 1; c < cols; c++) {
+            if (row[c] > mx) mx = row[c];
+        }
+#if BOAT_HAVE_AVX2
+        const __m256 vmx = _mm256_set1_ps(mx);
+        size_t c = 0;
+        __m256 vsum = _mm256_setzero_ps();
+        for (; c + 8 <= cols; c += 8) {
+            __m256 e = boat_simd_exp256(_mm256_sub_ps(_mm256_loadu_ps(row + c), vmx));
+            _mm256_storeu_ps(drow + c, e);
+            vsum = _mm256_add_ps(vsum, e);
+        }
+        float sum = 0.0f;
+        for (size_t k = 0; k < c; k++) sum += drow[k];  // includes the vector tail
+        for (; c < cols; c++) {
+            drow[c] = expf(row[c] - mx);
+            sum += drow[c];
+        }
+        for (size_t k = 0; k < cols; k++) drow[k] /= sum;
+#else
+        float sum = 0.0f;
+        for (size_t c = 0; c < cols; c++) {
+            drow[c] = expf(row[c] - mx);
+            sum += drow[c];
+        }
+        for (size_t c = 0; c < cols; c++) drow[c] /= sum;
+#endif
+    }
+}
+
+// ---------------------------------------------------------------------------
 // boat_simd_allclose_f32
 // ---------------------------------------------------------------------------
 

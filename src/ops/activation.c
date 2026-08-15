@@ -60,6 +60,15 @@ BOAT_API boat_tensor_t* boat_softmax(const boat_tensor_t* a, int axis) {
     size_t total_elements = boat_tensor_nelements(a);
     if (total_elements == 0) return out;
 
+    // Fast path: softmax over the contiguous last axis (inner_stride == 1).
+    if (dtype == BOAT_DTYPE_FLOAT32 && inner_stride == 1 &&
+        boat_tensor_device(a) == BOAT_DEVICE_CPU) {
+        boat_simd_softmax_f32((const float*)boat_tensor_const_data(a),
+                              (float*)boat_tensor_data(out),
+                              (size_t)outer_elements, (size_t)axis_size);
+        return out;
+    }
+
     const void* a_data = boat_tensor_data(a);
     void* out_data = boat_tensor_data(out);
 
@@ -331,9 +340,7 @@ BOAT_API boat_tensor_t* boat_sigmoid(const boat_tensor_t* a) {
     if (dtype == BOAT_DTYPE_FLOAT32) {
         const float* src = (const float*)boat_tensor_const_data(a);
         float* dst = (float*)boat_tensor_data(out);
-        for (size_t i = 0; i < n; i++) {
-            dst[i] = 1.0f / (1.0f + expf(-src[i]));
-        }
+        boat_simd_sigmoid_f32(src, dst, n);
         return out;
     }
 
@@ -370,9 +377,7 @@ BOAT_API boat_tensor_t* boat_silu(const boat_tensor_t* a) {
     if (dtype == BOAT_DTYPE_FLOAT32) {
         const float* src = (const float*)boat_tensor_const_data(a);
         float* dst = (float*)boat_tensor_data(out);
-        for (size_t i = 0; i < n; i++) {
-            dst[i] = src[i] / (1.0f + expf(-src[i]));
-        }
+        boat_simd_silu_f32(src, dst, n);
         return out;
     }
 
@@ -409,9 +414,7 @@ BOAT_API boat_tensor_t* boat_tanh(const boat_tensor_t* a) {
     if (dtype == BOAT_DTYPE_FLOAT32) {
         const float* src = (const float*)boat_tensor_const_data(a);
         float* dst = (float*)boat_tensor_data(out);
-        for (size_t i = 0; i < n; i++) {
-            dst[i] = tanhf(src[i]);
-        }
+        boat_simd_tanh_f32(src, dst, n);
         return out;
     }
 
@@ -448,12 +451,7 @@ BOAT_API boat_tensor_t* boat_gelu(const boat_tensor_t* a) {
     if (dtype == BOAT_DTYPE_FLOAT32) {
         const float* src = (const float*)boat_tensor_const_data(a);
         float* dst = (float*)boat_tensor_data(out);
-        for (size_t i = 0; i < n; i++) {
-            float x = src[i];
-            float x3 = x * x * x;
-            float inner = 0.7978845608028654f * (x + 0.044715f * x3);
-            dst[i] = 0.5f * x * (1.0f + tanhf(inner));
-        }
+        boat_simd_gelu_f32(src, dst, n);
         return out;
     }
 

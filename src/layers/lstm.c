@@ -3,6 +3,7 @@
 // Licensed under the Apache License, Version 2.0
 
 #include <boat/layers.h>
+#include <boat/simd.h>
 #include <boat/tensor.h>
 #include <boat/memory.h>
 #include <boat.h>
@@ -317,7 +318,26 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_lstm_layer_forward(boat_lstm_layer_t* lay
             float* hb = h_curr + b * hidden;
             float* cb = c_curr + b * hidden;
             const float* cpb = c_prev + b * hidden;
-            for (size_t j = 0; j < hidden; j++) {
+            size_t j = 0;
+#if BOAT_HAVE_AVX2
+            const size_t h2 = hidden * 2;
+            const size_t h3 = hidden * 3;
+            for (; j + 8 <= hidden; j += 8) {
+                __m256 gi = _mm256_loadu_ps(row + j);
+                __m256 gf = _mm256_loadu_ps(row + hidden + j);
+                __m256 gc = _mm256_loadu_ps(row + h2 + j);
+                __m256 go = _mm256_loadu_ps(row + h3 + j);
+                __m256 ig = boat_simd_sigmoid256(gi);
+                __m256 fg = boat_simd_sigmoid256(gf);
+                __m256 cg = boat_simd_tanh256(gc);
+                __m256 og = boat_simd_sigmoid256(go);
+                __m256 cp = _mm256_loadu_ps(cpb + j);
+                __m256 cn = _mm256_add_ps(_mm256_mul_ps(fg, cp), _mm256_mul_ps(ig, cg));
+                _mm256_storeu_ps(cb + j, cn);
+                _mm256_storeu_ps(hb + j, _mm256_mul_ps(og, boat_simd_tanh256(cn)));
+            }
+#endif
+            for (; j < hidden; j++) {
                 float ig = lstm_sigmoid_f32(row[j]);
                 float fg = lstm_sigmoid_f32(row[hidden + j]);
                 float cg = tanhf(row[2 * hidden + j]);

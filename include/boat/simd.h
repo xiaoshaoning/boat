@@ -89,6 +89,24 @@ BOAT_API float boat_simd_sum_reduce_f32(const float* a, size_t n);
 // dst[c * rows + r] = src[r * cols + c]. Tiled SIMD when available.
 BOAT_API void boat_simd_transpose2d_f32(const float* src, float* dst, size_t rows, size_t cols);
 
+// Transcendental / activation elementwise kernels (dst[i] = f(a[i])).
+BOAT_API void boat_simd_exp_f32(const float* a, float* dst, size_t n);
+BOAT_API void boat_simd_sigmoid_f32(const float* a, float* dst, size_t n);
+BOAT_API void boat_simd_tanh_f32(const float* a, float* dst, size_t n);
+BOAT_API void boat_simd_silu_f32(const float* a, float* dst, size_t n);
+BOAT_API void boat_simd_gelu_f32(const float* a, float* dst, size_t n);
+
+// Row-wise softmax over the last (contiguous) dim of a [rows, cols] matrix.
+BOAT_API void boat_simd_softmax_f32(const float* a, float* dst, size_t rows, size_t cols);
+
+#if BOAT_HAVE_AVX2
+// 256-bit vector helpers (for consumers that need to fuse the math, e.g. the
+// LSTM/GRU gate loops).
+BOAT_API __m256 boat_simd_exp256(__m256 x);
+BOAT_API __m256 boat_simd_sigmoid256(__m256 x);
+BOAT_API __m256 boat_simd_tanh256(__m256 x);
+#endif
+
 // Check if two arrays are element-wise equal within tolerance
 BOAT_API bool boat_simd_allclose_f32(const float* a, const float* b, size_t n, float rtol,
                                      float atol);

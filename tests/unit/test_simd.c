@@ -57,6 +57,93 @@ static void test_transpose2d_kernel(void) {
     }
 }
 
+static void test_activation_kernels(void) {
+    // Compare the SIMD transcendental kernels against scalar libm for
+    // various lengths (exercises tails) and a range covering sigmoid/tanh
+    // saturation.
+    const size_t lens[] = {1, 2, 7, 8, 9, 15, 16, 17, 31, 32, 100, 1000};
+    for (size_t li = 0; li < sizeof(lens) / sizeof(lens[0]); li++) {
+        size_t n = lens[li];
+        float* a = (float*)malloc(n * sizeof(float));
+        float* got = (float*)malloc(n * sizeof(float));
+        for (size_t i = 0; i < n; i++) a[i] = rnd();
+
+        // A few extreme values to exercise saturation.
+        a[0] = 6.0f;
+        a[n - 1] = -6.0f;
+
+        boat_simd_sigmoid_f32(a, got, n);
+        for (size_t i = 0; i < n; i++) {
+            float ref = 1.0f / (1.0f + expf(-a[i]));
+            if (fabsf(got[i] - ref) > 2e-5f) {
+                char msg[64];
+                snprintf(msg, sizeof(msg), "sigmoid n=%zu i=%zu", n, i);
+                CHECK(0, msg);
+            }
+        }
+        boat_simd_tanh_f32(a, got, n);
+        for (size_t i = 0; i < n; i++) {
+            if (fabsf(got[i] - tanhf(a[i])) > 2e-5f) {
+                char msg[64];
+                snprintf(msg, sizeof(msg), "tanh n=%zu i=%zu", n, i);
+                CHECK(0, msg);
+            }
+        }
+        boat_simd_silu_f32(a, got, n);
+        for (size_t i = 0; i < n; i++) {
+            float ref = a[i] / (1.0f + expf(-a[i]));
+            if (fabsf(got[i] - ref) > 2e-5f) {
+                char msg[64];
+                snprintf(msg, sizeof(msg), "silu n=%zu i=%zu", n, i);
+                CHECK(0, msg);
+            }
+        }
+        boat_simd_gelu_f32(a, got, n);
+        for (size_t i = 0; i < n; i++) {
+            float x = a[i];
+            float ref = 0.5f * x * (1.0f + tanhf(0.7978845608028654f *
+                                                 (x + 0.044715f * x * x * x)));
+            if (fabsf(got[i] - ref) > 2e-5f) {
+                char msg[64];
+                snprintf(msg, sizeof(msg), "gelu n=%zu i=%zu", n, i);
+                CHECK(0, msg);
+            }
+        }
+        free(a);
+        free(got);
+    }
+
+    // Softmax over the last dim: verify row sums to 1 and ordering preserved.
+    {
+        size_t rows = 5, cols = 64;
+        float* a = (float*)malloc(rows * cols * sizeof(float));
+        float* got = (float*)malloc(rows * cols * sizeof(float));
+        for (size_t i = 0; i < rows * cols; i++) a[i] = rnd();
+        boat_simd_softmax_f32(a, got, rows, cols);
+        int ok = 1;
+        for (size_t r = 0; r < rows && ok; r++) {
+            float sum = 0.0f;
+            for (size_t c = 0; c < cols; c++) sum += got[r * cols + c];
+            if (fabsf(sum - 1.0f) > 1e-4f) ok = 0;
+        }
+        CHECK(ok, "softmax rows sum to 1");
+        // Monotonicity: softmax preserves argmax.
+        int order_ok = 1;
+        for (size_t r = 0; r < rows && order_ok; r++) {
+            size_t am = 0, gm = 0;
+            for (size_t c = 1; c < cols; c++) {
+                if (a[r * cols + c] > a[r * cols + am]) am = c;
+                if (got[r * cols + c] > got[r * cols + gm]) gm = c;
+            }
+            if (am != gm) order_ok = 0;
+        }
+        CHECK(order_ok, "softmax preserves argmax");
+        free(a);
+        free(got);
+    }
+    printf("activation kernels checked vs libm\n");
+}
+
 static void test_reduce_kernels(void) {
     const size_t lens[] = {1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 100, 1000};
     for (size_t li = 0; li < sizeof(lens) / sizeof(lens[0]); li++) {
@@ -448,6 +535,7 @@ static void test_conv_stride1(void) {
 
 int main(void) {
     test_transpose2d_kernel();
+    test_activation_kernels();
     test_reduce_kernels();
     test_transpose_op();
     test_reduce_op();

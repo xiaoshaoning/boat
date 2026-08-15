@@ -124,6 +124,68 @@ static void bench_reduce_op(void) {
     free(a);
 }
 
+static void bench_one(const char* name, void (*simd)(const float*, float*, size_t),
+                      void (*scalar)(const float*, float*, size_t), const float* a,
+                      float* buf, size_t n, int reps) {
+    double t0, t1;
+    volatile float sink = 0.0f;
+    simd(a, buf, 64);  // warmup
+    t0 = now_sec();
+    for (int r = 0; r < reps; r++) simd(a, buf, n);
+    t1 = now_sec();
+    double ts = t1 - t0;
+    t0 = now_sec();
+    for (int r = 0; r < reps; r++) scalar(a, buf, n);
+    t1 = now_sec();
+    double tc = t1 - t0;
+    for (size_t i = 0; i < n; i++) sink += buf[i];
+    (void)sink;
+    printf("%-8s %6zu elems x%-3d: SIMD %.3f s  scalar %.3f s  speedup %.1fx  (%.1f MB/s SIMD)\n",
+           name, n, reps, ts, tc, tc / ts, reps * n * 4 / 1e6 / ts);
+}
+
+static void s_sigmoid(const float* a, float* d, size_t n) {
+    for (size_t i = 0; i < n; i++) d[i] = 1.0f / (1.0f + expf(-a[i]));
+}
+static void s_tanh(const float* a, float* d, size_t n) {
+    for (size_t i = 0; i < n; i++) d[i] = tanhf(a[i]);
+}
+static void s_silu(const float* a, float* d, size_t n) {
+    for (size_t i = 0; i < n; i++) d[i] = a[i] / (1.0f + expf(-a[i]));
+}
+static void s_gelu(const float* a, float* d, size_t n) {
+    for (size_t i = 0; i < n; i++) {
+        float x = a[i];
+        d[i] = 0.5f * x * (1.0f + tanhf(0.7978845608028654f * (x + 0.044715f * x * x * x)));
+    }
+}
+static void s_exp(const float* a, float* d, size_t n) {
+    for (size_t i = 0; i < n; i++) d[i] = expf(a[i]);
+}
+
+static void bench_activations(void) {
+    const size_t N = 1u << 20;  // 1M elems
+    float* a = (float*)malloc(N * sizeof(float));
+    float* buf = (float*)malloc(N * sizeof(float));
+    for (size_t i = 0; i < N; i++) a[i] = rnd();
+    bench_one("sigmoid", boat_simd_sigmoid_f32, s_sigmoid, a, buf, N, 10);
+    bench_one("tanh", boat_simd_tanh_f32, s_tanh, a, buf, N, 10);
+    bench_one("silu", boat_simd_silu_f32, s_silu, a, buf, N, 10);
+    bench_one("gelu", boat_simd_gelu_f32, s_gelu, a, buf, N, 10);
+    bench_one("exp", boat_simd_exp_f32, s_exp, a, buf, N, 10);
+
+    // Row-wise softmax over [256, 4096].
+    const size_t rows = 256, cols = 4096;
+    for (size_t i = 0; i < rows * cols; i++) a[i] = rnd();
+    double t0 = now_sec();
+    for (int r = 0; r < 5; r++) boat_simd_softmax_f32(a, buf, rows, cols);
+    double t1 = now_sec();
+    printf("softmax  %zux%zu x5: %.3f s  (%.1f MB/s)\n", rows, cols, t1 - t0,
+           5.0 * rows * cols * 4 / 1e6 / (t1 - t0));
+    free(a);
+    free(buf);
+}
+
 int main(void) {
     printf("=== Boat SIMD / conv / reduce benchmark ===\n");
 #ifdef _OPENMP
@@ -135,6 +197,7 @@ int main(void) {
     bench_transpose();
     bench_conv();
     bench_reduce_op();
+    bench_activations();
     printf("done.\n");
     return 0;
 }

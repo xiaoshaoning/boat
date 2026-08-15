@@ -3,6 +3,7 @@
 // Licensed under the Apache License, Version 2.0
 
 #include <boat/layers.h>
+#include <boat/simd.h>
 #include <boat/tensor.h>
 #include <boat/memory.h>
 #include <boat.h>
@@ -318,7 +319,23 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_forward(boat_gru_layer_t* layer
             const float* ahh = a_hh + b * gate_dim;
             const float* hpb = h_prev + b * hidden;
             float* hb = h_curr + b * hidden;
-            for (size_t j = 0; j < hidden; j++) {
+            size_t j = 0;
+#if BOAT_HAVE_AVX2
+            const size_t h2 = hidden * 2;
+            const __m256 one = _mm256_set1_ps(1.0f);
+            for (; j + 8 <= hidden; j += 8) {
+                __m256 r = boat_simd_sigmoid256(_mm256_loadu_ps(row + j));
+                __m256 z = boat_simd_sigmoid256(_mm256_loadu_ps(row + hidden + j));
+                __m256 pre = _mm256_add_ps(_mm256_loadu_ps(aih + h2 + j),
+                                           _mm256_mul_ps(r, _mm256_loadu_ps(ahh + h2 + j)));
+                __m256 n = boat_simd_tanh256(pre);
+                __m256 hp = _mm256_loadu_ps(hpb + j);
+                _mm256_storeu_ps(hb + j,
+                                 _mm256_add_ps(_mm256_mul_ps(_mm256_sub_ps(one, z), n),
+                                               _mm256_mul_ps(z, hp)));
+            }
+#endif
+            for (; j < hidden; j++) {
                 float r = gru_sigmoid_f32(row[j]);
                 float z = gru_sigmoid_f32(row[hidden + j]);
                 float n = tanhf(aih[2 * hidden + j] + r * ahh[2 * hidden + j]);
