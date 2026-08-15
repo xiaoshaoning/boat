@@ -7,6 +7,24 @@ add_subdirectory(serialization)
 add_subdirectory(transformer)
 add_subdirectory(translator)
 
+# Data-backed examples (mnist/cifar10 datasets, a trained translator model).
+# They exit with the SKIP_RETURN_CODE (77) when the data isn't present, so
+# ctest marks them SKIPPED instead of failed in environments without it.
+if(TARGET mnist)
+    add_test(NAME mnist COMMAND mnist)
+    set_tests_properties(mnist PROPERTIES ENVIRONMENT "MNIST_QUICK_TEST=1"
+                                           SKIP_RETURN_CODE 77)
+endif()
+if(TARGET cifar10)
+    add_test(NAME cifar10 COMMAND cifar10)
+    set_tests_properties(cifar10 PROPERTIES ENVIRONMENT "CIFAR10_QUICK_TEST=1"
+                                            SKIP_RETURN_CODE 77)
+endif()
+if(TARGET translator)
+    add_test(NAME translator COMMAND translator ${CMAKE_SOURCE_DIR}/examples/translator/model)
+    set_tests_properties(translator PROPERTIES SKIP_RETURN_CODE 77)
+endif()
+
 # Needle 2 (Simple Attention Network) inference from the .cact blob (CPU).
 add_subdirectory(needle)
 

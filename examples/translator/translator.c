@@ -19,6 +19,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+#include <io.h>
+#define F_OK 0
+#define access _access
+#else
+#include <unistd.h>
+#endif
+
 #include "safetensors.h"
 #include "spm.h"
 
@@ -927,6 +935,11 @@ int main(int argc, char** argv) {
 
     // Load tokenizer
     if (verbose) fprintf(stderr, "[INFO] Loading tokenizer...\n");
+    if (access(model_path, F_OK) == -1 || access(vocab_path, F_OK) == -1) {
+        fprintf(stderr, "[SKIP] model/vocab not found under %s (run the training/export "
+                        "pipeline first)\n", model_dir);
+        return 77;  // skip code: ctest marks this SKIPPED when the model is absent
+    }
     spm_tokenizer_t tok;
     if (!spm_init(&tok, vocab_path)) {
         fprintf(stderr, "[ERROR] Failed to load tokenizer\n");

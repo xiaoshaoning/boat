@@ -358,7 +358,7 @@ int main(int argc, char* argv[]) {
     // Check for data directory
     if (access("data", F_OK) == -1) {
         printf("Data directory not found. Please run 'python mnist_data.py' first.\n");
-        return 1;
+        return 77;  // skip code: ctest marks this SKIPPED when data is absent
     }
 
     // Select data files based on test mode
