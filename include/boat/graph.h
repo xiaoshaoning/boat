@@ -117,6 +117,15 @@ BOAT_API bool boat_graph_prune_unreachable(boat_graph_t* graph,
 // Remove duplicate forward edges between the same (source, target) pair.
 BOAT_API bool boat_graph_remove_duplicate_edges(boat_graph_t* graph);
 
+// Node evaluator: returns the tensor a constant-foldable OPERATION node
+// produces from its constant inputs, or NULL when it cannot be folded.
+// The node data is opaque, so the evaluator is supplied by the subsystem that
+// owns the operation semantics (e.g. the autodiff engine); it can use the
+// graph to read the node's constant inputs.
+typedef boat_tensor_t* (*boat_graph_evaluator_t)(const boat_graph_t* graph,
+                                                 const boat_node_t* op_node);
+BOAT_API void boat_graph_set_evaluator(boat_graph_t* graph, boat_graph_evaluator_t eval);
+
 // Graph visualization
 BOAT_API void boat_graph_print(const boat_graph_t* graph);
 BOAT_API char* boat_graph_to_dot(const boat_graph_t* graph);

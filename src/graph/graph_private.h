@@ -42,6 +42,9 @@ struct boat_graph_t {
     // source graph so its node data stays alive while the shallow copy exists.
     size_t ref_count;
     struct boat_graph_t* backing; // Source graph this graph shares node data with
+
+    // Constant-folding evaluator (opaque node data -> result tensor).
+    boat_graph_evaluator_t evaluator;
 };
 
 // Edge list structure for adjacency lists

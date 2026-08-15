@@ -124,6 +124,81 @@ static void test_invalid_args(void) {
     boat_graph_free(g);
 }
 
+// --- Constant folding ------------------------------------------------------
+
+// Evaluator for the test graph: an OPERATION node whose data is the string
+// "add" sums the tensors of its constant inputs.
+static boat_tensor_t* test_evaluator(const boat_graph_t* graph, const boat_node_t* op_node) {
+    const char* op_name = (const char*)boat_node_data(op_node);
+    if (!op_name || strcmp(op_name, "add") != 0) return NULL;
+    float acc = 0.0f;
+    int n = 0;
+    size_t ne = boat_graph_edge_count(graph);
+    for (size_t e = 0; e < ne; e++) {
+        const boat_edge_t* edge = boat_graph_get_edge_at_index(graph, e);
+        if (!edge || boat_edge_direction(edge) != BOAT_EDGE_DIRECTION_FORWARD) continue;
+        if (boat_edge_target(edge) == op_node) {
+            const boat_node_t* src = boat_edge_source(edge);
+            if (boat_node_type(src) != BOAT_NODE_TYPE_CONSTANT) return NULL;
+            const float* d = (const float*)boat_node_data(src);
+            acc += d[0];
+            n++;
+        }
+    }
+    if (n == 0) return NULL;
+    int64_t sh[] = {1};
+    float v = acc;
+    return boat_tensor_from_data(sh, 1, BOAT_DTYPE_FLOAT32, &v);
+}
+
+static void test_fold_constants(void) {
+    boat_graph_t* g = boat_graph_create();
+    float* c2 = (float*)malloc(sizeof(float));
+    float* c3 = (float*)malloc(sizeof(float));
+    *c2 = 2.0f;
+    *c3 = 3.0f;
+    boat_node_t* ca = boat_graph_add_node(g, c2, BOAT_NODE_TYPE_CONSTANT, free);
+    boat_node_t* cb = boat_graph_add_node(g, c3, BOAT_NODE_TYPE_CONSTANT, free);
+    boat_node_t* op = boat_graph_add_node(g, (void*)"add", BOAT_NODE_TYPE_OPERATION, NULL);
+    boat_node_t* out = boat_graph_add_node(g, NULL, BOAT_NODE_TYPE_OUTPUT, NULL);
+    boat_graph_add_edge(g, ca, op, BOAT_EDGE_DIRECTION_FORWARD);
+    boat_graph_add_edge(g, cb, op, BOAT_EDGE_DIRECTION_FORWARD);
+    boat_graph_add_edge(g, op, out, BOAT_EDGE_DIRECTION_FORWARD);
+    CHECK(boat_graph_node_count(g) == 4, "graph has 4 nodes before fold");
+
+    boat_graph_set_evaluator(g, test_evaluator);
+    boat_graph_fold_constants(g);
+
+    CHECK(boat_graph_node_count(g) == 4, "op folded into a constant (ca, cb, const, out)");
+    // The output node must still receive a value (from the new constant).
+    size_t in_edges = 0;
+    size_t ne = boat_graph_edge_count(g);
+    for (size_t e = 0; e < ne; e++) {
+        const boat_edge_t* edge = boat_graph_get_edge_at_index(g, e);
+        if (edge && boat_edge_direction(edge) == BOAT_EDGE_DIRECTION_FORWARD &&
+            boat_edge_target(edge) == out) {
+            in_edges++;
+        }
+    }
+    CHECK(in_edges == 1, "output still fed by one node after fold");
+    // The node feeding the output must be the folded constant holding 5.0.
+    int found5 = 0;
+    for (size_t e = 0; e < ne; e++) {
+        const boat_edge_t* edge = boat_graph_get_edge_at_index(g, e);
+        if (edge && boat_edge_direction(edge) == BOAT_EDGE_DIRECTION_FORWARD &&
+            boat_edge_target(edge) == out) {
+            const boat_node_t* src = boat_edge_source(edge);
+            if (boat_node_type(src) == BOAT_NODE_TYPE_CONSTANT) {
+                const float* d =
+                    (const float*)boat_tensor_data((boat_tensor_t*)boat_node_data(src));
+                if (d && d[0] == 5.0f) found5 = 1;
+            }
+        }
+    }
+    CHECK(found5, "folded constant feeds the output and holds 5.0");
+    boat_graph_free(g);
+}
+
 // --- Dense/Conv + ReLU fusion (model forward) -----------------------------
 
 static boat_layer_t* wrap_dense(boat_dense_layer_t* d) {
@@ -204,6 +279,7 @@ int main(void) {
     test_optimize_dup_edges();
     test_flag_dce();
     test_invalid_args();
+    test_fold_constants();
     test_dense_relu_fusion();
     if (g_fail) {
         printf("%d test(s) FAILED\n", g_fail);

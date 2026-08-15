@@ -1711,22 +1711,6 @@ BOAT_API void boat_graph_eliminate_dead_code(const boat_graph_t* graph) {
     }
 }
 
-BOAT_API void boat_graph_fold_constants(const boat_graph_t* graph) {
-    if (!graph) return;
-
-    // Phase 3: Constant folding
-    // This is a placeholder implementation
-    // In a full implementation, we would:
-    // 1. Identify operations with constant inputs
-    // 2. Pre-compute results at graph construction time
-    // 3. Replace operation nodes with constant nodes
-
-    // For now, just validate the graph after potential modifications
-    if (!graph->in_batch_mode) {
-        boat_graph_validate(graph);
-    }
-}
-
 BOAT_API void boat_graph_simplify(const boat_graph_t* graph) {
     if (!graph) return;
 

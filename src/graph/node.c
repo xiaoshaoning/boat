@@ -194,6 +194,7 @@ BOAT_API boat_graph_t* boat_graph_create_with_device(boat_device_t device) {
     // Reference counting for shallow copies (boat_graph_copy/subgraph).
     graph->ref_count = 1;
     graph->backing = NULL;
+    graph->evaluator = NULL;
 
     return graph;
 }
