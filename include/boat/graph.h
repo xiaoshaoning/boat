@@ -103,6 +103,20 @@ BOAT_API boat_graph_t* boat_graph_subgraph(const boat_graph_t* graph, boat_node_
 // the destination graph.
 BOAT_API void boat_graph_merge(boat_graph_t* dest, const boat_graph_t* src);
 
+// ---------------------------------------------------------------------------
+// Graph optimization
+// ---------------------------------------------------------------------------
+
+// Remove nodes that cannot reach any of `outputs` through forward edges
+// (dead-node elimination). `outputs` and every kept node stay valid; removed
+// nodes and their edges are freed. Returns false on invalid input.
+BOAT_API bool boat_graph_prune_unreachable(boat_graph_t* graph,
+                                           const boat_node_t* const* outputs,
+                                           size_t n_outputs);
+
+// Remove duplicate forward edges between the same (source, target) pair.
+BOAT_API bool boat_graph_remove_duplicate_edges(boat_graph_t* graph);
+
 // Graph visualization
 BOAT_API void boat_graph_print(const boat_graph_t* graph);
 BOAT_API char* boat_graph_to_dot(const boat_graph_t* graph);

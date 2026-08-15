@@ -211,10 +211,13 @@ Compile boat to WebAssembly for in-browser inference. Would enable client-side M
 
 ## Proposals for consideration
 
-### Higher-order automatic differentiation
+### Dynamic graph optimizations
 
-Second-order derivatives (Hessian-vector products) for optimizer/regularization
-research; requires extending the tape with gradient-of-gradient nodes.
+Op fusion (Dense/Conv + ReLU), dead-node elimination and constant folding for
+inference. Explicitly **not planned**: higher-order automatic differentiation
+(Hessian-vector products) — it is research-only and unused in LLM training
+(first-order AdamW-family) or inference; the machinery is not worth the cost
+for this framework's target workloads.
 
 ---
 

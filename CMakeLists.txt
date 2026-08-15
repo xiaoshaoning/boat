@@ -212,6 +212,7 @@ set(BOAT_SOURCES
     src/graph/node.c
     src/graph/edge.c
     src/graph/graph.c
+    src/graph/optimize.c
     src/layers/dense.c
     src/layers/conv.c
     src/layers/pool.c

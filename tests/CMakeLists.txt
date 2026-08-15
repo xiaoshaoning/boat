@@ -126,6 +126,9 @@ target_link_libraries(test_simd boat)
 boat_add_test_executable(test_tensorflow unit/test_tensorflow.c)
 target_link_libraries(test_tensorflow boat)
 
+boat_add_test_executable(test_graph_optimize unit/test_graph_optimize.c)
+target_link_libraries(test_graph_optimize boat)
+
 # Softmax cross-entropy loss
 boat_add_test_executable(test_softmax_ce unit/test_softmax_ce.c)
 target_link_libraries(test_softmax_ce boat)

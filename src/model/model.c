@@ -7,6 +7,7 @@
 #include <boat/memory.h>
 #include <boat/tensor.h>
 #include <boat/graph.h>
+#include <boat/simd.h>
 #include <boat/layers/norm.h>
 #include <boat/layers/attention.h>
 #include <stdio.h>
@@ -147,6 +148,58 @@ BOAT_API void boat_model_set_graph(boat_model_t* model, boat_graph_t* graph) {
 }
 
 // Model operations
+// ---------------------------------------------------------------------------
+// Inference fusion: Dense/Conv -> ReLU is executed as one unit (ReLU applied
+// in place on the producer's output), skipping the ReLU layer's forward pass
+// and its intermediate allocation.
+// ---------------------------------------------------------------------------
+
+static void apply_relu_inplace(boat_tensor_t* t) {
+    if (!t || boat_tensor_dtype(t) != BOAT_DTYPE_FLOAT32) return;
+    float* d = (float*)boat_tensor_data(t);
+    boat_simd_relu_f32(d, d, boat_tensor_nelements(t));
+}
+
+// For a ReLU layer node, return the layer index of a single producer
+// (Dense or Conv) whose output feeds only this ReLU, or -1 when not fusible.
+static int find_fusible_producer(const boat_model_t* model, const boat_graph_t* graph,
+                                 const boat_node_t* node) {
+    const boat_node_t* src = NULL;
+    size_t n_in = 0;
+    const size_t ne = boat_graph_edge_count(graph);
+    for (size_t e = 0; e < ne; e++) {
+        const boat_edge_t* edge = boat_graph_get_edge_at_index(graph, e);
+        if (!edge || boat_edge_direction(edge) != BOAT_EDGE_DIRECTION_FORWARD) continue;
+        if (boat_edge_target(edge) == node) {
+            src = boat_edge_source(edge);
+            n_in++;
+        }
+    }
+    if (n_in != 1 || !src) return -1;
+
+    int src_idx = -1;
+    for (size_t i = 0; i < model->layer_count; i++) {
+        if (model->nodes[i] == src) {
+            src_idx = (int)i;
+            break;
+        }
+    }
+    if (src_idx < 0) return -1;
+    const boat_layer_t* sl = model->layers[src_idx];
+    if (!sl || (sl->type != BOAT_LAYER_TYPE_DENSE && sl->type != BOAT_LAYER_TYPE_CONV2D)) {
+        return -1;
+    }
+
+    // The producer's output must go only to this ReLU (safe for in-place relu).
+    size_t n_out = 0;
+    for (size_t e = 0; e < ne; e++) {
+        const boat_edge_t* edge = boat_graph_get_edge_at_index(graph, e);
+        if (!edge || boat_edge_direction(edge) != BOAT_EDGE_DIRECTION_FORWARD) continue;
+        if (boat_edge_source(edge) == src) n_out++;
+    }
+    return n_out == 1 ? src_idx : -1;
+}
+
 BOAT_API boat_tensor_t* boat_model_forward(const boat_model_t* model, const boat_tensor_t* input) {
     if (!model || !input) return NULL;
     if (model->layer_count == 0) return NULL;
@@ -170,6 +223,13 @@ BOAT_API boat_tensor_t* boat_model_forward(const boat_model_t* model, const boat
             if (!layer || !layer->ops || !layer->ops->forward) {
                 boat_tensor_free(current);
                 return NULL;
+            }
+            // Fusion: Dense/Conv -> ReLU runs relu in place, skipping a layer.
+            const boat_layer_t* prev = model->layers[i - 1];
+            if (layer->type == BOAT_LAYER_TYPE_RELU && prev &&
+                (prev->type == BOAT_LAYER_TYPE_DENSE || prev->type == BOAT_LAYER_TYPE_CONV2D)) {
+                apply_relu_inplace(current);
+                continue;
             }
             next = layer->ops->forward(layer, current);
             boat_tensor_free(current);
@@ -314,7 +374,20 @@ BOAT_API boat_tensor_t* boat_model_forward(const boat_model_t* model, const boat
         }
 
         // Call layer forward
-        boat_tensor_t* output = layer->ops->forward(layer, layer_input);
+        boat_tensor_t* output;
+        int fuse_src = -1;
+        if (layer->type == BOAT_LAYER_TYPE_RELU) {
+            fuse_src = find_fusible_producer(model, graph, node);
+        }
+        if (fuse_src >= 0) {
+            // Fusion: relu in place on the producer's output and share the
+            // tensor (extra ref so the shared entry survives cleanup).
+            output = node_outputs[fuse_src];
+            apply_relu_inplace(output);
+            boat_tensor_ref(output);
+        } else {
+            output = layer->ops->forward(layer, layer_input);
+        }
         if (!output) {
             // Cleanup
             for (size_t k = 0; k < node_count; k++) {

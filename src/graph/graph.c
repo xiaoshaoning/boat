@@ -1688,16 +1688,26 @@ BOAT_API void boat_graph_eliminate_common_subexpressions(const boat_graph_t* gra
 BOAT_API void boat_graph_eliminate_dead_code(const boat_graph_t* graph) {
     if (!graph) return;
 
-    // Phase 3: Dead code elimination
-    // This is a placeholder implementation
-    // In a full implementation, we would:
-    // 1. Mark all nodes reachable from output nodes
-    // 2. Remove unmarked nodes (dead code)
-    // 3. Clean up edges connected to removed nodes
+    // Dead code elimination: keep every node that can reach an OUTPUT node
+    // through forward edges, remove the rest (mark-and-sweep). The const
+    // qualifier on the signature is historical; the pass mutates the graph.
+    boat_graph_t* g = (boat_graph_t*)graph;
+    const size_t n = boat_graph_node_count(g);
+    boat_node_t** outputs = (boat_node_t**)boat_malloc(
+        (n ? n : 1) * sizeof(boat_node_t*), boat_graph_device(g));
+    if (!outputs) return;
+    size_t n_out = 0;
+    for (size_t i = 0; i < n; i++) {
+        boat_node_t* nd = boat_graph_get_node_at_index(g, i);
+        if (nd && boat_node_type(nd) == BOAT_NODE_TYPE_OUTPUT) outputs[n_out++] = nd;
+    }
+    if (n_out > 0) {
+        boat_graph_prune_unreachable(g, (const boat_node_t* const*)outputs, n_out);
+    }
+    boat_free(outputs);
 
-    // For now, just validate the graph after potential modifications
-    if (!graph->in_batch_mode) {
-        boat_graph_validate(graph);
+    if (!g->in_batch_mode) {
+        boat_graph_validate(g);
     }
 }
 
@@ -1720,16 +1730,13 @@ BOAT_API void boat_graph_fold_constants(const boat_graph_t* graph) {
 BOAT_API void boat_graph_simplify(const boat_graph_t* graph) {
     if (!graph) return;
 
-    // Phase 3: Graph simplification
-    // This is a placeholder implementation
-    // In a full implementation, we would:
-    // 1. Apply algebraic simplifications (e.g., x*1 = x, x+0 = x)
-    // 2. Remove identity operations
-    // 3. Combine consecutive operations where possible
+    // Graph simplification: remove duplicate forward edges. The const
+    // qualifier on the signature is historical; the pass mutates the graph.
+    boat_graph_t* g = (boat_graph_t*)graph;
+    boat_graph_remove_duplicate_edges(g);
 
-    // For now, just validate the graph after potential modifications
-    if (!graph->in_batch_mode) {
-        boat_graph_validate(graph);
+    if (!g->in_batch_mode) {
+        boat_graph_validate(g);
     }
 }
 

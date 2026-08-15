@@ -463,8 +463,11 @@ section is the high-level summary.
 - **Tooling**: `.clang-format` config applied repo-wide.
 
 ### Remaining / in progress
-- **Phase 4 advanced**: higher-order autodiff, dynamic graph optimizations, distributed training, TensorRT/OpenVINO/CoreML backends, federated learning.
+- **Dynamic graph optimizations**: op fusion (Dense/Conv + ReLU), dead-node elimination, constant folding.
+- **Phase 4 advanced**: distributed training, TensorRT/OpenVINO/CoreML backends, federated learning.
 - GPU-side verification of the CUDA backend (no GPU on the dev machine).
+
+Higher-order automatic differentiation is **explicitly not planned** (research-only; unused in LLM training/inference).
 
 See [docs/roadmap.md](docs/roadmap.md) for the full dated feature table.
 
