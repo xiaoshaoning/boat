@@ -328,6 +328,249 @@ static void test_backward_kernels(void) {
     printf("backward kernels checked vs scalar\n");
 }
 
+static void test_elementwise_and_norm_kernels(void) {
+    // Elementwise binary / scalar kernels vs scalar references.
+    const size_t lens[] = {1, 2, 7, 8, 9, 15, 16, 17, 31, 32, 100, 1000};
+    for (size_t li = 0; li < sizeof(lens) / sizeof(lens[0]); li++) {
+        size_t n = lens[li];
+        float* a = (float*)malloc(n * sizeof(float));
+        float* b = (float*)malloc(n * sizeof(float));
+        float* got = (float*)malloc(n * sizeof(float));
+        for (size_t i = 0; i < n; i++) {
+            a[i] = rnd();
+            b[i] = fabsf(rnd()) * 0.5f + 0.1f;  // avoid div-by-zero
+        }
+        float s = 0.75f;
+        boat_simd_add_f32(a, b, got, n);
+        for (size_t i = 0; i < n; i++) CHECK(fabsf(got[i] - (a[i] + b[i])) <= 1e-6f, "add");
+        boat_simd_sub_f32(a, b, got, n);
+        for (size_t i = 0; i < n; i++) CHECK(fabsf(got[i] - (a[i] - b[i])) <= 1e-6f, "sub");
+        boat_simd_mul_f32(a, b, got, n);
+        for (size_t i = 0; i < n; i++) CHECK(fabsf(got[i] - (a[i] * b[i])) <= 1e-6f, "mul");
+        boat_simd_div_f32(a, b, got, n);
+        for (size_t i = 0; i < n; i++)
+            CHECK(fabsf(got[i] - (a[i] / b[i])) <= 1e-6f, "div");
+        boat_simd_add_scalar_f32(a, s, got, n);
+        for (size_t i = 0; i < n; i++) CHECK(fabsf(got[i] - (a[i] + s)) <= 1e-6f, "add_scalar");
+        boat_simd_sub_scalar_f32(a, s, got, n);
+        for (size_t i = 0; i < n; i++) CHECK(fabsf(got[i] - (a[i] - s)) <= 1e-6f, "sub_scalar");
+        boat_simd_mul_scalar_f32(a, s, got, n);
+        for (size_t i = 0; i < n; i++) CHECK(fabsf(got[i] - (a[i] * s)) <= 1e-6f, "mul_scalar");
+        boat_simd_div_scalar_f32(a, s, got, n);
+        for (size_t i = 0; i < n; i++) CHECK(fabsf(got[i] - (a[i] / s)) <= 1e-6f, "div_scalar");
+        boat_simd_abs_f32(a, got, n);
+        for (size_t i = 0; i < n; i++) CHECK(fabsf(got[i] - fabsf(a[i])) <= 1e-6f, "abs");
+        free(a);
+        free(b);
+        free(got);
+    }
+
+    // Row-wise mean/var and rms.
+    {
+        size_t rows = 5, cols = 64;
+        float* a = (float*)malloc(rows * cols * sizeof(float));
+        float* mean = (float*)malloc(rows * sizeof(float));
+        float* var = (float*)malloc(rows * sizeof(float));
+        float* rms = (float*)malloc(rows * sizeof(float));
+        for (size_t i = 0; i < rows * cols; i++) a[i] = rnd();
+        boat_simd_mean_var_f32(a, mean, var, rows, cols);
+        int ok = 1;
+        for (size_t o = 0; o < rows && ok; o++) {
+            float sm = 0.0f, sq = 0.0f;
+            for (size_t c = 0; c < cols; c++) {
+                sm += a[o * cols + c];
+                sq += a[o * cols + c] * a[o * cols + c];
+            }
+            float m = sm / (float)cols;
+            float v = sq / (float)cols - m * m;
+            if (fabsf(mean[o] - m) > 1e-4f || fabsf(var[o] - v) > 1e-3f) ok = 0;
+        }
+        CHECK(ok, "mean_var vs scalar");
+        boat_simd_rms_f32(a, rms, rows, cols);
+        ok = 1;
+        for (size_t o = 0; o < rows && ok; o++) {
+            float sq = 0.0f;
+            for (size_t c = 0; c < cols; c++) sq += a[o * cols + c] * a[o * cols + c];
+            if (fabsf(rms[o] - sqrtf(sq / (float)cols)) > 1e-3f) ok = 0;
+        }
+        CHECK(ok, "rms vs scalar");
+        free(a);
+        free(mean);
+        free(var);
+        free(rms);
+    }
+
+    // norm_affine with/without weight/bias.
+    {
+        size_t rows = 4, cols = 32;
+        float* x = (float*)malloc(rows * cols * sizeof(float));
+        float* w = (float*)malloc(cols * sizeof(float));
+        float* b = (float*)malloc(cols * sizeof(float));
+        float* out = (float*)malloc(rows * cols * sizeof(float));
+        float* mean = (float*)malloc(rows * sizeof(float));
+        float* inv_std = (float*)malloc(rows * sizeof(float));
+        for (size_t i = 0; i < rows * cols; i++) x[i] = rnd();
+        for (size_t i = 0; i < cols; i++) {
+            w[i] = rnd() * 0.5f;
+            b[i] = rnd() * 0.5f;
+        }
+        for (size_t o = 0; o < rows; o++) {
+            mean[o] = rnd() * 0.1f;
+            inv_std[o] = fabsf(rnd()) * 0.5f + 0.5f;
+        }
+        boat_simd_norm_affine_f32(x, w, b, out, rows, cols, mean, inv_std);
+        int ok = 1;
+        for (size_t o = 0; o < rows && ok; o++) {
+            for (size_t c = 0; c < cols; c++) {
+                float ref = (x[o * cols + c] - mean[o]) * inv_std[o] * w[c] + b[c];
+                if (fabsf(out[o * cols + c] - ref) > 1e-4f * (1.0f + fabsf(ref))) {
+                    ok = 0;
+                    break;
+                }
+            }
+        }
+        CHECK(ok, "norm_affine w/b");
+        boat_simd_norm_affine_f32(x, NULL, NULL, out, rows, cols, NULL, inv_std);
+        ok = 1;
+        for (size_t o = 0; o < rows && ok; o++) {
+            for (size_t c = 0; c < cols; c++) {
+                float ref = x[o * cols + c] * inv_std[o];
+                if (fabsf(out[o * cols + c] - ref) > 1e-5f) {
+                    ok = 0;
+                    break;
+                }
+            }
+        }
+        CHECK(ok, "norm_affine identity");
+        free(x);
+        free(w);
+        free(b);
+        free(out);
+        free(mean);
+        free(inv_std);
+    }
+
+    // LayerNorm backward vs the scalar reference from norm.c.
+    {
+        size_t rows = 4, cols = 64;
+        float eps = 1e-5f;
+        float* x = (float*)malloc(rows * cols * sizeof(float));
+        float* dy = (float*)malloc(rows * cols * sizeof(float));
+        float* gamma = (float*)malloc(cols * sizeof(float));
+        float* dx = (float*)malloc(rows * cols * sizeof(float));
+        float* dx_ref = (float*)malloc(rows * cols * sizeof(float));
+        float* gw = (float*)calloc(cols, sizeof(float));
+        float* gw_ref = (float*)calloc(cols, sizeof(float));
+        float* gb = (float*)calloc(cols, sizeof(float));
+        float* gb_ref = (float*)calloc(cols, sizeof(float));
+        for (size_t i = 0; i < rows * cols; i++) {
+            x[i] = rnd();
+            dy[i] = rnd();
+        }
+        for (size_t i = 0; i < cols; i++) gamma[i] = rnd() * 0.5f;
+        boat_simd_layernorm_backward_f32(x, dy, gamma, dx, gw, gb, rows, cols, eps);
+        // Scalar reference (mirrors boat_layernorm_backward).
+        for (size_t o = 0; o < rows; o++) {
+            float sum = 0.0f, sum_sq = 0.0f;
+            for (size_t c = 0; c < cols; c++) {
+                sum += x[o * cols + c];
+                sum_sq += x[o * cols + c] * x[o * cols + c];
+            }
+            float m = sum / (float)cols;
+            float var = sum_sq / (float)cols - m * m;
+            float inv_std = 1.0f / sqrtf(var + eps);
+            for (size_t c = 0; c < cols; c++) {
+                float x_hat = (x[o * cols + c] - m) * inv_std;
+                gw_ref[c] += dy[o * cols + c] * x_hat;
+                gb_ref[c] += dy[o * cols + c];
+            }
+            float s1 = 0.0f, s2 = 0.0f;
+            for (size_t c = 0; c < cols; c++) {
+                float x_hat = (x[o * cols + c] - m) * inv_std;
+                float dy_g = dy[o * cols + c] * gamma[c];
+                s1 += dy_g;
+                s2 += dy_g * x_hat;
+            }
+            for (size_t c = 0; c < cols; c++) {
+                float x_hat = (x[o * cols + c] - m) * inv_std;
+                float dy_g = dy[o * cols + c] * gamma[c];
+                dx_ref[o * cols + c] =
+                    (dy_g - (s1 + s2 * x_hat) / (float)cols) * inv_std;
+            }
+        }
+        int ok = 1;
+        for (size_t i = 0; i < rows * cols && ok; i++) {
+            if (fabsf(dx[i] - dx_ref[i]) > 1e-3f * (1.0f + fabsf(dx_ref[i]))) ok = 0;
+        }
+        for (size_t i = 0; i < cols && ok; i++) {
+            if (fabsf(gw[i] - gw_ref[i]) > 1e-3f * (1.0f + fabsf(gw_ref[i]))) ok = 0;
+            if (fabsf(gb[i] - gb_ref[i]) > 1e-3f * (1.0f + fabsf(gb_ref[i]))) ok = 0;
+        }
+        CHECK(ok, "layernorm backward vs scalar");
+        free(x);
+        free(dy);
+        free(gamma);
+        free(dx);
+        free(dx_ref);
+        free(gw);
+        free(gw_ref);
+        free(gb);
+        free(gb_ref);
+    }
+
+    // RMSNorm backward vs the scalar reference from norm.c.
+    {
+        size_t rows = 4, cols = 64;
+        float eps = 1e-5f;
+        float* x = (float*)malloc(rows * cols * sizeof(float));
+        float* dy = (float*)malloc(rows * cols * sizeof(float));
+        float* gamma = (float*)malloc(cols * sizeof(float));
+        float* dx = (float*)malloc(rows * cols * sizeof(float));
+        float* dx_ref = (float*)malloc(rows * cols * sizeof(float));
+        float* gw = (float*)calloc(cols, sizeof(float));
+        float* gw_ref = (float*)calloc(cols, sizeof(float));
+        for (size_t i = 0; i < rows * cols; i++) {
+            x[i] = rnd();
+            dy[i] = rnd();
+        }
+        for (size_t i = 0; i < cols; i++) gamma[i] = rnd() * 0.5f;
+        boat_simd_rmsnorm_backward_f32(x, dy, gamma, dx, gw, rows, cols, eps);
+        for (size_t o = 0; o < rows; o++) {
+            float sum_sq = 0.0f;
+            for (size_t c = 0; c < cols; c++) sum_sq += x[o * cols + c] * x[o * cols + c];
+            float inv_rms = 1.0f / (sqrtf(sum_sq / (float)cols) + eps);
+            for (size_t c = 0; c < cols; c++) {
+                gw_ref[c] += dy[o * cols + c] * (x[o * cols + c] * inv_rms);
+            }
+            float s = 0.0f;
+            for (size_t c = 0; c < cols; c++) {
+                s += dy[o * cols + c] * gamma[c] * x[o * cols + c];
+            }
+            float scale = s / (float)cols * inv_rms * inv_rms * inv_rms;
+            for (size_t c = 0; c < cols; c++) {
+                dx_ref[o * cols + c] =
+                    dy[o * cols + c] * gamma[c] * inv_rms - x[o * cols + c] * scale;
+            }
+        }
+        int ok = 1;
+        for (size_t i = 0; i < rows * cols && ok; i++) {
+            if (fabsf(dx[i] - dx_ref[i]) > 1e-3f * (1.0f + fabsf(dx_ref[i]))) ok = 0;
+        }
+        for (size_t i = 0; i < cols && ok; i++) {
+            if (fabsf(gw[i] - gw_ref[i]) > 1e-3f * (1.0f + fabsf(gw_ref[i]))) ok = 0;
+        }
+        CHECK(ok, "rmsnorm backward vs scalar");
+        free(x);
+        free(dy);
+        free(gamma);
+        free(dx);
+        free(dx_ref);
+        free(gw);
+        free(gw_ref);
+    }
+    printf("elementwise + norm kernels checked vs scalar\n");
+}
+
 static void test_reduce_kernels(void) {
     const size_t lens[] = {1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 100, 1000};
     for (size_t li = 0; li < sizeof(lens) / sizeof(lens[0]); li++) {
@@ -721,6 +964,7 @@ int main(void) {
     test_transpose2d_kernel();
     test_activation_kernels();
     test_backward_kernels();
+    test_elementwise_and_norm_kernels();
     test_reduce_kernels();
     test_transpose_op();
     test_reduce_op();

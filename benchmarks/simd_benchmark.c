@@ -294,6 +294,68 @@ static void bench_backward_kernels(void) {
     free(buf);
 }
 
+static void bench_elementwise_norm(void) {
+    const size_t N = 1u << 20;
+    float* a = (float*)malloc(N * sizeof(float));
+    float* b = (float*)malloc(N * sizeof(float));
+    float* buf = (float*)malloc(N * sizeof(float));
+    for (size_t i = 0; i < N; i++) {
+        a[i] = rnd();
+        b[i] = fabsf(rnd()) * 0.5f + 0.1f;
+    }
+    double t0 = now_sec();
+    for (int r = 0; r < 20; r++) boat_simd_add_f32(a, b, buf, N);
+    double t1 = now_sec();
+    printf("add        %zu elems x20: %.3f s  (%.1f GB/s)\n", N, t1 - t0,
+           20.0 * 3 * N * 4 / 1e9 / (t1 - t0));
+    t0 = now_sec();
+    for (int r = 0; r < 20; r++) boat_simd_mul_f32(a, b, buf, N);
+    t1 = now_sec();
+    printf("mul        %zu elems x20: %.3f s  (%.1f GB/s)\n", N, t1 - t0,
+           20.0 * 3 * N * 4 / 1e9 / (t1 - t0));
+    t0 = now_sec();
+    for (int r = 0; r < 20; r++) boat_simd_mul_scalar_f32(a, 0.75f, buf, N);
+    t1 = now_sec();
+    printf("mul_scalar %zu elems x20: %.3f s  (%.1f GB/s)\n", N, t1 - t0,
+           20.0 * 2 * N * 4 / 1e9 / (t1 - t0));
+
+    // LayerNorm forward (mean/var + affine) over [256, 4096].
+    const size_t rows = 256, cols = 4096;
+    float* x = (float*)malloc(rows * cols * sizeof(float));
+    float* out = (float*)malloc(rows * cols * sizeof(float));
+    float* w = (float*)malloc(cols * sizeof(float));
+    float* mean = (float*)malloc(rows * sizeof(float));
+    float* var = (float*)malloc(rows * sizeof(float));
+    float* inv_std = (float*)malloc(rows * sizeof(float));
+    float* rms = (float*)malloc(rows * sizeof(float));
+    for (size_t i = 0; i < rows * cols; i++) x[i] = rnd();
+    for (size_t i = 0; i < cols; i++) w[i] = rnd() * 0.5f;
+    t0 = now_sec();
+    for (int r = 0; r < 20; r++) {
+        boat_simd_mean_var_f32(x, mean, var, rows, cols);
+        for (size_t i = 0; i < rows; i++) inv_std[i] = 1.0f / sqrtf(var[i] + 1e-5f);
+        boat_simd_norm_affine_f32(x, w, NULL, out, rows, cols, mean, inv_std);
+    }
+    t1 = now_sec();
+    printf("layernorm  %zux%zu x20: %.3f s  (%.1f GB/s)\n", rows, cols, t1 - t0,
+           20.0 * rows * cols * 4 / 1e9 / (t1 - t0));
+    t0 = now_sec();
+    for (int r = 0; r < 20; r++) boat_simd_rms_f32(x, rms, rows, cols);
+    t1 = now_sec();
+    printf("rms        %zux%zu x20: %.3f s  (%.1f GB/s)\n", rows, cols, t1 - t0,
+           20.0 * rows * cols * 4 / 1e9 / (t1 - t0));
+    free(x);
+    free(out);
+    free(w);
+    free(mean);
+    free(var);
+    free(inv_std);
+    free(rms);
+    free(a);
+    free(b);
+    free(buf);
+}
+
 static void bench_activations(void) {
     const size_t N = 1u << 20;  // 1M elems
     float* a = (float*)malloc(N * sizeof(float));
@@ -330,6 +392,7 @@ int main(void) {
     bench_reduce_op();
     bench_activations();
     bench_backward_kernels();
+    bench_elementwise_norm();
     printf("done.\n");
     return 0;
 }

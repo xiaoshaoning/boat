@@ -126,6 +126,43 @@ BOAT_API void boat_simd_softmax_ce_backward_f32(const float* logits, const int64
 BOAT_API void boat_simd_ce_backward_f32(const float* pred, const float* target, float* grad,
                                         size_t n, float inv_n, float epsilon);
 
+// ---------------------------------------------------------------------------
+// Elementwise binary / scalar kernels (dst[i] = a[i] op b[i], or a[i] op s).
+// Aliasing is allowed (dst may equal a or b).
+// ---------------------------------------------------------------------------
+BOAT_API void boat_simd_add_f32(const float* a, const float* b, float* dst, size_t n);
+BOAT_API void boat_simd_sub_f32(const float* a, const float* b, float* dst, size_t n);
+BOAT_API void boat_simd_mul_f32(const float* a, const float* b, float* dst, size_t n);
+BOAT_API void boat_simd_div_f32(const float* a, const float* b, float* dst, size_t n);
+BOAT_API void boat_simd_add_scalar_f32(const float* a, float s, float* dst, size_t n);
+BOAT_API void boat_simd_sub_scalar_f32(const float* a, float s, float* dst, size_t n);
+BOAT_API void boat_simd_mul_scalar_f32(const float* a, float s, float* dst, size_t n);
+BOAT_API void boat_simd_div_scalar_f32(const float* a, float s, float* dst, size_t n);
+BOAT_API void boat_simd_abs_f32(const float* a, float* dst, size_t n);
+
+// ---------------------------------------------------------------------------
+// Normalization kernels (row-wise over the last, contiguous dim).
+// ---------------------------------------------------------------------------
+// mean[o] = sum_c a[o,c]/cols ; var[o] = sum_c a[o,c]^2/cols - mean[o]^2
+BOAT_API void boat_simd_mean_var_f32(const float* a, float* mean, float* var, size_t rows,
+                                     size_t cols);
+// rms[o] = sqrt(sum_c a[o,c]^2/cols)
+BOAT_API void boat_simd_rms_f32(const float* a, float* rms, size_t rows, size_t cols);
+// out = (x - mean[o]) * inv_std[o] (*weight[c]? + bias[c]?); NULL weight/bias/mean = identity.
+BOAT_API void boat_simd_norm_affine_f32(const float* x, const float* weight, const float* bias,
+                                        float* out, size_t rows, size_t cols,
+                                        const float* mean, const float* inv_std);
+// LayerNorm backward: recomputes per-row stats internally, accumulates grad_weight/
+// grad_bias (may be NULL) and writes grad_input.
+BOAT_API void boat_simd_layernorm_backward_f32(const float* x, const float* dy,
+                                               const float* gamma, float* dx, float* grad_weight,
+                                               float* grad_bias, size_t rows, size_t cols,
+                                               float eps);
+// RMSNorm backward: same contract, rms-based.
+BOAT_API void boat_simd_rmsnorm_backward_f32(const float* x, const float* dy,
+                                             const float* gamma, float* dx, float* grad_weight,
+                                             size_t rows, size_t cols, float eps);
+
 #if BOAT_HAVE_AVX2
 // 256-bit vector helpers (for consumers that need to fuse the math, e.g. the
 // LSTM/GRU gate loops).

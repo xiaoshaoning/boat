@@ -5,6 +5,7 @@
 #include <boat/layers/norm.h>
 #include <boat/ops.h>
 #include <boat/memory.h>
+#include <boat/simd.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -201,49 +202,15 @@ BOAT_API void boat_rmsnorm_free(boat_rmsnorm_t* norm) {
 // Helper function to compute mean and variance along last dimension
 static void compute_mean_variance(const float* input, size_t batch_size, size_t seq_len,
                                   size_t hidden_size, float* mean, float* variance) {
-    for (size_t b = 0; b < batch_size; b++) {
-        for (size_t s = 0; s < seq_len; s++) {
-            size_t offset = b * seq_len * hidden_size + s * hidden_size;
-
-            // Compute mean
-            float sum = 0.0f;
-            for (size_t h = 0; h < hidden_size; h++) {
-                sum += input[offset + h];
-            }
-            float m = sum / hidden_size;
-
-            // Compute variance
-            float var_sum = 0.0f;
-            for (size_t h = 0; h < hidden_size; h++) {
-                float diff = input[offset + h] - m;
-                var_sum += diff * diff;
-            }
-            float v = var_sum / hidden_size;
-
-            mean[b * seq_len + s] = m;
-            variance[b * seq_len + s] = v;
-        }
-    }
+    size_t rows = batch_size * seq_len;
+    boat_simd_mean_var_f32(input, mean, variance, rows, hidden_size);
 }
 
 // Helper function to compute RMS (root mean square) along last dimension
 static void compute_rms(const float* input, size_t batch_size, size_t seq_len, size_t hidden_size,
                         float* rms) {
-    for (size_t b = 0; b < batch_size; b++) {
-        for (size_t s = 0; s < seq_len; s++) {
-            size_t offset = b * seq_len * hidden_size + s * hidden_size;
-
-            // Compute sum of squares
-            float sum_sq = 0.0f;
-            for (size_t h = 0; h < hidden_size; h++) {
-                float val = input[offset + h];
-                sum_sq += val * val;
-            }
-
-            // Compute RMS
-            rms[b * seq_len + s] = sqrtf(sum_sq / hidden_size);
-        }
-    }
+    size_t rows = batch_size * seq_len;
+    boat_simd_rms_f32(input, rms, rows, hidden_size);
 }
 
 BOAT_API boat_tensor_t* boat_layernorm_forward(boat_layernorm_t* norm, const boat_tensor_t* input) {
@@ -321,30 +288,19 @@ BOAT_API boat_tensor_t* boat_layernorm_forward(boat_layernorm_t* norm, const boa
         norm->weight ? (const float*)boat_tensor_const_data(norm->weight) : NULL;
     const float* bias_data = norm->bias ? (const float*)boat_tensor_const_data(norm->bias) : NULL;
 
-    for (size_t b = 0; b < batch_size; b++) {
-        for (size_t s = 0; s < seq_len; s++) {
-            size_t offset = b * seq_len * hidden_size + s * hidden_size;
-            size_t idx = b * seq_len + s;
-
-            float m = mean[idx];
-            float v = variance[idx];
-            float scale = 1.0f / sqrtf(v + eps);
-
-            for (size_t h = 0; h < hidden_size; h++) {
-                float normalized = (input_data[offset + h] - m) * scale;
-
-                // Apply affine transformation if enabled
-                if (weight_data) {
-                    normalized = normalized * weight_data[h];
-                }
-                if (bias_data) {
-                    normalized = normalized + bias_data[h];
-                }
-
-                output_data[offset + h] = normalized;
-            }
-        }
+    float* inv_std = (float*)boat_malloc(outer_elements * sizeof(float), BOAT_DEVICE_CPU);
+    if (!inv_std) {
+        boat_free(mean);
+        boat_free(variance);
+        boat_tensor_free(output);
+        return NULL;
     }
+    for (size_t o = 0; o < outer_elements; o++) {
+        inv_std[o] = 1.0f / sqrtf(variance[o] + eps);
+    }
+    boat_simd_norm_affine_f32(input_data, weight_data, bias_data, output_data, outer_elements,
+                              hidden_size, mean, inv_std);
+    boat_free(inv_std);
 
     // Cache input, mean, and variance for backward pass
     if (norm->cache_input) boat_tensor_free(norm->cache_input);
@@ -435,26 +391,18 @@ BOAT_API boat_tensor_t* boat_rmsnorm_forward(boat_rmsnorm_t* norm, const boat_te
     const float* weight_data =
         norm->weight ? (const float*)boat_tensor_const_data(norm->weight) : NULL;
 
-    for (size_t b = 0; b < batch_size; b++) {
-        for (size_t s = 0; s < seq_len; s++) {
-            size_t offset = b * seq_len * hidden_size + s * hidden_size;
-            size_t idx = b * seq_len + s;
-
-            float r = rms[idx];
-            float scale = 1.0f / (r + eps);
-
-            for (size_t h = 0; h < hidden_size; h++) {
-                float normalized = input_data[offset + h] * scale;
-
-                // Apply scale if enabled
-                if (weight_data) {
-                    normalized = normalized * weight_data[h];
-                }
-
-                output_data[offset + h] = normalized;
-            }
-        }
+    float* inv_rms = (float*)boat_malloc(outer_elements * sizeof(float), BOAT_DEVICE_CPU);
+    if (!inv_rms) {
+        boat_free(rms);
+        boat_tensor_free(output);
+        return NULL;
     }
+    for (size_t o = 0; o < outer_elements; o++) {
+        inv_rms[o] = 1.0f / (rms[o] + eps);
+    }
+    boat_simd_norm_affine_f32(input_data, weight_data, NULL, output_data, outer_elements,
+                              hidden_size, NULL, inv_rms);
+    boat_free(inv_rms);
 
     // Cache input and RMS for backward pass
     if (norm->cache_input) boat_tensor_free(norm->cache_input);
@@ -539,33 +487,7 @@ BOAT_API boat_tensor_t* boat_layernorm_backward(boat_layernorm_t* norm,
     float eps = norm->config.eps;
     const float* gamma = norm->weight ? (const float*)boat_tensor_const_data(norm->weight) : NULL;
 
-    // Recompute mean and variance along the last dimension
-    float* mean = (float*)boat_malloc(outer * sizeof(float), BOAT_DEVICE_CPU);
-    float* variance = (float*)boat_malloc(outer * sizeof(float), BOAT_DEVICE_CPU);
-    if (!mean || !variance) {
-        boat_free(mean);
-        boat_free(variance);
-        if (on_cuda) {
-            boat_free(x_host);
-            boat_free(dy_host);
-            boat_free(dx_host);
-        }
-        boat_tensor_free(grad_input);
-        return NULL;
-    }
-    for (size_t o = 0; o < outer; o++) {
-        float sum = 0.0f, sum_sq = 0.0f;
-        for (size_t h = 0; h < hidden; h++) {
-            float v = x[o * hidden + h];
-            sum += v;
-            sum_sq += v * v;
-        }
-        float m = sum / (float)hidden;
-        mean[o] = m;
-        variance[o] = sum_sq / (float)hidden - m * m;
-    }
-
-    // Accumulate d_gamma and d_beta
+    // Accumulate d_gamma and d_beta (lazy creation)
     if (norm->weight && !norm->grad_weight) {
         norm->grad_weight = boat_tensor_create_like(norm->weight);
         if (norm->grad_weight) {
@@ -578,41 +500,13 @@ BOAT_API boat_tensor_t* boat_layernorm_backward(boat_layernorm_t* norm,
             memset(boat_tensor_data(norm->grad_bias), 0, boat_tensor_nbytes(norm->grad_bias));
         }
     }
-    if (norm->grad_weight || norm->grad_bias) {
-        float* gw = norm->grad_weight ? (float*)boat_tensor_data(norm->grad_weight) : NULL;
-        float* gb = norm->grad_bias ? (float*)boat_tensor_data(norm->grad_bias) : NULL;
-        for (size_t o = 0; o < outer; o++) {
-            float inv_std = 1.0f / sqrtf(variance[o] + eps);
-            for (size_t h = 0; h < hidden; h++) {
-                size_t idx = o * hidden + h;
-                float x_hat = (x[idx] - mean[o]) * inv_std;
-                if (gw) gw[h] += dy[idx] * x_hat;
-                if (gb) gb[h] += dy[idx];
-            }
-        }
-    }
 
-    // Compute dx
-    for (size_t o = 0; o < outer; o++) {
-        float inv_std = 1.0f / sqrtf(variance[o] + eps);
-        float sum_dy_g = 0.0f, sum_dy_g_xhat = 0.0f;
-        for (size_t h = 0; h < hidden; h++) {
-            size_t idx = o * hidden + h;
-            float g = gamma ? gamma[h] : 1.0f;
-            float x_hat = (x[idx] - mean[o]) * inv_std;
-            float dy_g = dy[idx] * g;
-            sum_dy_g += dy_g;
-            sum_dy_g_xhat += dy_g * x_hat;
-        }
-        float inv_n = 1.0f / (float)hidden;
-        for (size_t h = 0; h < hidden; h++) {
-            size_t idx = o * hidden + h;
-            float g = gamma ? gamma[h] : 1.0f;
-            float x_hat = (x[idx] - mean[o]) * inv_std;
-            float dy_g = dy[idx] * g;
-            dx[idx] = (dy_g - (sum_dy_g + sum_dy_g_xhat * x_hat) * inv_n) * inv_std;
-        }
-    }
+    // Fused SIMD backward: recomputes per-row stats, accumulates grad_weight /
+    // grad_bias and writes grad_input in a single pass.
+    boat_simd_layernorm_backward_f32(
+        x, dy, gamma, dx,
+        norm->grad_weight ? (float*)boat_tensor_data(norm->grad_weight) : NULL,
+        norm->grad_bias ? (float*)boat_tensor_data(norm->grad_bias) : NULL, outer, hidden, eps);
 
 #ifdef BOAT_WITH_CUDA
     if (on_cuda) {
@@ -620,8 +514,6 @@ BOAT_API boat_tensor_t* boat_layernorm_backward(boat_layernorm_t* norm,
     }
 #endif
 
-    boat_free(mean);
-    boat_free(variance);
     if (on_cuda) {
         boat_free(x_host);
         boat_free(dy_host);
@@ -697,61 +589,20 @@ BOAT_API boat_tensor_t* boat_rmsnorm_backward(boat_rmsnorm_t* norm,
     float eps = norm->config.eps;
     const float* gamma = norm->weight ? (const float*)boat_tensor_const_data(norm->weight) : NULL;
 
-    // Recompute RMS along the last dimension (same definition as forward)
-    float* rms = (float*)boat_malloc(outer * sizeof(float), BOAT_DEVICE_CPU);
-    if (!rms) {
-        if (on_cuda) {
-            boat_free(x_host);
-            boat_free(dy_host);
-            boat_free(dx_host);
-        }
-        boat_tensor_free(grad_input);
-        return NULL;
-    }
-    for (size_t o = 0; o < outer; o++) {
-        float sum_sq = 0.0f;
-        for (size_t h = 0; h < hidden; h++) {
-            float v = x[o * hidden + h];
-            sum_sq += v * v;
-        }
-        rms[o] = sqrtf(sum_sq / (float)hidden);
-    }
-
-    // Accumulate d_gamma
+    // Accumulate d_gamma (lazy creation)
     if (norm->weight && !norm->grad_weight) {
         norm->grad_weight = boat_tensor_create_like(norm->weight);
         if (norm->grad_weight) {
             memset(boat_tensor_data(norm->grad_weight), 0, boat_tensor_nbytes(norm->grad_weight));
         }
     }
-    if (norm->grad_weight) {
-        float* gw = (float*)boat_tensor_data(norm->grad_weight);
-        for (size_t o = 0; o < outer; o++) {
-            float inv_rms = 1.0f / (rms[o] + eps);
-            for (size_t h = 0; h < hidden; h++) {
-                size_t idx = o * hidden + h;
-                gw[h] += dy[idx] * (x[idx] * inv_rms);
-            }
-        }
-    }
 
-    // Compute dx
-    for (size_t o = 0; o < outer; o++) {
-        float inv_rms = 1.0f / (rms[o] + eps);
-        float sum_dy_g_x = 0.0f;
-        for (size_t h = 0; h < hidden; h++) {
-            size_t idx = o * hidden + h;
-            float g = gamma ? gamma[h] : 1.0f;
-            sum_dy_g_x += dy[idx] * g * x[idx];
-        }
-        float inv_n = 1.0f / (float)hidden;
-        float inv_rms_cube = inv_rms * inv_rms * inv_rms;
-        for (size_t h = 0; h < hidden; h++) {
-            size_t idx = o * hidden + h;
-            float g = gamma ? gamma[h] : 1.0f;
-            dx[idx] = dy[idx] * g * inv_rms - x[idx] * sum_dy_g_x * inv_n * inv_rms_cube;
-        }
-    }
+    // Fused SIMD backward: recomputes per-row RMS, accumulates grad_weight and
+    // writes grad_input in a single pass.
+    boat_simd_rmsnorm_backward_f32(
+        x, dy, gamma, dx,
+        norm->grad_weight ? (float*)boat_tensor_data(norm->grad_weight) : NULL, outer, hidden,
+        eps);
 
 #ifdef BOAT_WITH_CUDA
     if (on_cuda) {
@@ -759,7 +610,6 @@ BOAT_API boat_tensor_t* boat_rmsnorm_backward(boat_rmsnorm_t* norm,
     }
 #endif
 
-    boat_free(rms);
     if (on_cuda) {
         boat_free(x_host);
         boat_free(dy_host);
@@ -840,30 +690,24 @@ BOAT_API boat_tensor_t* boat_layer_norm(const boat_tensor_t* input, const int64_
     const float* in = (const float*)boat_tensor_const_data(input);
     float* out = (float*)boat_tensor_data(output);
 
-    for (size_t i = 0; i < outer; i++) {
-        const float* row = in + i * D;
-        float* row_out = out + i * D;
-
-        // Mean
-        float sum = 0.0f;
-        for (int64_t j = 0; j < D; j++)
-            sum += row[j];
-        float mean = sum / (float)D;
-
-        // Variance
-        float var = 0.0f;
-        for (int64_t j = 0; j < D; j++) {
-            float diff = row[j] - mean;
-            var += diff * diff;
-        }
-        var = var / (float)D;
-
-        // Normalize
-        float inv_std = 1.0f / sqrtf(var + eps);
-        for (int64_t j = 0; j < D; j++) {
-            row_out[j] = (row[j] - mean) * inv_std;
-        }
+    float* mean = (float*)boat_malloc(outer * sizeof(float), BOAT_DEVICE_CPU);
+    float* var = (float*)boat_malloc(outer * sizeof(float), BOAT_DEVICE_CPU);
+    float* inv_std = (float*)boat_malloc(outer * sizeof(float), BOAT_DEVICE_CPU);
+    if (!mean || !var || !inv_std) {
+        boat_free(mean);
+        boat_free(var);
+        boat_free(inv_std);
+        boat_tensor_unref(output);
+        return NULL;
     }
+    boat_simd_mean_var_f32(in, mean, var, outer, (size_t)D);
+    for (size_t i = 0; i < outer; i++) {
+        inv_std[i] = 1.0f / sqrtf(var[i] + eps);
+    }
+    boat_simd_norm_affine_f32(in, NULL, NULL, out, outer, (size_t)D, mean, inv_std);
+    boat_free(mean);
+    boat_free(var);
+    boat_free(inv_std);
 
     return output;
 }
@@ -904,22 +748,21 @@ BOAT_API boat_tensor_t* boat_rms_norm(const boat_tensor_t* input, const int64_t*
     const float* in = (const float*)boat_tensor_const_data(input);
     float* out = (float*)boat_tensor_data(output);
 
-    for (size_t i = 0; i < outer; i++) {
-        const float* row = in + i * D;
-        float* row_out = out + i * D;
-
-        // RMS
-        float sum_sq = 0.0f;
-        for (int64_t j = 0; j < D; j++)
-            sum_sq += row[j] * row[j];
-        float rms = sqrtf(sum_sq / (float)D);
-
-        // Normalize
-        float inv_rms = 1.0f / (rms + eps);
-        for (int64_t j = 0; j < D; j++) {
-            row_out[j] = row[j] * inv_rms;
-        }
+    float* rms = (float*)boat_malloc(outer * sizeof(float), BOAT_DEVICE_CPU);
+    float* inv_rms = (float*)boat_malloc(outer * sizeof(float), BOAT_DEVICE_CPU);
+    if (!rms || !inv_rms) {
+        boat_free(rms);
+        boat_free(inv_rms);
+        boat_tensor_unref(output);
+        return NULL;
     }
+    boat_simd_rms_f32(in, rms, outer, (size_t)D);
+    for (size_t i = 0; i < outer; i++) {
+        inv_rms[i] = 1.0f / (rms[i] + eps);
+    }
+    boat_simd_norm_affine_f32(in, NULL, NULL, out, outer, (size_t)D, NULL, inv_rms);
+    boat_free(rms);
+    boat_free(inv_rms);
 
     return output;
 }

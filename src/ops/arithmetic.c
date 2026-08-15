@@ -218,8 +218,7 @@ BOAT_API boat_tensor_t* boat_add(const boat_tensor_t* a, const boat_tensor_t* b)
         if (boat_tensor_ndim(a) == boat_tensor_ndim(b) && boat_tensor_nelements(a) == nelements &&
             boat_tensor_nelements(b) == nelements && boat_tensor_is_contiguous(a) &&
             boat_tensor_is_contiguous(b)) {
-            for (size_t _i = 0; _i < nelements; _i++)
-                out_ptr[_i] = a_ptr[_i] + b_ptr[_i];
+            boat_simd_add_f32(a_ptr, b_ptr, out_ptr, nelements);
         } else {
             for (size_t i = 0; i < nelements; i++) {
                 size_t a_idx = broadcast_index(a, i, out_shape, out_ndim);
@@ -364,8 +363,7 @@ BOAT_API boat_tensor_t* boat_sub(const boat_tensor_t* a, const boat_tensor_t* b)
         if (boat_tensor_ndim(a) == boat_tensor_ndim(b) && boat_tensor_nelements(a) == nelements &&
             boat_tensor_nelements(b) == nelements && boat_tensor_is_contiguous(a) &&
             boat_tensor_is_contiguous(b)) {
-            for (size_t _i = 0; _i < nelements; _i++)
-                out_ptr[_i] = a_ptr[_i] - b_ptr[_i];
+            boat_simd_sub_f32(a_ptr, b_ptr, out_ptr, nelements);
         } else {
             for (size_t i = 0; i < nelements; i++) {
                 size_t a_idx = broadcast_index(a, i, out_shape, out_ndim);
@@ -504,8 +502,7 @@ BOAT_API boat_tensor_t* boat_mul(const boat_tensor_t* a, const boat_tensor_t* b)
         if (boat_tensor_ndim(a) == boat_tensor_ndim(b) && boat_tensor_nelements(a) == nelements &&
             boat_tensor_nelements(b) == nelements && boat_tensor_is_contiguous(a) &&
             boat_tensor_is_contiguous(b)) {
-            for (size_t _i = 0; _i < nelements; _i++)
-                out_ptr[_i] = a_ptr[_i] * b_ptr[_i];
+            boat_simd_mul_f32(a_ptr, b_ptr, out_ptr, nelements);
         } else {
             for (size_t i = 0; i < nelements; i++) {
                 size_t a_idx = broadcast_index(a, i, out_shape, out_ndim);
@@ -644,8 +641,7 @@ BOAT_API boat_tensor_t* boat_div(const boat_tensor_t* a, const boat_tensor_t* b)
         if (boat_tensor_ndim(a) == boat_tensor_ndim(b) && boat_tensor_nelements(a) == nelements &&
             boat_tensor_nelements(b) == nelements && boat_tensor_is_contiguous(a) &&
             boat_tensor_is_contiguous(b)) {
-            for (size_t _i = 0; _i < nelements; _i++)
-                out_ptr[_i] = a_ptr[_i] / b_ptr[_i];
+            boat_simd_div_f32(a_ptr, b_ptr, out_ptr, nelements);
         } else {
             for (size_t i = 0; i < nelements; i++) {
                 size_t a_idx = broadcast_index(a, i, out_shape, out_ndim);
@@ -863,7 +859,7 @@ BOAT_API boat_tensor_t* boat_mod(const boat_tensor_t* a, const boat_tensor_t* b)
 }
 
 // In-place operations
-#define DEFINE_INPLACE_OP(op_name, op)                                                             \
+#define DEFINE_INPLACE_OP(op_name, op, kernel)                                                     \
     void boat_##op_name##_(boat_tensor_t* const a, const boat_tensor_t* b) {                       \
         if (!a || !b) {                                                                            \
             boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Arithmetic] Null input in boat_%s_\n",  \
@@ -893,9 +889,7 @@ BOAT_API boat_tensor_t* boat_mod(const boat_tensor_t* a, const boat_tensor_t* b)
         case BOAT_DTYPE_FLOAT32: {                                                                 \
             float* a_ptr = (float*)a_data;                                                         \
             const float* b_ptr = (const float*)b_data;                                             \
-            for (size_t i = 0; i < a_nelements; i++) {                                             \
-                a_ptr[i] = a_ptr[i] op b_ptr[i];                                                   \
-            }                                                                                      \
+            kernel(a_ptr, b_ptr, a_ptr, a_nelements);                                              \
             break;                                                                                 \
         }                                                                                          \
         case BOAT_DTYPE_FLOAT64: {                                                                 \
@@ -936,13 +930,13 @@ BOAT_API boat_tensor_t* boat_mod(const boat_tensor_t* a, const boat_tensor_t* b)
         }                                                                                          \
     }
 
-DEFINE_INPLACE_OP(add, +)
-DEFINE_INPLACE_OP(sub, -)
-DEFINE_INPLACE_OP(mul, *)
-DEFINE_INPLACE_OP(div, /)
+DEFINE_INPLACE_OP(add, +, boat_simd_add_f32)
+DEFINE_INPLACE_OP(sub, -, boat_simd_sub_f32)
+DEFINE_INPLACE_OP(mul, *, boat_simd_mul_f32)
+DEFINE_INPLACE_OP(div, /, boat_simd_div_f32)
 
 // Scalar operations
-#define DEFINE_SCALAR_OP(op_name, op)                                                              \
+#define DEFINE_SCALAR_OP(op_name, op, kernel)                                                     \
     boat_tensor_t* boat_##op_name##_scalar(const boat_tensor_t* a, double scalar) {                \
         if (!a) {                                                                                  \
             boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,                                           \
@@ -967,9 +961,7 @@ DEFINE_INPLACE_OP(div, /)
             float scalar_f = (float)scalar;                                                        \
             float* a_ptr = (float*)a_data;                                                         \
             float* out_ptr = (float*)out_data;                                                     \
-            for (size_t i = 0; i < nelements; i++) {                                               \
-                out_ptr[i] = a_ptr[i] op scalar_f;                                                 \
-            }                                                                                      \
+            kernel(a_ptr, scalar_f, out_ptr, nelements);                                           \
             break;                                                                                 \
         }                                                                                          \
         case BOAT_DTYPE_FLOAT64: {                                                                 \
@@ -1018,10 +1010,10 @@ DEFINE_INPLACE_OP(div, /)
         return out;                                                                                \
     }
 
-DEFINE_SCALAR_OP(add, +)
-DEFINE_SCALAR_OP(sub, -)
-DEFINE_SCALAR_OP(mul, *)
-DEFINE_SCALAR_OP(div, /)
+DEFINE_SCALAR_OP(add, +, boat_simd_add_scalar_f32)
+DEFINE_SCALAR_OP(sub, -, boat_simd_sub_scalar_f32)
+DEFINE_SCALAR_OP(mul, *, boat_simd_mul_scalar_f32)
+DEFINE_SCALAR_OP(div, /, boat_simd_div_scalar_f32)
 
 BOAT_API boat_tensor_t* boat_pow_scalar(const boat_tensor_t* a, double scalar) {
     if (!a) {
@@ -1100,8 +1092,7 @@ BOAT_API boat_tensor_t* boat_abs(const boat_tensor_t* a) {
     case BOAT_DTYPE_FLOAT32: {
         const float* src = (const float*)a_data;
         float* dst = (float*)out_data;
-        for (size_t i = 0; i < n; i++)
-            dst[i] = fabsf(src[i]);
+        boat_simd_abs_f32(src, dst, n);
         break;
     }
     case BOAT_DTYPE_FLOAT64: {
@@ -1136,7 +1127,7 @@ BOAT_API boat_tensor_t* boat_abs(const boat_tensor_t* a) {
 }
 
 // In-place scalar operations
-#define DEFINE_INPLACE_SCALAR_OP(op_name, op)                                                      \
+#define DEFINE_INPLACE_SCALAR_OP(op_name, op, kernel)                                             \
     void boat_##op_name##_scalar_(boat_tensor_t* const a, double scalar) {                         \
         if (!a) return;                                                                            \
                                                                                                    \
@@ -1148,9 +1139,7 @@ BOAT_API boat_tensor_t* boat_abs(const boat_tensor_t* a) {
         case BOAT_DTYPE_FLOAT32: {                                                                 \
             float scalar_f = (float)scalar;                                                        \
             float* a_ptr = (float*)a_data;                                                         \
-            for (size_t i = 0; i < nelements; i++) {                                               \
-                a_ptr[i] = a_ptr[i] op scalar_f;                                                   \
-            }                                                                                      \
+            kernel(a_ptr, scalar_f, a_ptr, nelements);                                             \
             break;                                                                                 \
         }                                                                                          \
         case BOAT_DTYPE_FLOAT64: {                                                                 \
@@ -1189,10 +1178,10 @@ BOAT_API boat_tensor_t* boat_abs(const boat_tensor_t* a) {
         }                                                                                          \
     }
 
-DEFINE_INPLACE_SCALAR_OP(add, +)
-DEFINE_INPLACE_SCALAR_OP(sub, -)
-DEFINE_INPLACE_SCALAR_OP(mul, *)
-DEFINE_INPLACE_SCALAR_OP(div, /)
+DEFINE_INPLACE_SCALAR_OP(add, +, boat_simd_add_scalar_f32)
+DEFINE_INPLACE_SCALAR_OP(sub, -, boat_simd_sub_scalar_f32)
+DEFINE_INPLACE_SCALAR_OP(mul, *, boat_simd_mul_scalar_f32)
+DEFINE_INPLACE_SCALAR_OP(div, /, boat_simd_div_scalar_f32)
 
 // Broadcasting utility
 BOAT_API bool boat_can_broadcast(const boat_tensor_t* a, const boat_tensor_t* b) {
