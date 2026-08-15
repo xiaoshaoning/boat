@@ -345,6 +345,50 @@ void backward_pass(mnist_model_t* model, boat_tensor_t* grad_output) {
     if (out) boat_tensor_unref(out);
 }
 
+// Free-op for the save view: only the wrapper struct is freed; the layer data
+// belongs to the live model (freed in free_mnist_model).
+static void view_free_op(const boat_layer_t* layer) { free((void*)layer); }
+static const boat_layer_ops_t view_ops = {NULL, NULL, NULL, view_free_op};
+
+// Generate a small random dataset in memory so the full pipeline (model,
+// optimizer, training loop, evaluation) runs without the MNIST files.
+static int make_synthetic_dataset(size_t n_train, size_t n_test, int64_t h, int64_t w,
+                                  boat_tensor_t** train_images, boat_tensor_t** train_labels,
+                                  boat_tensor_t** test_images, boat_tensor_t** test_labels) {
+    int64_t ish[4] = {(int64_t)n_train, 1, h, w};
+    int64_t lsh[1] = {(int64_t)n_train};
+    int64_t itsh[4] = {(int64_t)n_test, 1, h, w};
+    int64_t tlsh[1] = {(int64_t)n_test};
+
+    *train_images = boat_tensor_create(ish, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    *train_labels = boat_tensor_create(lsh, 1, BOAT_DTYPE_UINT8, BOAT_DEVICE_CPU);
+    *test_images = boat_tensor_create(itsh, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    *test_labels = boat_tensor_create(tlsh, 1, BOAT_DTYPE_UINT8, BOAT_DEVICE_CPU);
+    if (!*train_images || !*train_labels || !*test_images || !*test_labels) return -1;
+    float* ti = (float*)boat_tensor_data(*train_images);
+    uint8_t* tl = (uint8_t*)boat_tensor_data(*train_labels);
+    float* ei = (float*)boat_tensor_data(*test_images);
+    uint8_t* el = (uint8_t*)boat_tensor_data(*test_labels);
+    unsigned seed = 12345;
+    for (size_t i = 0; i < n_train; i++) {
+        for (size_t k = 0; k < (size_t)h * w; k++) {
+            seed = seed * 1103515245u + 12345u;
+            ti[i * (size_t)h * w + k] = ((float)(seed >> 8) / 16777216.0f) * 2.0f - 1.0f;
+        }
+        seed = seed * 1103515245u + 12345u;
+        tl[i] = (uint8_t)((seed >> 8) % 10);
+    }
+    for (size_t i = 0; i < n_test; i++) {
+        for (size_t k = 0; k < (size_t)h * w; k++) {
+            seed = seed * 1103515245u + 12345u;
+            ei[i * (size_t)h * w + k] = ((float)(seed >> 8) / 16777216.0f) * 2.0f - 1.0f;
+        }
+        seed = seed * 1103515245u + 12345u;
+        el[i] = (uint8_t)((seed >> 8) % 10);
+    }
+    return 0;
+}
+
 int main(int argc, char* argv[]) {
     printf("=== MNIST Digit Recognition with Boat Framework ===\n");
 
@@ -355,29 +399,53 @@ int main(int argc, char* argv[]) {
     const char* quick_test_env = getenv("MNIST_QUICK_TEST");
     int use_quick_test = quick_test_env && atoi(quick_test_env) == 1;
 
-    // Check for data directory
-    if (access("data", F_OK) == -1) {
-        printf("Data directory not found. Please run 'python mnist_data.py' first.\n");
-        return 1;
+    // Synthetic mode: run the full pipeline on a small in-memory random
+    // dataset (no MNIST files needed) -- used by CTest.
+    const char* synth_env = getenv("MNIST_SYNTHETIC");
+    int use_synthetic = synth_env && atoi(synth_env) == 1;
+
+    boat_tensor_t* train_images = NULL;
+    boat_tensor_t* train_labels = NULL;
+    boat_tensor_t* test_images = NULL;
+    boat_tensor_t* test_labels = NULL;
+    int synthetic_ok = 0;
+    if (use_synthetic) {
+        synthetic_ok = make_synthetic_dataset(160, 40, 28, 28, &train_images, &train_labels,
+                                              &test_images, &test_labels) == 0;
+        if (synthetic_ok) {
+            printf("Using in-memory synthetic dataset (160 train / 40 test)\n");
+        } else {
+            fprintf(stderr, "Failed to create synthetic dataset\n");
+            return 1;
+        }
     }
 
-    // Select data files based on test mode
-    const char* train_images_file =
-        use_quick_test ? "data/train_images_small.bin" : "data/train_images.bin";
-    const char* train_labels_file =
-        use_quick_test ? "data/train_labels_small.bin" : "data/train_labels.bin";
-    const char* test_images_file =
-        use_quick_test ? "data/test_images_small.bin" : "data/test_images.bin";
-    const char* test_labels_file =
-        use_quick_test ? "data/test_labels_small.bin" : "data/test_labels.bin";
+    if (!use_synthetic) {
+        // Check for data directory
+        if (access("data", F_OK) == -1) {
+            printf("Data directory not found. Please run 'python mnist_data.py' first,\n");
+            printf("or set MNIST_SYNTHETIC=1 to run on in-memory random data.\n");
+            return 1;
+        }
 
-    printf("Loading training data from %s...\n", train_images_file);
-    boat_tensor_t* train_images = load_tensor_binary(train_images_file, BOAT_DTYPE_FLOAT32);
-    boat_tensor_t* train_labels = load_tensor_binary(train_labels_file, BOAT_DTYPE_UINT8);
+        // Select data files based on test mode
+        const char* train_images_file =
+            use_quick_test ? "data/train_images_small.bin" : "data/train_images.bin";
+        const char* train_labels_file =
+            use_quick_test ? "data/train_labels_small.bin" : "data/train_labels.bin";
+        const char* test_images_file =
+            use_quick_test ? "data/test_images_small.bin" : "data/test_images.bin";
+        const char* test_labels_file =
+            use_quick_test ? "data/test_labels_small.bin" : "data/test_labels.bin";
 
-    printf("Loading test data from %s...\n", test_images_file);
-    boat_tensor_t* test_images = load_tensor_binary(test_images_file, BOAT_DTYPE_FLOAT32);
-    boat_tensor_t* test_labels = load_tensor_binary(test_labels_file, BOAT_DTYPE_UINT8);
+        printf("Loading training data from %s...\n", train_images_file);
+        train_images = load_tensor_binary(train_images_file, BOAT_DTYPE_FLOAT32);
+        train_labels = load_tensor_binary(train_labels_file, BOAT_DTYPE_UINT8);
+
+        printf("Loading test data from %s...\n", test_images_file);
+        test_images = load_tensor_binary(test_images_file, BOAT_DTYPE_FLOAT32);
+        test_labels = load_tensor_binary(test_labels_file, BOAT_DTYPE_UINT8);
+    }
 
     if (!train_images || !train_labels || !test_images || !test_labels) {
         fprintf(stderr, "Error loading data files\n");
@@ -447,7 +515,7 @@ int main(int argc, char* argv[]) {
     printf("Data standardization complete\n");
 
     // Training parameters
-    int epochs = use_quick_test ? 1 : 10;
+    int epochs = (use_quick_test || use_synthetic) ? 1 : 10;
     float learning_rate = 0.001f;
     size_t batch_size = 32;
     size_t num_batches = train_samples / batch_size;
@@ -631,57 +699,57 @@ int main(int argc, char* argv[]) {
             w = malloc(sizeof(boat_layer_t));
             w->data = model->conv1;
             w->type = BOAT_LAYER_TYPE_CONV2D;
-            w->ops = NULL;
+            w->ops = &view_ops;
             boat_model_add_layer(save_model, w);
             w = malloc(sizeof(boat_layer_t));
             w->data = model->relu1;
             w->type = BOAT_LAYER_TYPE_RELU;
-            w->ops = NULL;
+            w->ops = &view_ops;
             boat_model_add_layer(save_model, w);
             w = malloc(sizeof(boat_layer_t));
             w->data = model->pool1;
             w->type = BOAT_LAYER_TYPE_MAXPOOL2D;
-            w->ops = NULL;
+            w->ops = &view_ops;
             boat_model_add_layer(save_model, w);
             w = malloc(sizeof(boat_layer_t));
             w->data = model->conv2;
             w->type = BOAT_LAYER_TYPE_CONV2D;
-            w->ops = NULL;
+            w->ops = &view_ops;
             boat_model_add_layer(save_model, w);
             w = malloc(sizeof(boat_layer_t));
             w->data = model->relu2;
             w->type = BOAT_LAYER_TYPE_RELU;
-            w->ops = NULL;
+            w->ops = &view_ops;
             boat_model_add_layer(save_model, w);
             w = malloc(sizeof(boat_layer_t));
             w->data = model->pool2;
             w->type = BOAT_LAYER_TYPE_MAXPOOL2D;
-            w->ops = NULL;
+            w->ops = &view_ops;
             boat_model_add_layer(save_model, w);
             w = malloc(sizeof(boat_layer_t));
             w->data = model->flatten;
             w->type = BOAT_LAYER_TYPE_FLATTEN;
-            w->ops = NULL;
+            w->ops = &view_ops;
             boat_model_add_layer(save_model, w);
             w = malloc(sizeof(boat_layer_t));
             w->data = model->fc1;
             w->type = BOAT_LAYER_TYPE_DENSE;
-            w->ops = NULL;
+            w->ops = &view_ops;
             boat_model_add_layer(save_model, w);
             w = malloc(sizeof(boat_layer_t));
             w->data = model->relu3;
             w->type = BOAT_LAYER_TYPE_RELU;
-            w->ops = NULL;
+            w->ops = &view_ops;
             boat_model_add_layer(save_model, w);
             w = malloc(sizeof(boat_layer_t));
             w->data = model->fc2;
             w->type = BOAT_LAYER_TYPE_DENSE;
-            w->ops = NULL;
+            w->ops = &view_ops;
             boat_model_add_layer(save_model, w);
             w = malloc(sizeof(boat_layer_t));
             w->data = model->softmax;
             w->type = BOAT_LAYER_TYPE_SOFTMAX;
-            w->ops = NULL;
+            w->ops = &view_ops;
             boat_model_add_layer(save_model, w);
 
             if (boat_model_save(save_model, "mnist_model.boat")) {

@@ -577,8 +577,8 @@ The framework supports a comprehensive range of data types for efficient computa
 
 The repository includes several comprehensive examples:
 
-- **MNIST Classification**: Complete training pipeline for digit recognition (needs the MNIST dataset via `mnist_data.py`)
-- **CIFAR-10**: CNN image classification with data pipeline and transforms (needs the dataset via `cifar10_data.py`)
+- **MNIST Classification**: Complete training pipeline for digit recognition (`MNIST_SYNTHETIC=1` runs it on in-memory data in CTest)
+- **CIFAR-10**: CNN image classification with data pipeline and transforms (`CIFAR10_SYNTHETIC=1` runs it on in-memory data in CTest)
 - **Transformer**: End-to-end transformer with tokenization, training, and autoregressive decoding (self-contained, wired into CTest)
 - **Translator**: English-to-French MarianMT (Helsinki-NLP) inference engine using Safetensors weights (needs a trained model)
 - **InsightFace**: Face recognition model (ResNet50-based) inference via ONNX runtime executor, producing 512-dim embeddings
@@ -593,7 +593,7 @@ The repository includes several comprehensive examples:
   - Training loop with Muon/AdamW optimizers and FP8 support
   - Fused GQA attention kernels for fast decode
 
-The self-contained CPU examples (`serialization`, `regression`, `scheduler_usage`, `transformer`, `needle2_selftest`) are registered in CTest; data-backed ones (MNIST, CIFAR-10, translator) skip gracefully when their data is absent.
+The CPU examples (`serialization`, `regression`, `scheduler_usage`, `transformer`, `needle2_selftest`, `mnist`, `cifar10`) are registered in CTest; MNIST/CIFAR-10 use an in-memory synthetic dataset, and the translator skips gracefully without a trained model.
 
 ## Project Structure
 
@@ -763,8 +763,8 @@ ctest -R test_serialization_integration  # Serialization roundtrip
 
 The CPU suite is 46 tests on Windows (`make test`) and 55 via WSL ctest
 (including the self-contained examples), all green under `-Wall -Wextra` and
-valgrind. Data-backed examples (MNIST/CIFAR-10/translator) are registered but
-skip gracefully when their data is absent.
+valgrind. MNIST/CIFAR-10 run in CTest via their synthetic-data modes; the
+translator is registered but skips gracefully without a trained model.
 
 ## Contributing
 

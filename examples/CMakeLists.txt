@@ -7,10 +7,18 @@ add_subdirectory(serialization)
 add_subdirectory(transformer)
 add_subdirectory(translator)
 
-# Data-backed examples (mnist/cifar10 datasets, a trained translator model) are
-# intentionally NOT registered in CTest: they need external data/models, so CI
-# would only report them as skipped. translator keeps its graceful-skip exit
-# (77) for manual runs.
+# Data-backed examples (mnist/cifar10 datasets, a trained translator model).
+# mnist/cifar10 now have an in-memory synthetic-data mode (MNIST_SYNTHETIC /
+# CIFAR10_SYNTHETIC) so they run fully in CTest; translator keeps its
+# graceful-skip exit (77) for manual runs.
+if(TARGET mnist)
+    add_test(NAME mnist COMMAND mnist)
+    set_tests_properties(mnist PROPERTIES ENVIRONMENT "MNIST_SYNTHETIC=1" TIMEOUT 120)
+endif()
+if(TARGET cifar10)
+    add_test(NAME cifar10 COMMAND cifar10)
+    set_tests_properties(cifar10 PROPERTIES ENVIRONMENT "CIFAR10_SYNTHETIC=1" TIMEOUT 120)
+endif()
 if(TARGET translator)
     add_test(NAME translator COMMAND translator ${CMAKE_SOURCE_DIR}/examples/translator/model)
     set_tests_properties(translator PROPERTIES SKIP_RETURN_CODE 77)
