@@ -12,7 +12,7 @@
 #include <string.h>
 
 // Helper function to compute numerical gradient using finite differences
-static float compute_numerical_gradient_element(const boat_attention_t* attention,
+static float compute_numerical_gradient_element(boat_attention_t* attention,
                                                 boat_tensor_t* query, boat_tensor_t* key,
                                                 boat_tensor_t* value, boat_tensor_t* param,
                                                 size_t idx, float epsilon) {
@@ -72,7 +72,7 @@ static bool check_gradient_agreement(float analytical, float numerical, float re
 }
 
 // Test gradient for a specific parameter tensor
-static bool test_parameter_gradient(const boat_attention_t* attention, boat_tensor_t* query,
+static bool test_parameter_gradient(boat_attention_t* attention, boat_tensor_t* query,
                                     boat_tensor_t* key, boat_tensor_t* value, boat_tensor_t* param,
                                     boat_tensor_t* grad, const char* param_name, size_t max_tests) {
     if (!param || !grad) {

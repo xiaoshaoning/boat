@@ -114,7 +114,7 @@ static boat_variable_t* linear_model(const boat_variable_t* x, boat_variable_t* 
 // Run training with given optimizer and scheduler
 static benchmark_result_t run_training(const char* optimizer_name, boat_optimizer_t* optimizer,
                                        boat_scheduler_t* scheduler, boat_variable_t* W,
-                                       const boat_variable_t* b, boat_tensor_t* x_data,
+                                       boat_variable_t* b, boat_tensor_t* x_data,
                                        boat_tensor_t* y_data, int max_steps, float loss_threshold) {
     benchmark_result_t result = {0};
     result.optimizer_name = optimizer_name;

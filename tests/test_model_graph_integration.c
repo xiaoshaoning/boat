@@ -33,7 +33,7 @@ static void dense_layer_wrapper_free(const boat_layer_t* layer) {
     boat_dense_layer_free(dense_layer);
 
     // Free the layer wrapper itself
-    free(layer);
+    free((void*)layer);
 }
 
 static const boat_layer_ops_t dense_layer_ops = {.forward = dense_layer_wrapper_forward,
@@ -69,7 +69,7 @@ static void norm_layer_wrapper_free(const boat_layer_t* layer) {
     boat_norm_layer_free(norm_layer);
 
     // Free the layer wrapper itself
-    free(layer);
+    free((void*)layer);
 }
 
 static const boat_layer_ops_t norm_layer_ops = {.forward = norm_layer_wrapper_forward,

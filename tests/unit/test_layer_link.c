@@ -1,4 +1,6 @@
+#ifndef BOAT_STATIC_BUILD
 #define BOAT_STATIC_BUILD
+#endif
 #include <boat/layers.h>
 #include <stdio.h>
 

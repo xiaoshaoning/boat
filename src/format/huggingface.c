@@ -695,7 +695,7 @@ static bool is_safetensors_format(const uint8_t* data, size_t size) {
 
 // Load safetensors format weights
 static bool load_safetensors(const void* data, size_t size, const hf_config_t* config,
-                             const boat_model_t* model) {
+                            boat_model_t* model) {
     (void)config;
     if (!data || size == 0 || !model) return false;
 

@@ -2,7 +2,9 @@
 // Copyright (c) 2026 Shaoning, Xiao 萧少宁
 // Licensed under the Apache License, Version 2.0
 
+#ifndef BOAT_STATIC_BUILD
 #define BOAT_STATIC_BUILD
+#endif
 // Force disable debug output (commented to allow runtime control)
 // #undef DEBUG_LEVEL
 // #define DEBUG_LEVEL 0
@@ -100,7 +102,7 @@ static variable_pool_t* create_variable_pool() {
 }
 
 // Free variable pool
-static void free_variable_pool(const variable_pool_t* pool) {
+static void free_variable_pool(variable_pool_t* pool) {
     if (!pool) return;
 
     if (pool->input_var) boat_variable_free(pool->input_var);
@@ -784,7 +786,7 @@ boat_tensor_t* forward_pass_layer(mnist_model_t* model, boat_tensor_t* input) {
     return x;
 }
 
-boat_variable_t* forward_pass(mnist_model_t* model, const boat_variable_t* input) {
+boat_variable_t* forward_pass(mnist_model_t* model, boat_variable_t* input) {
     DEBUG_PRINT("forward_pass: entered, input=%p\n", (void*)input);
     fprintf(stderr, "[DEBUG] forward_pass: input variable %p, requires_grad=%d\n", input,
             input ? boat_variable_requires_grad(input) : -1);
