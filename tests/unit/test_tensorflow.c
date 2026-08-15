@@ -22,12 +22,12 @@
 #endif
 
 static int g_fail = 0;
-#define CHECK(cond, msg)                                                      \
-    do {                                                                      \
-        if (!(cond)) {                                                        \
-            printf("FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__);            \
-            g_fail++;                                                         \
-        }                                                                     \
+#define CHECK(cond, msg)                                                                           \
+    do {                                                                                           \
+        if (!(cond)) {                                                                             \
+            printf("FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__);                                 \
+            g_fail++;                                                                              \
+        }                                                                                          \
     } while (0)
 
 // ---------------------------------------------------------------------------
@@ -43,7 +43,8 @@ typedef struct {
 static void bw_reserve(bw_t* b, size_t extra) {
     if (b->n + extra > b->cap) {
         size_t nc = b->cap ? b->cap * 2 : 256;
-        while (nc < b->n + extra) nc *= 2;
+        while (nc < b->n + extra)
+            nc *= 2;
         b->d = (uint8_t*)realloc(b->d, nc);
         b->cap = nc;
     }
@@ -78,7 +79,7 @@ static void bw_str_field(bw_t* b, uint32_t field, const char* s) {
 static size_t bw_submsg_begin(bw_t* b, uint32_t field) {
     bw_tag(b, field, 2);
     size_t len_pos = b->n;
-    bw_varint(b, 0);  // placeholder length
+    bw_varint(b, 0); // placeholder length
     return len_pos;
 }
 
@@ -98,7 +99,8 @@ static void bw_patch_len(bw_t* b, size_t len_pos) {
     } else {
         // Shift the contents right to fit a multi-byte length varint.
         memmove(b->d + len_pos + nv, b->d + len_pos + 1, len);
-        for (size_t i = 0; i < nv; i++) b->d[len_pos + i] = tmp[i];
+        for (size_t i = 0; i < nv; i++)
+            b->d[len_pos + i] = tmp[i];
         b->n += (nv - 1);
     }
 }
@@ -107,30 +109,30 @@ static void bw_patch_len(bw_t* b, size_t len_pos) {
 // TensorFlow proto builders
 // ---------------------------------------------------------------------------
 
-static void build_tensor_proto(bw_t* b, int ndims, const int64_t* dims,
-                               const float* data, size_t nelems) {
+static void build_tensor_proto(bw_t* b, int ndims, const int64_t* dims, const float* data,
+                               size_t nelems) {
     // AttrValue (field 2) { tensor (field 8) { TensorProto } }
     size_t av = bw_submsg_begin(b, 2);
-    size_t tp = bw_submsg_begin(b, 8);  // AttrValue.tensor
+    size_t tp = bw_submsg_begin(b, 8); // AttrValue.tensor
     bw_tag(b, 1, 0);
-    bw_varint(b, 1);  // dtype = DT_FLOAT
+    bw_varint(b, 1); // dtype = DT_FLOAT
     // tensor_shape (field 2)
     size_t ts = bw_submsg_begin(b, 2);
     for (int i = 0; i < ndims; i++) {
         size_t dim = bw_submsg_begin(b, 2);
         bw_tag(b, 1, 0);
-        bw_varint(b, (uint64_t)dims[i]);  // dim.size
+        bw_varint(b, (uint64_t)dims[i]); // dim.size
         bw_patch_len(b, dim);
     }
     bw_patch_len(b, ts);
-    bw_bytes_field(b, 4, data, nelems * sizeof(float));  // tensor_content
+    bw_bytes_field(b, 4, data, nelems * sizeof(float)); // tensor_content
     bw_patch_len(b, tp);
     bw_patch_len(b, av);
 }
 
 static void add_const_node(bw_t* b, const char* name, int ndims, const int64_t* dims,
                            const float* data, size_t nelems) {
-    size_t nd = bw_submsg_begin(b, 1);  // GraphDef.node
+    size_t nd = bw_submsg_begin(b, 1); // GraphDef.node
     bw_str_field(b, 1, name);
     bw_str_field(b, 2, "Const");
     // attr { key: "value", value { tensor { ... } } }
@@ -141,8 +143,8 @@ static void add_const_node(bw_t* b, const char* name, int ndims, const int64_t* 
     bw_patch_len(b, nd);
 }
 
-static void add_compute_node(bw_t* b, const char* name, const char* op,
-                             const char* in0, const char* in1) {
+static void add_compute_node(bw_t* b, const char* name, const char* op, const char* in0,
+                             const char* in1) {
     size_t nd = bw_submsg_begin(b, 1);
     bw_str_field(b, 1, name);
     bw_str_field(b, 2, op);
@@ -153,11 +155,11 @@ static void add_compute_node(bw_t* b, const char* name, const char* op,
 
 static void build_test_graph(uint8_t** out, size_t* out_n) {
     bw_t b = {0};
-    const float w1[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0};  // [4,3]
+    const float w1[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0}; // [4,3]
     const int64_t w1d[2] = {4, 3};
     const float b1[3] = {0.1f, 0.2f, 0.3f};
     const int64_t b1d[1] = {3};
-    const float w2[6] = {1, 0, 0, 1, 1, 1};  // [3,2]
+    const float w2[6] = {1, 0, 0, 1, 1, 1}; // [3,2]
     const int64_t w2d[2] = {3, 2};
     const float b2[2] = {-0.1f, 0.05f};
     const int64_t b2d[1] = {2};
@@ -183,8 +185,8 @@ static void build_test_graph(uint8_t** out, size_t* out_n) {
 //   MetaGraphDef { graph_def (field 2) { GraphDef } } } }.
 static void wrap_savedmodel(const uint8_t* gd, size_t gdn, uint8_t** out, size_t* out_n) {
     bw_t b = {0};
-    size_t mg = bw_submsg_begin(&b, 2);  // SavedModel.meta_graphs
-    bw_bytes_field(&b, 2, gd, gdn);      // MetaGraphDef.graph_def
+    size_t mg = bw_submsg_begin(&b, 2); // SavedModel.meta_graphs
+    bw_bytes_field(&b, 2, gd, gdn);     // MetaGraphDef.graph_def
     bw_patch_len(&b, mg);
     *out = b.d;
     *out_n = b.n;
@@ -195,13 +197,15 @@ static void wrap_savedmodel(const uint8_t* gd, size_t gdn, uint8_t** out, size_t
 // ---------------------------------------------------------------------------
 
 static void relu_vec(float* v, int n) {
-    for (int i = 0; i < n; i++) v[i] = v[i] > 0 ? v[i] : 0.0f;
+    for (int i = 0; i < n; i++)
+        v[i] = v[i] > 0 ? v[i] : 0.0f;
 }
 
 static void matmul_vec(const float* x, int in, const float* w, int out, float* y) {
     for (int o = 0; o < out; o++) {
         float s = 0;
-        for (int i = 0; i < in; i++) s += x[i] * w[i * out + o];
+        for (int i = 0; i < in; i++)
+            s += x[i] * w[i * out + o];
         y[o] = s;
     }
 }
@@ -238,10 +242,12 @@ static void test_load_and_forward(void) {
         const float b2[2] = {-0.1f, 0.05f};
         float h1[3], h2[2];
         matmul_vec(xv, 4, w1, 3, h1);
-        for (int i = 0; i < 3; i++) h1[i] += b1[i];
+        for (int i = 0; i < 3; i++)
+            h1[i] += b1[i];
         relu_vec(h1, 3);
         matmul_vec(h1, 3, w2, 2, h2);
-        for (int i = 0; i < 2; i++) h2[i] += b2[i];
+        for (int i = 0; i < 2; i++)
+            h2[i] += b2[i];
         relu_vec(h2, 2);
 
         const float* yd = (const float*)boat_tensor_const_data(y);

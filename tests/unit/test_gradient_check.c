@@ -13,13 +13,9 @@
 
 // Helper function to compute numerical gradient using finite differences
 static float compute_numerical_gradient_element(
-    boat_tensor_t* param,
-    size_t idx,
-    float epsilon,
+    boat_tensor_t* param, size_t idx, float epsilon,
     boat_variable_t* (*forward_func)(const boat_variable_t*, const boat_variable_t*),
-    const boat_variable_t* a,
-    boat_variable_t* b
-) {
+    const boat_variable_t* a, boat_variable_t* b) {
     // Save original value
     float* data = (float*)boat_tensor_data(param);
     float original = data[idx];
@@ -62,20 +58,20 @@ static float compute_numerical_gradient_element(
 }
 
 // Check gradient agreement with relative and absolute tolerances
-static bool check_gradient_agreement(float analytical, float numerical,
-                                     float rel_tol, float abs_tol) {
+static bool check_gradient_agreement(float analytical, float numerical, float rel_tol,
+                                     float abs_tol) {
     float diff = fabsf(analytical - numerical);
     if (diff <= abs_tol) {
-        return true;  // Difference less than absolute tolerance, gradients match
+        return true; // Difference less than absolute tolerance, gradients match
     }
     float sum = fabsf(analytical) + fabsf(numerical);
     if (sum > 0.0f) {
         float rel_err = diff / sum;
         if (rel_err <= rel_tol) {
-            return true;  // Relative error less than tolerance, gradients match
+            return true; // Relative error less than tolerance, gradients match
         }
     }
-    return false;  // Gradients do not match
+    return false; // Gradients do not match
 }
 
 // Test gradient for a simple addition operation
@@ -137,8 +133,8 @@ static bool test_addition_gradient() {
         grad_c_data[i] = 1.0f;
     }
 
-    printf("  Calling boat_variable_backward: c=%p, requires_grad=%d\n",
-           c, c ? boat_variable_requires_grad(c) : 0);
+    printf("  Calling boat_variable_backward: c=%p, requires_grad=%d\n", c,
+           c ? boat_variable_requires_grad(c) : 0);
     boat_variable_backward(c, grad_c);
     printf("  boat_variable_backward returned\n");
 
@@ -171,18 +167,20 @@ static bool test_addition_gradient() {
         float analytical_b = grad_b[i];
 
         // Numerical gradient for a
-        float numerical_a = compute_numerical_gradient_element(
-            boat_variable_data(a), i, epsilon, boat_var_add, a, b);
+        float numerical_a = compute_numerical_gradient_element(boat_variable_data(a), i, epsilon,
+                                                               boat_var_add, a, b);
         // Numerical gradient for b (need to perturb b)
-        float numerical_b = compute_numerical_gradient_element(
-            boat_variable_data(b), i, epsilon, boat_var_add, a, b);
+        float numerical_b = compute_numerical_gradient_element(boat_variable_data(b), i, epsilon,
+                                                               boat_var_add, a, b);
 
         if (!check_gradient_agreement(analytical_a, numerical_a, rel_tol, abs_tol)) {
-            printf("  Mismatch for a[%zu]: analytical=%g, numerical=%g\n", i, analytical_a, numerical_a);
+            printf("  Mismatch for a[%zu]: analytical=%g, numerical=%g\n", i, analytical_a,
+                   numerical_a);
             failures++;
         }
         if (!check_gradient_agreement(analytical_b, numerical_b, rel_tol, abs_tol)) {
-            printf("  Mismatch for b[%zu]: analytical=%g, numerical=%g\n", i, analytical_b, numerical_b);
+            printf("  Mismatch for b[%zu]: analytical=%g, numerical=%g\n", i, analytical_b,
+                   numerical_b);
             failures++;
         }
     }
@@ -261,8 +259,8 @@ static bool test_multiplication_gradient() {
         grad_c_data[i] = 1.0f;
     }
 
-    printf("  Calling boat_variable_backward: c=%p, requires_grad=%d\n",
-           c, c ? boat_variable_requires_grad(c) : 0);
+    printf("  Calling boat_variable_backward: c=%p, requires_grad=%d\n", c,
+           c ? boat_variable_requires_grad(c) : 0);
     boat_variable_backward(c, grad_c);
     printf("  boat_variable_backward returned\n");
 
@@ -295,18 +293,20 @@ static bool test_multiplication_gradient() {
         float analytical_b = grad_b[i];
 
         // Numerical gradient for a
-        float numerical_a = compute_numerical_gradient_element(
-            boat_variable_data(a), i, epsilon, boat_var_mul, a, b);
+        float numerical_a = compute_numerical_gradient_element(boat_variable_data(a), i, epsilon,
+                                                               boat_var_mul, a, b);
         // Numerical gradient for b
-        float numerical_b = compute_numerical_gradient_element(
-            boat_variable_data(b), i, epsilon, boat_var_mul, a, b);
+        float numerical_b = compute_numerical_gradient_element(boat_variable_data(b), i, epsilon,
+                                                               boat_var_mul, a, b);
 
         if (!check_gradient_agreement(analytical_a, numerical_a, rel_tol, abs_tol)) {
-            printf("  Mismatch for a[%zu]: analytical=%g, numerical=%g\n", i, analytical_a, numerical_a);
+            printf("  Mismatch for a[%zu]: analytical=%g, numerical=%g\n", i, analytical_a,
+                   numerical_a);
             failures++;
         }
         if (!check_gradient_agreement(analytical_b, numerical_b, rel_tol, abs_tol)) {
-            printf("  Mismatch for b[%zu]: analytical=%g, numerical=%g\n", i, analytical_b, numerical_b);
+            printf("  Mismatch for b[%zu]: analytical=%g, numerical=%g\n", i, analytical_b,
+                   numerical_b);
             failures++;
         }
     }
@@ -328,12 +328,11 @@ static bool test_multiplication_gradient() {
 
 // Check analytical vs numerical gradients for a broadcast binary op where b
 // is broadcast against a (e.g. a bias [out] or [1,out] vs [batch,out]).
-static bool check_broadcast_gradient(
-    boat_variable_t* (*forward_func)(const boat_variable_t*, const boat_variable_t*),
-    int64_t* a_shape, size_t a_ndim,
-    int64_t* b_shape, size_t b_ndim,
-    const char* name, float epsilon, float rel_tol, float abs_tol)
-{
+static bool check_broadcast_gradient(boat_variable_t* (*forward_func)(const boat_variable_t*,
+                                                                      const boat_variable_t*),
+                                     int64_t* a_shape, size_t a_ndim, int64_t* b_shape,
+                                     size_t b_ndim, const char* name, float epsilon, float rel_tol,
+                                     float abs_tol) {
     printf("Testing %s broadcast gradient...\n", name);
 
     boat_variable_t* a = boat_variable_create_with_shape(a_shape, a_ndim, BOAT_DTYPE_FLOAT32, true);
@@ -404,16 +403,16 @@ static bool check_broadcast_gradient(
     int failures = 0;
 
     for (size_t i = 0; i < a_n; i++) {
-        float numerical = compute_numerical_gradient_element(
-            boat_variable_data(a), i, epsilon, forward_func, a, b);
+        float numerical = compute_numerical_gradient_element(boat_variable_data(a), i, epsilon,
+                                                             forward_func, a, b);
         if (!check_gradient_agreement(grad_a[i], numerical, rel_tol, abs_tol)) {
             printf("  Mismatch for a[%zu]: analytical=%g, numerical=%g\n", i, grad_a[i], numerical);
             failures++;
         }
     }
     for (size_t i = 0; i < b_n; i++) {
-        float numerical = compute_numerical_gradient_element(
-            boat_variable_data(b), i, epsilon, forward_func, a, b);
+        float numerical = compute_numerical_gradient_element(boat_variable_data(b), i, epsilon,
+                                                             forward_func, a, b);
         if (!check_gradient_agreement(grad_b[i], numerical, rel_tol, abs_tol)) {
             printf("  Mismatch for b[%zu]: analytical=%g, numerical=%g\n", i, grad_b[i], numerical);
             failures++;
@@ -438,8 +437,7 @@ static bool test_multiplication_broadcast_gradient() {
     int64_t a_shape[] = {2, 3};
     int64_t b_shape[] = {3};
     return check_broadcast_gradient(boat_var_mul, a_shape, 2, b_shape, 1,
-                                    "multiplication ([3] bias vs [2,3])",
-                                    1e-4f, 1e-3f, 1e-5f);
+                                    "multiplication ([3] bias vs [2,3])", 1e-4f, 1e-3f, 1e-5f);
 }
 
 // Division with a leading-1 bias [1, out] broadcast against [batch, out].
@@ -451,8 +449,7 @@ static bool test_division_broadcast_gradient() {
     // analytical value matches double precision to ~1e-7), so use a slightly
     // larger epsilon and looser tolerance.
     return check_broadcast_gradient(boat_var_div, a_shape, 2, b_shape, 2,
-                                    "division ([1,3] bias vs [2,3])",
-                                    1e-3f, 5e-3f, 1e-4f);
+                                    "division ([1,3] bias vs [2,3])", 1e-3f, 5e-3f, 1e-4f);
 }
 
 int main() {
@@ -492,7 +489,6 @@ int main() {
 
     // Test division with broadcasting gradient
     all_pass = test_division_broadcast_gradient() && all_pass;
-
 
     // Free the context (and its graph) now that all variables are released.
     boat_autodiff_context_free(ctx);

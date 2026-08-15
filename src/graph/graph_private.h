@@ -14,29 +14,29 @@ void boat_node_free(boat_node_t* node);
 
 // Graph structure definition (must match node.c)
 struct boat_graph_t {
-    boat_node_t** nodes;          // Array of nodes
-    size_t node_capacity;         // Capacity of nodes array
-    size_t node_count;            // Current number of nodes
-    size_t next_node_id;          // Next available node ID
+    boat_node_t** nodes;  // Array of nodes
+    size_t node_capacity; // Capacity of nodes array
+    size_t node_count;    // Current number of nodes
+    size_t next_node_id;  // Next available node ID
 
     // Edge storage
-    struct boat_edge_t** edges;   // Array of all edges
-    size_t edge_capacity;         // Capacity of edges array
-    size_t edge_count;            // Current number of edges
+    struct boat_edge_t** edges; // Array of all edges
+    size_t edge_capacity;       // Capacity of edges array
+    size_t edge_count;          // Current number of edges
 
     // Adjacency lists
-    struct boat_edge_list_t** outgoing;  // Outgoing edges per node
-    struct boat_edge_list_t** incoming;  // Incoming edges per node
+    struct boat_edge_list_t** outgoing; // Outgoing edges per node
+    struct boat_edge_list_t** incoming; // Incoming edges per node
 
     // Gradient checkpointing
     bool checkpointing_enabled;
-    bool* checkpoint_nodes;       // Array marking checkpoint nodes (size = node_capacity)
+    bool* checkpoint_nodes; // Array marking checkpoint nodes (size = node_capacity)
 
     // Device management
-    boat_device_t device;         // Default device for graph operations
+    boat_device_t device; // Default device for graph operations
 
     // Batch modification state
-    bool in_batch_mode;           // Whether batch modifications are active
+    bool in_batch_mode; // Whether batch modifications are active
 
     // Reference counting: boat_graph_copy/subgraph hold a reference to the
     // source graph so its node data stays alive while the shallow copy exists.
@@ -46,9 +46,9 @@ struct boat_graph_t {
 
 // Edge list structure for adjacency lists
 typedef struct boat_edge_list_t {
-    struct boat_edge_t** edges;   // Array of edge pointers
-    size_t capacity;              // Capacity of edges array
-    size_t count;                 // Current number of edges
+    struct boat_edge_t** edges; // Array of edge pointers
+    size_t capacity;            // Capacity of edges array
+    size_t count;               // Current number of edges
 } boat_edge_list_t;
 
 // Edge list operations (implemented in edge.c)

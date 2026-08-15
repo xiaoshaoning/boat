@@ -22,19 +22,14 @@ static float* tensor_data_f32(const boat_tensor_t* t) {
     return (float*)boat_tensor_data(t);
 }
 
-
 // Apply LayerNorm + affine to last dim.
 // input: [..., D], returns [..., D]
-static boat_tensor_t* apply_layernorm(
-    const boat_tensor_t* x,
-    const boat_tensor_t* gamma,
-    const boat_tensor_t* beta,
-    float eps)
-{
+static boat_tensor_t* apply_layernorm(const boat_tensor_t* x, const boat_tensor_t* gamma,
+                                      const boat_tensor_t* beta, float eps) {
     int64_t ndim = (int64_t)boat_tensor_ndim(x);
     const int64_t* shape = boat_tensor_shape(x);
     int64_t D = shape[ndim - 1];
-    int64_t norm_shape[] = { D };
+    int64_t norm_shape[] = {D};
 
     boat_tensor_t* y = boat_layer_norm(x, norm_shape, 1, eps);
     if (!y) return NULL;
@@ -45,12 +40,19 @@ static boat_tensor_t* apply_layernorm(
     (void)dev;
 
     if (gamma || beta) {
-        int64_t flat_shape[] = { outer, D };
+        int64_t flat_shape[] = {outer, D};
         boat_tensor_t* y_flat = boat_tensor_reshape(y, flat_shape, 2);
-        if (!y_flat) { boat_tensor_unref(y); return NULL; }
+        if (!y_flat) {
+            boat_tensor_unref(y);
+            return NULL;
+        }
 
         boat_tensor_t* out = boat_tensor_create(flat_shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
-        if (!out) { boat_tensor_unref(y_flat); boat_tensor_unref(y); return NULL; }
+        if (!out) {
+            boat_tensor_unref(y_flat);
+            boat_tensor_unref(y);
+            return NULL;
+        }
 
         // Move to CPU for affine, handle broadcast gamma[D] and beta[D]
         float* yp = (float*)boat_tensor_data(y_flat);
@@ -59,13 +61,21 @@ static boat_tensor_t* apply_layernorm(
         float* bp = beta ? (float*)boat_tensor_data(beta) : NULL;
 
 #ifdef BOAT_WITH_CUDA
-        float* y_cpu = NULL, *g_cpu = NULL, *b_cpu = NULL;
+        float *y_cpu = NULL, *g_cpu = NULL, *b_cpu = NULL;
         if (dev == BOAT_DEVICE_CUDA) {
             y_cpu = (float*)malloc((size_t)outer * (size_t)D * sizeof(float));
             boat_cuda_memcpy_d2h(y_cpu, yp, (size_t)outer * (size_t)D * sizeof(float));
             yp = y_cpu;
-            if (gp) { g_cpu = (float*)malloc((size_t)D * sizeof(float)); boat_cuda_memcpy_d2h(g_cpu, gp, (size_t)D * sizeof(float)); gp = g_cpu; }
-            if (bp) { b_cpu = (float*)malloc((size_t)D * sizeof(float)); boat_cuda_memcpy_d2h(b_cpu, bp, (size_t)D * sizeof(float)); bp = b_cpu; }
+            if (gp) {
+                g_cpu = (float*)malloc((size_t)D * sizeof(float));
+                boat_cuda_memcpy_d2h(g_cpu, gp, (size_t)D * sizeof(float));
+                gp = g_cpu;
+            }
+            if (bp) {
+                b_cpu = (float*)malloc((size_t)D * sizeof(float));
+                boat_cuda_memcpy_d2h(b_cpu, bp, (size_t)D * sizeof(float));
+                bp = b_cpu;
+            }
         }
 #endif
 
@@ -80,13 +90,17 @@ static boat_tensor_t* apply_layernorm(
 
 #ifdef BOAT_WITH_CUDA
         if (dev == BOAT_DEVICE_CUDA) {
-            boat_tensor_t* d_out = boat_tensor_create(flat_shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CUDA);
+            boat_tensor_t* d_out =
+                boat_tensor_create(flat_shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CUDA);
             if (d_out) {
-                boat_cuda_memcpy_h2d(boat_tensor_data(d_out), op, (size_t)outer * (size_t)D * sizeof(float));
+                boat_cuda_memcpy_h2d(boat_tensor_data(d_out), op,
+                                     (size_t)outer * (size_t)D * sizeof(float));
             }
             boat_tensor_unref(out);
             out = d_out;
-            free(y_cpu); free(g_cpu); free(b_cpu);
+            free(y_cpu);
+            free(g_cpu);
+            free(b_cpu);
         }
 #endif
 
@@ -108,20 +122,22 @@ static boat_tensor_t* apply_layernorm(
 
 // Window partition: [B, H, W, C] -> [B*nh*nw, ws*ws, C]
 // where nh=H/ws, nw=W/ws. H,W must be divisible by ws.
-static boat_tensor_t* window_partition(
-    const boat_tensor_t* x, int ws)
-{
+static boat_tensor_t* window_partition(const boat_tensor_t* x, int ws) {
     const int64_t* s = boat_tensor_shape(x);
     int B = (int)s[0], H = (int)s[1], W = (int)s[2], C = (int)s[3];
     int nh = H / ws, nw = W / ws;
     int num_windows = nh * nw;
-    int64_t out_shape[] = { B * num_windows, ws * ws, C };
-    boat_tensor_t* out = boat_tensor_create(out_shape, 3, BOAT_DTYPE_FLOAT32, boat_tensor_device(x));
+    int64_t out_shape[] = {B * num_windows, ws * ws, C};
+    boat_tensor_t* out =
+        boat_tensor_create(out_shape, 3, BOAT_DTYPE_FLOAT32, boat_tensor_device(x));
     if (!out) return NULL;
 
     float* src = tensor_data_f32(x);
     float* dst = tensor_data_f32(out);
-    if (!src || !dst) { boat_tensor_unref(out); return NULL; }
+    if (!src || !dst) {
+        boat_tensor_unref(out);
+        return NULL;
+    }
 
 #ifdef BOAT_WITH_CUDA
     if (boat_tensor_device(x) == BOAT_DEVICE_CUDA) {
@@ -152,20 +168,22 @@ static boat_tensor_t* window_partition(
 }
 
 // Window reverse: [B*nh*nw, ws*ws, C] -> [B, H, W, C]
-static boat_tensor_t* window_reverse(
-    const boat_tensor_t* windows, int H, int W, int C, int ws)
-{
+static boat_tensor_t* window_reverse(const boat_tensor_t* windows, int H, int W, int C, int ws) {
     const int64_t* s = boat_tensor_shape(windows);
     int total_win = (int)s[0];
     int nh = H / ws, nw = W / ws;
     int B = total_win / (nh * nw);
-    int64_t out_shape[] = { B, H, W, C };
-    boat_tensor_t* out = boat_tensor_create(out_shape, 4, BOAT_DTYPE_FLOAT32, boat_tensor_device(windows));
+    int64_t out_shape[] = {B, H, W, C};
+    boat_tensor_t* out =
+        boat_tensor_create(out_shape, 4, BOAT_DTYPE_FLOAT32, boat_tensor_device(windows));
     if (!out) return NULL;
 
     float* src = tensor_data_f32(windows);
     float* dst = tensor_data_f32(out);
-    if (!src || !dst) { boat_tensor_unref(out); return NULL; }
+    if (!src || !dst) {
+        boat_tensor_unref(out);
+        return NULL;
+    }
 
 #ifdef BOAT_WITH_CUDA
     if (boat_tensor_device(windows) == BOAT_DEVICE_CUDA) {
@@ -196,9 +214,7 @@ static boat_tensor_t* window_reverse(
 // Cyclic shift: roll by (-shift, -shift) on H,W dims
 // Input: [B, H, W, C]  Output: [B, H, W, C]
 // shift > 0 for forward (SW-MSA), shift = 0 = identity
-static boat_tensor_t* cyclic_shift(
-    const boat_tensor_t* x, int shift, bool reverse)
-{
+static boat_tensor_t* cyclic_shift(const boat_tensor_t* x, int shift, bool reverse) {
     if (shift == 0) {
         boat_tensor_ref((boat_tensor_t*)x);
         return (boat_tensor_t*)x;
@@ -207,13 +223,17 @@ static boat_tensor_t* cyclic_shift(
 
     const int64_t* s = boat_tensor_shape(x);
     int B = (int)s[0], H = (int)s[1], W = (int)s[2], C = (int)s[3];
-    int64_t out_shape[] = { B, H, W, C };
-    boat_tensor_t* out = boat_tensor_create(out_shape, 4, BOAT_DTYPE_FLOAT32, boat_tensor_device(x));
+    int64_t out_shape[] = {B, H, W, C};
+    boat_tensor_t* out =
+        boat_tensor_create(out_shape, 4, BOAT_DTYPE_FLOAT32, boat_tensor_device(x));
     if (!out) return NULL;
 
     float* src = tensor_data_f32(x);
     float* dst = tensor_data_f32(out);
-    if (!src || !dst) { boat_tensor_unref(out); return NULL; }
+    if (!src || !dst) {
+        boat_tensor_unref(out);
+        return NULL;
+    }
 
 #ifdef BOAT_WITH_CUDA
     if (boat_tensor_device(x) == BOAT_DEVICE_CUDA) {
@@ -243,11 +263,8 @@ static boat_tensor_t* cyclic_shift(
 // Window attention with relative position bias.
 // x: [num_windows, N, dim] where N = ws*ws
 // Returns: [num_windows*N, dim] (flat for downstream projection)
-static boat_tensor_t* window_attention(
-    const boat_tensor_t* x,
-    const boat_swin_block_weights_t* w,
-    int dim, int num_heads, int ws, bool use_cuda)
-{
+static boat_tensor_t* window_attention(const boat_tensor_t* x, const boat_swin_block_weights_t* w,
+                                       int dim, int num_heads, int ws, bool use_cuda) {
     (void)use_cuda;
     int N = ws * ws;
     int head_dim = dim / num_heads;
@@ -258,21 +275,45 @@ static boat_tensor_t* window_attention(
     int num_heads_total = num_windows * num_heads;
 
     // === QKV projections (2D matmul) ===
-    int64_t flat_shape[] = { B_flat, dim };
+    int64_t flat_shape[] = {B_flat, dim};
     boat_tensor_t* x_flat = boat_tensor_reshape(x, flat_shape, 2);
     if (!x_flat) return NULL;
 
     boat_tensor_t* Q = boat_matmul(x_flat, w->query_weight);
-    if (!Q) { boat_tensor_unref(x_flat); return NULL; }
-    if (w->query_bias) { boat_tensor_t* t = boat_add(Q, w->query_bias); boat_tensor_unref(Q); Q = t; }
+    if (!Q) {
+        boat_tensor_unref(x_flat);
+        return NULL;
+    }
+    if (w->query_bias) {
+        boat_tensor_t* t = boat_add(Q, w->query_bias);
+        boat_tensor_unref(Q);
+        Q = t;
+    }
 
     boat_tensor_t* K = boat_matmul(x_flat, w->key_weight);
-    if (!K) { boat_tensor_unref(x_flat); boat_tensor_unref(Q); return NULL; }
-    if (w->key_bias) { boat_tensor_t* t = boat_add(K, w->key_bias); boat_tensor_unref(K); K = t; }
+    if (!K) {
+        boat_tensor_unref(x_flat);
+        boat_tensor_unref(Q);
+        return NULL;
+    }
+    if (w->key_bias) {
+        boat_tensor_t* t = boat_add(K, w->key_bias);
+        boat_tensor_unref(K);
+        K = t;
+    }
 
     boat_tensor_t* V = boat_matmul(x_flat, w->value_weight);
-    if (!V) { boat_tensor_unref(x_flat); boat_tensor_unref(Q); boat_tensor_unref(K); return NULL; }
-    if (w->value_bias) { boat_tensor_t* t = boat_add(V, w->value_bias); boat_tensor_unref(V); V = t; }
+    if (!V) {
+        boat_tensor_unref(x_flat);
+        boat_tensor_unref(Q);
+        boat_tensor_unref(K);
+        return NULL;
+    }
+    if (w->value_bias) {
+        boat_tensor_t* t = boat_add(V, w->value_bias);
+        boat_tensor_unref(V);
+        V = t;
+    }
 
     boat_tensor_unref(x_flat);
 
@@ -282,9 +323,14 @@ static boat_tensor_t* window_attention(
     float* Vd = tensor_data_f32(V);
 
     // === Allocate scores: [num_heads_total, N, N] ===
-    int64_t scores_shape[] = { num_heads_total, N, N };
+    int64_t scores_shape[] = {num_heads_total, N, N};
     boat_tensor_t* scores_base = boat_tensor_create(scores_shape, 3, BOAT_DTYPE_FLOAT32, dev);
-    if (!scores_base) { boat_tensor_unref(Q); boat_tensor_unref(K); boat_tensor_unref(V); return NULL; }
+    if (!scores_base) {
+        boat_tensor_unref(Q);
+        boat_tensor_unref(K);
+        boat_tensor_unref(V);
+        return NULL;
+    }
     float* Sd = tensor_data_f32(scores_base);
 
     // === scores[w*h + h, i, j] = sum_k Q[w*N+i][h*hd+k] * K[w*N+j][h*hd+k] * scale ===
@@ -349,9 +395,13 @@ static boat_tensor_t* window_attention(
     }
 
     // === attn @ V: output[wi*N + i][h*hd + k] = sum_j attn[wh][i][j] * V[wi*N + j][h*hd + k] ===
-    int64_t out_flat_shape[] = { B_flat, dim };
+    int64_t out_flat_shape[] = {B_flat, dim};
     boat_tensor_t* attn_out = boat_tensor_create(out_flat_shape, 2, BOAT_DTYPE_FLOAT32, dev);
-    if (!attn_out) { boat_tensor_unref(scores_base); boat_tensor_unref(V); return NULL; }
+    if (!attn_out) {
+        boat_tensor_unref(scores_base);
+        boat_tensor_unref(V);
+        return NULL;
+    }
     float* Od = tensor_data_f32(attn_out);
 
     for (int wi = 0; wi < num_windows; wi++) {
@@ -361,8 +411,8 @@ static boat_tensor_t* window_attention(
                     int wh = wi * num_heads + hi;
                     float sum = 0.0f;
                     for (int j = 0; j < N; j++) {
-                        sum += Sd[(wh * N + i) * N + j]
-                             * Vd[(wi * N + j) * dim + hi * head_dim + k];
+                        sum +=
+                            Sd[(wh * N + i) * N + j] * Vd[(wi * N + j) * dim + hi * head_dim + k];
                     }
                     Od[(wi * N + i) * dim + hi * head_dim + k] = sum;
                 }
@@ -385,17 +435,15 @@ static boat_tensor_t* window_attention(
 }
 
 // MLP: FC1 -> GELU -> FC2
-static boat_tensor_t* swin_mlp(
-    const boat_tensor_t* x,
-    const boat_swin_block_weights_t* w)
-{
+static boat_tensor_t* swin_mlp(const boat_tensor_t* x, const boat_swin_block_weights_t* w) {
     // Flatten to 2D [batch, dim] for matmul, keep original shape to restore
     size_t ndim = boat_tensor_ndim(x);
     const int64_t* shape = boat_tensor_shape(x);
     int64_t D = shape[ndim - 1];
     int64_t outer = 1;
-    for (size_t i = 0; i < ndim - 1; i++) outer *= shape[i];
-    int64_t flat_shape[] = { outer, D };
+    for (size_t i = 0; i < ndim - 1; i++)
+        outer *= shape[i];
+    int64_t flat_shape[] = {outer, D};
     boat_tensor_t* x_flat = boat_tensor_reshape(x, flat_shape, 2);
     if (!x_flat) return NULL;
 
@@ -431,23 +479,24 @@ static boat_tensor_t* swin_mlp(
 }
 
 // PatchMerging
-static boat_tensor_t* patch_merging(
-    const boat_tensor_t* x,
-    const boat_swin_downsample_weights_t* w,
-    float eps)
-{
+static boat_tensor_t* patch_merging(const boat_tensor_t* x, const boat_swin_downsample_weights_t* w,
+                                    float eps) {
     const int64_t* s = boat_tensor_shape(x);
     int B = (int)s[0], H = (int)s[1], W = (int)s[2], C = (int)s[3];
     int H2 = H / 2, W2 = W / 2;
 
     // x is [B, H, W, C]. Extract 2x2 patches -> [B, H2, W2, 4*C]
-    int64_t merged_shape[] = { B, H2, W2, 4 * C };
-    boat_tensor_t* merged = boat_tensor_create(merged_shape, 4, BOAT_DTYPE_FLOAT32, boat_tensor_device(x));
+    int64_t merged_shape[] = {B, H2, W2, 4 * C};
+    boat_tensor_t* merged =
+        boat_tensor_create(merged_shape, 4, BOAT_DTYPE_FLOAT32, boat_tensor_device(x));
     if (!merged) return NULL;
 
     float* src = tensor_data_f32(x);
     float* dst = tensor_data_f32(merged);
-    if (!src || !dst) { boat_tensor_unref(merged); return NULL; }
+    if (!src || !dst) {
+        boat_tensor_unref(merged);
+        return NULL;
+    }
 
     for (int b = 0; b < B; b++) {
         for (int hi = 0; hi < H2; hi++) {
@@ -474,7 +523,7 @@ static boat_tensor_t* patch_merging(
     // Flatten to 2D [B*H2*W2, 4*C] for matmul with 2D weight
     int64_t normed_dim = boat_tensor_shape(normed)[boat_tensor_ndim(normed) - 1];
     int64_t normed_outer = (int64_t)(boat_tensor_nelements(normed) / (size_t)normed_dim);
-    int64_t normed_flat_shape[] = { normed_outer, normed_dim };
+    int64_t normed_flat_shape[] = {normed_outer, normed_dim};
     boat_tensor_t* normed_flat = boat_tensor_reshape(normed, normed_flat_shape, 2);
     boat_tensor_unref(normed);
     if (!normed_flat) return NULL;
@@ -490,7 +539,7 @@ static boat_tensor_t* patch_merging(
     }
 
     // Reshape back to 4D: [B, H2, W2, 2*C]
-    int64_t final_shape[] = { B, H2, W2, 2 * C };
+    int64_t final_shape[] = {B, H2, W2, 2 * C};
     boat_tensor_t* reshaped = boat_tensor_reshape(reduced, final_shape, 4);
     boat_tensor_unref(reduced);
     return reshaped;
@@ -501,33 +550,39 @@ static boat_tensor_t* create_attn_mask(int H, int W, int ws, int shift_size) {
     // TODO: implement proper attention mask for SW-MSA
     // Without mask, shifted window attention attends across cyclic boundaries,
     // which degrades quality slightly but is acceptable initially.
-    (void)H; (void)W; (void)ws; (void)shift_size;
+    (void)H;
+    (void)W;
+    (void)ws;
+    (void)shift_size;
     return NULL;
 }
 
 // =========================================================================
 // Swin block forward
 // =========================================================================
-static boat_tensor_t* swin_block_forward(
-    const boat_tensor_t* x,
-    const boat_swin_block_weights_t* w,
-    int dim, int num_heads, int ws, int shift_size,
-    boat_tensor_t* attn_mask, float eps)
-{
+static boat_tensor_t* swin_block_forward(const boat_tensor_t* x, const boat_swin_block_weights_t* w,
+                                         int dim, int num_heads, int ws, int shift_size,
+                                         boat_tensor_t* attn_mask, float eps) {
     // Save residual
     boat_tensor_t* residual = (boat_tensor_t*)x;
     boat_tensor_ref(residual);
 
     // LayerNorm before attention
     boat_tensor_t* normed = apply_layernorm(x, w->norm1_weight, w->norm1_bias, eps);
-    if (!normed) { boat_tensor_unref(residual); return NULL; }
+    if (!normed) {
+        boat_tensor_unref(residual);
+        return NULL;
+    }
 
     // Cyclic shift for SW-MSA
     boat_tensor_t* shifted = NULL;
     if (shift_size > 0) {
         shifted = cyclic_shift(normed, shift_size, false);
         boat_tensor_unref(normed);
-        if (!shifted) { boat_tensor_unref(residual); return NULL; }
+        if (!shifted) {
+            boat_tensor_unref(residual);
+            return NULL;
+        }
     } else {
         shifted = normed;
     }
@@ -537,31 +592,46 @@ static boat_tensor_t* swin_block_forward(
     int H = (int)ns[1], W = (int)ns[2];
     boat_tensor_t* windows = window_partition(shifted, ws);
     boat_tensor_unref(shifted);
-    if (!windows) { boat_tensor_unref(residual); return NULL; }
+    if (!windows) {
+        boat_tensor_unref(residual);
+        return NULL;
+    }
 
     // Window attention (returns 2D [num_windows*N, dim])
-    boat_tensor_t* attn_out = window_attention(windows, w, dim, num_heads, ws,
-        boat_tensor_device(x) == BOAT_DEVICE_CUDA);
+    boat_tensor_t* attn_out =
+        window_attention(windows, w, dim, num_heads, ws, boat_tensor_device(x) == BOAT_DEVICE_CUDA);
     boat_tensor_unref(windows);
-    if (!attn_out) { boat_tensor_unref(residual); return NULL; }
+    if (!attn_out) {
+        boat_tensor_unref(residual);
+        return NULL;
+    }
 
     // Reshape to 3D [num_windows, N, dim] for window_reverse
     int N_win = ws * ws;
-    int64_t wa_3d_shape[] = { boat_tensor_shape(attn_out)[0] / N_win, N_win, dim };
+    int64_t wa_3d_shape[] = {boat_tensor_shape(attn_out)[0] / N_win, N_win, dim};
     boat_tensor_t* attn_3d = boat_tensor_reshape(attn_out, wa_3d_shape, 3);
     boat_tensor_unref(attn_out);
-    if (!attn_3d) { boat_tensor_unref(residual); return NULL; }
+    if (!attn_3d) {
+        boat_tensor_unref(residual);
+        return NULL;
+    }
 
     // Window reverse
     boat_tensor_t* restored = window_reverse(attn_3d, H, W, dim, ws);
     boat_tensor_unref(attn_3d);
-    if (!restored) { boat_tensor_unref(residual); return NULL; }
+    if (!restored) {
+        boat_tensor_unref(residual);
+        return NULL;
+    }
 
     // Reverse cyclic shift (for SW-MSA)
     if (shift_size > 0) {
         boat_tensor_t* unshifted = cyclic_shift(restored, shift_size, true);
         boat_tensor_unref(restored);
-        if (!unshifted) { boat_tensor_unref(residual); return NULL; }
+        if (!unshifted) {
+            boat_tensor_unref(residual);
+            return NULL;
+        }
         restored = unshifted;
     }
 
@@ -577,11 +647,17 @@ static boat_tensor_t* swin_block_forward(
 
     normed = apply_layernorm(after_attn, w->norm2_weight, w->norm2_bias, eps);
     boat_tensor_unref(after_attn);
-    if (!normed) { boat_tensor_unref(residual); return NULL; }
+    if (!normed) {
+        boat_tensor_unref(residual);
+        return NULL;
+    }
 
     boat_tensor_t* mlp_out = swin_mlp(normed, w);
     boat_tensor_unref(normed);
-    if (!mlp_out) { boat_tensor_unref(residual); return NULL; }
+    if (!mlp_out) {
+        boat_tensor_unref(residual);
+        return NULL;
+    }
 
     boat_tensor_t* out = boat_add(residual, mlp_out);
     boat_tensor_unref(residual);
@@ -596,11 +672,9 @@ static boat_tensor_t* swin_block_forward(
 // Public API
 // =========================================================================
 
-BOAT_API boat_tensor_t* boat_swin_forward(
-    const boat_swin_config_t* config,
-    const boat_swin_weights_t* weights,
-    const boat_tensor_t* input)
-{
+BOAT_API boat_tensor_t* boat_swin_forward(const boat_swin_config_t* config,
+                                          const boat_swin_weights_t* weights,
+                                          const boat_tensor_t* input) {
     if (!config || !weights || !input) return NULL;
     if (boat_tensor_ndim(input) != 4) return NULL;
     if (boat_tensor_dtype(input) != BOAT_DTYPE_FLOAT32) return NULL;
@@ -621,7 +695,7 @@ BOAT_API boat_tensor_t* boat_swin_forward(
     // For CPU: implement conv2d directly (no im2col needed for 4x4 small kernel)
     int Hp = H / ps, Wp = W / ps;
     int embed_dim = config->embed_dim;
-    int64_t embed_shape[] = { N, Hp, Wp, embed_dim };
+    int64_t embed_shape[] = {N, Hp, Wp, embed_dim};
     boat_tensor_t* patch_embed = boat_tensor_create(embed_shape, 4, BOAT_DTYPE_FLOAT32, dev);
     if (!patch_embed) return NULL;
 
@@ -637,8 +711,7 @@ BOAT_API boat_tensor_t* boat_swin_forward(
 
 #ifdef BOAT_WITH_CUDA
     if (dev == BOAT_DEVICE_CUDA) {
-        boat_cuda_swin_patch_embed_f32(input_data, pe_w, pe_b, pe_data,
-            N, C, H, W, embed_dim, ps);
+        boat_cuda_swin_patch_embed_f32(input_data, pe_w, pe_b, pe_data, N, C, H, W, embed_dim, ps);
         boat_cuda_synchronize();
     } else
 #endif
@@ -693,8 +766,8 @@ BOAT_API boat_tensor_t* boat_swin_forward(
                 attn_mask = create_attn_mask(h, w, ws, shift_size);
             }
 
-            boat_tensor_t* next = swin_block_forward(
-                x, &blocks[bi], block_dim, num_heads, ws, shift_size, attn_mask, eps);
+            boat_tensor_t* next = swin_block_forward(x, &blocks[bi], block_dim, num_heads, ws,
+                                                     shift_size, attn_mask, eps);
             boat_tensor_unref(x);
 
             if (attn_mask) boat_tensor_unref(attn_mask);
@@ -718,7 +791,7 @@ BOAT_API boat_tensor_t* boat_swin_forward(
     // ===================================================================
     // Final reshape: [N, h, w, dim] -> [N, h*w, dim]
     // ===================================================================
-    int64_t final_shape[] = { N, h * w, dim };
+    int64_t final_shape[] = {N, h * w, dim};
     boat_tensor_t* result = boat_tensor_reshape(x, final_shape, 3);
     boat_tensor_unref(x);
     return result;

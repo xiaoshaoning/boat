@@ -62,7 +62,8 @@ BOAT_API void boat_add_float8(const uint8_t* a, const uint8_t* b, uint8_t* out, 
 // Memory access optimizations for packed types
 size_t boat_packed_element_offset(boat_dtype_t dtype, size_t index);
 BOAT_API uint8_t boat_packed_read_element(const uint8_t* data, boat_dtype_t dtype, size_t index);
-BOAT_API void boat_packed_write_element(uint8_t* data, boat_dtype_t dtype, size_t index, uint8_t value);
+BOAT_API void boat_packed_write_element(uint8_t* data, boat_dtype_t dtype, size_t index,
+                                        uint8_t value);
 
 #ifdef __cplusplus
 }

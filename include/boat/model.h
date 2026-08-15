@@ -22,9 +22,9 @@ typedef struct boat_layer_ops_t boat_layer_ops_t;
 
 // Layer structure
 typedef struct boat_layer_t {
-    void* data;                    // Pointer to layer-specific data (boat_dense_layer_t, etc.)
-    const boat_layer_ops_t* ops;   // Layer operations (optional, can be NULL)
-    boat_layer_type_t type;        // Layer type tag (for serialization)
+    void* data;                  // Pointer to layer-specific data (boat_dense_layer_t, etc.)
+    const boat_layer_ops_t* ops; // Layer operations (optional, can be NULL)
+    boat_layer_type_t type;      // Layer type tag (for serialization)
 } boat_layer_t;
 
 // Layer interface
@@ -46,7 +46,8 @@ BOAT_API void boat_model_set_graph(boat_model_t* model, boat_graph_t* graph);
 
 // User data management
 BOAT_API void* boat_model_get_user_data(const boat_model_t* model);
-BOAT_API void boat_model_set_user_data(boat_model_t* model, void* user_data, void (*free_fn)(void*));
+BOAT_API void boat_model_set_user_data(boat_model_t* model, void* user_data,
+                                       void (*free_fn)(void*));
 
 // Layer management
 BOAT_API void boat_model_add_layer(boat_model_t* model, boat_layer_t* layer);
@@ -55,7 +56,8 @@ BOAT_API boat_layer_t* boat_model_get_layer(const boat_model_t* model, size_t in
 
 // Model operations
 BOAT_API boat_tensor_t* boat_model_forward(const boat_model_t* model, const boat_tensor_t* input);
-BOAT_API boat_tensor_t* boat_model_backward(const boat_model_t* model, const boat_tensor_t* grad_output);
+BOAT_API boat_tensor_t* boat_model_backward(const boat_model_t* model,
+                                            const boat_tensor_t* grad_output);
 BOAT_API void boat_model_update(const boat_model_t* model, float learning_rate);
 
 // Model serialization

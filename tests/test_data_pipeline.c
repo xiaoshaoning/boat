@@ -11,10 +11,32 @@
 static int tests_passed = 0;
 static int tests_total = 0;
 
-#define TEST(name) do { printf("  %s ... ", name); fflush(stdout); tests_total++; } while(0)
-#define PASS() do { printf("PASS\n"); fflush(stdout); tests_passed++; } while(0)
-#define FAIL(msg) do { printf("FAIL: %s\n", msg); fflush(stdout); return 1; } while(0)
-#define ASSERT(cond) do { if (!(cond)) { printf("FAIL at %d\n", __LINE__); fflush(stdout); return 1; } } while(0)
+#define TEST(name)                                                                                 \
+    do {                                                                                           \
+        printf("  %s ... ", name);                                                                 \
+        fflush(stdout);                                                                            \
+        tests_total++;                                                                             \
+    } while (0)
+#define PASS()                                                                                     \
+    do {                                                                                           \
+        printf("PASS\n");                                                                          \
+        fflush(stdout);                                                                            \
+        tests_passed++;                                                                            \
+    } while (0)
+#define FAIL(msg)                                                                                  \
+    do {                                                                                           \
+        printf("FAIL: %s\n", msg);                                                                 \
+        fflush(stdout);                                                                            \
+        return 1;                                                                                  \
+    } while (0)
+#define ASSERT(cond)                                                                               \
+    do {                                                                                           \
+        if (!(cond)) {                                                                             \
+            printf("FAIL at %d\n", __LINE__);                                                      \
+            fflush(stdout);                                                                        \
+            return 1;                                                                              \
+        }                                                                                          \
+    } while (0)
 
 // --- Test 1: Tensor dataset creation ---
 static int test_tensor_dataset_create(void) {
@@ -25,9 +47,11 @@ static int test_tensor_dataset_create(void) {
     boat_tensor_t* labels = boat_tensor_create(lshape, 1, BOAT_DTYPE_INT64, BOAT_DEVICE_CPU);
 
     float* dp = (float*)boat_tensor_data(data);
-    for (size_t i = 0; i < 10 * 3 * 4; i++) dp[i] = (float)i;
+    for (size_t i = 0; i < 10 * 3 * 4; i++)
+        dp[i] = (float)i;
     int64_t* lp = (int64_t*)boat_tensor_data(labels);
-    for (int64_t i = 0; i < 10; i++) lp[i] = i % 3;
+    for (int64_t i = 0; i < 10; i++)
+        lp[i] = i % 3;
 
     boat_dataset_t* ds = boat_tensor_dataset_create(data, labels);
     ASSERT(ds != NULL);
@@ -55,7 +79,8 @@ static int test_tensor_dataset_get_item(void) {
         for (size_t j = 0; j < 2 * 3; j++)
             dp[i * 6 + j] = (float)(i * 100 + j);
     int64_t* lp = (int64_t*)boat_tensor_data(labels);
-    for (int64_t i = 0; i < 5; i++) lp[i] = i * 10;
+    for (int64_t i = 0; i < 5; i++)
+        lp[i] = i * 10;
 
     boat_dataset_t* ds = boat_tensor_dataset_create(data, labels);
     boat_tensor_unref(data);
@@ -68,7 +93,8 @@ static int test_tensor_dataset_get_item(void) {
     ASSERT(boat_tensor_shape(s2)[0] == 2);
     ASSERT(boat_tensor_shape(s2)[1] == 3);
     const float* sd = (const float*)boat_tensor_const_data(s2);
-    for (size_t j = 0; j < 6; j++) ASSERT(sd[j] == (float)(200 + j));
+    for (size_t j = 0; j < 6; j++)
+        ASSERT(sd[j] == (float)(200 + j));
     boat_tensor_unref(s2);
 
     boat_tensor_t* l2 = boat_dataset_get_label(ds, 2);
@@ -81,7 +107,8 @@ static int test_tensor_dataset_get_item(void) {
     boat_tensor_t* s4 = boat_dataset_get_data(ds, 4);
     ASSERT(s4 != NULL);
     sd = (const float*)boat_tensor_const_data(s4);
-    for (size_t j = 0; j < 6; j++) ASSERT(sd[j] == (float)(400 + j));
+    for (size_t j = 0; j < 6; j++)
+        ASSERT(sd[j] == (float)(400 + j));
     boat_tensor_unref(s4);
 
     boat_dataset_free(ds);
@@ -119,9 +146,11 @@ static int test_dataloader_basic(void) {
     boat_tensor_t* labels = boat_tensor_create(lshape, 1, BOAT_DTYPE_INT64, BOAT_DEVICE_CPU);
 
     float* dp = (float*)boat_tensor_data(data);
-    for (int i = 0; i < 20 * 12; i++) dp[i] = (float)i;
+    for (int i = 0; i < 20 * 12; i++)
+        dp[i] = (float)i;
     int64_t* lp = (int64_t*)boat_tensor_data(labels);
-    for (int i = 0; i < 20; i++) lp[i] = i % 5;
+    for (int i = 0; i < 20; i++)
+        lp[i] = i % 5;
 
     boat_dataset_t* ds = boat_tensor_dataset_create(data, labels);
     boat_tensor_unref(data);
@@ -140,8 +169,10 @@ static int test_dataloader_basic(void) {
         ASSERT(batch_data != NULL);
         ASSERT(batch_labels != NULL);
         size_t bs = (size_t)boat_tensor_shape(batch_data)[0];
-        if (batch_count < 3) ASSERT(bs == 6);
-        else ASSERT(bs == 2);
+        if (batch_count < 3)
+            ASSERT(bs == 6);
+        else
+            ASSERT(bs == 2);
         ASSERT(boat_tensor_shape(batch_labels)[0] == (int64_t)bs);
         ASSERT(boat_tensor_dtype(batch_labels) == BOAT_DTYPE_INT64);
         boat_tensor_unref(batch_data);
@@ -176,9 +207,11 @@ static int test_dataloader_shuffle(void) {
     boat_tensor_t* labels = boat_tensor_create(lshape, 1, BOAT_DTYPE_INT64, BOAT_DEVICE_CPU);
 
     float* dp = (float*)boat_tensor_data(data);
-    for (int i = 0; i < 10; i++) dp[i] = (float)i;
+    for (int i = 0; i < 10; i++)
+        dp[i] = (float)i;
     int64_t* lp = (int64_t*)boat_tensor_data(labels);
-    for (int i = 0; i < 10; i++) lp[i] = i;
+    for (int i = 0; i < 10; i++)
+        lp[i] = i;
 
     boat_dataset_t* ds = boat_tensor_dataset_create(data, labels);
     boat_tensor_unref(data);
@@ -195,7 +228,10 @@ static int test_dataloader_shuffle(void) {
     const int64_t* ll = (const int64_t*)boat_tensor_const_data(batch_labels);
     int in_order = 1;
     for (int i = 0; i < 10; i++) {
-        if (ll[i] != i) { in_order = 0; break; }
+        if (ll[i] != i) {
+            in_order = 0;
+            break;
+        }
     }
     if (in_order) {
         boat_tensor_unref(batch_data);
@@ -205,7 +241,10 @@ static int test_dataloader_shuffle(void) {
         ll = (const int64_t*)boat_tensor_const_data(batch_labels);
         in_order = 1;
         for (int i = 0; i < 10; i++) {
-            if (ll[i] != i) { in_order = 0; break; }
+            if (ll[i] != i) {
+                in_order = 0;
+                break;
+            }
         }
     }
     ASSERT(in_order == 0);
@@ -224,8 +263,12 @@ static int test_transform_normalize(void) {
     int64_t shape[] = {2, 3};
     boat_tensor_t* t = boat_tensor_create(shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* d = (float*)boat_tensor_data(t);
-    d[0] = 1.0f; d[1] = 2.0f; d[2] = 3.0f;
-    d[3] = 4.0f; d[4] = 5.0f; d[5] = 6.0f;
+    d[0] = 1.0f;
+    d[1] = 2.0f;
+    d[2] = 3.0f;
+    d[3] = 4.0f;
+    d[4] = 5.0f;
+    d[5] = 6.0f;
 
     float params[] = {2.0f, 2.0f};
     boat_tensor_t* result = boat_transform_normalize(t, params);
@@ -248,23 +291,41 @@ static int test_transform_hflip(void) {
     int64_t shape[] = {1, 1, 5};
     boat_tensor_t* t = boat_tensor_create(shape, 3, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* d = (float*)boat_tensor_data(t);
-    d[0] = 1.0f; d[1] = 2.0f; d[2] = 3.0f; d[3] = 4.0f; d[4] = 5.0f;
+    d[0] = 1.0f;
+    d[1] = 2.0f;
+    d[2] = 3.0f;
+    d[3] = 4.0f;
+    d[4] = 5.0f;
 
     int saw_flip = 0;
     for (int trial = 0; trial < 16; trial++) {
-        d[0] = 1.0f; d[1] = 2.0f; d[2] = 3.0f; d[3] = 4.0f; d[4] = 5.0f;
+        d[0] = 1.0f;
+        d[1] = 2.0f;
+        d[2] = 3.0f;
+        d[3] = 4.0f;
+        d[4] = 5.0f;
         boat_tensor_t* r = boat_transform_random_hflip(t, NULL);
         ASSERT(r == t);
-        if (d[0] == 5.0f && d[4] == 1.0f) { saw_flip = 1; break; }
+        if (d[0] == 5.0f && d[4] == 1.0f) {
+            saw_flip = 1;
+            break;
+        }
     }
     ASSERT(saw_flip);
 
     int saw_noflip = 0;
     for (int trial = 0; trial < 16; trial++) {
-        d[0] = 1.0f; d[1] = 2.0f; d[2] = 3.0f; d[3] = 4.0f; d[4] = 5.0f;
+        d[0] = 1.0f;
+        d[1] = 2.0f;
+        d[2] = 3.0f;
+        d[3] = 4.0f;
+        d[4] = 5.0f;
         boat_tensor_t* r = boat_transform_random_hflip(t, NULL);
         ASSERT(r == t);
-        if (d[0] == 1.0f && d[4] == 5.0f) { saw_noflip = 1; break; }
+        if (d[0] == 1.0f && d[4] == 5.0f) {
+            saw_noflip = 1;
+            break;
+        }
     }
     ASSERT(saw_noflip);
 
@@ -279,7 +340,8 @@ static int test_transform_crop(void) {
     int64_t shape[] = {1, 4, 4};
     boat_tensor_t* t = boat_tensor_create(shape, 3, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* d = (float*)boat_tensor_data(t);
-    for (int i = 0; i < 16; i++) d[i] = (float)i;
+    for (int i = 0; i < 16; i++)
+        d[i] = (float)i;
 
     size_t crop_params[] = {2, 2};
     boat_tensor_t* result = boat_transform_random_crop(t, crop_params);
@@ -301,9 +363,11 @@ static int test_dataloader_transform(void) {
     boat_tensor_t* labels = boat_tensor_create(lshape, 1, BOAT_DTYPE_INT64, BOAT_DEVICE_CPU);
 
     float* dp = (float*)boat_tensor_data(data);
-    for (int i = 0; i < 6 * 4; i++) dp[i] = (float)(i % 10);
+    for (int i = 0; i < 6 * 4; i++)
+        dp[i] = (float)(i % 10);
     int64_t* lp = (int64_t*)boat_tensor_data(labels);
-    for (int i = 0; i < 6; i++) lp[i] = i;
+    for (int i = 0; i < 6; i++)
+        lp[i] = i;
 
     boat_dataset_t* ds = boat_tensor_dataset_create(data, labels);
     boat_tensor_unref(data);
@@ -323,7 +387,8 @@ static int test_dataloader_transform(void) {
     ASSERT(boat_tensor_shape(batch_data)[0] == 3);
     const float* bd = (const float*)boat_tensor_const_data(batch_data);
     const float* orig = (const float*)boat_tensor_const_data(data);
-    for (int i = 0; i < 3 * 4; i++) ASSERT(bd[i] == orig[i]);
+    for (int i = 0; i < 3 * 4; i++)
+        ASSERT(bd[i] == orig[i]);
 
     boat_tensor_unref(batch_data);
     boat_tensor_unref(batch_labels);
@@ -364,7 +429,8 @@ static int test_dataset_label_dtypes(void) {
 
     // UINT8 labels
     boat_tensor_t* data = boat_tensor_create(dshape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
-    boat_tensor_t* labels = boat_tensor_create((int64_t[]){3}, 1, BOAT_DTYPE_UINT8, BOAT_DEVICE_CPU);
+    boat_tensor_t* labels =
+        boat_tensor_create((int64_t[]){3}, 1, BOAT_DTYPE_UINT8, BOAT_DEVICE_CPU);
     ((uint8_t*)boat_tensor_data(labels))[0] = 7;
     ((uint8_t*)boat_tensor_data(labels))[1] = 8;
     ((uint8_t*)boat_tensor_data(labels))[2] = 9;
@@ -408,15 +474,16 @@ static int test_dataloader_edges(void) {
     boat_dataloader_free(NULL);
     boat_dataloader_reset(NULL);
 
-    boat_tensor_t* bd = (void*)0x1;  // non-NULL sentinel
+    boat_tensor_t* bd = (void*)0x1; // non-NULL sentinel
     boat_tensor_t* bl = (void*)0x1;
     ASSERT(boat_dataloader_next(NULL, &bd, &bl) == false);
-    ASSERT(bd == (void*)0x1);  // unchanged
+    ASSERT(bd == (void*)0x1); // unchanged
     ASSERT(bl == (void*)0x1);
 
     int64_t dshape[] = {1, 2};
     boat_tensor_t* data = boat_tensor_create(dshape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
-    boat_tensor_t* labels = boat_tensor_create((int64_t[]){1}, 1, BOAT_DTYPE_INT64, BOAT_DEVICE_CPU);
+    boat_tensor_t* labels =
+        boat_tensor_create((int64_t[]){1}, 1, BOAT_DTYPE_INT64, BOAT_DEVICE_CPU);
     boat_dataset_t* ds = boat_tensor_dataset_create(data, labels);
     boat_tensor_unref(data);
     boat_tensor_unref(labels);

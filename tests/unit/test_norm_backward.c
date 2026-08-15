@@ -11,25 +11,27 @@
 
 static int g_failures = 0;
 
-#define CHECK(cond, msg) do { \
-    if (!(cond)) { \
-        printf("  FAIL: %s\n", msg); \
-        g_failures++; \
-    } else { \
-        printf("  OK: %s\n", msg); \
-    } \
-} while (0)
+#define CHECK(cond, msg)                                                                           \
+    do {                                                                                           \
+        if (!(cond)) {                                                                             \
+            printf("  FAIL: %s\n", msg);                                                           \
+            g_failures++;                                                                          \
+        } else {                                                                                   \
+            printf("  OK: %s\n", msg);                                                             \
+        }                                                                                          \
+    } while (0)
 
 #define ALLOC_F32(n) ((float*)malloc((n) * sizeof(float)))
 
 static float scalar_loss(const float* v, size_t n) {
     float s = 0.0f;
-    for (size_t i = 0; i < n; i++) s += v[i];
+    for (size_t i = 0; i < n; i++)
+        s += v[i];
     return s;
 }
 
-static int compare_grads(const char* name, const float* analytic, const float* numeric,
-                         size_t n, float atol, float rtol) {
+static int compare_grads(const char* name, const float* analytic, const float* numeric, size_t n,
+                         float atol, float rtol) {
     int bad = 0;
     for (size_t i = 0; i < n; i++) {
         float diff = fabsf(analytic[i] - numeric[i]);
@@ -38,8 +40,8 @@ static int compare_grads(const char* name, const float* analytic, const float* n
         if (scale > 0.0f && diff / scale <= rtol) continue;
         bad++;
         if (bad <= 5) {
-            printf("    %s[%zu] analytic=%.6f numeric=%.6f diff=%.6f\n",
-                   name, i, analytic[i], numeric[i], diff);
+            printf("    %s[%zu] analytic=%.6f numeric=%.6f diff=%.6f\n", name, i, analytic[i],
+                   numeric[i], diff);
         }
     }
     return bad;
@@ -67,14 +69,17 @@ static int test_layernorm_forward_and_gradients(void) {
         goto done;
     }
     srand(101);
-    for (size_t i = 0; i < total; i++) x[i] = ((float)rand() / RAND_MAX - 0.5f) * 2.0f;
-    for (size_t i = 0; i < hidden; i++) gamma[i] = ((float)rand() / RAND_MAX - 0.5f) * 2.0f;
-    for (size_t i = 0; i < hidden; i++) beta[i] = ((float)rand() / RAND_MAX - 0.5f) * 2.0f;
+    for (size_t i = 0; i < total; i++)
+        x[i] = ((float)rand() / RAND_MAX - 0.5f) * 2.0f;
+    for (size_t i = 0; i < hidden; i++)
+        gamma[i] = ((float)rand() / RAND_MAX - 0.5f) * 2.0f;
+    for (size_t i = 0; i < hidden; i++)
+        beta[i] = ((float)rand() / RAND_MAX - 0.5f) * 2.0f;
 
-    boat_layernorm_config_t cfg = { hidden, eps, true, true };
+    boat_layernorm_config_t cfg = {hidden, eps, true, true};
     boat_layernorm_t* ln = boat_layernorm_create(&cfg);
-    int64_t shp1[] = { (int64_t)hidden };
-    int64_t shp3[] = { (int64_t)batch, (int64_t)seq, (int64_t)hidden };
+    int64_t shp1[] = {(int64_t)hidden};
+    int64_t shp3[] = {(int64_t)batch, (int64_t)seq, (int64_t)hidden};
     boat_tensor_t* t_x = boat_tensor_from_data(shp3, 3, BOAT_DTYPE_FLOAT32, x);
     boat_tensor_t* t_g = boat_tensor_from_data(shp1, 1, BOAT_DTYPE_FLOAT32, gamma);
     boat_tensor_t* t_b = boat_tensor_from_data(shp1, 1, BOAT_DTYPE_FLOAT32, beta);
@@ -85,7 +90,8 @@ static int test_layernorm_forward_and_gradients(void) {
     // Reference forward
     for (size_t o = 0; o < batch * seq; o++) {
         float mean = 0.0f, var = 0.0f;
-        for (size_t j = 0; j < hidden; j++) mean += x[o * hidden + j];
+        for (size_t j = 0; j < hidden; j++)
+            mean += x[o * hidden + j];
         mean /= (float)hidden;
         for (size_t j = 0; j < hidden; j++) {
             float d = x[o * hidden + j] - mean;
@@ -163,7 +169,8 @@ static int test_layernorm_forward_and_gradients(void) {
     boat_tensor_t* grad_out = boat_tensor_create_like(o);
     memset(boat_tensor_data(grad_out), 0, boat_tensor_nbytes(grad_out));
     float* god = (float*)boat_tensor_data(grad_out);
-    for (size_t i = 0; i < total; i++) god[i] = 1.0f;
+    for (size_t i = 0; i < total; i++)
+        god[i] = 1.0f;
     boat_tensor_free(o);
 
     boat_tensor_t* grad_in = boat_layernorm_backward(ln, grad_out);
@@ -173,7 +180,8 @@ static int test_layernorm_forward_and_gradients(void) {
         boat_tensor_free(grad_out);
         goto done;
     }
-    bad = compare_grads("grad_input", (const float*)boat_tensor_const_data(grad_in), num_x, total, atol, rtol);
+    bad = compare_grads("grad_input", (const float*)boat_tensor_const_data(grad_in), num_x, total,
+                        atol, rtol);
     printf("  grad_input mismatches: %d\n", bad);
     g_failures += bad;
 
@@ -181,10 +189,12 @@ static int test_layernorm_forward_and_gradients(void) {
     boat_tensor_t* gb = boat_layernorm_get_grad_bias(ln);
     CHECK(gw != NULL && gb != NULL, "layernorm exposes grad_weight/grad_bias");
     if (gw && gb) {
-        bad = compare_grads("grad_weight", (const float*)boat_tensor_const_data(gw), num_g, hidden, atol, rtol);
+        bad = compare_grads("grad_weight", (const float*)boat_tensor_const_data(gw), num_g, hidden,
+                            atol, rtol);
         printf("  grad_weight mismatches: %d\n", bad);
         g_failures += bad;
-        bad = compare_grads("grad_bias", (const float*)boat_tensor_const_data(gb), num_b, hidden, atol, rtol);
+        bad = compare_grads("grad_bias", (const float*)boat_tensor_const_data(gb), num_b, hidden,
+                            atol, rtol);
         printf("  grad_bias mismatches: %d\n", bad);
         g_failures += bad;
     }
@@ -196,8 +206,13 @@ static int test_layernorm_forward_and_gradients(void) {
     boat_tensor_free(t_b);
     boat_layernorm_free(ln);
 done:
-    free(x); free(gamma); free(beta); free(ref);
-    free(num_x); free(num_g); free(num_b);
+    free(x);
+    free(gamma);
+    free(beta);
+    free(ref);
+    free(num_x);
+    free(num_g);
+    free(num_b);
     return bad;
 }
 
@@ -221,13 +236,15 @@ static int test_rmsnorm_forward_and_gradients(void) {
         goto done;
     }
     srand(202);
-    for (size_t i = 0; i < total; i++) x[i] = ((float)rand() / RAND_MAX - 0.5f) * 2.0f;
-    for (size_t i = 0; i < hidden; i++) gamma[i] = ((float)rand() / RAND_MAX - 0.5f) * 2.0f;
+    for (size_t i = 0; i < total; i++)
+        x[i] = ((float)rand() / RAND_MAX - 0.5f) * 2.0f;
+    for (size_t i = 0; i < hidden; i++)
+        gamma[i] = ((float)rand() / RAND_MAX - 0.5f) * 2.0f;
 
-    boat_rmsnorm_config_t cfg = { hidden, eps, true };
+    boat_rmsnorm_config_t cfg = {hidden, eps, true};
     boat_rmsnorm_t* rn = boat_rmsnorm_create(&cfg);
-    int64_t shp1[] = { (int64_t)hidden };
-    int64_t shp3[] = { (int64_t)batch, (int64_t)seq, (int64_t)hidden };
+    int64_t shp1[] = {(int64_t)hidden};
+    int64_t shp3[] = {(int64_t)batch, (int64_t)seq, (int64_t)hidden};
     boat_tensor_t* t_x = boat_tensor_from_data(shp3, 3, BOAT_DTYPE_FLOAT32, x);
     boat_tensor_t* t_g = boat_tensor_from_data(shp1, 1, BOAT_DTYPE_FLOAT32, gamma);
     boat_rmsnorm_set_weight(rn, t_g);
@@ -236,7 +253,8 @@ static int test_rmsnorm_forward_and_gradients(void) {
     // Reference forward
     for (size_t o = 0; o < batch * seq; o++) {
         float ss = 0.0f;
-        for (size_t j = 0; j < hidden; j++) ss += x[o * hidden + j] * x[o * hidden + j];
+        for (size_t j = 0; j < hidden; j++)
+            ss += x[o * hidden + j] * x[o * hidden + j];
         float rms = sqrtf(ss / (float)hidden);
         float inv = 1.0f / (rms + eps);
         for (size_t j = 0; j < hidden; j++) {
@@ -292,7 +310,8 @@ static int test_rmsnorm_forward_and_gradients(void) {
     boat_tensor_t* grad_out = boat_tensor_create_like(o);
     memset(boat_tensor_data(grad_out), 0, boat_tensor_nbytes(grad_out));
     float* god = (float*)boat_tensor_data(grad_out);
-    for (size_t i = 0; i < total; i++) god[i] = 1.0f;
+    for (size_t i = 0; i < total; i++)
+        god[i] = 1.0f;
     boat_tensor_free(o);
 
     boat_tensor_t* grad_in = boat_rmsnorm_backward(rn, grad_out);
@@ -302,14 +321,16 @@ static int test_rmsnorm_forward_and_gradients(void) {
         boat_tensor_free(grad_out);
         goto done;
     }
-    bad = compare_grads("grad_input", (const float*)boat_tensor_const_data(grad_in), num_x, total, atol, rtol);
+    bad = compare_grads("grad_input", (const float*)boat_tensor_const_data(grad_in), num_x, total,
+                        atol, rtol);
     printf("  grad_input mismatches: %d\n", bad);
     g_failures += bad;
 
     boat_tensor_t* gw = boat_rmsnorm_get_grad_weight(rn);
     CHECK(gw != NULL, "rmsnorm exposes grad_weight");
     if (gw) {
-        bad = compare_grads("grad_weight", (const float*)boat_tensor_const_data(gw), num_g, hidden, atol, rtol);
+        bad = compare_grads("grad_weight", (const float*)boat_tensor_const_data(gw), num_g, hidden,
+                            atol, rtol);
         printf("  grad_weight mismatches: %d\n", bad);
         g_failures += bad;
     }
@@ -320,8 +341,11 @@ static int test_rmsnorm_forward_and_gradients(void) {
     boat_tensor_free(t_g);
     boat_rmsnorm_free(rn);
 done:
-    free(x); free(gamma); free(ref);
-    free(num_x); free(num_g);
+    free(x);
+    free(gamma);
+    free(ref);
+    free(num_x);
+    free(num_g);
     return bad;
 }
 
@@ -342,10 +366,11 @@ static int test_standalone_norms(void) {
         goto done;
     }
     srand(303);
-    for (size_t i = 0; i < total; i++) x[i] = ((float)rand() / RAND_MAX - 0.5f) * 2.0f;
+    for (size_t i = 0; i < total; i++)
+        x[i] = ((float)rand() / RAND_MAX - 0.5f) * 2.0f;
 
-    int64_t shp[] = { (int64_t)batch, (int64_t)seq, (int64_t)hidden };
-    int64_t ns[] = { (int64_t)hidden };
+    int64_t shp[] = {(int64_t)batch, (int64_t)seq, (int64_t)hidden};
+    int64_t ns[] = {(int64_t)hidden};
     boat_tensor_t* t_x = boat_tensor_from_data(shp, 3, BOAT_DTYPE_FLOAT32, x);
 
     // LayerNorm standalone
@@ -354,7 +379,8 @@ static int test_standalone_norms(void) {
     if (ln_out) {
         for (size_t o = 0; o < batch * seq; o++) {
             float mean = 0.0f, var = 0.0f;
-            for (size_t j = 0; j < hidden; j++) mean += x[o * hidden + j];
+            for (size_t j = 0; j < hidden; j++)
+                mean += x[o * hidden + j];
             mean /= (float)hidden;
             for (size_t j = 0; j < hidden; j++) {
                 float d = x[o * hidden + j] - mean;
@@ -381,7 +407,8 @@ static int test_standalone_norms(void) {
     if (rn_out) {
         for (size_t o = 0; o < batch * seq; o++) {
             float ss = 0.0f;
-            for (size_t j = 0; j < hidden; j++) ss += x[o * hidden + j] * x[o * hidden + j];
+            for (size_t j = 0; j < hidden; j++)
+                ss += x[o * hidden + j] * x[o * hidden + j];
             float inv = 1.0f / (sqrtf(ss / (float)hidden) + eps);
             for (size_t j = 0; j < hidden; j++) {
                 ref[o * hidden + j] = x[o * hidden + j] * inv;
@@ -398,7 +425,8 @@ static int test_standalone_norms(void) {
 
     boat_tensor_free(t_x);
 done:
-    free(x); free(ref);
+    free(x);
+    free(ref);
     return bad;
 }
 

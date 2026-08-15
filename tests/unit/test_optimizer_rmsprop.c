@@ -102,7 +102,7 @@ int main() {
         float* grad_data = (float*)boat_tensor_data(grad);
 
         param_data[0] = 5.0f;
-        grad_data[0] = 2.0f;  // Gradient points upward
+        grad_data[0] = 2.0f; // Gradient points upward
 
         // Register parameter
         boat_optimizer_add_parameter(optimizer, param, grad);

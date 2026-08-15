@@ -43,15 +43,15 @@ bool pb_read_tag(pb_reader_t* r, uint32_t* field, uint32_t* wire_type) {
 
 bool pb_skip_field(pb_reader_t* r, uint32_t wire_type) {
     switch (wire_type) {
-        case 0: pb_read_varint(r); return true;
-        case 1: r->pos += 8; return r->pos <= r->size;
-        case 2: {
-            uint64_t len = pb_read_varint(r);
-            r->pos += (size_t)len;
-            return r->pos <= r->size;
-        }
-        case 5: r->pos += 4; return r->pos <= r->size;
-        default: return false;
+    case 0: pb_read_varint(r); return true;
+    case 1: r->pos += 8; return r->pos <= r->size;
+    case 2: {
+        uint64_t len = pb_read_varint(r);
+        r->pos += (size_t)len;
+        return r->pos <= r->size;
+    }
+    case 5: r->pos += 4; return r->pos <= r->size;
+    default: return false;
     }
 }
 
@@ -85,7 +85,8 @@ void pb_builder_reset(pb_builder_t* b) {
 static bool pb_grow(pb_builder_t* b, size_t needed) {
     if (b->size + needed <= b->cap) return true;
     size_t new_cap = b->cap ? b->cap * 2 : 256;
-    while (new_cap < b->size + needed) new_cap *= 2;
+    while (new_cap < b->size + needed)
+        new_cap *= 2;
     uint8_t* new_data = (uint8_t*)realloc(b->data, new_cap);
     if (!new_data) return false;
     b->data = new_data;
@@ -183,35 +184,35 @@ void pb_patch_length(pb_builder_t* b, size_t pos) {
 // -----------------------------------------------------------------------
 
 // Field numbers for ONNX protobuf messages
-#define ONNX_IR_VERSION     1   // ModelProto.ir_version (int64)
-#define ONNX_OPSET_IMPORT   8   // ModelProto.opset_import (repeated OperatorSetIdProto)
-#define ONNX_GRAPH          7   // ModelProto.graph (GraphProto)
+#define ONNX_IR_VERSION 1   // ModelProto.ir_version (int64)
+#define ONNX_OPSET_IMPORT 8 // ModelProto.opset_import (repeated OperatorSetIdProto)
+#define ONNX_GRAPH 7        // ModelProto.graph (GraphProto)
 
-#define GRAPH_NODE          1   // GraphProto.node (repeated NodeProto)
-#define GRAPH_NAME          2   // GraphProto.name (string)
-#define GRAPH_INITIALIZER   5   // GraphProto.initializer (repeated TensorProto)
-#define GRAPH_INPUT         11  // GraphProto.input (repeated ValueInfoProto)
-#define GRAPH_OUTPUT        12  // GraphProto.output (repeated ValueInfoProto)
+#define GRAPH_NODE 1        // GraphProto.node (repeated NodeProto)
+#define GRAPH_NAME 2        // GraphProto.name (string)
+#define GRAPH_INITIALIZER 5 // GraphProto.initializer (repeated TensorProto)
+#define GRAPH_INPUT 11      // GraphProto.input (repeated ValueInfoProto)
+#define GRAPH_OUTPUT 12     // GraphProto.output (repeated ValueInfoProto)
 
-#define NODE_INPUT          1   // NodeProto.input (repeated string)
-#define NODE_OUTPUT         2   // NodeProto.output (repeated string)
-#define NODE_NAME           3   // NodeProto.name (string)
-#define NODE_OP_TYPE        4   // NodeProto.op_type (string)
+#define NODE_INPUT 1   // NodeProto.input (repeated string)
+#define NODE_OUTPUT 2  // NodeProto.output (repeated string)
+#define NODE_NAME 3    // NodeProto.name (string)
+#define NODE_OP_TYPE 4 // NodeProto.op_type (string)
 
-#define TENSOR_DIMS         1   // TensorProto.dims (repeated int64, packed)
-#define TENSOR_DATA_TYPE    2   // TensorProto.data_type (int32)
-#define TENSOR_NAME         8   // TensorProto.name (string)
-#define TENSOR_RAW_DATA     9   // TensorProto.raw_data (bytes)
+#define TENSOR_DIMS 1      // TensorProto.dims (repeated int64, packed)
+#define TENSOR_DATA_TYPE 2 // TensorProto.data_type (int32)
+#define TENSOR_NAME 8      // TensorProto.name (string)
+#define TENSOR_RAW_DATA 9  // TensorProto.raw_data (bytes)
 
-#define OPSET_DOMAIN        1   // OperatorSetIdProto.domain (string)
-#define OPSET_VERSION       2   // OperatorSetIdProto.version (int64)
+#define OPSET_DOMAIN 1  // OperatorSetIdProto.domain (string)
+#define OPSET_VERSION 2 // OperatorSetIdProto.version (int64)
 
 // Attribute proto fields we care about
-#define ATTR_NAME           1   // AttributeProto.name (string)
-#define ATTR_TYPE           20  // AttributeProto.type (int32)
-#define ATTR_F              2   // AttributeProto.f (float)
-#define ATTR_I              3   // AttributeProto.i (int64)
-#define ATTR_INTS           7   // AttributeProto.ints (repeated int64)
+#define ATTR_NAME 1  // AttributeProto.name (string)
+#define ATTR_TYPE 20 // AttributeProto.type (int32)
+#define ATTR_F 2     // AttributeProto.f (float)
+#define ATTR_I 3     // AttributeProto.i (int64)
+#define ATTR_INTS 7  // AttributeProto.ints (repeated int64)
 
 // Read a string field from a reader (tag + len already consumed)
 static char* read_string_field(pb_reader_t* r, size_t len) {
@@ -233,150 +234,181 @@ static bool parse_node(pb_reader_t* r, onnx_node_t* node) {
         if (!pb_read_tag(r, &field, &wire)) break;
 
         switch (field) {
-            case NODE_INPUT: {
-                if (wire != 2) { pb_skip_field(r, wire); break; }
-                uint64_t len = pb_read_varint(r);
-                char* s = read_string_field(r, (size_t)len);
-                if (!s) return false;
-                if (node->num_inputs >= inputs_cap) {
-                    inputs_cap = inputs_cap ? inputs_cap * 2 : 4;
-                    char** tmp = (char**)realloc(node->names, inputs_cap * sizeof(char*));
-                    if (!tmp) { free(s); return false; }
-                    node->names = tmp;
-                }
-                node->names[node->num_inputs++] = s;
-                break;
-            }
-            case NODE_OUTPUT: {
-                if (wire != 2) { pb_skip_field(r, wire); break; }
-                uint64_t len = pb_read_varint(r);
-                char* s = read_string_field(r, (size_t)len);
-                if (!s) return false;
-                if (node->num_outputs >= outputs_cap) {
-                    outputs_cap = outputs_cap ? outputs_cap * 2 : 4;
-                    char** tmp = (char**)realloc(node->outputs, outputs_cap * sizeof(char*));
-                    if (!tmp) { free(s); return false; }
-                    node->outputs = tmp;
-                }
-                node->outputs[node->num_outputs++] = s;
-                break;
-            }
-            case NODE_NAME: {
-                if (wire != 2) { pb_skip_field(r, wire); break; }
-                uint64_t len = pb_read_varint(r);
-                node->name = read_string_field(r, (size_t)len);
-                break;
-            }
-            case NODE_OP_TYPE: {
-                if (wire != 2) { pb_skip_field(r, wire); break; }
-                uint64_t len = pb_read_varint(r);
-                node->op_type = read_string_field(r, (size_t)len);
-                break;
-            }
-            case 5: { // AttributeProto (repeated)
-                if (wire != 2) { pb_skip_field(r, wire); break; }
-                uint64_t alen = pb_read_varint(r);
-                pb_reader_t attr;
-                if (!pb_read_submessage(r, &attr, (size_t)alen)) break;
-                // Parse AttributeProto: extract name, type, and value
-                char* attr_name = NULL;
-                int32_t attr_type = 0;
-                int64_t attr_int = 0;
-                float attr_float = 0.0f;
-                // Temp storage for INTS list (max 8 elements covers all our needs)
-                int64_t ints_list[8];
-                int num_ints = 0;
-                while (attr.pos < attr.size) {
-                    uint32_t af, aw;
-                    if (!pb_read_tag(&attr, &af, &aw)) break;
-                    switch (af) {
-                        case ATTR_NAME:
-                            if (aw != 2) { pb_skip_field(&attr, aw); break; }
-                            { uint64_t sl = pb_read_varint(&attr);
-                              attr_name = read_string_field(&attr, (size_t)sl); }
-                            break;
-                        case ATTR_TYPE:
-                            if (aw != 0) { pb_skip_field(&attr, aw); break; }
-                            attr_type = (int32_t)pb_read_varint(&attr);
-                            break;
-                        case ATTR_F:
-                            if (aw != 5) { pb_skip_field(&attr, aw); break; }
-                            memcpy(&attr_float, attr.data + attr.pos, 4);
-                            attr.pos += 4;
-                            break;
-                        case ATTR_I:
-                            if (aw != 0) { pb_skip_field(&attr, aw); break; }
-                            attr_int = (int64_t)pb_read_varint(&attr);
-                            break;
-                        case 8: { // Some models use field 8 for integer array values (instead of field 7)
-                            if (aw == 0) {
-                                if (num_ints < 8) ints_list[num_ints++] = (int64_t)pb_read_varint(&attr);
-                            } else {
-                                pb_skip_field(&attr, aw);
-                            }
-                            break;
-                        }
-                        case ATTR_INTS: {
-                            if (aw == 0) {
-                                // Non-packed repeated varint
-                                if (num_ints < 8) {
-                                    ints_list[num_ints++] = (int64_t)pb_read_varint(&attr);
-                                }
-                            } else if (aw == 2) {
-                                // Packed repeated varints
-                                uint64_t list_len = pb_read_varint(&attr);
-                                size_t end = attr.pos + (size_t)list_len;
-                                while (attr.pos < end && num_ints < 8) {
-                                    ints_list[num_ints++] = (int64_t)pb_read_varint(&attr);
-                                }
-                            } else {
-                                pb_skip_field(&attr, aw);
-                            }
-                            break;
-                        }
-                        default:
-                            pb_skip_field(&attr, aw);
-                            break;
-                    }
-                }
-                if (attr_name) {
-                    if (node->num_attrs >= node->attrs_cap) {
-                        node->attrs_cap = node->attrs_cap ? node->attrs_cap * 2 : 4;
-                        char** tn = (char**)realloc(node->attr_names,
-                            node->attrs_cap * sizeof(char*));
-                        int64_t* ti = (int64_t*)realloc(node->attr_ints,
-                            node->attrs_cap * sizeof(int64_t));
-                        float* tf = (float*)realloc(node->attr_floats,
-                            node->attrs_cap * sizeof(float));
-                        int* ttyp = (int*)realloc(node->attr_types,
-                            node->attrs_cap * sizeof(int));
-                        if (!tn || !ti || !tf || !ttyp) { free(attr_name); return false; }
-                        node->attr_names = tn;
-                        node->attr_ints = ti;
-                        node->attr_floats = tf;
-                        node->attr_types = ttyp;
-                    }
-                    node->attr_names[node->num_attrs] = attr_name;
-                    node->attr_types[node->num_attrs] = attr_type;
-                    if (attr_type == ONNX_ATTR_FLOAT) {
-                        node->attr_floats[node->num_attrs] = attr_float;
-                        node->attr_ints[node->num_attrs] = 0;
-                    } else if (attr_type == ONNX_ATTR_INTS) {
-                        // Store first element; boat layers use scalar kernel/stride/padding
-                        node->attr_ints[node->num_attrs] = num_ints > 0 ? ints_list[0] : 0;
-                        node->attr_floats[node->num_attrs] = 0.0f;
-                    } else {
-                        // INT (default)
-                        node->attr_ints[node->num_attrs] = attr_int;
-                        node->attr_floats[node->num_attrs] = 0.0f;
-                    }
-                    node->num_attrs++;
-                }
-                break;
-            }
-            default:
+        case NODE_INPUT: {
+            if (wire != 2) {
                 pb_skip_field(r, wire);
                 break;
+            }
+            uint64_t len = pb_read_varint(r);
+            char* s = read_string_field(r, (size_t)len);
+            if (!s) return false;
+            if (node->num_inputs >= inputs_cap) {
+                inputs_cap = inputs_cap ? inputs_cap * 2 : 4;
+                char** tmp = (char**)realloc(node->names, inputs_cap * sizeof(char*));
+                if (!tmp) {
+                    free(s);
+                    return false;
+                }
+                node->names = tmp;
+            }
+            node->names[node->num_inputs++] = s;
+            break;
+        }
+        case NODE_OUTPUT: {
+            if (wire != 2) {
+                pb_skip_field(r, wire);
+                break;
+            }
+            uint64_t len = pb_read_varint(r);
+            char* s = read_string_field(r, (size_t)len);
+            if (!s) return false;
+            if (node->num_outputs >= outputs_cap) {
+                outputs_cap = outputs_cap ? outputs_cap * 2 : 4;
+                char** tmp = (char**)realloc(node->outputs, outputs_cap * sizeof(char*));
+                if (!tmp) {
+                    free(s);
+                    return false;
+                }
+                node->outputs = tmp;
+            }
+            node->outputs[node->num_outputs++] = s;
+            break;
+        }
+        case NODE_NAME: {
+            if (wire != 2) {
+                pb_skip_field(r, wire);
+                break;
+            }
+            uint64_t len = pb_read_varint(r);
+            node->name = read_string_field(r, (size_t)len);
+            break;
+        }
+        case NODE_OP_TYPE: {
+            if (wire != 2) {
+                pb_skip_field(r, wire);
+                break;
+            }
+            uint64_t len = pb_read_varint(r);
+            node->op_type = read_string_field(r, (size_t)len);
+            break;
+        }
+        case 5: { // AttributeProto (repeated)
+            if (wire != 2) {
+                pb_skip_field(r, wire);
+                break;
+            }
+            uint64_t alen = pb_read_varint(r);
+            pb_reader_t attr;
+            if (!pb_read_submessage(r, &attr, (size_t)alen)) break;
+            // Parse AttributeProto: extract name, type, and value
+            char* attr_name = NULL;
+            int32_t attr_type = 0;
+            int64_t attr_int = 0;
+            float attr_float = 0.0f;
+            // Temp storage for INTS list (max 8 elements covers all our needs)
+            int64_t ints_list[8];
+            int num_ints = 0;
+            while (attr.pos < attr.size) {
+                uint32_t af, aw;
+                if (!pb_read_tag(&attr, &af, &aw)) break;
+                switch (af) {
+                case ATTR_NAME:
+                    if (aw != 2) {
+                        pb_skip_field(&attr, aw);
+                        break;
+                    }
+                    {
+                        uint64_t sl = pb_read_varint(&attr);
+                        attr_name = read_string_field(&attr, (size_t)sl);
+                    }
+                    break;
+                case ATTR_TYPE:
+                    if (aw != 0) {
+                        pb_skip_field(&attr, aw);
+                        break;
+                    }
+                    attr_type = (int32_t)pb_read_varint(&attr);
+                    break;
+                case ATTR_F:
+                    if (aw != 5) {
+                        pb_skip_field(&attr, aw);
+                        break;
+                    }
+                    memcpy(&attr_float, attr.data + attr.pos, 4);
+                    attr.pos += 4;
+                    break;
+                case ATTR_I:
+                    if (aw != 0) {
+                        pb_skip_field(&attr, aw);
+                        break;
+                    }
+                    attr_int = (int64_t)pb_read_varint(&attr);
+                    break;
+                case 8: { // Some models use field 8 for integer array values (instead of field 7)
+                    if (aw == 0) {
+                        if (num_ints < 8) ints_list[num_ints++] = (int64_t)pb_read_varint(&attr);
+                    } else {
+                        pb_skip_field(&attr, aw);
+                    }
+                    break;
+                }
+                case ATTR_INTS: {
+                    if (aw == 0) {
+                        // Non-packed repeated varint
+                        if (num_ints < 8) {
+                            ints_list[num_ints++] = (int64_t)pb_read_varint(&attr);
+                        }
+                    } else if (aw == 2) {
+                        // Packed repeated varints
+                        uint64_t list_len = pb_read_varint(&attr);
+                        size_t end = attr.pos + (size_t)list_len;
+                        while (attr.pos < end && num_ints < 8) {
+                            ints_list[num_ints++] = (int64_t)pb_read_varint(&attr);
+                        }
+                    } else {
+                        pb_skip_field(&attr, aw);
+                    }
+                    break;
+                }
+                default: pb_skip_field(&attr, aw); break;
+                }
+            }
+            if (attr_name) {
+                if (node->num_attrs >= node->attrs_cap) {
+                    node->attrs_cap = node->attrs_cap ? node->attrs_cap * 2 : 4;
+                    char** tn = (char**)realloc(node->attr_names, node->attrs_cap * sizeof(char*));
+                    int64_t* ti =
+                        (int64_t*)realloc(node->attr_ints, node->attrs_cap * sizeof(int64_t));
+                    float* tf = (float*)realloc(node->attr_floats, node->attrs_cap * sizeof(float));
+                    int* ttyp = (int*)realloc(node->attr_types, node->attrs_cap * sizeof(int));
+                    if (!tn || !ti || !tf || !ttyp) {
+                        free(attr_name);
+                        return false;
+                    }
+                    node->attr_names = tn;
+                    node->attr_ints = ti;
+                    node->attr_floats = tf;
+                    node->attr_types = ttyp;
+                }
+                node->attr_names[node->num_attrs] = attr_name;
+                node->attr_types[node->num_attrs] = attr_type;
+                if (attr_type == ONNX_ATTR_FLOAT) {
+                    node->attr_floats[node->num_attrs] = attr_float;
+                    node->attr_ints[node->num_attrs] = 0;
+                } else if (attr_type == ONNX_ATTR_INTS) {
+                    // Store first element; boat layers use scalar kernel/stride/padding
+                    node->attr_ints[node->num_attrs] = num_ints > 0 ? ints_list[0] : 0;
+                    node->attr_floats[node->num_attrs] = 0.0f;
+                } else {
+                    // INT (default)
+                    node->attr_ints[node->num_attrs] = attr_int;
+                    node->attr_floats[node->num_attrs] = 0.0f;
+                }
+                node->num_attrs++;
+            }
+            break;
+        }
+        default: pb_skip_field(r, wire); break;
         }
     }
     return true;
@@ -391,60 +423,68 @@ static bool parse_tensor(pb_reader_t* r, onnx_tensor_t* tensor) {
         if (!pb_read_tag(r, &field, &wire)) break;
 
         switch (field) {
-            case TENSOR_DIMS: {
-                // dims are int64, wire type 0 (varint) or packed (wire 2, length-delimited)
-                if (wire == 0) {
-                    // Single varint (non-packed repeated field)
-                    int64_t* tmp = (int64_t*)realloc(tensor->dims, (tensor->num_dims + 1) * sizeof(int64_t));
+        case TENSOR_DIMS: {
+            // dims are int64, wire type 0 (varint) or packed (wire 2, length-delimited)
+            if (wire == 0) {
+                // Single varint (non-packed repeated field)
+                int64_t* tmp =
+                    (int64_t*)realloc(tensor->dims, (tensor->num_dims + 1) * sizeof(int64_t));
+                if (!tmp) return false;
+                tensor->dims = tmp;
+                tensor->dims[tensor->num_dims++] = (int64_t)pb_read_varint(r);
+            } else if (wire == 2) {
+                // Packed repeated varints
+                uint64_t len = pb_read_varint(r);
+                size_t end = r->pos + (size_t)len;
+                while (r->pos < end) {
+                    int64_t* tmp =
+                        (int64_t*)realloc(tensor->dims, (tensor->num_dims + 1) * sizeof(int64_t));
                     if (!tmp) return false;
                     tensor->dims = tmp;
                     tensor->dims[tensor->num_dims++] = (int64_t)pb_read_varint(r);
-                } else if (wire == 2) {
-                    // Packed repeated varints
-                    uint64_t len = pb_read_varint(r);
-                    size_t end = r->pos + (size_t)len;
-                    while (r->pos < end) {
-                        int64_t* tmp = (int64_t*)realloc(tensor->dims, (tensor->num_dims + 1) * sizeof(int64_t));
-                        if (!tmp) return false;
-                        tensor->dims = tmp;
-                        tensor->dims[tensor->num_dims++] = (int64_t)pb_read_varint(r);
-                    }
-                } else {
-                    pb_skip_field(r, wire);
                 }
-                break;
+            } else {
+                pb_skip_field(r, wire);
             }
-            case TENSOR_DATA_TYPE: {
-                if (wire != 0) { pb_skip_field(r, wire); break; }
-                tensor->data_type = (int32_t)pb_read_varint(r);
-                break;
-            }
-            case TENSOR_NAME: {
-                if (wire != 2) { pb_skip_field(r, wire); break; }
-                uint64_t len = pb_read_varint(r);
-                tensor->name = read_string_field(r, (size_t)len);
-                break;
-            }
-            case TENSOR_RAW_DATA: {
-                if (wire != 2) { pb_skip_field(r, wire); break; }
-                uint64_t len = pb_read_varint(r);
-                tensor->raw_data = (uint8_t*)malloc((size_t)len);
-                if (!tensor->raw_data && len > 0) return false;
-                memcpy(tensor->raw_data, r->data + r->pos, (size_t)len);
-                tensor->raw_data_size = (size_t)len;
-                r->pos += (size_t)len;
-                break;
-            }
-            default:
+            break;
+        }
+        case TENSOR_DATA_TYPE: {
+            if (wire != 0) {
                 pb_skip_field(r, wire);
                 break;
+            }
+            tensor->data_type = (int32_t)pb_read_varint(r);
+            break;
+        }
+        case TENSOR_NAME: {
+            if (wire != 2) {
+                pb_skip_field(r, wire);
+                break;
+            }
+            uint64_t len = pb_read_varint(r);
+            tensor->name = read_string_field(r, (size_t)len);
+            break;
+        }
+        case TENSOR_RAW_DATA: {
+            if (wire != 2) {
+                pb_skip_field(r, wire);
+                break;
+            }
+            uint64_t len = pb_read_varint(r);
+            tensor->raw_data = (uint8_t*)malloc((size_t)len);
+            if (!tensor->raw_data && len > 0) return false;
+            memcpy(tensor->raw_data, r->data + r->pos, (size_t)len);
+            tensor->raw_data_size = (size_t)len;
+            r->pos += (size_t)len;
+            break;
+        }
+        default: pb_skip_field(r, wire); break;
         }
     }
     return true;
 }
 
 static bool parse_graph(pb_reader_t* r, onnx_graph_t* graph);
-
 
 // Parse the full ONNX model
 bool onnx_parse(pb_reader_t* r, onnx_model_t* model) {
@@ -455,39 +495,46 @@ bool onnx_parse(pb_reader_t* r, onnx_model_t* model) {
         if (!pb_read_tag(r, &field, &wire)) break;
 
         switch (field) {
-            case ONNX_IR_VERSION: {
-                if (wire != 0) { pb_skip_field(r, wire); break; }
-                model->ir_version = (int64_t)pb_read_varint(r);
-                break;
-            }
-            case ONNX_OPSET_IMPORT: {
-                if (wire != 2) { pb_skip_field(r, wire); break; }
-                uint64_t len = pb_read_varint(r);
-                pb_reader_t sub;
-                if (!pb_read_submessage(r, &sub, (size_t)len)) break;
-                // Parse OperatorSetIdProto
-                while (sub.pos < sub.size) {
-                    uint32_t sf, sw;
-                    if (!pb_read_tag(&sub, &sf, &sw)) break;
-                    if (sf == OPSET_VERSION && sw == 0) {
-                        model->opset_version = (int64_t)pb_read_varint(&sub);
-                    } else {
-                        pb_skip_field(&sub, sw);
-                    }
-                }
-                break;
-            }
-            case ONNX_GRAPH: {
-                if (wire != 2) { pb_skip_field(r, wire); break; }
-                uint64_t len = pb_read_varint(r);
-                pb_reader_t sub;
-                if (!pb_read_submessage(r, &sub, (size_t)len)) break;
-                parse_graph(&sub, &model->graph);
-                break;
-            }
-            default:
+        case ONNX_IR_VERSION: {
+            if (wire != 0) {
                 pb_skip_field(r, wire);
                 break;
+            }
+            model->ir_version = (int64_t)pb_read_varint(r);
+            break;
+        }
+        case ONNX_OPSET_IMPORT: {
+            if (wire != 2) {
+                pb_skip_field(r, wire);
+                break;
+            }
+            uint64_t len = pb_read_varint(r);
+            pb_reader_t sub;
+            if (!pb_read_submessage(r, &sub, (size_t)len)) break;
+            // Parse OperatorSetIdProto
+            while (sub.pos < sub.size) {
+                uint32_t sf, sw;
+                if (!pb_read_tag(&sub, &sf, &sw)) break;
+                if (sf == OPSET_VERSION && sw == 0) {
+                    model->opset_version = (int64_t)pb_read_varint(&sub);
+                } else {
+                    pb_skip_field(&sub, sw);
+                }
+            }
+            break;
+        }
+        case ONNX_GRAPH: {
+            if (wire != 2) {
+                pb_skip_field(r, wire);
+                break;
+            }
+            uint64_t len = pb_read_varint(r);
+            pb_reader_t sub;
+            if (!pb_read_submessage(r, &sub, (size_t)len)) break;
+            parse_graph(&sub, &model->graph);
+            break;
+        }
+        default: pb_skip_field(r, wire); break;
         }
     }
     return true;
@@ -501,54 +548,64 @@ static bool parse_graph(pb_reader_t* r, onnx_graph_t* graph) {
         if (!pb_read_tag(r, &field, &wire)) break;
 
         switch (field) {
-            case GRAPH_NODE: {
-                if (wire != 2) { pb_skip_field(r, wire); break; }
-                uint64_t len = pb_read_varint(r);
-                pb_reader_t sub;
-                if (!pb_read_submessage(r, &sub, (size_t)len)) break;
-                if (graph->num_nodes >= graph->nodes_cap) {
-                    graph->nodes_cap = graph->nodes_cap ? graph->nodes_cap * 2 : 8;
-                    onnx_node_t* tmp = (onnx_node_t*)realloc(graph->nodes,
-                        graph->nodes_cap * sizeof(onnx_node_t));
-                    if (!tmp) return false;
-                    graph->nodes = tmp;
-                }
-                if (!parse_node(&sub, &graph->nodes[graph->num_nodes])) return false;
-                graph->num_nodes++;
-                break;
-            }
-            case GRAPH_NAME: {
-                if (wire != 2) { pb_skip_field(r, wire); break; }
-                uint64_t len = pb_read_varint(r);
-                graph->graph_name = read_string_field(r, (size_t)len);
-                break;
-            }
-            case GRAPH_INITIALIZER: {
-                if (wire != 2) { pb_skip_field(r, wire); break; }
-                uint64_t len = pb_read_varint(r);
-                pb_reader_t sub;
-                if (!pb_read_submessage(r, &sub, (size_t)len)) break;
-                if (graph->num_initializers >= graph->init_cap) {
-                    graph->init_cap = graph->init_cap ? graph->init_cap * 2 : 8;
-                    onnx_tensor_t* tmp = (onnx_tensor_t*)realloc(graph->initializers,
-                        graph->init_cap * sizeof(onnx_tensor_t));
-                    if (!tmp) return false;
-                    graph->initializers = tmp;
-                }
-                if (!parse_tensor(&sub, &graph->initializers[graph->num_initializers])) return false;
-                graph->num_initializers++;
-                break;
-            }
-            case GRAPH_INPUT:
-            case GRAPH_OUTPUT: {
-                if (wire != 2) { pb_skip_field(r, wire); break; }
-                uint64_t len = pb_read_varint(r);
-                r->pos += (size_t)len;
-                break;
-            }
-            default:
+        case GRAPH_NODE: {
+            if (wire != 2) {
                 pb_skip_field(r, wire);
                 break;
+            }
+            uint64_t len = pb_read_varint(r);
+            pb_reader_t sub;
+            if (!pb_read_submessage(r, &sub, (size_t)len)) break;
+            if (graph->num_nodes >= graph->nodes_cap) {
+                graph->nodes_cap = graph->nodes_cap ? graph->nodes_cap * 2 : 8;
+                onnx_node_t* tmp =
+                    (onnx_node_t*)realloc(graph->nodes, graph->nodes_cap * sizeof(onnx_node_t));
+                if (!tmp) return false;
+                graph->nodes = tmp;
+            }
+            if (!parse_node(&sub, &graph->nodes[graph->num_nodes])) return false;
+            graph->num_nodes++;
+            break;
+        }
+        case GRAPH_NAME: {
+            if (wire != 2) {
+                pb_skip_field(r, wire);
+                break;
+            }
+            uint64_t len = pb_read_varint(r);
+            graph->graph_name = read_string_field(r, (size_t)len);
+            break;
+        }
+        case GRAPH_INITIALIZER: {
+            if (wire != 2) {
+                pb_skip_field(r, wire);
+                break;
+            }
+            uint64_t len = pb_read_varint(r);
+            pb_reader_t sub;
+            if (!pb_read_submessage(r, &sub, (size_t)len)) break;
+            if (graph->num_initializers >= graph->init_cap) {
+                graph->init_cap = graph->init_cap ? graph->init_cap * 2 : 8;
+                onnx_tensor_t* tmp = (onnx_tensor_t*)realloc(
+                    graph->initializers, graph->init_cap * sizeof(onnx_tensor_t));
+                if (!tmp) return false;
+                graph->initializers = tmp;
+            }
+            if (!parse_tensor(&sub, &graph->initializers[graph->num_initializers])) return false;
+            graph->num_initializers++;
+            break;
+        }
+        case GRAPH_INPUT:
+        case GRAPH_OUTPUT: {
+            if (wire != 2) {
+                pb_skip_field(r, wire);
+                break;
+            }
+            uint64_t len = pb_read_varint(r);
+            r->pos += (size_t)len;
+            break;
+        }
+        default: pb_skip_field(r, wire); break;
         }
     }
     return true;
@@ -560,13 +617,16 @@ void onnx_model_free(onnx_model_t* model) {
     // Free nodes
     for (int i = 0; i < model->graph.num_nodes; i++) {
         onnx_node_t* node = &model->graph.nodes[i];
-        for (int j = 0; j < node->num_inputs; j++) free(node->names[j]);
-        for (int j = 0; j < node->num_outputs; j++) free(node->outputs[j]);
+        for (int j = 0; j < node->num_inputs; j++)
+            free(node->names[j]);
+        for (int j = 0; j < node->num_outputs; j++)
+            free(node->outputs[j]);
         free(node->names);
         free(node->outputs);
         free(node->name);
         free(node->op_type);
-        for (int j = 0; j < node->num_attrs; j++) free(node->attr_names[j]);
+        for (int j = 0; j < node->num_attrs; j++)
+            free(node->attr_names[j]);
         free(node->attr_names);
         free(node->attr_ints);
         free(node->attr_floats);

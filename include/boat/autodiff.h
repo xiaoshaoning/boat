@@ -15,16 +15,16 @@ extern "C" {
 // Forward declarations
 typedef struct boat_variable_t boat_variable_t;
 typedef struct boat_autodiff_context_t boat_autodiff_context_t;
-struct boat_conv_layer_t;  // Forward declaration for convolutional layer
-struct boat_attention_t;   // Forward declaration for attention layer
-struct boat_pool_layer_t;  // Forward declaration for pooling layer
-struct boat_flatten_layer_t;  // Forward declaration for flatten layer
-struct boat_dense_layer_t;  // Forward declaration for dense layer
+struct boat_conv_layer_t;    // Forward declaration for convolutional layer
+struct boat_attention_t;     // Forward declaration for attention layer
+struct boat_pool_layer_t;    // Forward declaration for pooling layer
+struct boat_flatten_layer_t; // Forward declaration for flatten layer
+struct boat_dense_layer_t;   // Forward declaration for dense layer
 
 // Variable creation and destruction
 BOAT_API boat_variable_t* boat_variable_create(boat_tensor_t* tensor, bool requires_grad);
 BOAT_API boat_variable_t* boat_variable_create_with_shape(const int64_t* shape, size_t ndim,
-                                                 boat_dtype_t dtype, bool requires_grad);
+                                                          boat_dtype_t dtype, bool requires_grad);
 BOAT_API void boat_variable_free(const boat_variable_t* variable);
 
 // Variable properties
@@ -51,19 +51,26 @@ BOAT_API boat_variable_t* boat_var_matmul(const boat_variable_t* a, const boat_v
 BOAT_API boat_variable_t* boat_var_dot(const boat_variable_t* a, const boat_variable_t* b);
 
 // Convolution operation with gradient tracking
-BOAT_API boat_variable_t* boat_var_conv(const boat_variable_t* input, const struct boat_conv_layer_t* layer);
+BOAT_API boat_variable_t* boat_var_conv(const boat_variable_t* input,
+                                        const struct boat_conv_layer_t* layer);
 
 // Pooling operation with gradient tracking
-BOAT_API boat_variable_t* boat_var_pool(const boat_variable_t* input, const struct boat_pool_layer_t* layer);
+BOAT_API boat_variable_t* boat_var_pool(const boat_variable_t* input,
+                                        const struct boat_pool_layer_t* layer);
 
 // Flatten operation with gradient tracking
 BOAT_API boat_variable_t* boat_var_flatten(const boat_variable_t* input);
 
 // Dense (fully connected) operation with gradient tracking
-BOAT_API boat_variable_t* boat_var_dense(const boat_variable_t* input, const struct boat_dense_layer_t* layer);
+BOAT_API boat_variable_t* boat_var_dense(const boat_variable_t* input,
+                                         const struct boat_dense_layer_t* layer);
 
 // Attention operation with gradient tracking
-BOAT_API boat_variable_t* boat_var_attention(const boat_variable_t* query, const boat_variable_t* key, const boat_variable_t* value, const struct boat_attention_t* attention, const boat_tensor_t* attention_mask);
+BOAT_API boat_variable_t* boat_var_attention(const boat_variable_t* query,
+                                             const boat_variable_t* key,
+                                             const boat_variable_t* value,
+                                             const struct boat_attention_t* attention,
+                                             const boat_tensor_t* attention_mask);
 
 // Activation functions with gradient tracking
 BOAT_API boat_variable_t* boat_var_relu(const boat_variable_t* a);
@@ -73,10 +80,14 @@ BOAT_API boat_variable_t* boat_var_softmax(const boat_variable_t* a, int axis);
 BOAT_API boat_variable_t* boat_var_log_softmax(const boat_variable_t* a, int axis);
 
 // Reduction operations with gradient tracking
-BOAT_API boat_variable_t* boat_var_sum(const boat_variable_t* a, const int64_t* dims, size_t n_dims, bool keepdim);
-BOAT_API boat_variable_t* boat_var_mean(const boat_variable_t* a, int64_t* dims, size_t n_dims, bool keepdim);
-BOAT_API boat_variable_t* boat_var_max(const boat_variable_t* a, int64_t* dims, size_t n_dims, bool keepdim);
-BOAT_API boat_variable_t* boat_var_min(const boat_variable_t* a, int64_t* dims, size_t n_dims, bool keepdim);
+BOAT_API boat_variable_t* boat_var_sum(const boat_variable_t* a, const int64_t* dims, size_t n_dims,
+                                       bool keepdim);
+BOAT_API boat_variable_t* boat_var_mean(const boat_variable_t* a, int64_t* dims, size_t n_dims,
+                                        bool keepdim);
+BOAT_API boat_variable_t* boat_var_max(const boat_variable_t* a, int64_t* dims, size_t n_dims,
+                                       bool keepdim);
+BOAT_API boat_variable_t* boat_var_min(const boat_variable_t* a, int64_t* dims, size_t n_dims,
+                                       bool keepdim);
 
 // Context management (for controlling gradient computation)
 BOAT_API boat_autodiff_context_t* boat_autodiff_context_create();
@@ -84,7 +95,8 @@ BOAT_API void boat_autodiff_context_free(const boat_autodiff_context_t* context)
 BOAT_API void boat_autodiff_context_enable_grad(boat_autodiff_context_t* context);
 BOAT_API void boat_autodiff_context_disable_grad(boat_autodiff_context_t* context);
 BOAT_API bool boat_autodiff_context_grad_enabled(const boat_autodiff_context_t* context);
-BOAT_API void boat_autodiff_context_set_graph(boat_autodiff_context_t* context, const boat_graph_t* graph);
+BOAT_API void boat_autodiff_context_set_graph(boat_autodiff_context_t* context,
+                                              const boat_graph_t* graph);
 BOAT_API boat_graph_t* boat_autodiff_context_get_graph(const boat_autodiff_context_t* context);
 BOAT_API void boat_autodiff_set_current_context(const boat_autodiff_context_t* context);
 BOAT_API boat_autodiff_context_t* boat_autodiff_get_current_context();

@@ -43,7 +43,7 @@ static uint64_t tf_read_varint(tf_reader_t* r) {
     int shift = 0;
     while (shift < 64) {
         if (r->pos >= r->n) {
-            r->ok = false;  // truncated mid-varint
+            r->ok = false; // truncated mid-varint
             return 0;
         }
         uint8_t b = r->p[r->pos++];
@@ -51,12 +51,12 @@ static uint64_t tf_read_varint(tf_reader_t* r) {
         if (!(b & 0x80)) return v;
         shift += 7;
     }
-    r->ok = false;  // varint longer than 10 bytes
+    r->ok = false; // varint longer than 10 bytes
     return 0;
 }
 
 static bool tf_read_tag(tf_reader_t* r, uint32_t* field, uint32_t* wire) {
-    if (r->pos >= r->n) return false;  // clean end of message
+    if (r->pos >= r->n) return false; // clean end of message
     uint64_t tag = tf_read_varint(r);
     if (!r->ok || tag == 0) return false;
     *field = (uint32_t)(tag >> 3);
@@ -88,28 +88,24 @@ static bool tf_read_fixed32(tf_reader_t* r, uint32_t* v) {
 
 static void tf_skip(tf_reader_t* r, uint32_t wire) {
     switch (wire) {
-        case 0:
-            tf_read_varint(r);
-            break;
-        case 1:
-            r->pos += 8;
+    case 0: tf_read_varint(r); break;
+    case 1:
+        r->pos += 8;
+        if (r->pos > r->n) r->ok = false;
+        break;
+    case 2: {
+        uint64_t l = tf_read_varint(r);
+        if (r->ok) {
+            r->pos += (size_t)l;
             if (r->pos > r->n) r->ok = false;
-            break;
-        case 2: {
-            uint64_t l = tf_read_varint(r);
-            if (r->ok) {
-                r->pos += (size_t)l;
-                if (r->pos > r->n) r->ok = false;
-            }
-            break;
         }
-        case 5:
-            r->pos += 4;
-            if (r->pos > r->n) r->ok = false;
-            break;
-        default:
-            r->ok = false;
-            break;
+        break;
+    }
+    case 5:
+        r->pos += 4;
+        if (r->pos > r->n) r->ok = false;
+        break;
+    default: r->ok = false; break;
     }
 }
 
@@ -126,7 +122,7 @@ typedef struct {
 
 typedef struct {
     char* name;
-    float* data;   // float32 (doubles converted)
+    float* data; // float32 (doubles converted)
     int64_t dims[8];
     int ndims;
     size_t nelems;
@@ -144,7 +140,8 @@ static void tf_graph_free(tf_graph_t* g) {
     for (int i = 0; i < g->n_nodes; i++) {
         free(g->nodes[i].name);
         free(g->nodes[i].op);
-        for (int j = 0; j < g->nodes[i].n_inputs; j++) free(g->nodes[i].inputs[j]);
+        for (int j = 0; j < g->nodes[i].n_inputs; j++)
+            free(g->nodes[i].inputs[j]);
         free(g->nodes[i].inputs);
     }
     free(g->nodes);
@@ -185,86 +182,91 @@ static tf_const_t* parse_tensor_proto(const uint8_t* data, size_t len) {
     uint32_t field, wire;
     while (tf_read_tag(&r, &field, &wire)) {
         switch (field) {
-            case 1:  // dtype
-                if (wire == 0) dtype = (int)tf_read_varint(&r);
-                else tf_skip(&r, wire);
-                break;
-            case 2: {  // tensor_shape
-                const uint8_t* sub;
-                size_t subn;
-                if (wire != 2 || !tf_read_bytes(&r, &sub, &subn)) { tf_skip(&r, wire); break; }
-                tf_reader_t sr = {sub, subn, 0, true};
-                uint32_t f2, w2;
-                while (tf_read_tag(&sr, &f2, &w2)) {
-                    if (f2 == 2 && w2 == 2) {  // dim { size (1, int64) }
-                        const uint8_t* dsub;
-                        size_t dsubn;
-                        if (tf_read_bytes(&sr, &dsub, &dsubn)) {
-                            tf_reader_t dr = {dsub, dsubn, 0, true};
-                            uint32_t f3, w3;
-                            while (tf_read_tag(&dr, &f3, &w3)) {
-                                if (f3 == 1 && w3 == 0 && ndims < 8) {
-                                    shape[ndims++] = (int64_t)tf_read_varint(&dr);
-                                } else {
-                                    tf_skip(&dr, w3);
-                                }
-                            }
-                        }
-                    } else {
-                        tf_skip(&sr, w2);
-                    }
-                }
-                break;
-            }
-            case 4:  // tensor_content (raw bytes)
-                if (wire == 2) tf_read_bytes(&r, &content, &content_n);
-                else tf_skip(&r, wire);
-                break;
-            case 5:  // int_val (packed or repeated)
-                if (wire == 2) {  // packed
-                    const uint8_t* sub;
-                    size_t subn;
-                    tf_read_bytes(&r, &sub, &subn);
-                    // int32 values; not needed for float models
-                } else {
-                    tf_skip(&r, wire);
-                }
-                break;
-            case 6:  // float_val (repeated float, wire 5)
-                if (wire == 5) {
-                    uint32_t bits;
-                    if (tf_read_fixed32(&r, &bits)) {
-                        float f;
-                        memcpy(&f, &bits, 4);
-                        float* nf = (float*)realloc(float_vals, (n_float_vals + 1) * sizeof(float));
-                        if (nf) {
-                            float_vals = nf;
-                            float_vals[n_float_vals++] = f;
-                        }
-                    }
-                } else if (wire == 2) {  // packed floats
-                    const uint8_t* sub;
-                    size_t subn;
-                    if (tf_read_bytes(&r, &sub, &subn)) {
-                        size_t cnt = subn / 4;
-                        float* nf = (float*)realloc(float_vals, (n_float_vals + cnt) * sizeof(float));
-                        if (nf) {
-                            float_vals = nf;
-                            for (size_t i = 0; i < cnt; i++) {
-                                uint32_t bits;
-                                memcpy(&bits, sub + 4 * i, 4);
-                                memcpy(&float_vals[n_float_vals + i], &bits, 4);
-                            }
-                            n_float_vals += cnt;
-                        }
-                    }
-                } else {
-                    tf_skip(&r, wire);
-                }
-                break;
-            default:
+        case 1: // dtype
+            if (wire == 0)
+                dtype = (int)tf_read_varint(&r);
+            else
+                tf_skip(&r, wire);
+            break;
+        case 2: { // tensor_shape
+            const uint8_t* sub;
+            size_t subn;
+            if (wire != 2 || !tf_read_bytes(&r, &sub, &subn)) {
                 tf_skip(&r, wire);
                 break;
+            }
+            tf_reader_t sr = {sub, subn, 0, true};
+            uint32_t f2, w2;
+            while (tf_read_tag(&sr, &f2, &w2)) {
+                if (f2 == 2 && w2 == 2) { // dim { size (1, int64) }
+                    const uint8_t* dsub;
+                    size_t dsubn;
+                    if (tf_read_bytes(&sr, &dsub, &dsubn)) {
+                        tf_reader_t dr = {dsub, dsubn, 0, true};
+                        uint32_t f3, w3;
+                        while (tf_read_tag(&dr, &f3, &w3)) {
+                            if (f3 == 1 && w3 == 0 && ndims < 8) {
+                                shape[ndims++] = (int64_t)tf_read_varint(&dr);
+                            } else {
+                                tf_skip(&dr, w3);
+                            }
+                        }
+                    }
+                } else {
+                    tf_skip(&sr, w2);
+                }
+            }
+            break;
+        }
+        case 4: // tensor_content (raw bytes)
+            if (wire == 2)
+                tf_read_bytes(&r, &content, &content_n);
+            else
+                tf_skip(&r, wire);
+            break;
+        case 5:              // int_val (packed or repeated)
+            if (wire == 2) { // packed
+                const uint8_t* sub;
+                size_t subn;
+                tf_read_bytes(&r, &sub, &subn);
+                // int32 values; not needed for float models
+            } else {
+                tf_skip(&r, wire);
+            }
+            break;
+        case 6: // float_val (repeated float, wire 5)
+            if (wire == 5) {
+                uint32_t bits;
+                if (tf_read_fixed32(&r, &bits)) {
+                    float f;
+                    memcpy(&f, &bits, 4);
+                    float* nf = (float*)realloc(float_vals, (n_float_vals + 1) * sizeof(float));
+                    if (nf) {
+                        float_vals = nf;
+                        float_vals[n_float_vals++] = f;
+                    }
+                }
+            } else if (wire == 2) { // packed floats
+                const uint8_t* sub;
+                size_t subn;
+                if (tf_read_bytes(&r, &sub, &subn)) {
+                    size_t cnt = subn / 4;
+                    float* nf = (float*)realloc(float_vals, (n_float_vals + cnt) * sizeof(float));
+                    if (nf) {
+                        float_vals = nf;
+                        for (size_t i = 0; i < cnt; i++) {
+                            uint32_t bits;
+                            memcpy(&bits, sub + 4 * i, 4);
+                            memcpy(&float_vals[n_float_vals + i], &bits, 4);
+                        }
+                        n_float_vals += cnt;
+                    }
+                }
+            } else {
+                tf_skip(&r, wire);
+            }
+            break;
+        default: tf_skip(&r, wire); break;
         }
     }
     if (!r.ok) {
@@ -280,7 +282,7 @@ static tf_const_t* parse_tensor_proto(const uint8_t* data, size_t len) {
         nelems *= (size_t)shape[i];
     }
 
-    if (content && content_n > 0 && dtype == 1) {  // DT_FLOAT raw
+    if (content && content_n > 0 && dtype == 1) { // DT_FLOAT raw
         if (content_n < nelems * 4) {
             free(float_vals);
             free(t);
@@ -294,7 +296,7 @@ static tf_const_t* parse_tensor_proto(const uint8_t* data, size_t len) {
         }
         memcpy(t->data, content, nelems * sizeof(float));
         t->nelems = nelems;
-    } else if (dtype == 2 && content && content_n > 0) {  // DT_DOUBLE raw
+    } else if (dtype == 2 && content && content_n > 0) { // DT_DOUBLE raw
         if (content_n < nelems * 8) {
             free(float_vals);
             free(t);
@@ -307,7 +309,8 @@ static tf_const_t* parse_tensor_proto(const uint8_t* data, size_t len) {
             return NULL;
         }
         const double* d = (const double*)content;
-        for (size_t i = 0; i < nelems; i++) t->data[i] = (float)d[i];
+        for (size_t i = 0; i < nelems; i++)
+            t->data[i] = (float)d[i];
         t->nelems = nelems;
     } else if (float_vals) {
         t->data = float_vals;
@@ -335,132 +338,131 @@ static int parse_node(tf_graph_t* g, const uint8_t* data, size_t len) {
     uint32_t field, wire;
     while (tf_read_tag(&r, &field, &wire)) {
         switch (field) {
-            case 1: {  // name
-                const uint8_t* s;
-                size_t sn;
-                if (wire == 2 && tf_read_bytes(&r, &s, &sn)) {
-                    name = (char*)malloc(sn + 1);
-                    if (name) {
-                        memcpy(name, s, sn);
-                        name[sn] = 0;
-                    }
-                } else {
-                    tf_skip(&r, wire);
+        case 1: { // name
+            const uint8_t* s;
+            size_t sn;
+            if (wire == 2 && tf_read_bytes(&r, &s, &sn)) {
+                name = (char*)malloc(sn + 1);
+                if (name) {
+                    memcpy(name, s, sn);
+                    name[sn] = 0;
                 }
-                break;
+            } else {
+                tf_skip(&r, wire);
             }
-            case 2: {  // op
-                const uint8_t* s;
-                size_t sn;
-                if (wire == 2 && tf_read_bytes(&r, &s, &sn)) {
-                    op = (char*)malloc(sn + 1);
-                    if (op) {
-                        memcpy(op, s, sn);
-                        op[sn] = 0;
-                    }
-                } else {
-                    tf_skip(&r, wire);
+            break;
+        }
+        case 2: { // op
+            const uint8_t* s;
+            size_t sn;
+            if (wire == 2 && tf_read_bytes(&r, &s, &sn)) {
+                op = (char*)malloc(sn + 1);
+                if (op) {
+                    memcpy(op, s, sn);
+                    op[sn] = 0;
                 }
-                break;
+            } else {
+                tf_skip(&r, wire);
             }
-            case 3: {  // input (repeated string)
-                const uint8_t* s;
-                size_t sn;
-                if (wire == 2 && tf_read_bytes(&r, &s, &sn)) {
-                    char* is = (char*)malloc(sn + 1);
-                    if (is) {
-                        memcpy(is, s, sn);
-                        is[sn] = 0;
-                        char** ni = (char**)realloc(inputs, (size_t)(n_inputs + 1) * sizeof(char*));
-                        if (ni) {
-                            inputs = ni;
-                            inputs[n_inputs++] = is;
-                        } else {
-                            free(is);
-                        }
-                    }
-                } else {
-                    tf_skip(&r, wire);
-                }
-                break;
-            }
-            case 5: {  // attr map entry { key(1), value(2) }
-                const uint8_t* sub;
-                size_t subn;
-                if (wire != 2 || !tf_read_bytes(&r, &sub, &subn)) {
-                    tf_skip(&r, wire);
-                    break;
-                }
-                tf_reader_t ar = {sub, subn, 0, true};
-                char* key = NULL;
-                const uint8_t* val = NULL;
-                size_t val_n = 0;
-                uint32_t f2, w2;
-                while (tf_read_tag(&ar, &f2, &w2)) {
-                    if (f2 == 1 && w2 == 2) {  // key
-                        const uint8_t* s;
-                        size_t sn;
-                        if (tf_read_bytes(&ar, &s, &sn)) {
-                            key = (char*)malloc(sn + 1);
-                            if (key) {
-                                memcpy(key, s, sn);
-                                key[sn] = 0;
-                            }
-                        }
-                    } else if (f2 == 2 && w2 == 2) {  // value (AttrValue)
-                        tf_read_bytes(&ar, &val, &val_n);
+            break;
+        }
+        case 3: { // input (repeated string)
+            const uint8_t* s;
+            size_t sn;
+            if (wire == 2 && tf_read_bytes(&r, &s, &sn)) {
+                char* is = (char*)malloc(sn + 1);
+                if (is) {
+                    memcpy(is, s, sn);
+                    is[sn] = 0;
+                    char** ni = (char**)realloc(inputs, (size_t)(n_inputs + 1) * sizeof(char*));
+                    if (ni) {
+                        inputs = ni;
+                        inputs[n_inputs++] = is;
                     } else {
-                        tf_skip(&ar, w2);
+                        free(is);
                     }
                 }
-                // Only "value" attr carries a Const tensor; parse it.
-                if (key && strcmp(key, "value") == 0 && val && op && strcmp(op, "Const") == 0) {
-                    // AttrValue { tensor = field 8 (submsg) }
-                    tf_reader_t vr = {val, val_n, 0, true};
-                    uint32_t f3, w3;
-                    while (tf_read_tag(&vr, &f3, &w3)) {
-                        if (f3 == 8 && w3 == 2) {
-                            const uint8_t* tp;
-                            size_t tpn;
-                            if (tf_read_bytes(&vr, &tp, &tpn)) {
-                                tf_const_t* ct = parse_tensor_proto(tp, tpn);
-                                if (ct) {
-                                    size_t nmlen = name ? strlen(name) : 0;
-                                    ct->name = (char*)malloc(nmlen + 1);
-                                    if (ct->name) {
-                                        if (name) memcpy(ct->name, name, nmlen);
-                                        ct->name[nmlen] = 0;
-                                    }
-                                    tf_const_t* nc = (tf_const_t*)realloc(
-                                        g->consts, (size_t)(g->n_consts + 1) * sizeof(tf_const_t));
-                                    if (nc) {
-                                        g->consts = nc;
-                                        g->consts[g->n_consts++] = *ct;
-                                        free(ct);
-                                    } else {
-                                        free(ct->name);
-                                        free(ct->data);
-                                        free(ct);
-                                    }
-                                }
-                            }
-                        } else {
-                            tf_skip(&vr, w3);
-                        }
-                    }
-                }
-                free(key);
-                break;
+            } else {
+                tf_skip(&r, wire);
             }
-            default:
+            break;
+        }
+        case 5: { // attr map entry { key(1), value(2) }
+            const uint8_t* sub;
+            size_t subn;
+            if (wire != 2 || !tf_read_bytes(&r, &sub, &subn)) {
                 tf_skip(&r, wire);
                 break;
+            }
+            tf_reader_t ar = {sub, subn, 0, true};
+            char* key = NULL;
+            const uint8_t* val = NULL;
+            size_t val_n = 0;
+            uint32_t f2, w2;
+            while (tf_read_tag(&ar, &f2, &w2)) {
+                if (f2 == 1 && w2 == 2) { // key
+                    const uint8_t* s;
+                    size_t sn;
+                    if (tf_read_bytes(&ar, &s, &sn)) {
+                        key = (char*)malloc(sn + 1);
+                        if (key) {
+                            memcpy(key, s, sn);
+                            key[sn] = 0;
+                        }
+                    }
+                } else if (f2 == 2 && w2 == 2) { // value (AttrValue)
+                    tf_read_bytes(&ar, &val, &val_n);
+                } else {
+                    tf_skip(&ar, w2);
+                }
+            }
+            // Only "value" attr carries a Const tensor; parse it.
+            if (key && strcmp(key, "value") == 0 && val && op && strcmp(op, "Const") == 0) {
+                // AttrValue { tensor = field 8 (submsg) }
+                tf_reader_t vr = {val, val_n, 0, true};
+                uint32_t f3, w3;
+                while (tf_read_tag(&vr, &f3, &w3)) {
+                    if (f3 == 8 && w3 == 2) {
+                        const uint8_t* tp;
+                        size_t tpn;
+                        if (tf_read_bytes(&vr, &tp, &tpn)) {
+                            tf_const_t* ct = parse_tensor_proto(tp, tpn);
+                            if (ct) {
+                                size_t nmlen = name ? strlen(name) : 0;
+                                ct->name = (char*)malloc(nmlen + 1);
+                                if (ct->name) {
+                                    if (name) memcpy(ct->name, name, nmlen);
+                                    ct->name[nmlen] = 0;
+                                }
+                                tf_const_t* nc = (tf_const_t*)realloc(
+                                    g->consts, (size_t)(g->n_consts + 1) * sizeof(tf_const_t));
+                                if (nc) {
+                                    g->consts = nc;
+                                    g->consts[g->n_consts++] = *ct;
+                                    free(ct);
+                                } else {
+                                    free(ct->name);
+                                    free(ct->data);
+                                    free(ct);
+                                }
+                            }
+                        }
+                    } else {
+                        tf_skip(&vr, w3);
+                    }
+                }
+            }
+            free(key);
+            break;
+        }
+        default: tf_skip(&r, wire); break;
         }
     }
     if (!r.ok || !name || !op) {
         free(name);
         free(op);
-        for (int i = 0; i < n_inputs; i++) free(inputs[i]);
+        for (int i = 0; i < n_inputs; i++)
+            free(inputs[i]);
         free(inputs);
         return -1;
     }
@@ -469,7 +471,8 @@ static int parse_node(tf_graph_t* g, const uint8_t* data, size_t len) {
     if (!nn) {
         free(name);
         free(op);
-        for (int i = 0; i < n_inputs; i++) free(inputs[i]);
+        for (int i = 0; i < n_inputs; i++)
+            free(inputs[i]);
         free(inputs);
         return -1;
     }
@@ -488,7 +491,7 @@ static void parse_graphdef(tf_graph_t* g, const uint8_t* data, size_t len) {
     tf_reader_t r = {data, len, 0, true};
     uint32_t field, wire;
     while (tf_read_tag(&r, &field, &wire)) {
-        if (field == 1 && wire == 2) {  // node
+        if (field == 1 && wire == 2) { // node
             const uint8_t* sub;
             size_t subn;
             if (tf_read_bytes(&r, &sub, &subn)) {
@@ -538,8 +541,7 @@ static int build_model(tf_graph_t* g, boat_model_t* model) {
                 out_f = t;
             }
 
-            boat_dense_layer_t* dense =
-                boat_dense_layer_create((size_t)in_f, (size_t)out_f, true);
+            boat_dense_layer_t* dense = boat_dense_layer_create((size_t)in_f, (size_t)out_f, true);
             if (!dense) return -1;
 
             int64_t wshape[2] = {in_f, out_f};
@@ -708,7 +710,7 @@ static bool tf_check_buffer(const void* data, size_t size) {
 // "succeed" and we would read garbage instead of detecting the layout).
 static bool tf_is_directory(const char* path) {
 #ifdef _WIN32
-    (void)path;  // fopen on a directory fails on Windows; probe saved_model.pb
+    (void)path; // fopen on a directory fails on Windows; probe saved_model.pb
     return false;
 #else
     struct stat st;
@@ -724,8 +726,7 @@ BOAT_API bool boat_tensorflow_check(const char* filename) {
     if (!is_dir) {
         f = fopen(filename, "rb");
         // On Windows fopen() on a directory fails, so probe saved_model.pb.
-        if (!f && snprintf(path, sizeof(path), "%s/saved_model.pb", filename) <
-                      (int)sizeof(path)) {
+        if (!f && snprintf(path, sizeof(path), "%s/saved_model.pb", filename) < (int)sizeof(path)) {
             f = fopen(path, "rb");
             is_dir = 1;
         }
@@ -802,8 +803,8 @@ BOAT_API boat_model_t* boat_tensorflow_load_savedmodel(const char* directory) {
     }
     FILE* f = fopen(path, "rb");
     if (!f) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
-                        "[TensorFlow] no saved_model.pb under %s\n", directory);
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[TensorFlow] no saved_model.pb under %s\n",
+                        directory);
         return NULL;
     }
     if (fseek(f, 0, SEEK_END) != 0) {

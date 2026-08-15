@@ -10,11 +10,7 @@ int main() {
 
     // Create layer normalization config
     boat_layernorm_config_t ln_config = {
-        .normalized_shape = 768,
-        .eps = 1e-5f,
-        .elementwise_affine = true,
-        .use_bias = true
-    };
+        .normalized_shape = 768, .eps = 1e-5f, .elementwise_affine = true, .use_bias = true};
 
     // Create layer
     boat_layernorm_t* ln = boat_layernorm_create(&ln_config);
@@ -26,7 +22,8 @@ int main() {
 
     // Create weight tensor
     int64_t weight_shape[] = {768};
-    boat_tensor_t* weight = boat_tensor_create(weight_shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    boat_tensor_t* weight =
+        boat_tensor_create(weight_shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!weight) {
         fprintf(stderr, "Failed to create weight tensor\n");
         boat_layernorm_free(ln);
@@ -90,10 +87,8 @@ int main() {
     }
 
     printf("Forward pass succeeded\n");
-    printf("Output shape: [%lld, %lld, %lld]\n",
-           boat_tensor_shape(output)[0],
-           boat_tensor_shape(output)[1],
-           boat_tensor_shape(output)[2]);
+    printf("Output shape: [%lld, %lld, %lld]\n", boat_tensor_shape(output)[0],
+           boat_tensor_shape(output)[1], boat_tensor_shape(output)[2]);
 
     // Check that output is not all zeros
     float* output_data = (float*)boat_tensor_data(output);

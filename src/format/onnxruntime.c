@@ -16,16 +16,16 @@
 // Internal session structure
 // -----------------------------------------------------------------------
 struct boat_onnxruntime_session_t {
-    const OrtApi* api;          // ORT C API function table
-    OrtEnv* env;                // ORT environment
-    OrtSession* session;        // Loaded ONNX session
-    OrtMemoryInfo* cpu_mem;     // CPU memory info (reused)
-    char** input_names;         // Cached input names (OrtAllocator-owned copies)
-    char** output_names;        // Cached output names
+    const OrtApi* api;      // ORT C API function table
+    OrtEnv* env;            // ORT environment
+    OrtSession* session;    // Loaded ONNX session
+    OrtMemoryInfo* cpu_mem; // CPU memory info (reused)
+    char** input_names;     // Cached input names (OrtAllocator-owned copies)
+    char** output_names;    // Cached output names
     size_t num_inputs;
     size_t num_outputs;
     boat_onnxruntime_provider_t provider;
-    int device_id;              // GPU device ID (for CUDA provider)
+    int device_id; // GPU device ID (for CUDA provider)
 };
 
 // -----------------------------------------------------------------------
@@ -44,7 +44,7 @@ static int check_ort_status(const OrtApi* api, OrtStatus* status, const char* ms
 
 // Free an array of C strings allocated by ORT's allocator.
 static void free_ort_strings(const OrtApi* api, char** names, size_t count,
-                              OrtAllocator* allocator) {
+                             OrtAllocator* allocator) {
     if (!names) return;
     for (size_t i = 0; i < count; i++) {
         if (names[i]) allocator->Free(allocator, names[i]);
@@ -55,9 +55,9 @@ static void free_ort_strings(const OrtApi* api, char** names, size_t count,
 // Session creation (internal)
 // -----------------------------------------------------------------------
 
-static boat_onnxruntime_session_t* create_session_impl(
-    const void* model_data, size_t model_size, int is_buffer,
-    boat_onnxruntime_provider_t provider) {
+static boat_onnxruntime_session_t* create_session_impl(const void* model_data, size_t model_size,
+                                                       int is_buffer,
+                                                       boat_onnxruntime_provider_t provider) {
 
     // Get ORT API
     const OrtApi* api = OrtGetApiBase()->GetApi(ORT_API_VERSION);
@@ -67,8 +67,8 @@ static boat_onnxruntime_session_t* create_session_impl(
         return NULL;
     }
 
-    boat_onnxruntime_session_t* s = (boat_onnxruntime_session_t*)
-        boat_malloc(sizeof(boat_onnxruntime_session_t), BOAT_DEVICE_CPU);
+    boat_onnxruntime_session_t* s = (boat_onnxruntime_session_t*)boat_malloc(
+        sizeof(boat_onnxruntime_session_t), BOAT_DEVICE_CPU);
     if (!s) return NULL;
     memset(s, 0, sizeof(*s));
     s->api = api;
@@ -87,8 +87,7 @@ static boat_onnxruntime_session_t* create_session_impl(
     if (check_ort_status(api, status, "CreateSessionOptions failed")) goto fail;
 
     // Enable graph optimization
-    api->SetSessionGraphOptimizationLevel(session_options,
-        ORT_ENABLE_ALL);
+    api->SetSessionGraphOptimizationLevel(session_options, ORT_ENABLE_ALL);
 
     // Set intra-op thread count
     api->SetIntraOpNumThreads(session_options, 4);
@@ -105,13 +104,12 @@ static boat_onnxruntime_session_t* create_session_impl(
         status = api->CreateCUDAProviderOptions(&cuda_options);
         if (!status && cuda_options) {
             // Set default CUDA options
-            const char* keys[] = {"device_id", "arena_extend_strategy",
-                                 "cudnn_conv_algo_search"};
+            const char* keys[] = {"device_id", "arena_extend_strategy", "cudnn_conv_algo_search"};
             const char* vals[] = {"0", "kSameAsRequested", "DEFAULT"};
             status = api->UpdateCUDAProviderOptions(cuda_options, keys, vals, 3);
             if (!status) {
-                status = api->SessionOptionsAppendExecutionProvider_CUDA(
-                    session_options, cuda_options);
+                status =
+                    api->SessionOptionsAppendExecutionProvider_CUDA(session_options, cuda_options);
                 if (!status) {
                     cuda_available = 1;
                 } else {
@@ -136,11 +134,10 @@ static boat_onnxruntime_session_t* create_session_impl(
     // Create session
     OrtSession* session = NULL;
     if (is_buffer) {
-        status = api->CreateSessionFromArray(env, model_data, model_size,
-                                              session_options, &session);
+        status =
+            api->CreateSessionFromArray(env, model_data, model_size, session_options, &session);
     } else {
-        status = api->CreateSession(env, (const char*)model_data,
-                                     session_options, &session);
+        status = api->CreateSession(env, (const char*)model_data, session_options, &session);
     }
     api->ReleaseSessionOptions(session_options);
 
@@ -185,8 +182,7 @@ static boat_onnxruntime_session_t* create_session_impl(
 
     // Create CPU memory info
     OrtMemoryInfo* cpu_mem = NULL;
-    status = api->CreateMemoryInfo("Cpu", OrtDeviceAllocator, 0,
-                                    OrtMemTypeDefault, &cpu_mem);
+    status = api->CreateMemoryInfo("Cpu", OrtDeviceAllocator, 0, OrtMemTypeDefault, &cpu_mem);
     if (check_ort_status(api, status, "CreateMemoryInfo failed")) goto fail;
     s->cpu_mem = cpu_mem;
 
@@ -213,20 +209,18 @@ fail:
 // Public API
 // -----------------------------------------------------------------------
 
-BOAT_API boat_onnxruntime_session_t* boat_onnxruntime_create(
-    const char* model_path,
-    boat_onnxruntime_provider_t provider) {
+BOAT_API boat_onnxruntime_session_t* boat_onnxruntime_create(const char* model_path,
+                                                             boat_onnxruntime_provider_t provider) {
     if (!model_path) {
-        boat_set_error(BOAT_ERROR_INVALID_ARGUMENT,
-                       "boat_onnxruntime_create: model_path is NULL");
+        boat_set_error(BOAT_ERROR_INVALID_ARGUMENT, "boat_onnxruntime_create: model_path is NULL");
         return NULL;
     }
     return create_session_impl(model_path, 0, 0, provider);
 }
 
-BOAT_API boat_onnxruntime_session_t* boat_onnxruntime_create_from_buffer(
-    const void* data, size_t size,
-    boat_onnxruntime_provider_t provider) {
+BOAT_API boat_onnxruntime_session_t*
+boat_onnxruntime_create_from_buffer(const void* data, size_t size,
+                                    boat_onnxruntime_provider_t provider) {
     if (!data || size == 0) {
         boat_set_error(BOAT_ERROR_INVALID_ARGUMENT,
                        "boat_onnxruntime_create_from_buffer: data is NULL or empty");
@@ -272,14 +266,14 @@ BOAT_API size_t boat_onnxruntime_output_count(const boat_onnxruntime_session_t* 
     return session ? session->num_outputs : 0;
 }
 
-BOAT_API const char* boat_onnxruntime_input_name(
-    const boat_onnxruntime_session_t* session, size_t index) {
+BOAT_API const char* boat_onnxruntime_input_name(const boat_onnxruntime_session_t* session,
+                                                 size_t index) {
     if (!session || index >= session->num_inputs) return NULL;
     return session->input_names[index];
 }
 
-BOAT_API const char* boat_onnxruntime_output_name(
-    const boat_onnxruntime_session_t* session, size_t index) {
+BOAT_API const char* boat_onnxruntime_output_name(const boat_onnxruntime_session_t* session,
+                                                  size_t index) {
     if (!session || index >= session->num_outputs) return NULL;
     return session->output_names[index];
 }
@@ -290,9 +284,8 @@ BOAT_API const char* boat_onnxruntime_output_name(
 
 // Convert a boat_tensor_t to an OrtValue for use as ORT input.
 // Uses the session's CPU memory info.
-static OrtValue* boat_tensor_to_ort_value(
-    const boat_onnxruntime_session_t* session,
-    const boat_tensor_t* tensor, const OrtApi* api) {
+static OrtValue* boat_tensor_to_ort_value(const boat_onnxruntime_session_t* session,
+                                          const boat_tensor_t* tensor, const OrtApi* api) {
 
     if (!tensor) return NULL;
 
@@ -306,11 +299,9 @@ static OrtValue* boat_tensor_to_ort_value(
 
     // Create OrtValue wrapping the tensor data (no copy for CPU)
     OrtValue* ort_val = NULL;
-    OrtStatus* status = api->CreateTensorWithDataAsOrtValue(
-        session->cpu_mem, data, nbytes,
-        shape, (int)ndim,
-        ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT,
-        &ort_val);
+    OrtStatus* status =
+        api->CreateTensorWithDataAsOrtValue(session->cpu_mem, data, nbytes, shape, (int)ndim,
+                                            ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &ort_val);
     if (status) {
         check_ort_status(api, status, "CreateTensorWithDataAsOrtValue failed");
         return NULL;
@@ -319,8 +310,7 @@ static OrtValue* boat_tensor_to_ort_value(
 }
 
 // Convert an OrtValue output to a boat_tensor_t (copies data).
-static boat_tensor_t* ort_value_to_boat_tensor(
-    const OrtValue* ort_val, const OrtApi* api) {
+static boat_tensor_t* ort_value_to_boat_tensor(const OrtValue* ort_val, const OrtApi* api) {
 
     // Get output type and shape
     OrtTensorTypeAndShapeInfo* info = NULL;
@@ -359,7 +349,8 @@ static boat_tensor_t* ort_value_to_boat_tensor(
 
     // Compute total element count
     size_t total_count = 1;
-    for (size_t i = 0; i < num_dims; i++) total_count *= (size_t)shape[i];
+    for (size_t i = 0; i < num_dims; i++)
+        total_count *= (size_t)shape[i];
 
     // Determine boat dtype
     boat_dtype_t boat_dtype = BOAT_DTYPE_FLOAT32;
@@ -385,8 +376,8 @@ static boat_tensor_t* ort_value_to_boat_tensor(
     boat_tensor_t* result = boat_tensor_create(shape, num_dims, boat_dtype, BOAT_DEVICE_CPU);
     if (result) {
         size_t boat_nbytes = boat_tensor_nbytes(result);
-        size_t copy_size = boat_nbytes < total_count * sizeof(float)
-                           ? boat_nbytes : total_count * sizeof(float);
+        size_t copy_size =
+            boat_nbytes < total_count * sizeof(float) ? boat_nbytes : total_count * sizeof(float);
         memcpy(boat_tensor_data(result), data, copy_size);
     }
 
@@ -394,9 +385,8 @@ static boat_tensor_t* ort_value_to_boat_tensor(
     return result;
 }
 
-BOAT_API boat_tensor_t* boat_onnxruntime_run(
-    boat_onnxruntime_session_t* session,
-    const boat_tensor_t* input) {
+BOAT_API boat_tensor_t* boat_onnxruntime_run(boat_onnxruntime_session_t* session,
+                                             const boat_tensor_t* input) {
 
     if (!session || !input) {
         boat_set_error(BOAT_ERROR_INVALID_ARGUMENT,
@@ -411,8 +401,7 @@ BOAT_API boat_tensor_t* boat_onnxruntime_run(
     if (!ort_input) return NULL;
 
     // Prepare input names
-    const char* input_name = session->num_inputs > 0
-                             ? session->input_names[0] : NULL;
+    const char* input_name = session->num_inputs > 0 ? session->input_names[0] : NULL;
     if (!input_name) {
         boat_set_error(BOAT_ERROR_INVALID_OPERATION,
                        "boat_onnxruntime_run: no input names available");
@@ -431,9 +420,8 @@ BOAT_API boat_tensor_t* boat_onnxruntime_run(
     OrtValue** ort_outputs = (OrtValue**)alloca(num_outputs * sizeof(OrtValue*));
     memset(ort_outputs, 0, num_outputs * sizeof(OrtValue*));
 
-    OrtStatus* status = api->Run(session->session, NULL,
-                                  &input_name, &ort_input, 1,
-                                  output_names, num_outputs, ort_outputs);
+    OrtStatus* status = api->Run(session->session, NULL, &input_name, &ort_input, 1, output_names,
+                                 num_outputs, ort_outputs);
     api->ReleaseValue(ort_input);
 
     if (check_ort_status(api, status, "Run failed")) {
@@ -455,12 +443,10 @@ BOAT_API boat_tensor_t* boat_onnxruntime_run(
     return result;
 }
 
-BOAT_API boat_tensor_t** boat_onnxruntime_run_multi(
-    boat_onnxruntime_session_t* session,
-    boat_tensor_t* const* inputs,
-    const char** input_names,
-    size_t num_inputs,
-    size_t* num_outputs) {
+BOAT_API boat_tensor_t** boat_onnxruntime_run_multi(boat_onnxruntime_session_t* session,
+                                                    boat_tensor_t* const* inputs,
+                                                    const char** input_names, size_t num_inputs,
+                                                    size_t* num_outputs) {
 
     if (!session || !inputs || !input_names || num_inputs == 0) {
         boat_set_error(BOAT_ERROR_INVALID_ARGUMENT,
@@ -486,21 +472,18 @@ BOAT_API boat_tensor_t** boat_onnxruntime_run_multi(
     }
 
     // Prepare output names from session
-    const char** ort_output_names = (const char**)alloca(
-        num_outs * sizeof(char*));
+    const char** ort_output_names = (const char**)alloca(num_outs * sizeof(char*));
     for (size_t i = 0; i < num_outs; i++) {
         ort_output_names[i] = session->output_names[i];
     }
 
     // Prepare output OrtValues
-    OrtValue** ort_outputs = (OrtValue**)alloca(
-        num_outs * sizeof(OrtValue*));
+    OrtValue** ort_outputs = (OrtValue**)alloca(num_outs * sizeof(OrtValue*));
     memset(ort_outputs, 0, num_outs * sizeof(OrtValue*));
 
     // Run inference
-    OrtStatus* status = api->Run(session->session, NULL,
-                                  input_names, ort_inputs, num_inputs,
-                                  ort_output_names, num_outs, ort_outputs);
+    OrtStatus* status = api->Run(session->session, NULL, input_names, ort_inputs, num_inputs,
+                                 ort_output_names, num_outs, ort_outputs);
 
     // Release input OrtValues
     for (size_t i = 0; i < num_inputs; i++) {
@@ -514,8 +497,8 @@ BOAT_API boat_tensor_t** boat_onnxruntime_run_multi(
     }
 
     // Convert outputs to boat tensors
-    boat_tensor_t** results = (boat_tensor_t**)boat_malloc(
-        num_outs * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
+    boat_tensor_t** results =
+        (boat_tensor_t**)boat_malloc(num_outs * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
     if (!results) {
         for (size_t i = 0; i < num_outs; i++)
             if (ort_outputs[i]) api->ReleaseValue(ort_outputs[i]);

@@ -41,9 +41,7 @@ static void build_byte_unicode_map(minimind_tokenizer_t* tok) {
 
     int n = 0;
     for (int b = 0; b < 256; b++) {
-        if ((b >= 33 && b <= 126) ||
-            (b >= 161 && b <= 172) ||
-            (b >= 174 && b <= 255)) {
+        if ((b >= 33 && b <= 126) || (b >= 161 && b <= 172) || (b >= 174 && b <= 255)) {
             tok->byte_to_unicode[b] = (unsigned short)b;
         } else {
             tok->byte_to_unicode[b] = (unsigned short)(256 + n);
@@ -60,16 +58,21 @@ static void build_byte_unicode_map(minimind_tokenizer_t* tok) {
 
 // Convert Unicode codepoint to UTF-8 bytes
 static int codepoint_to_utf8(unsigned int cp, char* out) {
-    if (cp < 0x80) { out[0] = (char)cp; out[1] = '\0'; return 1; }
-    else if (cp < 0x800) {
+    if (cp < 0x80) {
+        out[0] = (char)cp;
+        out[1] = '\0';
+        return 1;
+    } else if (cp < 0x800) {
         out[0] = (char)(0xC0 | (cp >> 6));
         out[1] = (char)(0x80 | (cp & 0x3F));
-        out[2] = '\0'; return 2;
+        out[2] = '\0';
+        return 2;
     } else {
         out[0] = (char)(0xE0 | (cp >> 12));
         out[1] = (char)(0x80 | ((cp >> 6) & 0x3F));
         out[2] = (char)(0x80 | (cp & 0x3F));
-        out[3] = '\0'; return 3;
+        out[3] = '\0';
+        return 3;
     }
 }
 
@@ -130,7 +133,10 @@ static char* read_file(const char* path, size_t* out_len) {
     long sz = ftell(f);
     fseek(f, 0, SEEK_SET);
     char* buf = (char*)malloc(sz + 1);
-    if (!buf) { fclose(f); return NULL; }
+    if (!buf) {
+        fclose(f);
+        return NULL;
+    }
     *out_len = fread(buf, 1, sz, f);
     buf[*out_len] = '\0';
     fclose(f);
@@ -146,10 +152,12 @@ static const char* find_section(const char* json, const char* key) {
         p = strstr(p, search);
         if (!p) return NULL;
         const char* q = p + key_len;
-        while (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r') q++;
+        while (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r')
+            q++;
         if (*q == ':') {
             q++;
-            while (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r') q++;
+            while (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r')
+                q++;
             return q;
         }
         p++;
@@ -159,7 +167,8 @@ static const char* find_section(const char* json, const char* key) {
 // Encode a unicode codepoint as UTF-8, return number of bytes written
 static int encode_utf8(unsigned int cp, char* out) {
     if (cp < 0x80) {
-        out[0] = (char)cp; return 1;
+        out[0] = (char)cp;
+        return 1;
     } else if (cp < 0x800) {
         out[0] = (char)(0xC0 | (cp >> 6));
         out[1] = (char)(0x80 | (cp & 0x3F));
@@ -174,7 +183,8 @@ static int encode_utf8(unsigned int cp, char* out) {
 
 static char* parse_string(const char** pp) {
     const char* p = *pp;
-    while (*p && *p != '"') p++;
+    while (*p && *p != '"')
+        p++;
     if (*p != '"') return NULL;
     p++; // skip opening "
 
@@ -193,24 +203,33 @@ static char* parse_string(const char** pp) {
                 for (int i = 0; i < 4; i++) {
                     char c = *p;
                     cp <<= 4;
-                    if (c >= '0' && c <= '9') cp += c - '0';
-                    else if (c >= 'a' && c <= 'f') cp += c - 'a' + 10;
-                    else if (c >= 'A' && c <= 'F') cp += c - 'A' + 10;
-                    else break;
+                    if (c >= '0' && c <= '9')
+                        cp += c - '0';
+                    else if (c >= 'a' && c <= 'f')
+                        cp += c - 'a' + 10;
+                    else if (c >= 'A' && c <= 'F')
+                        cp += c - 'A' + 10;
+                    else
+                        break;
                     p++;
                 }
                 out_pos += encode_utf8((unsigned int)cp, out + out_pos);
                 continue;
             } else if (*p == 'n') {
-                out[out_pos++] = '\n'; p++;
+                out[out_pos++] = '\n';
+                p++;
             } else if (*p == 't') {
-                out[out_pos++] = '\t'; p++;
+                out[out_pos++] = '\t';
+                p++;
             } else if (*p == 'r') {
-                out[out_pos++] = '\r'; p++;
+                out[out_pos++] = '\r';
+                p++;
             } else if (*p == '"') {
-                out[out_pos++] = '"'; p++;
+                out[out_pos++] = '"';
+                p++;
             } else if (*p == '\\') {
-                out[out_pos++] = '\\'; p++;
+                out[out_pos++] = '\\';
+                p++;
             } else {
                 p++; // skip unknown escape
             }
@@ -238,31 +257,48 @@ minimind_tokenizer_t* minimind_tokenizer_load(const char* model_dir) {
     if (!json) {
         snprintf(path, sizeof(path), "%s/../tokenizer.json", model_dir);
         json = read_file(path, &json_len);
-        if (!json) { fprintf(stderr, "Cannot find tokenizer.json\n"); return NULL; }
+        if (!json) {
+            fprintf(stderr, "Cannot find tokenizer.json\n");
+            return NULL;
+        }
     }
 
     minimind_tokenizer_t* tok = (minimind_tokenizer_t*)calloc(1, sizeof(*tok));
-    if (!tok) { free(json); return NULL; }
+    if (!tok) {
+        free(json);
+        return NULL;
+    }
 
     build_byte_unicode_map(tok);
 
     // Parse "model" section
     const char* model = find_section(json, "model");
-    if (!model || *model != '{') { printf("model section not found\n"); goto fail; }
+    if (!model || *model != '{') {
+        printf("model section not found\n");
+        goto fail;
+    }
 
     // Parse vocab
     const char* vocab_start = find_section(model, "vocab");
-    if (!vocab_start || *vocab_start != '{') { printf("vocab not found\n"); goto fail; }
+    if (!vocab_start || *vocab_start != '{') {
+        printf("vocab not found\n");
+        goto fail;
+    }
 
     const char* p = vocab_start + 1;
     while (*p) {
-        while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' || *p == ',') p++;
+        while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' || *p == ',')
+            p++;
         if (*p == '}') break;
         char* token = parse_string(&p);
         if (!token) break;
-        while (*p == ' ' || *p == '\t' || *p == ':') p++;
+        while (*p == ' ' || *p == '\t' || *p == ':')
+            p++;
         int id = 0;
-        while (*p >= '0' && *p <= '9') { id = id * 10 + (*p - '0'); p++; }
+        while (*p >= '0' && *p <= '9') {
+            id = id * 10 + (*p - '0');
+            p++;
+        }
         if (id >= 0 && id < MAX_VOCAB) {
             strncpy(tok->vocab[id], token, MAX_TOKEN_LEN - 1);
             if (id + 1 > tok->vocab_size) tok->vocab_size = id + 1;
@@ -276,25 +312,34 @@ minimind_tokenizer_t* minimind_tokenizer_load(const char* model_dir) {
         p = merges_start + 1;
         int mi = 0;
         while (*p && mi < MAX_MERGES) {
-            while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' || *p == ',') p++;
+            while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' || *p == ',')
+                p++;
             if (*p == ']') break;
-            if (*p != '[') { p++; continue; } // skip non-array entries
+            if (*p != '[') {
+                p++;
+                continue;
+            } // skip non-array entries
             p++; // skip [
 
             char* token_a = parse_string(&p);
-            while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' || *p == ',') p++;
+            while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' || *p == ',')
+                p++;
             char* token_b = parse_string(&p);
-            while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' || *p == ']') p++;
-            if (p && *p == ',') { } // will skip in loop
+            while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' || *p == ']')
+                p++;
+            if (p && *p == ',') {
+            } // will skip in loop
 
             if (token_a && token_b) {
                 strncpy(tok->merges[mi].a, token_a, MAX_TOKEN_LEN - 1);
                 strncpy(tok->merges[mi].b, token_b, MAX_TOKEN_LEN - 1);
                 tok->merges[mi].rank = mi;
-                free(token_a); free(token_b);
+                free(token_a);
+                free(token_b);
                 mi++;
             } else {
-                free(token_a); free(token_b);
+                free(token_a);
+                free(token_b);
             }
         }
         tok->num_merges = mi;
@@ -305,32 +350,57 @@ minimind_tokenizer_t* minimind_tokenizer_load(const char* model_dir) {
     if (added && *added == '[') {
         p = added + 1;
         while (*p) {
-            while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' || *p == ',') p++;
+            while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' || *p == ',')
+                p++;
             if (*p == ']') break;
-            if (*p != '{') { p++; continue; }
+            if (*p != '{') {
+                p++;
+                continue;
+            }
             p++; // skip {
             int at_id = -1;
             char at_content[MAX_TOKEN_LEN] = "";
             while (*p && *p != '}') {
-                while (*p == ' ' || *p == '\t' || *p == '\n' || *p == ',' || *p == '\r') p++;
+                while (*p == ' ' || *p == '\t' || *p == '\n' || *p == ',' || *p == '\r')
+                    p++;
                 if (*p == '}') break;
                 char* key = parse_string(&p);
                 if (!key) break;
-                while (*p == ' ' || *p == '\t' || *p == ':') p++;
+                while (*p == ' ' || *p == '\t' || *p == ':')
+                    p++;
 
                 if (strcmp(key, "id") == 0) {
                     at_id = 0;
-                    while (*p >= '0' && *p <= '9') { at_id = at_id * 10 + (*p - '0'); p++; }
+                    while (*p >= '0' && *p <= '9') {
+                        at_id = at_id * 10 + (*p - '0');
+                        p++;
+                    }
                 } else if (strcmp(key, "content") == 0) {
                     char* val = parse_string(&p);
-                    if (val) { strncpy(at_content, val, MAX_TOKEN_LEN - 1); free(val); }
+                    if (val) {
+                        strncpy(at_content, val, MAX_TOKEN_LEN - 1);
+                        free(val);
+                    }
                 } else {
                     // Skip value
-                    if (*p == '"') { free(parse_string(&p)); }
-                    else if (*p == '{' || *p == '[') {
-                        int depth = 0; char open = *p, close = (open == '{') ? '}' : ']';
-                        while (*p) { if (*p == open) depth++; else if (*p == close && --depth == 0) { p++; break; } p++; }
-                    } else { while (*p && *p != ',' && *p != '}' && *p != '\n') p++; }
+                    if (*p == '"') {
+                        free(parse_string(&p));
+                    } else if (*p == '{' || *p == '[') {
+                        int depth = 0;
+                        char open = *p, close = (open == '{') ? '}' : ']';
+                        while (*p) {
+                            if (*p == open)
+                                depth++;
+                            else if (*p == close && --depth == 0) {
+                                p++;
+                                break;
+                            }
+                            p++;
+                        }
+                    } else {
+                        while (*p && *p != ',' && *p != '}' && *p != '\n')
+                            p++;
+                    }
                 }
                 free(key);
             }
@@ -353,8 +423,8 @@ minimind_tokenizer_t* minimind_tokenizer_load(const char* model_dir) {
     }
 
     free(json);
-    printf("Tokenizer loaded: %d vocab, %d merges, %d added tokens\n",
-           tok->vocab_size, tok->num_merges, tok->num_added_tokens);
+    printf("Tokenizer loaded: %d vocab, %d merges, %d added tokens\n", tok->vocab_size,
+           tok->num_merges, tok->num_added_tokens);
     return tok;
 
 fail:
@@ -371,8 +441,7 @@ void minimind_tokenizer_free(minimind_tokenizer_t* tok) {
 // --- ID lookup ---
 static int token_to_id(minimind_tokenizer_t* tok, const char* token) {
     for (int i = 0; i < tok->vocab_size; i++) {
-        if (tok->vocab[i][0] && strcmp(tok->vocab[i], token) == 0)
-            return i;
+        if (tok->vocab[i][0] && strcmp(tok->vocab[i], token) == 0) return i;
     }
     return -1;
 }
@@ -382,14 +451,19 @@ static int token_to_id(minimind_tokenizer_t* tok, const char* token) {
 #define MERGE_HASH_SIZE 65536
 
 // --- BPE encode a text segment (no added tokens) ---
-static int bpe_encode_segment(minimind_tokenizer_t* tok, const char* text,
-                               int* tokens_out, int max_len) {
+static int bpe_encode_segment(minimind_tokenizer_t* tok, const char* text, int* tokens_out,
+                              int max_len) {
     if (!text || !*text) return 0;
 
     char* unicode_str = text_to_unicode(tok, text);
-    if (!unicode_str || !unicode_str[0]) { free(unicode_str); return 0; }
+    if (!unicode_str || !unicode_str[0]) {
+        free(unicode_str);
+        return 0;
+    }
 
-    typedef struct { char s[64]; } tok_part_t;
+    typedef struct {
+        char s[64];
+    } tok_part_t;
     int u_len = (int)strlen(unicode_str);
     int max_n = u_len + 16;
     tok_part_t* parts = (tok_part_t*)malloc((size_t)max_n * sizeof(tok_part_t));
@@ -397,9 +471,12 @@ static int bpe_encode_segment(minimind_tokenizer_t* tok, const char* text,
     const char* up = unicode_str;
     while (*up && n < max_n) {
         int clen;
-        if ((unsigned char)*up < 0x80) clen = 1;
-        else if (((unsigned char)*up & 0xE0) == 0xC0) clen = 2;
-        else clen = 3;
+        if ((unsigned char)*up < 0x80)
+            clen = 1;
+        else if (((unsigned char)*up & 0xE0) == 0xC0)
+            clen = 2;
+        else
+            clen = 3;
         if (n < max_n) {
             memcpy(parts[n].s, up, (size_t)clen);
             parts[n].s[clen] = '\0';
@@ -416,7 +493,10 @@ static int bpe_encode_segment(minimind_tokenizer_t* tok, const char* text,
             for (int mi = 0; mi < tok->num_merges; mi++) {
                 if (strcmp(parts[i].s, tok->merges[mi].a) == 0 &&
                     strcmp(parts[i + 1].s, tok->merges[mi].b) == 0) {
-                    if (mi < best_rank) { best_rank = mi; best_i = i; }
+                    if (mi < best_rank) {
+                        best_rank = mi;
+                        best_i = i;
+                    }
                     break;
                 }
             }
@@ -444,8 +524,8 @@ static int bpe_encode_segment(minimind_tokenizer_t* tok, const char* text,
 }
 
 // --- BPE Encode with added-token pre-scanning ---
-int minimind_tokenizer_encode(minimind_tokenizer_t* tok, const char* text,
-                               int* tokens_out, int max_len) {
+int minimind_tokenizer_encode(minimind_tokenizer_t* tok, const char* text, int* tokens_out,
+                              int max_len) {
     if (!text || !*text) return 0;
 
     int out_n = 0;
@@ -473,7 +553,8 @@ int minimind_tokenizer_encode(minimind_tokenizer_t* tok, const char* text,
                 for (int a = 0; a < tok->num_added_tokens; a++) {
                     int alen = (int)strlen(tok->added_token_strs[a]);
                     if (strncmp(seg_end, tok->added_token_strs[a], alen) == 0) {
-                        matched = 1; break;
+                        matched = 1;
+                        break;
                     }
                 }
                 if (matched) break;
@@ -496,8 +577,7 @@ int minimind_tokenizer_encode(minimind_tokenizer_t* tok, const char* text,
 }
 
 // --- Decode ---
-char* minimind_tokenizer_decode(minimind_tokenizer_t* tok,
-                                 const int* tokens, int n_tokens) {
+char* minimind_tokenizer_decode(minimind_tokenizer_t* tok, const int* tokens, int n_tokens) {
     // Concatenate all token strings
     size_t total = 0;
     for (int i = 0; i < n_tokens; i++) {

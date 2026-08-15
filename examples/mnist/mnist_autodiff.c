@@ -43,43 +43,47 @@
 // Debug output control
 // Levels: 0 = none, 1 = errors only, 2 = warnings, 3 = info, 4 = debug
 #ifndef DEBUG_LEVEL
-#define DEBUG_LEVEL 4  // Default to debug output for investigation
+#define DEBUG_LEVEL 4 // Default to debug output for investigation
 #endif
 
 // Runtime debug level (can be changed via command line)
 static int g_debug_level = DEBUG_LEVEL;
 
 // Debug printing macros with runtime level control
-#define DEBUG_PRINT(fmt, ...) do { \
-    if (g_debug_level >= 4) { \
-        fprintf(stderr, "DEBUG: " fmt, ##__VA_ARGS__); \
-    } \
-} while(0)
+#define DEBUG_PRINT(fmt, ...)                                                                      \
+    do {                                                                                           \
+        if (g_debug_level >= 4) {                                                                  \
+            fprintf(stderr, "DEBUG: " fmt, ##__VA_ARGS__);                                         \
+        }                                                                                          \
+    } while (0)
 
-#define INFO_PRINT(fmt, ...) do { \
-    if (g_debug_level >= 3) { \
-        fprintf(stderr, "INFO: " fmt, ##__VA_ARGS__); \
-    } \
-} while(0)
+#define INFO_PRINT(fmt, ...)                                                                       \
+    do {                                                                                           \
+        if (g_debug_level >= 3) {                                                                  \
+            fprintf(stderr, "INFO: " fmt, ##__VA_ARGS__);                                          \
+        }                                                                                          \
+    } while (0)
 
-#define WARN_PRINT(fmt, ...) do { \
-    if (g_debug_level >= 2) { \
-        fprintf(stderr, "WARNING: " fmt, ##__VA_ARGS__); \
-    } \
-} while(0)
+#define WARN_PRINT(fmt, ...)                                                                       \
+    do {                                                                                           \
+        if (g_debug_level >= 2) {                                                                  \
+            fprintf(stderr, "WARNING: " fmt, ##__VA_ARGS__);                                       \
+        }                                                                                          \
+    } while (0)
 
-#define ERROR_PRINT(fmt, ...) do { \
-    if (g_debug_level >= 1) { \
-        fprintf(stderr, "ERROR: " fmt, ##__VA_ARGS__); \
-    } \
-} while(0)
+#define ERROR_PRINT(fmt, ...)                                                                      \
+    do {                                                                                           \
+        if (g_debug_level >= 1) {                                                                  \
+            fprintf(stderr, "ERROR: " fmt, ##__VA_ARGS__);                                         \
+        }                                                                                          \
+    } while (0)
 
 // Variable reuse helpers for performance optimization
 typedef struct {
-    boat_variable_t* input_var;      // Reusable input variable (no grad required)
-    boat_variable_t* target_var;     // Reusable target variable (no grad required)
-    boat_variable_t* logits_var;     // Reusable logits variable (from forward pass)
-    boat_variable_t* loss_var;       // Reusable loss variable
+    boat_variable_t* input_var;  // Reusable input variable (no grad required)
+    boat_variable_t* target_var; // Reusable target variable (no grad required)
+    boat_variable_t* logits_var; // Reusable logits variable (from forward pass)
+    boat_variable_t* loss_var;   // Reusable loss variable
 } variable_pool_t;
 
 // Create a variable pool for reuse
@@ -107,10 +111,10 @@ static void free_variable_pool(const variable_pool_t* pool) {
     free(pool);
 }
 
-
 // Reset variable data if variable exists, otherwise create new variable
-static boat_variable_t* get_or_reset_variable(const variable_pool_t* pool, boat_variable_t** var_ptr,
-                                              boat_tensor_t* tensor, bool requires_grad) {
+static boat_variable_t* get_or_reset_variable(const variable_pool_t* pool,
+                                              boat_variable_t** var_ptr, boat_tensor_t* tensor,
+                                              bool requires_grad) {
     if (!pool || !var_ptr || !tensor) return NULL;
 
     if (*var_ptr) {
@@ -146,9 +150,7 @@ boat_tensor_t* load_idx_file(const char* filename, boat_dtype_t dtype) {
     }
 
     // Convert from big-endian to host byte order
-    magic = ((magic >> 24) & 0xFF) |
-            ((magic >> 8) & 0xFF00) |
-            ((magic << 8) & 0xFF0000) |
+    magic = ((magic >> 24) & 0xFF) | ((magic >> 8) & 0xFF00) | ((magic << 8) & 0xFF0000) |
             ((magic << 24) & 0xFF000000);
 
     // Check magic number
@@ -156,7 +158,8 @@ boat_tensor_t* load_idx_file(const char* filename, boat_dtype_t dtype) {
     uint8_t ndim = magic & 0xFF;
 
     if (expected_dtype != 0x08) { // 0x08 = unsigned byte
-        fprintf(stderr, "Error: IDX file %s has unsupported data type 0x%02x\n", filename, expected_dtype);
+        fprintf(stderr, "Error: IDX file %s has unsupported data type 0x%02x\n", filename,
+                expected_dtype);
         fclose(f);
         return NULL;
     }
@@ -176,10 +179,8 @@ boat_tensor_t* load_idx_file(const char* filename, boat_dtype_t dtype) {
             return NULL;
         }
         // Convert from big-endian to host byte order
-        dims[i] = ((dim_be >> 24) & 0xFF) |
-                 ((dim_be >> 8) & 0xFF00) |
-                 ((dim_be << 8) & 0xFF0000) |
-                 ((dim_be << 24) & 0xFF000000);
+        dims[i] = ((dim_be >> 24) & 0xFF) | ((dim_be >> 8) & 0xFF00) | ((dim_be << 8) & 0xFF0000) |
+                  ((dim_be << 24) & 0xFF000000);
         DEBUG_PRINT("dims[%d] = %u (0x%08x)\n", i, dims[i], dims[i]);
     }
 
@@ -223,7 +224,7 @@ boat_tensor_t* load_idx_file(const char* filename, boat_dtype_t dtype) {
 
     fprintf(stderr, "Loaded IDX file %s: shape=[", filename);
     for (uint8_t i = 0; i < ndim; i++) {
-        fprintf(stderr, "%lld%s", (long long)shape[i], i == ndim-1 ? "]\n" : ", ");
+        fprintf(stderr, "%lld%s", (long long)shape[i], i == ndim - 1 ? "]\n" : ", ");
     }
 
     free(data);
@@ -263,7 +264,8 @@ static boat_tensor_t* idx_images_to_float32(boat_tensor_t* idx_tensor) {
     }
 
     // Create output tensor
-    boat_tensor_t* output = boat_tensor_create(new_shape, ndim, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    boat_tensor_t* output =
+        boat_tensor_create(new_shape, ndim, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!output) {
         fprintf(stderr, "Error: Failed to create output tensor\n");
         return NULL;
@@ -284,7 +286,7 @@ static boat_tensor_t* idx_images_to_float32(boat_tensor_t* idx_tensor) {
         // (as stored by mnist_data.py after normalization)
         const float* input_data = (const float*)boat_tensor_const_data(idx_tensor);
         for (size_t i = 0; i < total_elements; i++) {
-            output_data[i] = input_data[i];  // Just copy, no division
+            output_data[i] = input_data[i]; // Just copy, no division
         }
     } else {
         fprintf(stderr, "Error: Unsupported dtype for image conversion\n");
@@ -376,8 +378,8 @@ typedef struct {
 
     // Optimizer
     boat_optimizer_t* optimizer;
-    float current_beta1;           // Current beta1 (momentum) parameter for Adam
-    float current_beta2;           // Current beta2 (RMSprop) parameter for Adam
+    float current_beta1; // Current beta1 (momentum) parameter for Adam
+    float current_beta2; // Current beta2 (RMSprop) parameter for Adam
 
     // Learning rate scheduler
     boat_scheduler_t* scheduler;
@@ -396,12 +398,14 @@ static boat_variable_t* tensor_to_variable(boat_tensor_t* tensor, bool requires_
 // predictions: variable with shape (batch, 10), logits (before softmax)
 // labels: tensor with shape (batch) containing class indices (0-9)
 // Returns loss variable
-static boat_variable_t* cross_entropy_loss(const boat_variable_t* predictions, boat_tensor_t* labels) {
+static boat_variable_t* cross_entropy_loss(const boat_variable_t* predictions,
+                                           boat_tensor_t* labels) {
     fprintf(stderr, "CROSS_ENTROPY_LOSS CALLED\n");
     DEBUG_PRINT("cross_entropy_loss: entered\n");
     // Get prediction tensor
     boat_tensor_t* pred_tensor = boat_variable_data(predictions);
-    DEBUG_PRINT("cross_entropy_loss: predictions requires_grad=%d\n", boat_variable_requires_grad(predictions));
+    DEBUG_PRINT("cross_entropy_loss: predictions requires_grad=%d\n",
+                boat_variable_requires_grad(predictions));
     const int64_t* shape = boat_tensor_shape(pred_tensor);
     size_t batch_size = shape[0];
     size_t num_classes = shape[1];
@@ -409,13 +413,15 @@ static boat_variable_t* cross_entropy_loss(const boat_variable_t* predictions, b
     DEBUG_PRINT("cross_entropy_loss: pred_tensor dtype=%d\n", boat_tensor_dtype(pred_tensor));
 
     // Create one-hot encoding of labels
-    boat_tensor_t* one_hot_tensor = boat_tensor_create((int64_t[]){batch_size, num_classes}, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    boat_tensor_t* one_hot_tensor = boat_tensor_create((int64_t[]){batch_size, num_classes}, 2,
+                                                       BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!one_hot_tensor) {
         DEBUG_PRINT("cross_entropy_loss: failed to create one-hot tensor\n");
         return NULL;
     }
     int one_hot_dtype = boat_tensor_dtype(one_hot_tensor);
-    DEBUG_PRINT("cross_entropy_loss: one_hot_tensor created, dtype=%d (expected %d)\n", one_hot_dtype, BOAT_DTYPE_FLOAT32);
+    DEBUG_PRINT("cross_entropy_loss: one_hot_tensor created, dtype=%d (expected %d)\n",
+                one_hot_dtype, BOAT_DTYPE_FLOAT32);
     fflush(stderr);
     float* one_hot_data = (float*)boat_tensor_data(one_hot_tensor);
     memset(one_hot_data, 0, batch_size * num_classes * sizeof(float));
@@ -431,7 +437,8 @@ static boat_variable_t* cross_entropy_loss(const boat_variable_t* predictions, b
     // Convert one-hot tensor to variable (no gradient needed for constant)
     boat_variable_t* one_hot_var = boat_variable_create(one_hot_tensor, false);
     if (one_hot_var) {
-        DEBUG_PRINT("cross_entropy_loss: one_hot_var requires_grad=%d\n", boat_variable_requires_grad(one_hot_var));
+        DEBUG_PRINT("cross_entropy_loss: one_hot_var requires_grad=%d\n",
+                    boat_variable_requires_grad(one_hot_var));
     }
     boat_tensor_unref(one_hot_tensor);
     if (!one_hot_var) {
@@ -447,38 +454,40 @@ static boat_variable_t* cross_entropy_loss(const boat_variable_t* predictions, b
         return NULL;
     }
     DEBUG_PRINT("cross_entropy_loss: log_softmax variable created at %p\n", (void*)log_softmax);
-    DEBUG_PRINT("cross_entropy_loss: log_softmax requires_grad=%d\n", boat_variable_requires_grad(log_softmax));
+    DEBUG_PRINT("cross_entropy_loss: log_softmax requires_grad=%d\n",
+                boat_variable_requires_grad(log_softmax));
     boat_tensor_t* log_softmax_tensor = boat_variable_data(log_softmax);
     int log_softmax_dtype = boat_tensor_dtype(log_softmax_tensor);
-    DEBUG_PRINT("cross_entropy_loss: log_softmax tensor dtype=%d (expected %d)\n", log_softmax_dtype, BOAT_DTYPE_FLOAT32);
+    DEBUG_PRINT("cross_entropy_loss: log_softmax tensor dtype=%d (expected %d)\n",
+                log_softmax_dtype, BOAT_DTYPE_FLOAT32);
     fflush(stderr);
 
     // Debug: print variable info before multiplication
     boat_tensor_t* one_hot_tensor_debug = boat_variable_data(one_hot_var);
     boat_tensor_t* log_softmax_tensor_debug = boat_variable_data(log_softmax);
     DEBUG_PRINT("cross_entropy_loss: one_hot tensor=%p, log_softmax tensor=%p\n",
-            one_hot_tensor_debug, log_softmax_tensor_debug);
+                one_hot_tensor_debug, log_softmax_tensor_debug);
     if (one_hot_tensor_debug) {
         DEBUG_PRINT("cross_entropy_loss: one_hot dtype=%d, shape=[%ld, %ld]\n",
-                boat_tensor_dtype(one_hot_tensor_debug),
-                boat_tensor_shape(one_hot_tensor_debug)[0],
-                boat_tensor_shape(one_hot_tensor_debug)[1]);
+                    boat_tensor_dtype(one_hot_tensor_debug),
+                    boat_tensor_shape(one_hot_tensor_debug)[0],
+                    boat_tensor_shape(one_hot_tensor_debug)[1]);
     } else {
         DEBUG_PRINT("cross_entropy_loss: one_hot tensor is NULL\n");
     }
     if (log_softmax_tensor_debug) {
         DEBUG_PRINT("cross_entropy_loss: log_softmax dtype=%d, shape=[%ld, %ld]\n",
-                boat_tensor_dtype(log_softmax_tensor_debug),
-                boat_tensor_shape(log_softmax_tensor_debug)[0],
-                boat_tensor_shape(log_softmax_tensor_debug)[1]);
+                    boat_tensor_dtype(log_softmax_tensor_debug),
+                    boat_tensor_shape(log_softmax_tensor_debug)[0],
+                    boat_tensor_shape(log_softmax_tensor_debug)[1]);
     } else {
         DEBUG_PRINT("cross_entropy_loss: log_softmax tensor is NULL\n");
     }
 
     // Element-wise multiplication: one_hot * log_softmax
     DEBUG_PRINT("cross_entropy_loss: before boat_var_mul, one_hot dtype=%d, log_softmax dtype=%d\n",
-            one_hot_tensor_debug ? boat_tensor_dtype(one_hot_tensor_debug) : -1,
-            log_softmax_tensor_debug ? boat_tensor_dtype(log_softmax_tensor_debug) : -1);
+                one_hot_tensor_debug ? boat_tensor_dtype(one_hot_tensor_debug) : -1,
+                log_softmax_tensor_debug ? boat_tensor_dtype(log_softmax_tensor_debug) : -1);
     fflush(stderr);
     boat_variable_t* multiplied = boat_var_mul(one_hot_var, log_softmax);
     if (!multiplied) {
@@ -500,7 +509,8 @@ static boat_variable_t* cross_entropy_loss(const boat_variable_t* predictions, b
 
     // Negate and divide by batch size
     // Create constant -1.0 / batch_size variable
-    boat_tensor_t* neg_factor_tensor = boat_tensor_create((int64_t[]){1}, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    boat_tensor_t* neg_factor_tensor =
+        boat_tensor_create((int64_t[]){1}, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!neg_factor_tensor) {
         DEBUG_PRINT("cross_entropy_loss: failed to create factor tensor\n");
         boat_variable_free(one_hot_var);
@@ -512,13 +522,13 @@ static boat_variable_t* cross_entropy_loss(const boat_variable_t* predictions, b
     float* factor_data = (float*)boat_tensor_data(neg_factor_tensor);
     *factor_data = -1.0f / batch_size;
     DEBUG_PRINT("cross_entropy_loss: created neg_factor_tensor dtype=%d, value=%f\n",
-            boat_tensor_dtype(neg_factor_tensor), *factor_data);
+                boat_tensor_dtype(neg_factor_tensor), *factor_data);
     boat_variable_t* factor_var = boat_variable_create(neg_factor_tensor, false);
     boat_tensor_unref(neg_factor_tensor);
     if (factor_var) {
         boat_tensor_t* factor_tensor = boat_variable_data(factor_var);
         DEBUG_PRINT("cross_entropy_loss: factor_var created, tensor dtype=%d\n",
-                boat_tensor_dtype(factor_tensor));
+                    boat_tensor_dtype(factor_tensor));
     }
     if (!factor_var) {
         DEBUG_PRINT("cross_entropy_loss: failed to create factor variable\n");
@@ -545,7 +555,8 @@ static boat_variable_t* cross_entropy_loss(const boat_variable_t* predictions, b
     // boat_variable_free(sum);
     // boat_variable_free(factor_var);
 
-    DEBUG_PRINT("cross_entropy_loss: returning loss_var=%p, requires_grad=%d\n", (void*)loss_var, loss_var ? (int)boat_variable_requires_grad(loss_var) : -1);
+    DEBUG_PRINT("cross_entropy_loss: returning loss_var=%p, requires_grad=%d\n", (void*)loss_var,
+                loss_var ? (int)boat_variable_requires_grad(loss_var) : -1);
     return loss_var;
 }
 
@@ -561,10 +572,11 @@ mnist_model_t* create_mnist_model(float learning_rate, int total_epochs) {
 
     // Create layers
     DEBUG_PRINT("create_mnist_model: creating conv1\n");
-    model->conv1 = boat_conv_layer_create(1, 32, 3, 1, 1, 1);  // 1->32 channels, 3x3 kernel, stride=1, padding=1
+    model->conv1 = boat_conv_layer_create(1, 32, 3, 1, 1,
+                                          1); // 1->32 channels, 3x3 kernel, stride=1, padding=1
     DEBUG_PRINT("create_mnist_model: conv1 = %p\n", model->conv1);
     DEBUG_PRINT("create_mnist_model: creating pool1\n");
-    model->pool1 = boat_pool_layer_create(2, 2, 0);         // 2x2 max pool, stride=2
+    model->pool1 = boat_pool_layer_create(2, 2, 0); // 2x2 max pool, stride=2
     DEBUG_PRINT("create_mnist_model: pool1 = %p\n", model->pool1);
 
     DEBUG_PRINT("create_mnist_model: creating conv2\n");
@@ -579,7 +591,7 @@ mnist_model_t* create_mnist_model(float learning_rate, int total_epochs) {
     DEBUG_PRINT("create_mnist_model: flatten = %p\n", model->flatten);
 
     DEBUG_PRINT("create_mnist_model: creating fc1\n");
-    model->fc1 = boat_dense_layer_create(7*7*64, 128, true); // After 2 poolings: 28->14->7
+    model->fc1 = boat_dense_layer_create(7 * 7 * 64, 128, true); // After 2 poolings: 28->14->7
     DEBUG_PRINT("create_mnist_model: fc1 = %p\n", model->fc1);
     DEBUG_PRINT("create_mnist_model: creating fc2\n");
     model->fc2 = boat_dense_layer_create(128, 10, true);
@@ -587,8 +599,8 @@ mnist_model_t* create_mnist_model(float learning_rate, int total_epochs) {
 
     // Check for creation errors
     DEBUG_PRINT("create_mnist_model: checking layer creation\n");
-    if (!model->conv1 || !model->conv2 || !model->pool1 || !model->pool2 ||
-        !model->flatten || !model->fc1 || !model->fc2) {
+    if (!model->conv1 || !model->conv2 || !model->pool1 || !model->pool2 || !model->flatten ||
+        !model->fc1 || !model->fc2) {
         fprintf(stderr, "Error: Failed to create one or more layers\n");
         free(model);
         return NULL;
@@ -599,7 +611,8 @@ mnist_model_t* create_mnist_model(float learning_rate, int total_epochs) {
     DEBUG_PRINT("create_mnist_model: creating optimizer\n");
     model->current_beta1 = 0.9f;
     model->current_beta2 = 0.999f;
-    model->optimizer = boat_adam_optimizer_create(learning_rate, model->current_beta1, model->current_beta2, 1e-8f);
+    model->optimizer = boat_adam_optimizer_create(learning_rate, model->current_beta1,
+                                                  model->current_beta2, 1e-8f);
     DEBUG_PRINT("create_mnist_model: optimizer = %p\n", model->optimizer);
     if (!model->optimizer) {
         fprintf(stderr, "Error: Failed to create optimizer\n");
@@ -607,17 +620,20 @@ mnist_model_t* create_mnist_model(float learning_rate, int total_epochs) {
         return NULL;
     }
     DEBUG_PRINT("create_mnist_model: optimizer created successfully (beta1=%.3f, beta2=%.3f)\n",
-            model->current_beta1, model->current_beta2);
+                model->current_beta1, model->current_beta2);
 
     // Create learning rate scheduler (CosineAnnealing with warm-up)
     DEBUG_PRINT("create_mnist_model: creating scheduler\n");
     // Cosine annealing scheduler: T_max=total_epochs epochs, eta_min=1% of base LR
-    model->scheduler = boat_cosine_annealing_scheduler_create(learning_rate, total_epochs, learning_rate * 0.01f);
+    model->scheduler =
+        boat_cosine_annealing_scheduler_create(learning_rate, total_epochs, learning_rate * 0.01f);
     DEBUG_PRINT("create_mnist_model: scheduler = %p\n", model->scheduler);
     if (!model->scheduler) {
         fprintf(stderr, "Warning: Failed to create scheduler, continuing without scheduler\n");
     } else {
-        DEBUG_PRINT("create_mnist_model: cosine annealing scheduler created successfully (T_max=%d, eta_min=%.6f)\n", total_epochs, learning_rate * 0.01f);
+        DEBUG_PRINT("create_mnist_model: cosine annealing scheduler created successfully "
+                    "(T_max=%d, eta_min=%.6f)\n",
+                    total_epochs, learning_rate * 0.01f);
     }
 
     // Register parameters to optimizer
@@ -626,7 +642,8 @@ mnist_model_t* create_mnist_model(float learning_rate, int total_epochs) {
     DEBUG_PRINT("create_mnist_model: getting conv1 weight\n");
     boat_tensor_t* conv1_weight = boat_conv_layer_get_weight(model->conv1);
     boat_tensor_t* conv1_grad_weight = boat_conv_layer_get_grad_weight(model->conv1);
-    DEBUG_PRINT("create_mnist_model: conv1_weight=%p, conv1_grad_weight=%p\n", conv1_weight, conv1_grad_weight);
+    DEBUG_PRINT("create_mnist_model: conv1_weight=%p, conv1_grad_weight=%p\n", conv1_weight,
+                conv1_grad_weight);
     if (conv1_weight && conv1_grad_weight) {
         boat_optimizer_add_parameter(model->optimizer, conv1_weight, conv1_grad_weight);
     }
@@ -769,8 +786,8 @@ boat_tensor_t* forward_pass_layer(mnist_model_t* model, boat_tensor_t* input) {
 
 boat_variable_t* forward_pass(mnist_model_t* model, const boat_variable_t* input) {
     DEBUG_PRINT("forward_pass: entered, input=%p\n", (void*)input);
-    fprintf(stderr, "[DEBUG] forward_pass: input variable %p, requires_grad=%d\n",
-            input, input ? boat_variable_requires_grad(input) : -1);
+    fprintf(stderr, "[DEBUG] forward_pass: input variable %p, requires_grad=%d\n", input,
+            input ? boat_variable_requires_grad(input) : -1);
 
     // Autodiff forward pass using variable operations
     boat_variable_t* x = input;
@@ -1121,12 +1138,14 @@ static gradient_stats_t compute_gradient_stats(mnist_model_t* model, float clip_
     if (model->conv1) {
         boat_tensor_t* grad_weight = boat_conv_layer_get_grad_weight(model->conv1);
         boat_tensor_t* grad_bias = boat_conv_layer_get_grad_bias(model->conv1);
-        fprintf(stderr, "[DEBUG] conv1: grad_weight=%p, grad_bias=%p\n", (void*)grad_weight, (void*)grad_bias);
+        fprintf(stderr, "[DEBUG] conv1: grad_weight=%p, grad_bias=%p\n", (void*)grad_weight,
+                (void*)grad_bias);
         fflush(stderr);
         if (grad_weight) {
             const float* data = (const float*)boat_tensor_const_data(grad_weight);
             size_t nelem = boat_tensor_nbytes(grad_weight) / sizeof(float);
-            fprintf(stderr, "[DEBUG] conv1 grad_weight: nelem=%zu, first value=%f\n", nelem, nelem > 0 ? data[0] : 0.0f);
+            fprintf(stderr, "[DEBUG] conv1 grad_weight: nelem=%zu, first value=%f\n", nelem,
+                    nelem > 0 ? data[0] : 0.0f);
             fflush(stderr);
         }
     }
@@ -1140,41 +1159,45 @@ static gradient_stats_t compute_gradient_stats(mnist_model_t* model, float clip_
     int clipped_params = 0;
     int nan_inf_params = 0;
 
-    // Helper macro to process gradient tensor
-    #define PROCESS_GRADIENT_TENSOR(grad_tensor) \
-        if (grad_tensor) { \
-            const float* grad_data = (const float*)boat_tensor_const_data(grad_tensor); \
-            size_t num_elements = boat_tensor_nbytes(grad_tensor) / sizeof(float); \
-            fprintf(stderr, "[DEBUG PROCESS_GRADIENT_TENSOR] tensor=%p, num_elements=%zu\n", (void*)grad_tensor, num_elements); \
-            fflush(stderr); \
-            total_params += num_elements; \
-            for (size_t i = 0; i < num_elements; i++) { \
-                float g = grad_data[i]; \
-                /* Check for NaN or Inf */ \
-                if (isnan(g) || isinf(g)) { \
-                    nan_inf_params++; \
-                    continue; /* Skip NaN/Inf values in statistics */ \
-                } \
-                float abs_g = fabsf(g); \
-                sum_squares += g * g; \
-                sum_abs += abs_g; \
-                if (abs_g > max_val) max_val = abs_g; \
-                if (abs_g > 0 && abs_g < min_val) min_val = abs_g; \
-                if (clip_threshold > 0 && abs_g > clip_threshold) clipped_params++; \
-                if (i < 5 && num_elements > 0) { \
-                    fprintf(stderr, "[DEBUG] grad[%zu]=%f ", i, g); \
-                    fflush(stderr); \
-                } \
-            } \
-            if (num_elements > 0) { fprintf(stderr, "\n"); fflush(stderr); } \
-        }
+// Helper macro to process gradient tensor
+#define PROCESS_GRADIENT_TENSOR(grad_tensor)                                                       \
+    if (grad_tensor) {                                                                             \
+        const float* grad_data = (const float*)boat_tensor_const_data(grad_tensor);                \
+        size_t num_elements = boat_tensor_nbytes(grad_tensor) / sizeof(float);                     \
+        fprintf(stderr, "[DEBUG PROCESS_GRADIENT_TENSOR] tensor=%p, num_elements=%zu\n",           \
+                (void*)grad_tensor, num_elements);                                                 \
+        fflush(stderr);                                                                            \
+        total_params += num_elements;                                                              \
+        for (size_t i = 0; i < num_elements; i++) {                                                \
+            float g = grad_data[i];                                                                \
+            /* Check for NaN or Inf */                                                             \
+            if (isnan(g) || isinf(g)) {                                                            \
+                nan_inf_params++;                                                                  \
+                continue; /* Skip NaN/Inf values in statistics */                                  \
+            }                                                                                      \
+            float abs_g = fabsf(g);                                                                \
+            sum_squares += g * g;                                                                  \
+            sum_abs += abs_g;                                                                      \
+            if (abs_g > max_val) max_val = abs_g;                                                  \
+            if (abs_g > 0 && abs_g < min_val) min_val = abs_g;                                     \
+            if (clip_threshold > 0 && abs_g > clip_threshold) clipped_params++;                    \
+            if (i < 5 && num_elements > 0) {                                                       \
+                fprintf(stderr, "[DEBUG] grad[%zu]=%f ", i, g);                                    \
+                fflush(stderr);                                                                    \
+            }                                                                                      \
+        }                                                                                          \
+        if (num_elements > 0) {                                                                    \
+            fprintf(stderr, "\n");                                                                 \
+            fflush(stderr);                                                                        \
+        }                                                                                          \
+    }
 
     // Process gradients from all layers
     if (model->conv1) {
         boat_tensor_t* grad_weight = boat_conv_layer_get_grad_weight(model->conv1);
         boat_tensor_t* grad_bias = boat_conv_layer_get_grad_bias(model->conv1);
-        fprintf(stderr, "[DEBUG] conv1 layer=%p, grad_weight=%p, grad_bias=%p\n",
-                model->conv1, grad_weight, grad_bias);
+        fprintf(stderr, "[DEBUG] conv1 layer=%p, grad_weight=%p, grad_bias=%p\n", model->conv1,
+                grad_weight, grad_bias);
         fflush(stderr);
         PROCESS_GRADIENT_TENSOR(grad_weight);
         PROCESS_GRADIENT_TENSOR(grad_bias);
@@ -1182,8 +1205,8 @@ static gradient_stats_t compute_gradient_stats(mnist_model_t* model, float clip_
     if (model->conv2) {
         boat_tensor_t* grad_weight = boat_conv_layer_get_grad_weight(model->conv2);
         boat_tensor_t* grad_bias = boat_conv_layer_get_grad_bias(model->conv2);
-        fprintf(stderr, "[DEBUG] conv2 layer=%p, grad_weight=%p, grad_bias=%p\n",
-                model->conv2, grad_weight, grad_bias);
+        fprintf(stderr, "[DEBUG] conv2 layer=%p, grad_weight=%p, grad_bias=%p\n", model->conv2,
+                grad_weight, grad_bias);
         fflush(stderr);
         PROCESS_GRADIENT_TENSOR(grad_weight);
         PROCESS_GRADIENT_TENSOR(grad_bias);
@@ -1191,8 +1214,8 @@ static gradient_stats_t compute_gradient_stats(mnist_model_t* model, float clip_
     if (model->fc1) {
         boat_tensor_t* grad_weight = boat_dense_layer_get_grad_weight(model->fc1);
         boat_tensor_t* grad_bias = boat_dense_layer_get_grad_bias(model->fc1);
-        fprintf(stderr, "[DEBUG] fc1 layer=%p, grad_weight=%p, grad_bias=%p\n",
-                model->fc1, grad_weight, grad_bias);
+        fprintf(stderr, "[DEBUG] fc1 layer=%p, grad_weight=%p, grad_bias=%p\n", model->fc1,
+                grad_weight, grad_bias);
         fflush(stderr);
         PROCESS_GRADIENT_TENSOR(grad_weight);
         PROCESS_GRADIENT_TENSOR(grad_bias);
@@ -1200,14 +1223,14 @@ static gradient_stats_t compute_gradient_stats(mnist_model_t* model, float clip_
     if (model->fc2) {
         boat_tensor_t* grad_weight = boat_dense_layer_get_grad_weight(model->fc2);
         boat_tensor_t* grad_bias = boat_dense_layer_get_grad_bias(model->fc2);
-        fprintf(stderr, "[DEBUG] fc2 layer=%p, grad_weight=%p, grad_bias=%p\n",
-                model->fc2, grad_weight, grad_bias);
+        fprintf(stderr, "[DEBUG] fc2 layer=%p, grad_weight=%p, grad_bias=%p\n", model->fc2,
+                grad_weight, grad_bias);
         fflush(stderr);
         PROCESS_GRADIENT_TENSOR(grad_weight);
         PROCESS_GRADIENT_TENSOR(grad_bias);
     }
 
-    #undef PROCESS_GRADIENT_TENSOR
+#undef PROCESS_GRADIENT_TENSOR
 
     // Compute final statistics
     stats.total_norm = sqrtf(sum_squares);
@@ -1226,19 +1249,19 @@ static gradient_stats_t compute_gradient_stats(mnist_model_t* model, float clip_
 static void apply_gradient_clipping(mnist_model_t* model, float clip_threshold) {
     if (!model || clip_threshold <= 0) return;
 
-    // Helper macro to clip gradient tensor
-    #define CLIP_GRADIENT_TENSOR(grad_tensor) \
-        if (grad_tensor) { \
-            float* grad_data = (float*)boat_tensor_data(grad_tensor); \
-            size_t num_elements = boat_tensor_nbytes(grad_tensor) / sizeof(float); \
-            for (size_t i = 0; i < num_elements; i++) { \
-                float g = grad_data[i]; \
-                float norm = fabsf(g); \
-                if (norm > clip_threshold) { \
-                    grad_data[i] = g * clip_threshold / norm; \
-                } \
-            } \
-        }
+// Helper macro to clip gradient tensor
+#define CLIP_GRADIENT_TENSOR(grad_tensor)                                                          \
+    if (grad_tensor) {                                                                             \
+        float* grad_data = (float*)boat_tensor_data(grad_tensor);                                  \
+        size_t num_elements = boat_tensor_nbytes(grad_tensor) / sizeof(float);                     \
+        for (size_t i = 0; i < num_elements; i++) {                                                \
+            float g = grad_data[i];                                                                \
+            float norm = fabsf(g);                                                                 \
+            if (norm > clip_threshold) {                                                           \
+                grad_data[i] = g * clip_threshold / norm;                                          \
+            }                                                                                      \
+        }                                                                                          \
+    }
 
     if (model->conv1) {
         CLIP_GRADIENT_TENSOR(boat_conv_layer_get_grad_weight(model->conv1));
@@ -1257,25 +1280,22 @@ static void apply_gradient_clipping(mnist_model_t* model, float clip_threshold) 
         CLIP_GRADIENT_TENSOR(boat_dense_layer_get_grad_bias(model->fc2));
     }
 
-    #undef CLIP_GRADIENT_TENSOR
+#undef CLIP_GRADIENT_TENSOR
 }
 
 // Training stability analysis functions
 typedef struct {
-    float loss_mean;          // Mean loss over recent epochs
-    float loss_stddev;        // Standard deviation of loss
-    float loss_smoothness;    // Smoothness metric (lower = smoother)
-    float val_improvement;    // Validation improvement ratio
+    float loss_mean;       // Mean loss over recent epochs
+    float loss_stddev;     // Standard deviation of loss
+    float loss_smoothness; // Smoothness metric (lower = smoother)
+    float val_improvement; // Validation improvement ratio
 } stability_stats_t;
 
 // Provide hyperparameter tuning recommendations based on monitoring data
 static void provide_tuning_recommendations(const gradient_stats_t* grad_stats,
-                                          const stability_stats_t* stability_stats,
-                                          float current_lr,
-                                          double epoch_time,
-                                          int batch_size,
-                                          int epoch,
-                                          int total_epochs) {
+                                           const stability_stats_t* stability_stats,
+                                           float current_lr, double epoch_time, int batch_size,
+                                           int epoch, int total_epochs) {
     printf("             tuning suggestions: ");
     bool has_suggestion = false;
 
@@ -1288,11 +1308,13 @@ static void provide_tuning_recommendations(const gradient_stats_t* grad_stats,
 
     // Check gradient magnitude
     if (grad_stats->total_norm > 10.0f) {
-        printf("%sgradient norm high (%.2f), consider reducing learning rate or applying gradient clipping",
+        printf("%sgradient norm high (%.2f), consider reducing learning rate or applying gradient "
+               "clipping",
                has_suggestion ? "; " : "", grad_stats->total_norm);
         has_suggestion = true;
     } else if (grad_stats->total_norm < 0.01f) {
-        printf("%sgradient norm low (%.4f), consider increasing learning rate or checking initialization",
+        printf("%sgradient norm low (%.4f), consider increasing learning rate or checking "
+               "initialization",
                has_suggestion ? "; " : "", grad_stats->total_norm);
         has_suggestion = true;
     }
@@ -1306,7 +1328,8 @@ static void provide_tuning_recommendations(const gradient_stats_t* grad_stats,
 
     // Check loss stability
     if (stability_stats->loss_stddev > 0.1f && epoch > 5) {
-        printf("%shigh loss variability (std=%.3f), consider reducing learning rate or increasing batch size",
+        printf("%shigh loss variability (std=%.3f), consider reducing learning rate or increasing "
+               "batch size",
                has_suggestion ? "; " : "", stability_stats->loss_stddev);
         has_suggestion = true;
     }
@@ -1320,7 +1343,8 @@ static void provide_tuning_recommendations(const gradient_stats_t* grad_stats,
 
     // Check validation improvement
     if (epoch > 5 && stability_stats->val_improvement < 0.001f) {
-        printf("%slittle validation improvement (%.3f%%), consider reducing learning rate or applying early stopping",
+        printf("%slittle validation improvement (%.3f%%), consider reducing learning rate or "
+               "applying early stopping",
                has_suggestion ? "; " : "", stability_stats->val_improvement * 100.0f);
         has_suggestion = true;
     }
@@ -1331,7 +1355,8 @@ static void provide_tuning_recommendations(const gradient_stats_t* grad_stats,
                has_suggestion ? "; " : "", epoch_time);
         has_suggestion = true;
     } else if (epoch_time < 0.5 && batch_size > 32) {
-        printf("%sepoch time short (%.1fs), consider decreasing batch size for better gradient estimate",
+        printf("%sepoch time short (%.1fs), consider decreasing batch size for better gradient "
+               "estimate",
                has_suggestion ? "; " : "", epoch_time);
         has_suggestion = true;
     }
@@ -1342,8 +1367,8 @@ static void provide_tuning_recommendations(const gradient_stats_t* grad_stats,
                has_suggestion ? "; " : "", current_lr);
         has_suggestion = true;
     } else if (current_lr < 1e-6f) {
-        printf("%slearning rate very low (%.6f), consider increasing",
-               has_suggestion ? "; " : "", current_lr);
+        printf("%slearning rate very low (%.6f), consider increasing", has_suggestion ? "; " : "",
+               current_lr);
         has_suggestion = true;
     }
 
@@ -1354,11 +1379,11 @@ static void provide_tuning_recommendations(const gradient_stats_t* grad_stats,
 }
 
 // Reinforcement Learning agent for hyperparameter tuning
-#define RL_NUM_STATES 18  // 3 (grad_norm) * 3 (stability) * 2 (multi_obj_score)
-#define RL_LR_ACTIONS 5   // Learning rate adjustment factors
-#define RL_BS_ACTIONS 3   // Batch size adjustment factors
-#define RL_MOM_ACTIONS 3  // Momentum adjustment factors
-#define RL_NUM_ACTIONS (RL_LR_ACTIONS * RL_BS_ACTIONS * RL_MOM_ACTIONS)  // Total action combinations
+#define RL_NUM_STATES 18 // 3 (grad_norm) * 3 (stability) * 2 (multi_obj_score)
+#define RL_LR_ACTIONS 5  // Learning rate adjustment factors
+#define RL_BS_ACTIONS 3  // Batch size adjustment factors
+#define RL_MOM_ACTIONS 3 // Momentum adjustment factors
+#define RL_NUM_ACTIONS (RL_LR_ACTIONS * RL_BS_ACTIONS * RL_MOM_ACTIONS) // Total action combinations
 #define RL_LEARNING_RATE 0.1f
 #define RL_DISCOUNT_FACTOR 0.9f
 #define RL_EXPLORATION_RATE 0.2f
@@ -1368,16 +1393,16 @@ static void provide_tuning_recommendations(const gradient_stats_t* grad_stats,
 #define RL_EARLY_STAGE 0
 #define RL_MID_STAGE 1
 #define RL_LATE_STAGE 2
-#define RL_EARLY_STAGE_THRESHOLD 0.33f  // First 33% of training
-#define RL_MID_STAGE_THRESHOLD 0.66f    // Next 33% of training
+#define RL_EARLY_STAGE_THRESHOLD 0.33f // First 33% of training
+#define RL_MID_STAGE_THRESHOLD 0.66f   // Next 33% of training
 
 // Stage-dependent exploration decay factors
-#define RL_EXPLORATION_DECAY_EARLY 0.995f  // Slow decay in early stage
-#define RL_EXPLORATION_DECAY_MID   0.990f  // Medium decay in mid stage
-#define RL_EXPLORATION_DECAY_LATE  0.985f  // Faster decay in late stage
+#define RL_EXPLORATION_DECAY_EARLY 0.995f // Slow decay in early stage
+#define RL_EXPLORATION_DECAY_MID 0.990f   // Medium decay in mid stage
+#define RL_EXPLORATION_DECAY_LATE 0.985f  // Faster decay in late stage
 
 // Uncertainty-based action selection constants
-#define RL_UCB_EXPLORATION_CONSTANT 2.0f  // UCB exploration constant
+#define RL_UCB_EXPLORATION_CONSTANT 2.0f // UCB exploration constant
 
 typedef struct {
     float q_table[RL_NUM_STATES][RL_NUM_ACTIONS];
@@ -1396,8 +1421,8 @@ typedef struct {
     int num_available_actions;             // Number of available actions
     int available_actions[RL_NUM_ACTIONS]; // List of available action indices
     // Uncertainty-based action selection tracking
-    int state_visits[RL_NUM_STATES];                    // Visit counts for each state
-    int action_visits[RL_NUM_STATES][RL_NUM_ACTIONS];   // Visit counts for each state-action pair
+    int state_visits[RL_NUM_STATES];                  // Visit counts for each state
+    int action_visits[RL_NUM_STATES][RL_NUM_ACTIONS]; // Visit counts for each state-action pair
 } rl_agent_t;
 
 // RL action definitions
@@ -1405,22 +1430,12 @@ static const float rl_lr_factors[RL_LR_ACTIONS] = {0.5f, 0.8f, 1.0f, 1.2f, 2.0f}
 static const float rl_bs_factors[RL_BS_ACTIONS] = {0.5f, 1.0f, 2.0f};
 static const float rl_mom_factors[RL_MOM_ACTIONS] = {0.9f, 1.0f, 1.1f};
 static const char* rl_lr_descriptions[RL_LR_ACTIONS] = {
-    "halve learning rate",
-    "slightly reduce learning rate",
-    "keep learning rate unchanged",
-    "slightly increase learning rate",
-    "double learning rate"
-};
+    "halve learning rate", "slightly reduce learning rate", "keep learning rate unchanged",
+    "slightly increase learning rate", "double learning rate"};
 static const char* rl_bs_descriptions[RL_BS_ACTIONS] = {
-    "halve batch size",
-    "keep batch size unchanged",
-    "double batch size"
-};
+    "halve batch size", "keep batch size unchanged", "double batch size"};
 static const char* rl_mom_descriptions[RL_MOM_ACTIONS] = {
-    "reduce momentum",
-    "keep momentum unchanged",
-    "increase momentum"
-};
+    "reduce momentum", "keep momentum unchanged", "increase momentum"};
 
 // Action decoding helper functions
 static inline int decode_lr_action(int action) {
@@ -1445,8 +1460,8 @@ static inline void get_action_description(int action, char* buffer, size_t buffe
     int lr_a = decode_lr_action(action);
     int bs_a = decode_bs_action(action);
     int mom_a = decode_mom_action(action);
-    snprintf(buffer, buffer_size, "LR: %s; BS: %s; Mom: %s",
-             rl_lr_descriptions[lr_a], rl_bs_descriptions[bs_a], rl_mom_descriptions[mom_a]);
+    snprintf(buffer, buffer_size, "LR: %s; BS: %s; Mom: %s", rl_lr_descriptions[lr_a],
+             rl_bs_descriptions[bs_a], rl_mom_descriptions[mom_a]);
 }
 
 // Adaptive action space helper functions
@@ -1470,27 +1485,26 @@ static inline bool rl_agent_is_action_available(int action, int stage) {
     int bs_action = decode_bs_action(action);
 
     switch (stage) {
-        case RL_EARLY_STAGE:
-            // Disable extreme LR changes (indices 0 and 4: halve and double)
-            // Disable batch size doubling (index 2)
-            // Keep all momentum adjustments
-            if (lr_action == 0 || lr_action == 4) return false;  // No halving/doubling LR
-            if (bs_action == 2) return false;                    // No doubling batch size
-            return true;
+    case RL_EARLY_STAGE:
+        // Disable extreme LR changes (indices 0 and 4: halve and double)
+        // Disable batch size doubling (index 2)
+        // Keep all momentum adjustments
+        if (lr_action == 0 || lr_action == 4) return false; // No halving/doubling LR
+        if (bs_action == 2) return false;                   // No doubling batch size
+        return true;
 
-        case RL_MID_STAGE:
-            // Allow all LR adjustments except halving (too aggressive for mid-stage)
-            // Allow all batch size adjustments
-            // Allow all momentum adjustments
-            if (lr_action == 0) return false;  // No halving LR
-            return true;
+    case RL_MID_STAGE:
+        // Allow all LR adjustments except halving (too aggressive for mid-stage)
+        // Allow all batch size adjustments
+        // Allow all momentum adjustments
+        if (lr_action == 0) return false; // No halving LR
+        return true;
 
-        case RL_LATE_STAGE:
-            // Allow all actions in late stage
-            return true;
+    case RL_LATE_STAGE:
+        // Allow all actions in late stage
+        return true;
 
-        default:
-            return true;
+    default: return true;
     }
 }
 
@@ -1538,11 +1552,11 @@ static rl_agent_t rl_agent_init() {
     agent.has_previous_score = false;
 
     // Initialize adaptive action space fields
-    agent.current_stage = RL_EARLY_STAGE;  // Start in early stage
+    agent.current_stage = RL_EARLY_STAGE; // Start in early stage
     agent.num_available_actions = 0;
     // Initialize action mask (will be updated when stage is known)
     for (int a = 0; a < RL_NUM_ACTIONS; a++) {
-        agent.action_mask[a] = true;  // Initially all actions available
+        agent.action_mask[a] = true; // Initially all actions available
         agent.available_actions[a] = a;
     }
     agent.num_available_actions = RL_NUM_ACTIONS;
@@ -1568,14 +1582,20 @@ static rl_agent_t rl_agent_init() {
 // Map continuous metrics to discrete state
 static int rl_agent_get_state(float grad_norm, float loss_stddev, float multi_objective_score) {
     int grad_state;
-    if (grad_norm < 0.01f) grad_state = 0;
-    else if (grad_norm <= 10.0f) grad_state = 1;
-    else grad_state = 2;
+    if (grad_norm < 0.01f)
+        grad_state = 0;
+    else if (grad_norm <= 10.0f)
+        grad_state = 1;
+    else
+        grad_state = 2;
 
     int stability_state;
-    if (loss_stddev < 0.05f) stability_state = 0;
-    else if (loss_stddev <= 0.1f) stability_state = 1;
-    else stability_state = 2;
+    if (loss_stddev < 0.05f)
+        stability_state = 0;
+    else if (loss_stddev <= 0.1f)
+        stability_state = 1;
+    else
+        stability_state = 2;
 
     int score_state = multi_objective_score < 0.5f ? 0 : 1;
 
@@ -1598,7 +1618,7 @@ static int rl_agent_select_action(rl_agent_t* agent, int state) {
 
     // Exploitation: choose available action using UCB (Upper Confidence Bound)
     int best_action = -1;
-    float best_ucb_score = -1e9f;  // Very small initial value
+    float best_ucb_score = -1e9f; // Very small initial value
 
     // Calculate total visits for this state (add 1 to avoid log(0))
     int state_visits_total = agent->state_visits[state] + 1;
@@ -1608,7 +1628,8 @@ static int rl_agent_select_action(rl_agent_t* agent, int state) {
     for (int i = 0; i < agent->num_available_actions; i++) {
         int a = agent->available_actions[i];
         int action_visits = agent->action_visits[state][a] + 1; // Add 1 to avoid division by zero
-        float exploration_bonus = RL_UCB_EXPLORATION_CONSTANT * sqrt(log_state_visits / (float)action_visits);
+        float exploration_bonus =
+            RL_UCB_EXPLORATION_CONSTANT * sqrt(log_state_visits / (float)action_visits);
         float ucb_score = agent->q_table[state][a] + exploration_bonus;
 
         if (best_action == -1 || ucb_score > best_ucb_score) {
@@ -1635,7 +1656,7 @@ static void rl_agent_update(rl_agent_t* agent, int new_state, float reward) {
     float old_q = agent->q_table[agent->last_state][agent->last_action];
 
     // Find max Q for new state among available actions
-    float max_q_new = -1e9f;  // Very small initial value
+    float max_q_new = -1e9f; // Very small initial value
     bool found_available = false;
 
     // Search through available actions for this stage
@@ -1697,36 +1718,30 @@ static rl_agent_t rl_agent;
 static bool rl_agent_initialized = false;
 
 // Generate auto-tuning decisions based on monitoring data
-static auto_tuning_decision_t auto_tuning_strategy(const gradient_stats_t* grad_stats,
-                                                  const stability_stats_t* stability_stats,
-                                                  float current_lr,
-                                                  double epoch_time,
-                                                  int batch_size,
-                                                  int epoch,
-                                                  int total_epochs,
-                                                  float current_clip_threshold,
-                                                  float throughput_sps,
-                                                  float memory_usage_mb,
-                                                  float validation_accuracy) {
-    auto_tuning_decision_t decision = {
-        .lr_adjustment_factor = 1.0f,
-        .new_clip_threshold = current_clip_threshold,
-        .apply_clipping = false,
-        .batch_size_factor = 1.0f,
-        .beta1_adjustment_factor = 1.0f,
-        .beta2_adjustment_factor = 1.0f,
-        .should_reduce_lr = false,
-        .should_increase_lr = false,
-        .explanation = ""
-    };
+static auto_tuning_decision_t
+auto_tuning_strategy(const gradient_stats_t* grad_stats, const stability_stats_t* stability_stats,
+                     float current_lr, double epoch_time, int batch_size, int epoch,
+                     int total_epochs, float current_clip_threshold, float throughput_sps,
+                     float memory_usage_mb, float validation_accuracy) {
+    auto_tuning_decision_t decision = {.lr_adjustment_factor = 1.0f,
+                                       .new_clip_threshold = current_clip_threshold,
+                                       .apply_clipping = false,
+                                       .batch_size_factor = 1.0f,
+                                       .beta1_adjustment_factor = 1.0f,
+                                       .beta2_adjustment_factor = 1.0f,
+                                       .should_reduce_lr = false,
+                                       .should_increase_lr = false,
+                                       .explanation = ""};
 
     // Calculate multi-objective score (needed for RL agent and multi-objective optimization)
     const float throughput_target = 5000.0f;
     const float memory_target = 200.0f;
     const float accuracy_target = 0.95f;
 
-    float throughput_score = throughput_sps > 0 ? fminf(throughput_sps / throughput_target, 1.0f) : 0.0f;
-    float memory_score = memory_usage_mb > 0 ? fmaxf(0.0f, 1.0f - (memory_usage_mb / memory_target)) : 1.0f;
+    float throughput_score =
+        throughput_sps > 0 ? fminf(throughput_sps / throughput_target, 1.0f) : 0.0f;
+    float memory_score =
+        memory_usage_mb > 0 ? fmaxf(0.0f, 1.0f - (memory_usage_mb / memory_target)) : 1.0f;
     float accuracy_score = validation_accuracy / accuracy_target;
 
     // Dynamic weights based on training stage
@@ -1735,14 +1750,17 @@ static auto_tuning_decision_t auto_tuning_strategy(const gradient_stats_t* grad_
     float weight_accuracy = 0.4f;
 
     if (epoch < total_epochs / 3) {
-        weight_throughput = 0.4f; weight_memory = 0.4f; weight_accuracy = 0.2f;
+        weight_throughput = 0.4f;
+        weight_memory = 0.4f;
+        weight_accuracy = 0.2f;
     } else if (epoch > total_epochs * 2 / 3) {
-        weight_throughput = 0.2f; weight_memory = 0.2f; weight_accuracy = 0.6f;
+        weight_throughput = 0.2f;
+        weight_memory = 0.2f;
+        weight_accuracy = 0.6f;
     }
 
     float multi_objective_score = weight_throughput * throughput_score +
-                                  weight_memory * memory_score +
-                                  weight_accuracy * accuracy_score;
+                                  weight_memory * memory_score + weight_accuracy * accuracy_score;
 
     // Reinforcement Learning tuning integration (iteration 21)
     if (!rl_agent_initialized) {
@@ -1762,7 +1780,8 @@ static auto_tuning_decision_t auto_tuning_strategy(const gradient_stats_t* grad_
     }
 
     // Get current state for RL agent
-    int rl_current_state = rl_agent_get_state(grad_stats->total_norm, stability_stats->loss_stddev, multi_objective_score);
+    int rl_current_state = rl_agent_get_state(grad_stats->total_norm, stability_stats->loss_stddev,
+                                              multi_objective_score);
 
     // Select action using RL agent
     int rl_action = rl_agent_select_action(&rl_agent, rl_current_state);
@@ -1814,12 +1833,12 @@ static auto_tuning_decision_t auto_tuning_strategy(const gradient_stats_t* grad_
         decision.lr_adjustment_factor = 0.5f; // Reduce learning rate by half
         decision.should_reduce_lr = true;
         snprintf(decision.explanation, sizeof(decision.explanation),
-                "High gradient norm (%.2f), reducing learning rate", grad_stats->total_norm);
+                 "High gradient norm (%.2f), reducing learning rate", grad_stats->total_norm);
     } else if (grad_stats->total_norm < 0.01f) {
         decision.lr_adjustment_factor = 2.0f; // Double learning rate
         decision.should_increase_lr = true;
         snprintf(decision.explanation, sizeof(decision.explanation),
-                "Low gradient norm (%.4f), increasing learning rate", grad_stats->total_norm);
+                 "Low gradient norm (%.4f), increasing learning rate", grad_stats->total_norm);
     }
 
     // 2. Gradient clipping threshold adjustment
@@ -1832,8 +1851,8 @@ static auto_tuning_decision_t auto_tuning_strategy(const gradient_stats_t* grad_
         }
         char clip_msg[128];
         snprintf(clip_msg, sizeof(clip_msg),
-                "High clipping ratio (%.1f%%), reducing clip threshold to %.2f",
-                grad_stats->grad_clip_ratio * 100.0f, decision.new_clip_threshold);
+                 "High clipping ratio (%.1f%%), reducing clip threshold to %.2f",
+                 grad_stats->grad_clip_ratio * 100.0f, decision.new_clip_threshold);
         safe_append_explanation(&decision, clip_msg);
     } else if (grad_stats->grad_clip_ratio < 0.01f && current_clip_threshold < 10.0f) {
         // If very few gradients would be clipped, increase threshold
@@ -1843,8 +1862,8 @@ static auto_tuning_decision_t auto_tuning_strategy(const gradient_stats_t* grad_
         }
         char clip_msg[128];
         snprintf(clip_msg, sizeof(clip_msg),
-                "Low clipping ratio (%.1f%%), increasing clip threshold to %.2f",
-                grad_stats->grad_clip_ratio * 100.0f, decision.new_clip_threshold);
+                 "Low clipping ratio (%.1f%%), increasing clip threshold to %.2f",
+                 grad_stats->grad_clip_ratio * 100.0f, decision.new_clip_threshold);
         safe_append_explanation(&decision, clip_msg);
     }
 
@@ -1864,8 +1883,8 @@ static auto_tuning_decision_t auto_tuning_strategy(const gradient_stats_t* grad_
         }
         char stability_msg[128];
         snprintf(stability_msg, sizeof(stability_msg),
-                "High loss variability (std=%.3f), adjusting learning rate",
-                stability_stats->loss_stddev);
+                 "High loss variability (std=%.3f), adjusting learning rate",
+                 stability_stats->loss_stddev);
         safe_append_explanation(&decision, stability_msg);
     }
 
@@ -1876,8 +1895,8 @@ static auto_tuning_decision_t auto_tuning_strategy(const gradient_stats_t* grad_
             safe_append_explanation(&decision, "; ");
         }
         char batch_msg[128];
-        snprintf(batch_msg, sizeof(batch_msg),
-                "Long epoch time (%.1fs), increasing batch size", epoch_time);
+        snprintf(batch_msg, sizeof(batch_msg), "Long epoch time (%.1fs), increasing batch size",
+                 epoch_time);
         safe_append_explanation(&decision, batch_msg);
     } else if (epoch_time < 0.5 && batch_size > 32) {
         decision.batch_size_factor = 0.67f; // Reduce batch size by 33%
@@ -1885,8 +1904,8 @@ static auto_tuning_decision_t auto_tuning_strategy(const gradient_stats_t* grad_
             safe_append_explanation(&decision, "; ");
         }
         char batch_msg[128];
-        snprintf(batch_msg, sizeof(batch_msg),
-                "Short epoch time (%.1fs), decreasing batch size", epoch_time);
+        snprintf(batch_msg, sizeof(batch_msg), "Short epoch time (%.1fs), decreasing batch size",
+                 epoch_time);
         safe_append_explanation(&decision, batch_msg);
     }
 
@@ -1901,8 +1920,7 @@ static auto_tuning_decision_t auto_tuning_strategy(const gradient_stats_t* grad_
             safe_append_explanation(&decision, "; ");
         }
         char lr_msg[128];
-        snprintf(lr_msg, sizeof(lr_msg),
-                "Learning rate high (%.6f), reducing", current_lr);
+        snprintf(lr_msg, sizeof(lr_msg), "Learning rate high (%.6f), reducing", current_lr);
         safe_append_explanation(&decision, lr_msg);
     } else if (current_lr < 1e-6f && !decision.should_reduce_lr) {
         // Learning rate is too low, increase it
@@ -1914,8 +1932,7 @@ static auto_tuning_decision_t auto_tuning_strategy(const gradient_stats_t* grad_
             safe_append_explanation(&decision, "; ");
         }
         char lr_msg[128];
-        snprintf(lr_msg, sizeof(lr_msg),
-                "Learning rate very low (%.6f), increasing", current_lr);
+        snprintf(lr_msg, sizeof(lr_msg), "Learning rate very low (%.6f), increasing", current_lr);
         safe_append_explanation(&decision, lr_msg);
     }
 
@@ -1928,8 +1945,8 @@ static auto_tuning_decision_t auto_tuning_strategy(const gradient_stats_t* grad_
         }
         char beta_msg[128];
         snprintf(beta_msg, sizeof(beta_msg),
-                "High gradient norm (%.2f) and instability (std=%.3f), reducing momentum (beta1)",
-                grad_stats->total_norm, stability_stats->loss_stddev);
+                 "High gradient norm (%.2f) and instability (std=%.3f), reducing momentum (beta1)",
+                 grad_stats->total_norm, stability_stats->loss_stddev);
         safe_append_explanation(&decision, beta_msg);
     } else if (grad_stats->total_norm < 0.1f && stability_stats->loss_stddev < 0.02f) {
         // Low gradient norm and stable training: increase momentum for smoother updates
@@ -1938,9 +1955,10 @@ static auto_tuning_decision_t auto_tuning_strategy(const gradient_stats_t* grad_
             safe_append_explanation(&decision, "; ");
         }
         char beta_msg[128];
-        snprintf(beta_msg, sizeof(beta_msg),
-                "Low gradient norm (%.4f) and stable training (std=%.3f), increasing momentum (beta1)",
-                grad_stats->total_norm, stability_stats->loss_stddev);
+        snprintf(
+            beta_msg, sizeof(beta_msg),
+            "Low gradient norm (%.4f) and stable training (std=%.3f), increasing momentum (beta1)",
+            grad_stats->total_norm, stability_stats->loss_stddev);
         safe_append_explanation(&decision, beta_msg);
     }
 
@@ -1953,8 +1971,8 @@ static auto_tuning_decision_t auto_tuning_strategy(const gradient_stats_t* grad_
         }
         char beta2_msg[128];
         snprintf(beta2_msg, sizeof(beta2_msg),
-                "High clipping ratio (%.1f%%), reducing beta2 for faster adaptation",
-                grad_stats->grad_clip_ratio * 100.0f);
+                 "High clipping ratio (%.1f%%), reducing beta2 for faster adaptation",
+                 grad_stats->grad_clip_ratio * 100.0f);
         safe_append_explanation(&decision, beta2_msg);
     } else if (grad_stats->grad_clip_ratio < 0.01f && grad_stats->total_norm > 0.5f) {
         // Few gradients clipped but decent gradient norm: increase beta2 for stability
@@ -1963,9 +1981,10 @@ static auto_tuning_decision_t auto_tuning_strategy(const gradient_stats_t* grad_
             safe_append_explanation(&decision, "; ");
         }
         char beta2_msg[128];
-        snprintf(beta2_msg, sizeof(beta2_msg),
-                "Low clipping ratio (%.1f%%) with good gradient flow, increasing beta2 for stability",
-                grad_stats->grad_clip_ratio * 100.0f);
+        snprintf(
+            beta2_msg, sizeof(beta2_msg),
+            "Low clipping ratio (%.1f%%) with good gradient flow, increasing beta2 for stability",
+            grad_stats->grad_clip_ratio * 100.0f);
         safe_append_explanation(&decision, beta2_msg);
     }
 
@@ -1979,53 +1998,59 @@ static auto_tuning_decision_t auto_tuning_strategy(const gradient_stats_t* grad_
                 // Low throughput but good memory: increase batch size
                 decision.batch_size_factor *= 1.2f;
                 if (strlen(decision.explanation) > 0) {
-            size_t rem = sizeof(decision.explanation) - strlen(decision.explanation) - 1;
-            if (rem > 0) strncat(decision.explanation, "; ", rem);
-        }
-                safe_append_explanation(&decision, "multi-objective: low throughput, increasing batch size");
+                    size_t rem = sizeof(decision.explanation) - strlen(decision.explanation) - 1;
+                    if (rem > 0) strncat(decision.explanation, "; ", rem);
+                }
+                safe_append_explanation(&decision,
+                                        "multi-objective: low throughput, increasing batch size");
             }
             if (memory_score < 0.3f) {
                 // High memory usage: reduce batch size
                 decision.batch_size_factor *= 0.8f;
                 if (strlen(decision.explanation) > 0) {
-            size_t rem = sizeof(decision.explanation) - strlen(decision.explanation) - 1;
-            if (rem > 0) strncat(decision.explanation, "; ", rem);
-        }
-                safe_append_explanation(&decision, "multi-objective: high memory usage, reducing batch size");
+                    size_t rem = sizeof(decision.explanation) - strlen(decision.explanation) - 1;
+                    if (rem > 0) strncat(decision.explanation, "; ", rem);
+                }
+                safe_append_explanation(&decision,
+                                        "multi-objective: high memory usage, reducing batch size");
             }
             if (accuracy_score < 0.5f && epoch > 5) {
                 // Low accuracy: adjust learning rate
                 decision.lr_adjustment_factor *= 1.1f;
                 if (strlen(decision.explanation) > 0) {
-            size_t rem = sizeof(decision.explanation) - strlen(decision.explanation) - 1;
-            if (rem > 0) strncat(decision.explanation, "; ", rem);
-        }
-                safe_append_explanation(&decision, "multi-objective: low accuracy, increasing learning rate");
+                    size_t rem = sizeof(decision.explanation) - strlen(decision.explanation) - 1;
+                    if (rem > 0) strncat(decision.explanation, "; ", rem);
+                }
+                safe_append_explanation(&decision,
+                                        "multi-objective: low accuracy, increasing learning rate");
             }
         }
 
         // Log multi-objective metrics (debug)
         if (epoch % 5 == 0) {
-            printf("             multi-objective: throughput=%.0f sps (score=%.2f), memory=%.1f MB (score=%.2f), accuracy=%.2f%% (score=%.2f), combined=%.2f\n",
+            printf("             multi-objective: throughput=%.0f sps (score=%.2f), memory=%.1f MB "
+                   "(score=%.2f), accuracy=%.2f%% (score=%.2f), combined=%.2f\n",
                    throughput_sps, throughput_score, memory_usage_mb, memory_score,
                    validation_accuracy * 100.0f, accuracy_score, multi_objective_score);
         }
     }
 
     // RL agent update with reward based on multi-objective score improvement
-    if (rl_agent_initialized && rl_agent.has_previous_score && rl_agent.last_state != -1 && rl_agent.last_action != -1) {
+    if (rl_agent_initialized && rl_agent.has_previous_score && rl_agent.last_state != -1 &&
+        rl_agent.last_action != -1) {
         // Reward is improvement in multi-objective score
         float reward = multi_objective_score - rl_agent.previous_multi_objective_score;
         // Recompute current state (may have changed due to other adjustments)
-        int rl_new_state = rl_agent_get_state(grad_stats->total_norm, stability_stats->loss_stddev, multi_objective_score);
+        int rl_new_state = rl_agent_get_state(grad_stats->total_norm, stability_stats->loss_stddev,
+                                              multi_objective_score);
         // Update Q-table
         rl_agent_update(&rl_agent, rl_new_state, reward);
         // Decay exploration rate with stage-dependent decay factor
         float stage_decay_factor = RL_EXPLORATION_DECAY_MID; // Default
         switch (rl_agent.current_stage) {
-            case RL_EARLY_STAGE: stage_decay_factor = RL_EXPLORATION_DECAY_EARLY; break;
-            case RL_MID_STAGE:   stage_decay_factor = RL_EXPLORATION_DECAY_MID;   break;
-            case RL_LATE_STAGE:  stage_decay_factor = RL_EXPLORATION_DECAY_LATE;  break;
+        case RL_EARLY_STAGE: stage_decay_factor = RL_EXPLORATION_DECAY_EARLY; break;
+        case RL_MID_STAGE: stage_decay_factor = RL_EXPLORATION_DECAY_MID; break;
+        case RL_LATE_STAGE: stage_decay_factor = RL_EXPLORATION_DECAY_LATE; break;
         }
         rl_agent.exploration_rate *= stage_decay_factor;
         if (rl_agent.exploration_rate < rl_agent.min_exploration_rate) {
@@ -2033,7 +2058,8 @@ static auto_tuning_decision_t auto_tuning_strategy(const gradient_stats_t* grad_
         }
         // Log RL update occasionally
         if (epoch % 10 == 0) {
-            printf("             RL update: state=%d, action=%d, reward=%.3f, new Q=%.3f, exploration=%.3f\n",
+            printf("             RL update: state=%d, action=%d, reward=%.3f, new Q=%.3f, "
+                   "exploration=%.3f\n",
                    rl_agent.last_state, rl_agent.last_action, reward,
                    rl_agent.q_table[rl_agent.last_state][rl_agent.last_action],
                    rl_agent.exploration_rate);
@@ -2062,7 +2088,8 @@ static auto_tuning_decision_t auto_tuning_strategy(const gradient_stats_t* grad_
 }
 
 // Recreate optimizer with new beta1/beta2 parameters while preserving registered parameters
-static bool recreate_optimizer_with_new_betas(mnist_model_t* model, float new_beta1, float new_beta2) {
+static bool recreate_optimizer_with_new_betas(mnist_model_t* model, float new_beta1,
+                                              float new_beta2) {
     if (!model || !model->optimizer) return false;
 
     // Get current learning rate
@@ -2072,9 +2099,11 @@ static bool recreate_optimizer_with_new_betas(mnist_model_t* model, float new_be
     boat_optimizer_t* old_optimizer = model->optimizer;
 
     // Create new optimizer with new betas
-    boat_optimizer_t* new_optimizer = boat_adam_optimizer_create(current_lr, new_beta1, new_beta2, 1e-8f);
+    boat_optimizer_t* new_optimizer =
+        boat_adam_optimizer_create(current_lr, new_beta1, new_beta2, 1e-8f);
     if (!new_optimizer) {
-        fprintf(stderr, "Warning: Failed to recreate optimizer with new betas (beta1=%.3f, beta2=%.3f)\n",
+        fprintf(stderr,
+                "Warning: Failed to recreate optimizer with new betas (beta1=%.3f, beta2=%.3f)\n",
                 new_beta1, new_beta2);
         return false;
     }
@@ -2143,12 +2172,9 @@ static bool recreate_optimizer_with_new_betas(mnist_model_t* model, float new_be
 
 // Apply auto-tuning decisions to the model
 static void apply_auto_tuning_decisions(mnist_model_t* model,
-                                       const auto_tuning_decision_t* decision,
-                                       float* current_lr,
-                                       float* current_clip_threshold,
-                                       size_t* batch_size,
-                                       size_t* num_batches,
-                                       size_t train_samples) {
+                                        const auto_tuning_decision_t* decision, float* current_lr,
+                                        float* current_clip_threshold, size_t* batch_size,
+                                        size_t* num_batches, size_t train_samples) {
     if (!model || !decision) return;
 
     // 1. Apply learning rate adjustment with cap
@@ -2161,8 +2187,9 @@ static void apply_auto_tuning_decisions(mnist_model_t* model,
         if (new_lr < 1e-7f) new_lr = 1e-7f;
         boat_optimizer_set_learning_rate(model->optimizer, new_lr);
         *current_lr = new_lr;
-        printf("             auto-tuning: learning rate adjusted from %.6f to %.6f (factor: %.2f)\n",
-               old_lr, new_lr, decision->lr_adjustment_factor);
+        printf(
+            "             auto-tuning: learning rate adjusted from %.6f to %.6f (factor: %.2f)\n",
+            old_lr, new_lr, decision->lr_adjustment_factor);
     }
 
     // 2. Update gradient clipping threshold
@@ -2208,14 +2235,16 @@ static void apply_auto_tuning_decisions(mnist_model_t* model,
                 float new_lr = old_lr * lr_scale_factor;
                 boat_optimizer_set_learning_rate(model->optimizer, new_lr);
                 *current_lr = new_lr;
-                printf("             auto-tuning: learning rate scaled with batch size: %.6f -> %.6f (factor: %.2f)\n",
+                printf("             auto-tuning: learning rate scaled with batch size: %.6f -> "
+                       "%.6f (factor: %.2f)\n",
                        old_lr, new_lr, lr_scale_factor);
             }
         }
     }
 
     // 5. Momentum parameter adjustment
-    if ((decision->beta1_adjustment_factor != 1.0f || decision->beta2_adjustment_factor != 1.0f) && model->optimizer) {
+    if ((decision->beta1_adjustment_factor != 1.0f || decision->beta2_adjustment_factor != 1.0f) &&
+        model->optimizer) {
         float new_beta1 = model->current_beta1 * decision->beta1_adjustment_factor;
         float new_beta2 = model->current_beta2 * decision->beta2_adjustment_factor;
 
@@ -2227,7 +2256,8 @@ static void apply_auto_tuning_decisions(mnist_model_t* model,
 
         if (new_beta1 != model->current_beta1 || new_beta2 != model->current_beta2) {
             if (recreate_optimizer_with_new_betas(model, new_beta1, new_beta2)) {
-                printf("             auto-tuning: momentum parameters adjusted: beta1 %.3f->%.3f (factor: %.2f), beta2 %.3f->%.3f (factor: %.2f)\n",
+                printf("             auto-tuning: momentum parameters adjusted: beta1 %.3f->%.3f "
+                       "(factor: %.2f), beta2 %.3f->%.3f (factor: %.2f)\n",
                        model->current_beta1, new_beta1, decision->beta1_adjustment_factor,
                        model->current_beta2, new_beta2, decision->beta2_adjustment_factor);
             }
@@ -2253,11 +2283,8 @@ static void profile_layer_performance(mnist_model_t* model, boat_tensor_t* sampl
     }
 
     // Layer names for reporting
-    const char* layer_names[] = {
-        "conv1", "relu1", "pool1",
-        "conv2", "relu2", "pool2",
-        "flatten", "fc1", "relu3", "fc2"
-    };
+    const char* layer_names[] = {"conv1", "relu1",   "pool1", "conv2", "relu2",
+                                 "pool2", "flatten", "fc1",   "relu3", "fc2"};
     float layer_times[10] = {0};
 
     clock_t start, end;
@@ -2343,7 +2370,8 @@ static void profile_layer_performance(mnist_model_t* model, boat_tensor_t* sampl
 
     for (int i = 0; i < 10; i++) {
         float percentage = total_time > 0 ? (layer_times[i] / total_time) * 100.0f : 0.0f;
-        printf("               %-8s: %6.2f ms (%5.1f%%)\n", layer_names[i], layer_times[i], percentage);
+        printf("               %-8s: %6.2f ms (%5.1f%%)\n", layer_names[i], layer_times[i],
+               percentage);
     }
     printf("               total forward pass: %.2f ms\n", total_time);
 }
@@ -2375,7 +2403,7 @@ static stability_stats_t compute_stability_stats(const float* losses, const floa
     float total_diff = 0.0f;
     int diff_count = 0;
     for (int i = start_epoch + 1; i <= current_epoch; i++) {
-        total_diff += fabsf(losses[i] - losses[i-1]);
+        total_diff += fabsf(losses[i] - losses[i - 1]);
         diff_count++;
     }
     stats.loss_smoothness = diff_count > 0 ? total_diff / diff_count : 0.0f;
@@ -2392,11 +2420,11 @@ static stability_stats_t compute_stability_stats(const float* losses, const floa
 
 // Early stopping monitoring
 typedef struct {
-    int patience;           // Number of epochs to wait for improvement
-    float min_delta;        // Minimum improvement to reset patience
-    float best_val_loss;    // Best validation loss so far
-    int epochs_no_improve;  // Epochs without improvement
-    bool stop_flag;         // Whether to stop training
+    int patience;          // Number of epochs to wait for improvement
+    float min_delta;       // Minimum improvement to reset patience
+    float best_val_loss;   // Best validation loss so far
+    int epochs_no_improve; // Epochs without improvement
+    bool stop_flag;        // Whether to stop training
 } early_stopping_t;
 
 // Initialize early stopping monitor
@@ -2419,30 +2447,33 @@ static void early_stopping_update(early_stopping_t* monitor, float val_loss, int
         monitor->best_val_loss = val_loss;
         monitor->epochs_no_improve = 0;
         if (epoch >= 0) {
-            printf("             early stopping: best validation loss improved to %.4f (epoch %d)\n",
-                   val_loss, epoch + 1);
+            printf(
+                "             early stopping: best validation loss improved to %.4f (epoch %d)\n",
+                val_loss, epoch + 1);
         }
     } else {
         // No improvement
         monitor->epochs_no_improve++;
         if (monitor->epochs_no_improve >= monitor->patience) {
             monitor->stop_flag = true;
-            printf("             early stopping: patience exhausted (%d epochs without improvement)\n",
-                   monitor->patience);
+            printf(
+                "             early stopping: patience exhausted (%d epochs without improvement)\n",
+                monitor->patience);
         }
     }
 }
 
 // Resource usage prediction
 typedef struct {
-    double avg_epoch_time;      // Average epoch time in seconds
-    double time_remaining;      // Estimated time remaining in seconds
-    double projected_mem_peak;  // Projected peak memory usage (MB)
+    double avg_epoch_time;     // Average epoch time in seconds
+    double time_remaining;     // Estimated time remaining in seconds
+    double projected_mem_peak; // Projected peak memory usage (MB)
 } resource_prediction_t;
 
 // Predict resource usage based on training history
 static resource_prediction_t predict_resources(const double* epoch_times, int current_epoch,
-                                               int total_epochs, const boat_memory_stats_t* mem_stats,
+                                               int total_epochs,
+                                               const boat_memory_stats_t* mem_stats,
                                                int window_size) {
     resource_prediction_t pred = {0};
 
@@ -2480,7 +2511,7 @@ void evaluate_model(mnist_model_t* model, boat_tensor_t* images, boat_tensor_t* 
 
     const int64_t* shape = boat_tensor_shape(images);
     size_t num_samples = shape[0];
-    size_t batch_size = 32;  // Evaluation batch size (reduced for memory)
+    size_t batch_size = 32; // Evaluation batch size (reduced for memory)
     size_t num_batches = (num_samples + batch_size - 1) / batch_size;
 
     float total_loss = 0.0f;
@@ -2493,26 +2524,26 @@ void evaluate_model(mnist_model_t* model, boat_tensor_t* images, boat_tensor_t* 
         size_t actual_batch_size = end_idx - start_idx;
 
         // Slice batch
-        boat_tensor_t* batch_images = boat_tensor_slice(images,
-            (size_t[]){start_idx, 0, 0, 0},
-            (size_t[]){end_idx, 1, 28, 28}, NULL);
-        boat_tensor_t* batch_labels = boat_tensor_slice(labels,
-            (size_t[]){start_idx},
-            (size_t[]){end_idx}, NULL);
+        boat_tensor_t* batch_images = boat_tensor_slice(images, (size_t[]){start_idx, 0, 0, 0},
+                                                        (size_t[]){end_idx, 1, 28, 28}, NULL);
+        boat_tensor_t* batch_labels =
+            boat_tensor_slice(labels, (size_t[]){start_idx}, (size_t[]){end_idx}, NULL);
 
         if (!batch_images || !batch_labels) continue;
 
         // Forward pass
         boat_variable_t* input_var = tensor_to_variable(batch_images, false);
         if (!input_var) {
-            fprintf(stderr, "ERROR evaluate_model: tensor_to_variable failed for batch_images=%p\n", (void*)batch_images);
+            fprintf(stderr, "ERROR evaluate_model: tensor_to_variable failed for batch_images=%p\n",
+                    (void*)batch_images);
             boat_tensor_unref(batch_images);
             boat_tensor_unref(batch_labels);
             continue;
         }
         boat_variable_t* logits = forward_pass(model, input_var);
         if (!logits) {
-            fprintf(stderr, "ERROR evaluate_model: forward_pass failed for input_var=%p\n", (void*)input_var);
+            fprintf(stderr, "ERROR evaluate_model: forward_pass failed for input_var=%p\n",
+                    (void*)input_var);
             boat_variable_free(input_var);
             boat_tensor_unref(batch_images);
             boat_tensor_unref(batch_labels);
@@ -2523,7 +2554,7 @@ void evaluate_model(mnist_model_t* model, boat_tensor_t* images, boat_tensor_t* 
         boat_variable_t* loss_var = cross_entropy_loss(logits, batch_labels);
         boat_tensor_t* loss_tensor = boat_variable_data(loss_var);
         float batch_loss = *(float*)boat_tensor_data(loss_tensor);
-        total_loss += batch_loss * actual_batch_size;  // loss is average per sample
+        total_loss += batch_loss * actual_batch_size; // loss is average per sample
 
         // Compute accuracy
         float batch_acc = compute_accuracy(logits, batch_labels);
@@ -2544,8 +2575,8 @@ void evaluate_model(mnist_model_t* model, boat_tensor_t* images, boat_tensor_t* 
 // Returns loss value
 float train_batch(mnist_model_t* model, boat_tensor_t* batch_images, boat_tensor_t* batch_labels,
                   float learning_rate, bool zero_grad) {
-    DEBUG_PRINT("train_batch: entered, batch_images=%p, batch_labels=%p\n",
-            (void*)batch_images, (void*)batch_labels);
+    DEBUG_PRINT("train_batch: entered, batch_images=%p, batch_labels=%p\n", (void*)batch_images,
+                (void*)batch_labels);
     (void)learning_rate; // Parameter not used in this implementation
     // Convert batch data to variables using reusable variables
     boat_variable_t* input_var = get_reusable_input_variable(model, batch_images);
@@ -2555,8 +2586,8 @@ float train_batch(mnist_model_t* model, boat_tensor_t* batch_images, boat_tensor
         fprintf(stderr, "Error: Failed to get reusable variables\n");
         return 0.0f;
     }
-    DEBUG_PRINT("train_batch: got variables input_var=%p, target_var=%p\n",
-            (void*)input_var, (void*)target_var);
+    DEBUG_PRINT("train_batch: got variables input_var=%p, target_var=%p\n", (void*)input_var,
+                (void*)target_var);
 
     // Forward pass
     DEBUG_PRINT("train_batch: calling forward_pass\n");
@@ -2575,7 +2606,8 @@ float train_batch(mnist_model_t* model, boat_tensor_t* batch_images, boat_tensor
     DEBUG_PRINT("train_batch: boat_variable_backward_full returned\n");
 
     // Optimizer step
-    fprintf(stderr, "[DEBUG] Before optimizer step, model->optimizer=%p\n", (void*)model->optimizer);
+    fprintf(stderr, "[DEBUG] Before optimizer step, model->optimizer=%p\n",
+            (void*)model->optimizer);
     boat_optimizer_step(model->optimizer);
     fprintf(stderr, "[DEBUG] After optimizer step\n");
 
@@ -2583,11 +2615,13 @@ float train_batch(mnist_model_t* model, boat_tensor_t* batch_images, boat_tensor
     if (model->conv1) {
         boat_tensor_t* grad_weight = boat_conv_layer_get_grad_weight(model->conv1);
         boat_tensor_t* grad_bias = boat_conv_layer_get_grad_bias(model->conv1);
-        fprintf(stderr, "[DEBUG after optimizer step] conv1 grad_weight=%p, grad_bias=%p\n", grad_weight, grad_bias);
+        fprintf(stderr, "[DEBUG after optimizer step] conv1 grad_weight=%p, grad_bias=%p\n",
+                grad_weight, grad_bias);
         if (grad_weight) {
             const float* data = (const float*)boat_tensor_const_data(grad_weight);
             size_t nelem = boat_tensor_nbytes(grad_weight) / sizeof(float);
-            fprintf(stderr, "[DEBUG] conv1 grad_weight nelem=%zu, first value=%f\n", nelem, nelem > 0 ? data[0] : 0.0f);
+            fprintf(stderr, "[DEBUG] conv1 grad_weight nelem=%zu, first value=%f\n", nelem,
+                    nelem > 0 ? data[0] : 0.0f);
         }
     }
 
@@ -2604,11 +2638,13 @@ float train_batch(mnist_model_t* model, boat_tensor_t* batch_images, boat_tensor
     if (model->conv1) {
         boat_tensor_t* grad_weight = boat_conv_layer_get_grad_weight(model->conv1);
         boat_tensor_t* grad_bias = boat_conv_layer_get_grad_bias(model->conv1);
-        fprintf(stderr, "[DEBUG after clear graph] conv1 grad_weight=%p, grad_bias=%p\n", grad_weight, grad_bias);
+        fprintf(stderr, "[DEBUG after clear graph] conv1 grad_weight=%p, grad_bias=%p\n",
+                grad_weight, grad_bias);
         if (grad_weight) {
             const float* data = (const float*)boat_tensor_const_data(grad_weight);
             size_t nelem = boat_tensor_nbytes(grad_weight) / sizeof(float);
-            fprintf(stderr, "[DEBUG] conv1 grad_weight nelem=%zu, first value=%f\n", nelem, nelem > 0 ? data[0] : 0.0f);
+            fprintf(stderr, "[DEBUG] conv1 grad_weight nelem=%zu, first value=%f\n", nelem,
+                    nelem > 0 ? data[0] : 0.0f);
         }
     }
 
@@ -2629,7 +2665,7 @@ int main(int argc, char* argv[]) {
     printf("=== MNIST Digit Recognition with Boat Autodiff ===\n");
 
     // Force disable all debug output by default
-    g_debug_level = 4;  // Changed to 4 for debugging
+    g_debug_level = 4; // Changed to 4 for debugging
 
     DEBUG_PRINT("main() started\n");
 
@@ -2660,10 +2696,14 @@ int main(int argc, char* argv[]) {
         // Check if the environment variable value indicates true (non-zero)
         use_full_data = (strcmp(use_full, "0") != 0) && (strcmp(use_full, "") != 0);
     }
-    const char* train_images_file = use_full_data ? "data/train_images.bin" : "data/train_images_small.bin";
-    const char* train_labels_file = use_full_data ? "data/train_labels.bin" : "data/train_labels_small.bin";
-    const char* test_images_file = use_full_data ? "data/test_images.bin" : "data/test_images_small.bin";
-    const char* test_labels_file = use_full_data ? "data/test_labels.bin" : "data/test_labels_small.bin";
+    const char* train_images_file =
+        use_full_data ? "data/train_images.bin" : "data/train_images_small.bin";
+    const char* train_labels_file =
+        use_full_data ? "data/train_labels.bin" : "data/train_labels_small.bin";
+    const char* test_images_file =
+        use_full_data ? "data/test_images.bin" : "data/test_images_small.bin";
+    const char* test_labels_file =
+        use_full_data ? "data/test_labels.bin" : "data/test_labels_small.bin";
 
     printf("Loading training data from %s...\n", train_images_file);
     // Load binary files
@@ -2681,7 +2721,7 @@ int main(int argc, char* argv[]) {
     if (test_images_raw) boat_tensor_unref(test_images_raw);
 
     DEBUG_PRINT("Data loaded: train_images=%p, train_labels=%p, test_images=%p, test_labels=%p\n",
-            train_images, train_labels, test_images, test_labels);
+                train_images, train_labels, test_images, test_labels);
     if (!train_images || !train_labels || !test_images || !test_labels) {
         fprintf(stderr, "Error loading data files\n");
         return 1;
@@ -2696,7 +2736,7 @@ int main(int argc, char* argv[]) {
 
     // Split training data into training and validation sets
     // For small datasets, use 20% for validation, but at least 1 sample
-    size_t val_size = train_samples / 5;  // 20% for validation
+    size_t val_size = train_samples / 5; // 20% for validation
     if (val_size < 1) val_size = 1;
     if (val_size > train_samples) val_size = train_samples;
     size_t train_size = train_samples - val_size;
@@ -2704,20 +2744,16 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "Splitting data: %zu training, %zu validation\n", train_size, val_size);
 
     // Create validation set (first val_size samples)
-    boat_tensor_t* val_images = boat_tensor_slice(train_images,
-        (size_t[]){0, 0, 0, 0},
-        (size_t[]){val_size, 1, 28, 28}, NULL);
-    boat_tensor_t* val_labels = boat_tensor_slice(train_labels,
-        (size_t[]){0},
-        (size_t[]){val_size}, NULL);
+    boat_tensor_t* val_images = boat_tensor_slice(train_images, (size_t[]){0, 0, 0, 0},
+                                                  (size_t[]){val_size, 1, 28, 28}, NULL);
+    boat_tensor_t* val_labels =
+        boat_tensor_slice(train_labels, (size_t[]){0}, (size_t[]){val_size}, NULL);
 
     // Create training subset (remaining samples)
-    boat_tensor_t* train_images_subset = boat_tensor_slice(train_images,
-        (size_t[]){val_size, 0, 0, 0},
-        (size_t[]){train_samples, 1, 28, 28}, NULL);
-    boat_tensor_t* train_labels_subset = boat_tensor_slice(train_labels,
-        (size_t[]){val_size},
-        (size_t[]){train_samples}, NULL);
+    boat_tensor_t* train_images_subset = boat_tensor_slice(
+        train_images, (size_t[]){val_size, 0, 0, 0}, (size_t[]){train_samples, 1, 28, 28}, NULL);
+    boat_tensor_t* train_labels_subset =
+        boat_tensor_slice(train_labels, (size_t[]){val_size}, (size_t[]){train_samples}, NULL);
 
     if (!val_images || !val_labels || !train_images_subset || !train_labels_subset) {
         fprintf(stderr, "Error: Failed to split data into training and validation sets\n");
@@ -2729,7 +2765,7 @@ int main(int argc, char* argv[]) {
     boat_tensor_unref(train_labels);
     train_images = train_images_subset;
     train_labels = train_labels_subset;
-    train_samples = train_size;  // Update train samples count
+    train_samples = train_size; // Update train samples count
 
     DEBUG_PRINT("Data split complete\n");
 
@@ -2751,7 +2787,7 @@ int main(int argc, char* argv[]) {
         sum_sq += diff * diff;
     }
     float std = (float)sqrt(sum_sq / train_total_pixels);
-    if (std < 1e-8) std = 1.0f;  // Avoid division by zero
+    if (std < 1e-8) std = 1.0f; // Avoid division by zero
 
     fprintf(stderr, "Training set stats: mean=%.6f, std=%.6f\n", mean, std);
 
@@ -2789,8 +2825,10 @@ int main(int argc, char* argv[]) {
     // Copy data
     size_t train_images_bytes = boat_tensor_nbytes(train_images);
     size_t train_labels_bytes = boat_tensor_nbytes(train_labels);
-    memcpy(boat_tensor_data(train_images_contig), boat_tensor_const_data(train_images), train_images_bytes);
-    memcpy(boat_tensor_data(train_labels_contig), boat_tensor_const_data(train_labels), train_labels_bytes);
+    memcpy(boat_tensor_data(train_images_contig), boat_tensor_const_data(train_images),
+           train_images_bytes);
+    memcpy(boat_tensor_data(train_labels_contig), boat_tensor_const_data(train_labels),
+           train_labels_bytes);
 
     // Replace view tensors with contiguous copies
     boat_tensor_unref(train_images);
@@ -2809,8 +2847,10 @@ int main(int argc, char* argv[]) {
 
     size_t val_images_bytes = boat_tensor_nbytes(val_images);
     size_t val_labels_bytes = boat_tensor_nbytes(val_labels);
-    memcpy(boat_tensor_data(val_images_contig), boat_tensor_const_data(val_images), val_images_bytes);
-    memcpy(boat_tensor_data(val_labels_contig), boat_tensor_const_data(val_labels), val_labels_bytes);
+    memcpy(boat_tensor_data(val_images_contig), boat_tensor_const_data(val_images),
+           val_images_bytes);
+    memcpy(boat_tensor_data(val_labels_contig), boat_tensor_const_data(val_labels),
+           val_labels_bytes);
 
     boat_tensor_unref(val_images);
     boat_tensor_unref(val_labels);
@@ -2872,14 +2912,17 @@ int main(int argc, char* argv[]) {
     // Open training history file for real-time monitoring
     FILE* history_file = fopen("training_history.csv", "w");
     if (history_file) {
-        fprintf(history_file, "epoch,timestamp,train_loss,train_accuracy,val_loss,val_accuracy,learning_rate,grad_norm,grad_max,grad_clip_ratio,epoch_time,loss_stddev,val_improvement\n");
+        fprintf(history_file,
+                "epoch,timestamp,train_loss,train_accuracy,val_loss,val_accuracy,learning_rate,"
+                "grad_norm,grad_max,grad_clip_ratio,epoch_time,loss_stddev,val_improvement\n");
     } else {
         fprintf(stderr, "Warning: Could not open training_history.csv for writing\n");
     }
 
     // Initialize early stopping monitor
     fprintf(stderr, "DEBUG: before early_stopping_init\n");
-    early_stopping_t early_stop = early_stopping_init(5, 0.001f); // 5 epochs patience, 0.001 min delta
+    early_stopping_t early_stop =
+        early_stopping_init(5, 0.001f); // 5 epochs patience, 0.001 min delta
 
     // Auto-tuning parameters
     float current_clip_threshold = 5.0f; // Initial gradient clipping threshold
@@ -2925,12 +2968,10 @@ int main(int argc, char* argv[]) {
                 end_idx = train_samples;
             }
 
-            boat_tensor_t* batch_images = boat_tensor_slice(train_images,
-                (size_t[]){start_idx, 0, 0, 0},
-                (size_t[]){end_idx, 1, 28, 28}, NULL);
-            boat_tensor_t* batch_labels = boat_tensor_slice(train_labels,
-                (size_t[]){start_idx},
-                (size_t[]){end_idx}, NULL);
+            boat_tensor_t* batch_images = boat_tensor_slice(
+                train_images, (size_t[]){start_idx, 0, 0, 0}, (size_t[]){end_idx, 1, 28, 28}, NULL);
+            boat_tensor_t* batch_labels =
+                boat_tensor_slice(train_labels, (size_t[]){start_idx}, (size_t[]){end_idx}, NULL);
 
             if (!batch_images || !batch_labels) {
                 fprintf(stderr, "Failed to slice batch\n");
@@ -2977,11 +3018,13 @@ int main(int argc, char* argv[]) {
             if (grad_weight) {
                 const float* data = (const float*)boat_tensor_const_data(grad_weight);
                 size_t nelem = boat_tensor_nbytes(grad_weight) / sizeof(float);
-                fprintf(stderr, "[DEBUG] conv1 grad_weight nelem=%zu, first value=%f\n", nelem, nelem > 0 ? data[0] : 0.0f);
+                fprintf(stderr, "[DEBUG] conv1 grad_weight nelem=%zu, first value=%f\n", nelem,
+                        nelem > 0 ? data[0] : 0.0f);
             }
         }
         fflush(stderr);
-        gradient_stats_t grad_stats = compute_gradient_stats(model, current_clip_threshold); // clip threshold = 5.0
+        gradient_stats_t grad_stats =
+            compute_gradient_stats(model, current_clip_threshold); // clip threshold = 5.0
         gradient_norms[epoch] = grad_stats.total_norm;
         gradient_maxes[epoch] = grad_stats.max_grad;
         gradient_clip_ratios[epoch] = grad_stats.grad_clip_ratio;
@@ -2990,7 +3033,8 @@ int main(int argc, char* argv[]) {
         // Apply gradient clipping if needed (legacy rule, may be overridden by auto-tuning)
         if (grad_stats.grad_clip_ratio > 0.1f) { // If more than 10% gradients would be clipped
             apply_gradient_clipping(model, current_clip_threshold);
-            printf("             gradient clipping applied (%.1f%% > 10%% threshold, threshold=%.2f)\n",
+            printf("             gradient clipping applied (%.1f%% > 10%% threshold, "
+                   "threshold=%.2f)\n",
                    grad_stats.grad_clip_ratio * 100.0f, current_clip_threshold);
         }
 
@@ -3003,8 +3047,10 @@ int main(int argc, char* argv[]) {
         double samples_per_second = epoch_time > 1e-6 ? (double)epoch_total / epoch_time : 0.0;
         double avg_batch_time = epoch_time > 1e-6 ? epoch_time / num_batches : 0.0;
         double batches_per_second = epoch_time > 1e-6 ? num_batches / epoch_time : 0.0;
-        printf("Epoch %d/%d: time=%.2fs, loss=%.4f, accuracy=%.2f%%, throughput=%.0f samples/s (%.2f batches/s, %.3fs/batch), lr=%.6f, grad_norm=%.4f\n",
-               epoch + 1, epochs, epoch_time, avg_loss, epoch_accuracy * 100.0f, samples_per_second, batches_per_second, avg_batch_time, current_lr, grad_stats.total_norm);
+        printf("Epoch %d/%d: time=%.2fs, loss=%.4f, accuracy=%.2f%%, throughput=%.0f samples/s "
+               "(%.2f batches/s, %.3fs/batch), lr=%.6f, grad_norm=%.4f\n",
+               epoch + 1, epochs, epoch_time, avg_loss, epoch_accuracy * 100.0f, samples_per_second,
+               batches_per_second, avg_batch_time, current_lr, grad_stats.total_norm);
         fflush(stdout);
 
         // Store training metrics
@@ -3017,8 +3063,8 @@ int main(int argc, char* argv[]) {
         val_losses[epoch] = val_loss;
         val_accuracies[epoch] = val_accuracy;
 
-        printf("             validation loss=%.4f, accuracy=%.2f%%\n",
-               val_loss, val_accuracy * 100.0f);
+        printf("             validation loss=%.4f, accuracy=%.2f%%\n", val_loss,
+               val_accuracy * 100.0f);
 
         // Update early stopping monitor
         early_stopping_update(&early_stop, val_loss, epoch);
@@ -3026,22 +3072,24 @@ int main(int argc, char* argv[]) {
         // Memory statistics
         boat_memory_stats_t mem_stats = boat_memory_get_stats();
         printf("             memory: allocated=%.2f MB, blocks=%zu, peak=%.2f MB\n",
-               mem_stats.allocated_bytes / (1024.0 * 1024.0),
-               mem_stats.allocated_blocks,
+               mem_stats.allocated_bytes / (1024.0 * 1024.0), mem_stats.allocated_blocks,
                mem_stats.peak_allocated_bytes / (1024.0 * 1024.0));
 
         // Gradient statistics
         printf("             gradients: norm=%.4f, max=%.4f, clip_ratio=%.2f%%, nan_inf=%d\n",
-               grad_stats.total_norm, grad_stats.max_grad, grad_stats.grad_clip_ratio * 100.0f, grad_stats.nan_inf_count);
+               grad_stats.total_norm, grad_stats.max_grad, grad_stats.grad_clip_ratio * 100.0f,
+               grad_stats.nan_inf_count);
 
         // Save checkpoint if this is the best model so far
         if (val_accuracy > best_val_accuracy) {
             best_val_accuracy = val_accuracy;
             best_epoch = epoch;
             char checkpoint_filename[256];
-            snprintf(checkpoint_filename, sizeof(checkpoint_filename), "mnist_checkpoint_epoch%03d.boat", epoch + 1);
+            snprintf(checkpoint_filename, sizeof(checkpoint_filename),
+                     "mnist_checkpoint_epoch%03d.boat", epoch + 1);
             if (save_mnist_model(model, checkpoint_filename)) {
-                printf("             saved checkpoint to %s (accuracy improved)\n", checkpoint_filename);
+                printf("             saved checkpoint to %s (accuracy improved)\n",
+                       checkpoint_filename);
             }
 
             // Also save as best model
@@ -3053,7 +3101,8 @@ int main(int argc, char* argv[]) {
         // Save regular checkpoint every 2 epochs
         if (epoch % 2 == 1) {
             char checkpoint_filename[256];
-            snprintf(checkpoint_filename, sizeof(checkpoint_filename), "mnist_checkpoint_latest.boat");
+            snprintf(checkpoint_filename, sizeof(checkpoint_filename),
+                     "mnist_checkpoint_latest.boat");
             if (save_mnist_model(model, checkpoint_filename)) {
                 printf("             saved latest checkpoint to %s\n", checkpoint_filename);
             }
@@ -3066,63 +3115,63 @@ int main(int argc, char* argv[]) {
         }
 
         // Compute training stability statistics
-        stability_stats_t stability = compute_stability_stats(train_losses, val_losses, epoch, 5); // window size = 5
+        stability_stats_t stability =
+            compute_stability_stats(train_losses, val_losses, epoch, 5); // window size = 5
 
         // Provide hyperparameter tuning recommendations
-        provide_tuning_recommendations(&grad_stats, &stability, current_lr, epoch_time, batch_size, epoch, epochs);
+        provide_tuning_recommendations(&grad_stats, &stability, current_lr, epoch_time, batch_size,
+                                       epoch, epochs);
 
         // Apply auto-tuning strategy (iteration 17)
         // Compute multi-objective metrics for iteration 20
-        float throughput_sps = epoch_time > 1e-6 ? (float)(batch_size * num_batches) / (float)epoch_time : 0.0f;
+        float throughput_sps =
+            epoch_time > 1e-6 ? (float)(batch_size * num_batches) / (float)epoch_time : 0.0f;
         boat_memory_stats_t current_mem_stats = boat_memory_get_stats();
         float memory_usage_mb = current_mem_stats.allocated_bytes / (1024.0f * 1024.0f);
         float validation_accuracy = val_accuracies[epoch];
 
         auto_tuning_decision_t tuning_decision = auto_tuning_strategy(
-            &grad_stats, &stability, current_lr, epoch_time, (int)batch_size, epoch, epochs, current_clip_threshold,
-            throughput_sps, memory_usage_mb, validation_accuracy);
+            &grad_stats, &stability, current_lr, epoch_time, (int)batch_size, epoch, epochs,
+            current_clip_threshold, throughput_sps, memory_usage_mb, validation_accuracy);
 
         // Evaluate previous decision effect (if any)
         if (loss_before_decision >= 0.0f) {
-            float loss_change = avg_loss - loss_before_decision; // Negative means improvement
+            float loss_change = avg_loss - loss_before_decision;       // Negative means improvement
             decision_effect_score += (loss_change < 0 ? 1.0f : -1.0f); // Simple scoring
-            printf("             decision quality: loss change %.4f -> %.4f (delta: %.4f), cumulative score: %.1f\n",
+            printf("             decision quality: loss change %.4f -> %.4f (delta: %.4f), "
+                   "cumulative score: %.1f\n",
                    loss_before_decision, avg_loss, loss_change, decision_effect_score);
         }
         // Store current loss for next decision evaluation
         loss_before_decision = avg_loss;
 
         // Apply the tuning decisions
-        apply_auto_tuning_decisions(model, &tuning_decision, &current_lr, &current_clip_threshold, &batch_size, &num_batches, train_samples);
+        apply_auto_tuning_decisions(model, &tuning_decision, &current_lr, &current_clip_threshold,
+                                    &batch_size, &num_batches, train_samples);
 
         // Update learning rate in the array (in case it was changed by auto-tuning)
         learning_rates[epoch] = current_lr;
 
         // Write training history for real-time monitoring with enhanced metrics
         if (history_file) {
-            fprintf(history_file, "%d,%lld,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n",
-                    epoch + 1,
-                    (long long)time(NULL),
-                    train_losses[epoch],
-                    train_accuracies[epoch],
-                    val_losses[epoch],
-                    val_accuracies[epoch],
-                    learning_rates[epoch],
-                    gradient_norms[epoch],
-                    gradient_maxes[epoch],
-                    gradient_clip_ratios[epoch],
-                    epoch_times[epoch],
-                    stability.loss_stddev,
-                    stability.val_improvement);
-            fflush(history_file);  // Ensure data is written immediately
+            fprintf(history_file,
+                    "%d,%lld,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n", epoch + 1,
+                    (long long)time(NULL), train_losses[epoch], train_accuracies[epoch],
+                    val_losses[epoch], val_accuracies[epoch], learning_rates[epoch],
+                    gradient_norms[epoch], gradient_maxes[epoch], gradient_clip_ratios[epoch],
+                    epoch_times[epoch], stability.loss_stddev, stability.val_improvement);
+            fflush(history_file); // Ensure data is written immediately
         }
 
         // Resource usage prediction (display every 5 epochs)
         if (epoch % 5 == 0 && epoch > 0) {
             boat_memory_stats_t local_mem_stats = boat_memory_get_stats();
-            resource_prediction_t resource_pred = predict_resources(epoch_times, epoch, epochs, &local_mem_stats, 5);
-            printf("             resource prediction: %.1f s/epoch, %.1f s remaining, projected peak memory: %.2f MB\n",
-                   resource_pred.avg_epoch_time, resource_pred.time_remaining, resource_pred.projected_mem_peak);
+            resource_prediction_t resource_pred =
+                predict_resources(epoch_times, epoch, epochs, &local_mem_stats, 5);
+            printf("             resource prediction: %.1f s/epoch, %.1f s remaining, projected "
+                   "peak memory: %.2f MB\n",
+                   resource_pred.avg_epoch_time, resource_pred.time_remaining,
+                   resource_pred.projected_mem_peak);
         }
 
         // Layer performance analysis (display every 10 epochs)
@@ -3130,9 +3179,8 @@ int main(int argc, char* argv[]) {
             // Use a small batch from training data for profiling
             if (train_samples > 0) {
                 // Take first sample for profiling
-                boat_tensor_t* sample = boat_tensor_slice(train_images,
-                    (size_t[]){0, 0, 0, 0},
-                    (size_t[]){1, 1, 28, 28}, NULL);
+                boat_tensor_t* sample = boat_tensor_slice(train_images, (size_t[]){0, 0, 0, 0},
+                                                          (size_t[]){1, 1, 28, 28}, NULL);
                 if (sample) {
                     profile_layer_performance(model, sample);
                     boat_tensor_unref(sample);
@@ -3156,8 +3204,10 @@ int main(int argc, char* argv[]) {
     // Print final memory statistics
     boat_memory_stats_t final_stats = boat_memory_get_stats();
     printf("\nFinal memory statistics:\n");
-    printf("  Allocated: %.2f MB in %zu blocks\n", final_stats.allocated_bytes / (1024.0 * 1024.0), final_stats.allocated_blocks);
-    printf("  Freed: %.2f MB in %zu blocks\n", final_stats.freed_bytes / (1024.0 * 1024.0), final_stats.freed_blocks);
+    printf("  Allocated: %.2f MB in %zu blocks\n", final_stats.allocated_bytes / (1024.0 * 1024.0),
+           final_stats.allocated_blocks);
+    printf("  Freed: %.2f MB in %zu blocks\n", final_stats.freed_bytes / (1024.0 * 1024.0),
+           final_stats.freed_blocks);
     printf("  Peak allocated: %.2f MB\n", final_stats.peak_allocated_bytes / (1024.0 * 1024.0));
 
     // Save final model
@@ -3167,8 +3217,8 @@ int main(int argc, char* argv[]) {
 
     // Print best model info
     if (best_epoch >= 0) {
-        printf("\nBest model: epoch %d, validation accuracy: %.2f%%\n",
-               best_epoch + 1, best_val_accuracy * 100.0f);
+        printf("\nBest model: epoch %d, validation accuracy: %.2f%%\n", best_epoch + 1,
+               best_val_accuracy * 100.0f);
     }
 
     // Evaluation on test set
@@ -3186,12 +3236,10 @@ int main(int argc, char* argv[]) {
         if (end_idx > test_samples) end_idx = test_samples;
         size_t actual_batch_size = end_idx - start_idx;
 
-        boat_tensor_t* batch_images = boat_tensor_slice(test_images,
-            (size_t[]){start_idx, 0, 0, 0},
-            (size_t[]){end_idx, 1, 28, 28}, NULL);
-        boat_tensor_t* batch_labels = boat_tensor_slice(test_labels,
-            (size_t[]){start_idx},
-            (size_t[]){end_idx}, NULL);
+        boat_tensor_t* batch_images = boat_tensor_slice(test_images, (size_t[]){start_idx, 0, 0, 0},
+                                                        (size_t[]){end_idx, 1, 28, 28}, NULL);
+        boat_tensor_t* batch_labels =
+            boat_tensor_slice(test_labels, (size_t[]){start_idx}, (size_t[]){end_idx}, NULL);
 
         if (!batch_images || !batch_labels) continue;
 

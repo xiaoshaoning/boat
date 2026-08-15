@@ -12,22 +12,22 @@
 
 // Internal tensor structure
 struct boat_tensor_t {
-    int64_t* shape;           // Array of dimensions
-    size_t ndim;              // Number of dimensions
-    boat_dtype_t dtype;       // Data type
-    boat_device_t device;     // Device (CPU/GPU)
-    void* data;               // Raw data pointer
-    size_t nbytes;            // Total bytes allocated
-    size_t nelements;         // Total number of elements
-    bool is_contiguous;       // Whether memory is contiguous
-    size_t ref_count;         // Reference count
-    boat_tensor_t* parent;    // Parent tensor if this is a view (for reshape/slice)
-    bool is_view;             // Whether this tensor is a view (shares data with parent)
-    int64_t* strides;         // Strides in elements per dim; NULL for scalar tensors
+    int64_t* shape;        // Array of dimensions
+    size_t ndim;           // Number of dimensions
+    boat_dtype_t dtype;    // Data type
+    boat_device_t device;  // Device (CPU/GPU)
+    void* data;            // Raw data pointer
+    size_t nbytes;         // Total bytes allocated
+    size_t nelements;      // Total number of elements
+    bool is_contiguous;    // Whether memory is contiguous
+    size_t ref_count;      // Reference count
+    boat_tensor_t* parent; // Parent tensor if this is a view (for reshape/slice)
+    bool is_view;          // Whether this tensor is a view (shares data with parent)
+    int64_t* strides;      // Strides in elements per dim; NULL for scalar tensors
 
     // Quantization parameters
-    float scale;              // 0.0f means not quantized
-    int32_t zero_point;       // meaningful only when scale != 0.0f
+    float scale;        // 0.0f means not quantized
+    int32_t zero_point; // meaningful only when scale != 0.0f
 
     // Per-channel quantization (NULL/0 if per-tensor)
     float* per_channel_scales;
@@ -37,7 +37,7 @@ struct boat_tensor_t {
 
 // Helper functions
 static size_t calculate_nelements(const int64_t* shape, size_t ndim) {
-    if (ndim == 0) return 1;  // a scalar tensor holds exactly one element
+    if (ndim == 0) return 1; // a scalar tensor holds exactly one element
     if (!shape) return 0;
     size_t nelements = 1;
     for (size_t i = 0; i < ndim; i++) {
@@ -72,20 +72,20 @@ static bool strides_are_contiguous(const int64_t* shape, const int64_t* strides,
 
 static size_t dtype_size(boat_dtype_t dtype) {
     switch (dtype) {
-        case BOAT_DTYPE_FLOAT64: return sizeof(double);
-        case BOAT_DTYPE_FLOAT32: return sizeof(float);
-        case BOAT_DTYPE_FLOAT16:  return 2;  // 16 bits = 2 bytes
-        case BOAT_DTYPE_BFLOAT16: return 2;  // 16 bits = 2 bytes
-        case BOAT_DTYPE_FLOAT8:   return 1;  // 8 bits = 1 byte
-        case BOAT_DTYPE_FLOAT4:  return 1;  // 4 bits packed (2 per byte)
-        case BOAT_DTYPE_INT64:   return sizeof(int64_t);
-        case BOAT_DTYPE_INT32:   return sizeof(int32_t);
-        case BOAT_DTYPE_UINT8:   return sizeof(uint8_t);
-        case BOAT_DTYPE_INT8:    return sizeof(int8_t);
-        case BOAT_DTYPE_BITS2:   return 1;  // 2 bits packed (4 per byte)
-        case BOAT_DTYPE_BITS1:   return 1;  // 1 bit packed (8 per byte)
-        case BOAT_DTYPE_BOOL:    return sizeof(bool);
-        default: return 0;
+    case BOAT_DTYPE_FLOAT64: return sizeof(double);
+    case BOAT_DTYPE_FLOAT32: return sizeof(float);
+    case BOAT_DTYPE_FLOAT16: return 2;  // 16 bits = 2 bytes
+    case BOAT_DTYPE_BFLOAT16: return 2; // 16 bits = 2 bytes
+    case BOAT_DTYPE_FLOAT8: return 1;   // 8 bits = 1 byte
+    case BOAT_DTYPE_FLOAT4: return 1;   // 4 bits packed (2 per byte)
+    case BOAT_DTYPE_INT64: return sizeof(int64_t);
+    case BOAT_DTYPE_INT32: return sizeof(int32_t);
+    case BOAT_DTYPE_UINT8: return sizeof(uint8_t);
+    case BOAT_DTYPE_INT8: return sizeof(int8_t);
+    case BOAT_DTYPE_BITS2: return 1; // 2 bits packed (4 per byte)
+    case BOAT_DTYPE_BITS1: return 1; // 1 bit packed (8 per byte)
+    case BOAT_DTYPE_BOOL: return sizeof(bool);
+    default: return 0;
     }
 }
 
@@ -110,8 +110,8 @@ static void free_memory(void* ptr, boat_device_t device) {
 }
 
 // Public API implementation
-BOAT_API boat_tensor_t* boat_tensor_create(const int64_t* shape, size_t ndim,
-                                  boat_dtype_t dtype, boat_device_t device) {
+BOAT_API boat_tensor_t* boat_tensor_create(const int64_t* shape, size_t ndim, boat_dtype_t dtype,
+                                           boat_device_t device) {
     // Allow scalar tensors (ndim = 0)
     if (!shape && ndim > 0) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Tensor] shape is NULL but ndim > 0\n");
@@ -188,8 +188,8 @@ BOAT_API boat_tensor_t* boat_tensor_create(const int64_t* shape, size_t ndim,
     return tensor;
 }
 
-BOAT_API boat_tensor_t* boat_tensor_from_data(const int64_t* shape, size_t ndim,
-                                     boat_dtype_t dtype, const void* data) {
+BOAT_API boat_tensor_t* boat_tensor_from_data(const int64_t* shape, size_t ndim, boat_dtype_t dtype,
+                                              const void* data) {
     boat_tensor_t* tensor = boat_tensor_create(shape, ndim, dtype, BOAT_DEVICE_CPU);
     if (!tensor) {
         return NULL;
@@ -294,24 +294,25 @@ BOAT_API size_t boat_dtype_size(boat_dtype_t dtype) {
 
 BOAT_API const char* boat_dtype_name(boat_dtype_t dtype) {
     switch (dtype) {
-        case BOAT_DTYPE_FLOAT64: return "float64";
-        case BOAT_DTYPE_FLOAT32: return "float32";
-        case BOAT_DTYPE_FLOAT16:  return "float16";
-        case BOAT_DTYPE_BFLOAT16: return "bfloat16";
-        case BOAT_DTYPE_FLOAT8:  return "float8";
-        case BOAT_DTYPE_FLOAT4:  return "float4";
-        case BOAT_DTYPE_INT64:   return "int64";
-        case BOAT_DTYPE_INT32:   return "int32";
-        case BOAT_DTYPE_UINT8:   return "uint8";
-        case BOAT_DTYPE_INT8:    return "int8";
-        case BOAT_DTYPE_BITS2:   return "bits2";
-        case BOAT_DTYPE_BITS1:   return "bits1";
-        case BOAT_DTYPE_BOOL:    return "bool";
-        default: return "unknown";
+    case BOAT_DTYPE_FLOAT64: return "float64";
+    case BOAT_DTYPE_FLOAT32: return "float32";
+    case BOAT_DTYPE_FLOAT16: return "float16";
+    case BOAT_DTYPE_BFLOAT16: return "bfloat16";
+    case BOAT_DTYPE_FLOAT8: return "float8";
+    case BOAT_DTYPE_FLOAT4: return "float4";
+    case BOAT_DTYPE_INT64: return "int64";
+    case BOAT_DTYPE_INT32: return "int32";
+    case BOAT_DTYPE_UINT8: return "uint8";
+    case BOAT_DTYPE_INT8: return "int8";
+    case BOAT_DTYPE_BITS2: return "bits2";
+    case BOAT_DTYPE_BITS1: return "bits1";
+    case BOAT_DTYPE_BOOL: return "bool";
+    default: return "unknown";
     }
 }
 
-BOAT_API boat_tensor_t* boat_tensor_reshape(const boat_tensor_t* tensor, const int64_t* new_shape, size_t new_ndim) {
+BOAT_API boat_tensor_t* boat_tensor_reshape(const boat_tensor_t* tensor, const int64_t* new_shape,
+                                            size_t new_ndim) {
     if (!tensor || !new_shape) {
         return NULL;
     }
@@ -334,7 +335,9 @@ BOAT_API boat_tensor_t* boat_tensor_reshape(const boat_tensor_t* tensor, const i
 
     // Verify element count matches
     if (new_nelements != tensor->nelements) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Tensor] Reshape element count mismatch: %zu != %zu\n", new_nelements, tensor->nelements);
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                        "[Tensor] Reshape element count mismatch: %zu != %zu\n", new_nelements,
+                        tensor->nelements);
         return NULL;
     }
 
@@ -378,7 +381,8 @@ BOAT_API boat_tensor_t* boat_tensor_reshape(const boat_tensor_t* tensor, const i
     return new_tensor;
 }
 
-BOAT_API boat_tensor_t* boat_tensor_slice(const boat_tensor_t* tensor, const size_t* start, const size_t* end, const size_t* step) {
+BOAT_API boat_tensor_t* boat_tensor_slice(const boat_tensor_t* tensor, const size_t* start,
+                                          const size_t* end, const size_t* step) {
     if (!tensor || !start || !end) {
         return NULL;
     }
@@ -387,7 +391,8 @@ BOAT_API boat_tensor_t* boat_tensor_slice(const boat_tensor_t* tensor, const siz
 #if BOAT_DEBUG
     fprintf(stderr, "DEBUG boat_tensor_slice: ndim=%zu\n", ndim);
     for (size_t i = 0; i < ndim; i++) {
-        fprintf(stderr, "  dim[%zu]: start=%zu, end=%zu, shape=%lld\n", i, start[i], end[i], (long long)tensor->shape[i]);
+        fprintf(stderr, "  dim[%zu]: start=%zu, end=%zu, shape=%lld\n", i, start[i], end[i],
+                (long long)tensor->shape[i]);
     }
 #endif
 
@@ -424,8 +429,10 @@ BOAT_API boat_tensor_t* boat_tensor_slice(const boat_tensor_t* tensor, const siz
     for (size_t i = 0; i < ndim; i++) {
         size_t dim_size = tensor->shape[i];
         if (start[i] >= dim_size || end[i] > dim_size || start[i] > end[i]) {
-            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Tensor] Invalid slice range for dimension %zu: [%zu, %zu) (dim size: %zu)\n",
-                    i, start[i], end[i], dim_size);
+            boat_set_errorf(
+                BOAT_ERROR_INVALID_ARGUMENT,
+                "[Tensor] Invalid slice range for dimension %zu: [%zu, %zu) (dim size: %zu)\n", i,
+                start[i], end[i], dim_size);
             boat_free(new_shape);
             boat_free(effective_step);
             return NULL;
@@ -437,7 +444,8 @@ BOAT_API boat_tensor_t* boat_tensor_slice(const boat_tensor_t* tensor, const siz
         new_shape[i] = (int64_t)dim_new_size;
 
         if (dim_new_size == 0) {
-            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Tensor] Slice results in zero-size dimension %zu\n", i);
+            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                            "[Tensor] Slice results in zero-size dimension %zu\n", i);
             boat_free(new_shape);
             boat_free(effective_step);
             return NULL;
@@ -453,7 +461,8 @@ BOAT_API boat_tensor_t* boat_tensor_slice(const boat_tensor_t* tensor, const siz
 
     // Check if tensor is contiguous
     if (!tensor->is_contiguous) {
-        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[Tensor] Slicing non-contiguous tensors not supported\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION,
+                        "[Tensor] Slicing non-contiguous tensors not supported\n");
         boat_free(new_shape);
         boat_free(effective_step);
         return NULL;
@@ -505,7 +514,8 @@ BOAT_API boat_tensor_t* boat_tensor_slice(const boat_tensor_t* tensor, const siz
     for (size_t i = 0; i < ndim; i++) {
         new_tensor->strides[i] = tensor->strides[i] * (int64_t)effective_step[i];
     }
-    new_tensor->is_contiguous = strides_are_contiguous(new_tensor->shape, new_tensor->strides, ndim);
+    new_tensor->is_contiguous =
+        strides_are_contiguous(new_tensor->shape, new_tensor->strides, ndim);
 
     new_tensor->dtype = tensor->dtype;
     new_tensor->device = tensor->device;
@@ -559,7 +569,9 @@ BOAT_API const int32_t* boat_tensor_get_zero_points(const boat_tensor_t* tensor)
     return tensor ? tensor->per_channel_zero_points : NULL;
 }
 
-BOAT_API void boat_tensor_set_per_channel_quant_params(boat_tensor_t* tensor, const float* scales, const int32_t* zero_points, size_t n_channels) {
+BOAT_API void boat_tensor_set_per_channel_quant_params(boat_tensor_t* tensor, const float* scales,
+                                                       const int32_t* zero_points,
+                                                       size_t n_channels) {
     if (!tensor) return;
 
     // Free existing per-channel arrays
@@ -569,14 +581,21 @@ BOAT_API void boat_tensor_set_per_channel_quant_params(boat_tensor_t* tensor, co
     if (scales && zero_points && n_channels > 0) {
         size_t arr_size = sizeof(float) * n_channels;
         tensor->per_channel_scales = boat_malloc(arr_size, BOAT_DEVICE_CPU);
-        tensor->per_channel_zero_points = boat_malloc(sizeof(int32_t) * n_channels, BOAT_DEVICE_CPU);
+        tensor->per_channel_zero_points =
+            boat_malloc(sizeof(int32_t) * n_channels, BOAT_DEVICE_CPU);
         if (tensor->per_channel_scales && tensor->per_channel_zero_points) {
             memcpy(tensor->per_channel_scales, scales, arr_size);
             memcpy(tensor->per_channel_zero_points, zero_points, sizeof(int32_t) * n_channels);
             tensor->n_channels = n_channels;
         } else {
-            if (tensor->per_channel_scales) { boat_free(tensor->per_channel_scales); tensor->per_channel_scales = NULL; }
-            if (tensor->per_channel_zero_points) { boat_free(tensor->per_channel_zero_points); tensor->per_channel_zero_points = NULL; }
+            if (tensor->per_channel_scales) {
+                boat_free(tensor->per_channel_scales);
+                tensor->per_channel_scales = NULL;
+            }
+            if (tensor->per_channel_zero_points) {
+                boat_free(tensor->per_channel_zero_points);
+                tensor->per_channel_zero_points = NULL;
+            }
             tensor->n_channels = 0;
         }
     } else {
@@ -586,7 +605,8 @@ BOAT_API void boat_tensor_set_per_channel_quant_params(boat_tensor_t* tensor, co
     }
 }
 
-BOAT_API boat_tensor_t* boat_tensor_transpose(const boat_tensor_t* tensor, const size_t* perm, size_t nperm) {
+BOAT_API boat_tensor_t* boat_tensor_transpose(const boat_tensor_t* tensor, const size_t* perm,
+                                              size_t nperm) {
     if (!tensor || !perm) return NULL;
 
     size_t ndim = tensor->ndim;
@@ -598,26 +618,41 @@ BOAT_API boat_tensor_t* boat_tensor_transpose(const boat_tensor_t* tensor, const
 
     // Compute inverse permutation
     size_t* inv_perm = boat_malloc(ndim * sizeof(size_t), BOAT_DEVICE_CPU);
-    if (!inv_perm) { boat_free(out_shape); return NULL; }
+    if (!inv_perm) {
+        boat_free(out_shape);
+        return NULL;
+    }
 
     for (size_t i = 0; i < ndim; i++) {
-        if (perm[i] >= ndim) { boat_free(out_shape); boat_free(inv_perm); return NULL; }
+        if (perm[i] >= ndim) {
+            boat_free(out_shape);
+            boat_free(inv_perm);
+            return NULL;
+        }
         out_shape[i] = tensor->shape[perm[i]];
         inv_perm[perm[i]] = i;
     }
 
     boat_tensor_t* result = boat_tensor_create(out_shape, ndim, tensor->dtype, tensor->device);
     boat_free(out_shape);
-    if (!result) { boat_free(inv_perm); return NULL; }
+    if (!result) {
+        boat_free(inv_perm);
+        return NULL;
+    }
 
     // Total elements
     size_t total = 1;
-    for (size_t i = 0; i < ndim; i++) total *= (size_t)tensor->shape[i];
+    for (size_t i = 0; i < ndim; i++)
+        total *= (size_t)tensor->shape[i];
     size_t elem_size = boat_dtype_size(tensor->dtype);
 
     // Iterate over all elements using a flat index
     size_t* out_idx = boat_malloc(ndim * sizeof(size_t), BOAT_DEVICE_CPU);
-    if (!out_idx) { boat_free(inv_perm); boat_tensor_unref(result); return NULL; }
+    if (!out_idx) {
+        boat_free(inv_perm);
+        boat_tensor_unref(result);
+        return NULL;
+    }
 
     const uint8_t* src = (const uint8_t*)tensor->data;
     uint8_t* dst = (uint8_t*)result->data;
@@ -651,8 +686,8 @@ BOAT_API boat_tensor_t* boat_tensor_transpose(const boat_tensor_t* tensor, const
 BOAT_API boat_tensor_t* boat_tensor_clone(const boat_tensor_t* tensor) {
     if (!tensor) return NULL;
 
-    boat_tensor_t* clone = boat_tensor_create(tensor->shape, tensor->ndim,
-                                              tensor->dtype, tensor->device);
+    boat_tensor_t* clone =
+        boat_tensor_create(tensor->shape, tensor->ndim, tensor->dtype, tensor->device);
     if (!clone) return NULL;
 
     // Copy quantization parameters
@@ -661,7 +696,8 @@ BOAT_API boat_tensor_t* boat_tensor_clone(const boat_tensor_t* tensor) {
     if (tensor->per_channel_scales && tensor->n_channels > 0) {
         size_t arr_size = sizeof(float) * tensor->n_channels;
         clone->per_channel_scales = boat_malloc(arr_size, BOAT_DEVICE_CPU);
-        clone->per_channel_zero_points = boat_malloc(sizeof(int32_t) * tensor->n_channels, BOAT_DEVICE_CPU);
+        clone->per_channel_zero_points =
+            boat_malloc(sizeof(int32_t) * tensor->n_channels, BOAT_DEVICE_CPU);
         if (clone->per_channel_scales && clone->per_channel_zero_points) {
             memcpy(clone->per_channel_scales, tensor->per_channel_scales, arr_size);
             memcpy(clone->per_channel_zero_points, tensor->per_channel_zero_points,
@@ -672,8 +708,7 @@ BOAT_API boat_tensor_t* boat_tensor_clone(const boat_tensor_t* tensor) {
 
     // Copy data
     if (tensor->nbytes > 0 && tensor->data && clone->data) {
-        boat_memory_copy(clone->data, tensor->data, tensor->nbytes,
-                         clone->device, tensor->device);
+        boat_memory_copy(clone->data, tensor->data, tensor->nbytes, clone->device, tensor->device);
     }
 
     return clone;
@@ -685,8 +720,7 @@ BOAT_API boat_tensor_t* boat_tensor_to_device(const boat_tensor_t* tensor, boat_
         return boat_tensor_clone(tensor);
     }
 
-    boat_tensor_t* result = boat_tensor_create(tensor->shape, tensor->ndim,
-                                               tensor->dtype, dev);
+    boat_tensor_t* result = boat_tensor_create(tensor->shape, tensor->ndim, tensor->dtype, dev);
     if (!result) return NULL;
 
     // Copy quantization parameters
@@ -695,7 +729,8 @@ BOAT_API boat_tensor_t* boat_tensor_to_device(const boat_tensor_t* tensor, boat_
     if (tensor->per_channel_scales && tensor->n_channels > 0) {
         size_t arr_size = sizeof(float) * tensor->n_channels;
         result->per_channel_scales = boat_malloc(arr_size, BOAT_DEVICE_CPU);
-        result->per_channel_zero_points = boat_malloc(sizeof(int32_t) * tensor->n_channels, BOAT_DEVICE_CPU);
+        result->per_channel_zero_points =
+            boat_malloc(sizeof(int32_t) * tensor->n_channels, BOAT_DEVICE_CPU);
         if (result->per_channel_scales && result->per_channel_zero_points) {
             memcpy(result->per_channel_scales, tensor->per_channel_scales, arr_size);
             memcpy(result->per_channel_zero_points, tensor->per_channel_zero_points,
@@ -706,8 +741,7 @@ BOAT_API boat_tensor_t* boat_tensor_to_device(const boat_tensor_t* tensor, boat_
 
     // Copy data across devices
     if (tensor->nbytes > 0 && tensor->data && result->data) {
-        boat_memory_copy(result->data, tensor->data, tensor->nbytes,
-                         dev, tensor->device);
+        boat_memory_copy(result->data, tensor->data, tensor->nbytes, dev, tensor->device);
     }
 
     return result;
@@ -719,8 +753,8 @@ BOAT_API boat_tensor_t* boat_tensor_contiguous(const boat_tensor_t* tensor) {
         return boat_tensor_clone(tensor);
     }
     // For non-contiguous tensors, create a new contiguous copy
-    boat_tensor_t* result = boat_tensor_create(tensor->shape, tensor->ndim,
-                                               tensor->dtype, tensor->device);
+    boat_tensor_t* result =
+        boat_tensor_create(tensor->shape, tensor->ndim, tensor->dtype, tensor->device);
     if (!result) return NULL;
 
     size_t elem_size = boat_dtype_size(tensor->dtype);
@@ -749,14 +783,15 @@ BOAT_API boat_tensor_t* boat_tensor_contiguous(const boat_tensor_t* tensor) {
             rem /= (size_t)tensor->shape[dim];
             src_off += coord * (size_t)tensor->strides[dim];
         }
-        boat_memory_copy(dst + idx * elem_size, src + src_off * elem_size,
-                         elem_size, result->device, tensor->device);
+        boat_memory_copy(dst + idx * elem_size, src + src_off * elem_size, elem_size,
+                         result->device, tensor->device);
     }
 
     return result;
 }
 
-BOAT_API boat_tensor_t* boat_tensor_concatenate(const boat_tensor_t** tensors, size_t n_tensors, size_t axis) {
+BOAT_API boat_tensor_t* boat_tensor_concatenate(const boat_tensor_t** tensors, size_t n_tensors,
+                                                size_t axis) {
     if (!tensors || n_tensors == 0) return NULL;
 
     // Validate inputs and compute output shape
@@ -788,9 +823,11 @@ BOAT_API boat_tensor_t* boat_tensor_concatenate(const boat_tensor_t** tensors, s
 
     size_t elem_size = boat_dtype_size(dtype);
     size_t outer = 1;
-    for (size_t i = 0; i < axis; i++) outer *= (size_t)out_shape[i];
+    for (size_t i = 0; i < axis; i++)
+        outer *= (size_t)out_shape[i];
     size_t inner = 1;
-    for (size_t i = axis + 1; i < ndim; i++) inner *= (size_t)out_shape[i];
+    for (size_t i = axis + 1; i < ndim; i++)
+        inner *= (size_t)out_shape[i];
 
     // Inputs are assumed contiguous (row-major); copy block by block so
     // concatenation along any axis interleaves correctly.
@@ -815,7 +852,8 @@ BOAT_API boat_tensor_t* boat_tensor_concatenate(const boat_tensor_t** tensors, s
     return result;
 }
 
-BOAT_API boat_tensor_t* boat_tensor_stack(const boat_tensor_t** tensors, size_t n_tensors, size_t axis) {
+BOAT_API boat_tensor_t* boat_tensor_stack(const boat_tensor_t** tensors, size_t n_tensors,
+                                          size_t axis) {
     if (!tensors || n_tensors == 0) return NULL;
 
     size_t ndim = tensors[0]->ndim;
@@ -834,19 +872,23 @@ BOAT_API boat_tensor_t* boat_tensor_stack(const boat_tensor_t** tensors, size_t 
 
     // Build output shape with inserted dimension
     int64_t out_shape[BOAT_MAX_DIMS];
-    for (size_t i = 0; i < axis; i++) out_shape[i] = tensors[0]->shape[i];
+    for (size_t i = 0; i < axis; i++)
+        out_shape[i] = tensors[0]->shape[i];
     out_shape[axis] = (int64_t)n_tensors;
-    for (size_t i = axis; i < ndim; i++) out_shape[i + 1] = tensors[0]->shape[i];
+    for (size_t i = axis; i < ndim; i++)
+        out_shape[i + 1] = tensors[0]->shape[i];
 
-    boat_tensor_t* result = boat_tensor_create(out_shape, ndim + 1,
-                                               tensors[0]->dtype, tensors[0]->device);
+    boat_tensor_t* result =
+        boat_tensor_create(out_shape, ndim + 1, tensors[0]->dtype, tensors[0]->device);
     if (!result) return NULL;
 
     size_t elem_size = boat_dtype_size(tensors[0]->dtype);
     size_t outer = 1;
-    for (size_t i = 0; i < axis; i++) outer *= (size_t)tensors[0]->shape[i];
+    for (size_t i = 0; i < axis; i++)
+        outer *= (size_t)tensors[0]->shape[i];
     size_t inner = 1;
-    for (size_t i = axis; i < ndim; i++) inner *= (size_t)tensors[0]->shape[i];
+    for (size_t i = axis; i < ndim; i++)
+        inner *= (size_t)tensors[0]->shape[i];
 
     // Inputs are assumed contiguous; interleave each tensor's block along the
     // new (inserted) axis so stacking works for any axis.
@@ -877,8 +919,8 @@ static void* get_host_readable(const boat_tensor_t* tensor, void** temp_buf) {
     if (tensor->device == BOAT_DEVICE_CUDA && tensor->data && tensor->nbytes > 0) {
         *temp_buf = boat_malloc(tensor->nbytes, BOAT_DEVICE_CPU);
         if (*temp_buf) {
-            boat_memory_copy(*temp_buf, tensor->data, tensor->nbytes,
-                             BOAT_DEVICE_CPU, BOAT_DEVICE_CUDA);
+            boat_memory_copy(*temp_buf, tensor->data, tensor->nbytes, BOAT_DEVICE_CPU,
+                             BOAT_DEVICE_CUDA);
             return *temp_buf;
         }
     }
@@ -887,29 +929,34 @@ static void* get_host_readable(const boat_tensor_t* tensor, void** temp_buf) {
 }
 
 BOAT_API void boat_tensor_print(const boat_tensor_t* tensor) {
-    if (!tensor) { printf("NULL tensor\n"); return; }
+    if (!tensor) {
+        printf("NULL tensor\n");
+        return;
+    }
 
     void* host_buf = NULL;
     void* data = get_host_readable(tensor, &host_buf);
-    if (!data) { printf("<tensor on device %d, no data>\n", (int)tensor->device); return; }
+    if (!data) {
+        printf("<tensor on device %d, no data>\n", (int)tensor->device);
+        return;
+    }
 
     printf("Tensor(shape=[");
     for (size_t i = 0; i < tensor->ndim; i++) {
         if (i > 0) printf(", ");
         printf("%lld", (long long)tensor->shape[i]);
     }
-    printf("], dtype=%s, device=%s, data=[",
-           boat_dtype_name(tensor->dtype),
+    printf("], dtype=%s, device=%s, data=[", boat_dtype_name(tensor->dtype),
            tensor->device == BOAT_DEVICE_CUDA ? "cuda" : "cpu");
 
     size_t print_n = tensor->nelements < 8 ? tensor->nelements : 8;
     for (size_t i = 0; i < print_n; i++) {
         if (i > 0) printf(", ");
         switch (tensor->dtype) {
-            case BOAT_DTYPE_FLOAT32: printf("%f", ((float*)data)[i]); break;
-            case BOAT_DTYPE_INT32:   printf("%d", ((int32_t*)data)[i]); break;
-            case BOAT_DTYPE_INT64:   printf("%lld", (long long)((int64_t*)data)[i]); break;
-            default: printf("?"); break;
+        case BOAT_DTYPE_FLOAT32: printf("%f", ((float*)data)[i]); break;
+        case BOAT_DTYPE_INT32: printf("%d", ((int32_t*)data)[i]); break;
+        case BOAT_DTYPE_INT64: printf("%lld", (long long)((int64_t*)data)[i]); break;
+        default: printf("?"); break;
         }
     }
     if (tensor->nelements > 8) printf(", ...");
@@ -928,15 +975,18 @@ BOAT_API char* boat_tensor_to_string(const boat_tensor_t* tensor) {
     // Very simple string representation for now
     size_t buf_size = 1024;
     char* buf = boat_malloc(buf_size, BOAT_DEVICE_CPU);
-    if (!buf) { if (host_buf) boat_free(host_buf); return NULL; }
+    if (!buf) {
+        if (host_buf) boat_free(host_buf);
+        return NULL;
+    }
 
     int written = snprintf(buf, buf_size, "Tensor(shape=[");
     for (size_t i = 0; i < tensor->ndim; i++) {
         // Clamp to the remaining buffer so a truncated write cannot make
         // `buf + written` point past the allocation or underflow the size.
         if (written >= (int)buf_size) break;
-        written += snprintf(buf + written, buf_size - (size_t)written,
-                            "%s%lld", i > 0 ? ", " : "", (long long)tensor->shape[i]);
+        written += snprintf(buf + written, buf_size - (size_t)written, "%s%lld", i > 0 ? ", " : "",
+                            (long long)tensor->shape[i]);
     }
     if (written < (int)buf_size) {
         snprintf(buf + written, buf_size - (size_t)written, "])");
@@ -959,7 +1009,11 @@ BOAT_API bool boat_tensor_equal(const boat_tensor_t* a, const boat_tensor_t* b) 
     void* host_b = NULL;
     void* data_a = get_host_readable(a, &host_a);
     void* data_b = get_host_readable(b, &host_b);
-    if (!data_a || !data_b) { boat_free(host_a); boat_free(host_b); return false; }
+    if (!data_a || !data_b) {
+        boat_free(host_a);
+        boat_free(host_b);
+        return false;
+    }
 
     // Bitwise equality (memcmp): -0.0f and +0.0f are NOT equal here.
     // Use boat_tensor_allclose for tolerance-based float comparison.
@@ -970,7 +1024,8 @@ BOAT_API bool boat_tensor_equal(const boat_tensor_t* a, const boat_tensor_t* b) 
     return equal;
 }
 
-BOAT_API bool boat_tensor_allclose(const boat_tensor_t* a, const boat_tensor_t* b, float rtol, float atol) {
+BOAT_API bool boat_tensor_allclose(const boat_tensor_t* a, const boat_tensor_t* b, float rtol,
+                                   float atol) {
     if (!a || !b) return false;
     if (a->ndim != b->ndim || a->dtype != b->dtype) return false;
     for (size_t i = 0; i < a->ndim; i++) {
@@ -983,7 +1038,11 @@ BOAT_API bool boat_tensor_allclose(const boat_tensor_t* a, const boat_tensor_t* 
     void* host_b = NULL;
     void* data_a = get_host_readable(a, &host_a);
     void* data_b = get_host_readable(b, &host_b);
-    if (!data_a || !data_b) { boat_free(host_a); boat_free(host_b); return false; }
+    if (!data_a || !data_b) {
+        boat_free(host_a);
+        boat_free(host_b);
+        return false;
+    }
 
     float* fa = (float*)data_a;
     float* fb = (float*)data_b;
@@ -993,7 +1052,10 @@ BOAT_API bool boat_tensor_allclose(const boat_tensor_t* a, const boat_tensor_t* 
         if (diff < 0) diff = -diff;
         float max_val = fa[i] > fb[i] ? fa[i] : fb[i];
         if (max_val < 0) max_val = -max_val;
-        if (diff > atol + rtol * max_val) { ok = false; break; }
+        if (diff > atol + rtol * max_val) {
+            ok = false;
+            break;
+        }
     }
 
     boat_free(host_a);

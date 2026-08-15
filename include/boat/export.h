@@ -7,41 +7,41 @@
 
 // Platform detection
 #if defined(_WIN32) || defined(_WIN64)
-    #define BOAT_WINDOWS 1
+#define BOAT_WINDOWS 1
 #else
-    #define BOAT_WINDOWS 0
+#define BOAT_WINDOWS 0
 #endif
 
 // Calling convention macros
 #if BOAT_WINDOWS && defined(_M_X64)
-    // Windows x64: default calling convention (no explicit specifier needed)
-    #define BOAT_CALL
+// Windows x64: default calling convention (no explicit specifier needed)
+#define BOAT_CALL
 #elif BOAT_WINDOWS
-    // Windows x86: use __stdcall for compatibility
-    #define BOAT_CALL __stdcall
+// Windows x86: use __stdcall for compatibility
+#define BOAT_CALL __stdcall
 #else
-    // Non-Windows platforms
-    #define BOAT_CALL
+// Non-Windows platforms
+#define BOAT_CALL
 #endif
 
 // Compiler-specific export/import macros
 #ifdef BOAT_STATIC_BUILD
-    // Static library build - no export/import needed
-    #define BOAT_API
+// Static library build - no export/import needed
+#define BOAT_API
 #elif BOAT_WINDOWS
-    // Windows DLL export/import
-    #ifdef BOAT_BUILDING_DLL
-        #define BOAT_API __declspec(dllexport)
-    #else
-        #define BOAT_API __declspec(dllimport)
-    #endif
+// Windows DLL export/import
+#ifdef BOAT_BUILDING_DLL
+#define BOAT_API __declspec(dllexport)
 #else
-    // Non-Windows platforms (Linux, macOS, etc.)
-    #if __GNUC__ >= 4
-        #define BOAT_API __attribute__((visibility("default")))
-    #else
-        #define BOAT_API
-    #endif
+#define BOAT_API __declspec(dllimport)
+#endif
+#else
+// Non-Windows platforms (Linux, macOS, etc.)
+#if __GNUC__ >= 4
+#define BOAT_API __attribute__((visibility("default")))
+#else
+#define BOAT_API
+#endif
 #endif
 
 // For functions that are always inline or static
@@ -50,20 +50,20 @@
 
 // Function inlining control
 #if defined(_MSC_VER)
-    #define BOAT_NOINLINE __declspec(noinline)
+#define BOAT_NOINLINE __declspec(noinline)
 #elif defined(__GNUC__) || defined(__clang__)
-    #define BOAT_NOINLINE __attribute__((noinline))
+#define BOAT_NOINLINE __attribute__((noinline))
 #else
-    #define BOAT_NOINLINE
+#define BOAT_NOINLINE
 #endif
 
 // For deprecated functions
 #if defined(__GNUC__) || defined(__clang__)
-    #define BOAT_DEPRECATED __attribute__((deprecated))
+#define BOAT_DEPRECATED __attribute__((deprecated))
 #elif defined(_MSC_VER)
-    #define BOAT_DEPRECATED __declspec(deprecated)
+#define BOAT_DEPRECATED __declspec(deprecated)
 #else
-    #define BOAT_DEPRECATED
+#define BOAT_DEPRECATED
 #endif
 
 // Debug output control
@@ -109,33 +109,33 @@ BOAT_API void boat_set_errorf(boat_error_t error, const char* format, ...);
 #endif
 
 // Check that a pointer is non-NULL; if NULL, set error and return NULL.
-#define BOAT_CHECK_NULL(ptr) \
-    do { \
-        if (!(ptr)) { \
-            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, \
-                "[%s] NULL argument: '%s'\n", __func__, #ptr); \
-            return NULL; \
-        } \
-    } while(0)
+#define BOAT_CHECK_NULL(ptr)                                                                       \
+    do {                                                                                           \
+        if (!(ptr)) {                                                                              \
+            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[%s] NULL argument: '%s'\n", __func__,   \
+                            #ptr);                                                                 \
+            return NULL;                                                                           \
+        }                                                                                          \
+    } while (0)
 
 // Like BOAT_CHECK_NULL but for void functions (returns void).
-#define BOAT_CHECK_NULL_VOID(ptr) \
-    do { \
-        if (!(ptr)) { \
-            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, \
-                "[%s] NULL argument: '%s'\n", __func__, #ptr); \
-            return; \
-        } \
-    } while(0)
+#define BOAT_CHECK_NULL_VOID(ptr)                                                                  \
+    do {                                                                                           \
+        if (!(ptr)) {                                                                              \
+            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[%s] NULL argument: '%s'\n", __func__,   \
+                            #ptr);                                                                 \
+            return;                                                                                \
+        }                                                                                          \
+    } while (0)
 
 // Like BOAT_CHECK_NULL but for functions returning bool.
-#define BOAT_CHECK_NULL_BOOL(ptr) \
-    do { \
-        if (!(ptr)) { \
-            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, \
-                "[%s] NULL argument: '%s'\n", __func__, #ptr); \
-            return false; \
-        } \
-    } while(0)
+#define BOAT_CHECK_NULL_BOOL(ptr)                                                                  \
+    do {                                                                                           \
+        if (!(ptr)) {                                                                              \
+            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[%s] NULL argument: '%s'\n", __func__,   \
+                            #ptr);                                                                 \
+            return false;                                                                          \
+        }                                                                                          \
+    } while (0)
 
 #endif // BOAT_EXPORT_H

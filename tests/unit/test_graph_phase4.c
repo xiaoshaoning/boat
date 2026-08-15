@@ -112,7 +112,7 @@ static void test_sequential_lifecycle(void) {
         boat_layer_t* wrapper = (boat_layer_t*)malloc(sizeof(boat_layer_t));
         assert(wrapper != NULL);
         wrapper->data = dense;
-        wrapper->ops = NULL;  // auto-assigned by boat_model_add_layer
+        wrapper->ops = NULL; // auto-assigned by boat_model_add_layer
         wrapper->type = BOAT_LAYER_TYPE_DENSE;
         boat_sequential_add(model, wrapper);
     }

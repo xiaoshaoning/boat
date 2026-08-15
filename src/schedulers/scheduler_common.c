@@ -49,18 +49,12 @@ BOAT_API void boat_scheduler_step(boat_scheduler_t* scheduler) {
     if (!scheduler) return;
 
     switch (get_scheduler_type(scheduler)) {
-        case BOAT_SCHEDULER_STEP_LR:
-            step_lr_scheduler_step(scheduler);
-            break;
-        case BOAT_SCHEDULER_COSINE_ANNEALING:
-            cosine_annealing_scheduler_step(scheduler);
-            break;
-        case BOAT_SCHEDULER_LAMBDA_LR:
-            lambda_lr_scheduler_step(scheduler);
-            break;
-        default:
-            // Unknown scheduler type, do nothing
-            break;
+    case BOAT_SCHEDULER_STEP_LR: step_lr_scheduler_step(scheduler); break;
+    case BOAT_SCHEDULER_COSINE_ANNEALING: cosine_annealing_scheduler_step(scheduler); break;
+    case BOAT_SCHEDULER_LAMBDA_LR: lambda_lr_scheduler_step(scheduler); break;
+    default:
+        // Unknown scheduler type, do nothing
+        break;
     }
 }
 
@@ -69,18 +63,12 @@ BOAT_API void boat_scheduler_reset(boat_scheduler_t* scheduler) {
     if (!scheduler) return;
 
     switch (get_scheduler_type(scheduler)) {
-        case BOAT_SCHEDULER_STEP_LR:
-            step_lr_scheduler_reset(scheduler);
-            break;
-        case BOAT_SCHEDULER_COSINE_ANNEALING:
-            cosine_annealing_scheduler_reset(scheduler);
-            break;
-        case BOAT_SCHEDULER_LAMBDA_LR:
-            lambda_lr_scheduler_reset(scheduler);
-            break;
-        default:
-            // Unknown scheduler type, do nothing
-            break;
+    case BOAT_SCHEDULER_STEP_LR: step_lr_scheduler_reset(scheduler); break;
+    case BOAT_SCHEDULER_COSINE_ANNEALING: cosine_annealing_scheduler_reset(scheduler); break;
+    case BOAT_SCHEDULER_LAMBDA_LR: lambda_lr_scheduler_reset(scheduler); break;
+    default:
+        // Unknown scheduler type, do nothing
+        break;
     }
 }
 
@@ -89,14 +77,10 @@ BOAT_API float boat_scheduler_get_last_lr(const boat_scheduler_t* scheduler) {
     if (!scheduler) return 0.0f;
 
     switch (get_scheduler_type(scheduler)) {
-        case BOAT_SCHEDULER_STEP_LR:
-            return step_lr_scheduler_get_last_lr(scheduler);
-        case BOAT_SCHEDULER_COSINE_ANNEALING:
-            return cosine_annealing_scheduler_get_last_lr(scheduler);
-        case BOAT_SCHEDULER_LAMBDA_LR:
-            return lambda_lr_scheduler_get_last_lr(scheduler);
-        default:
-            return 0.0f;
+    case BOAT_SCHEDULER_STEP_LR: return step_lr_scheduler_get_last_lr(scheduler);
+    case BOAT_SCHEDULER_COSINE_ANNEALING: return cosine_annealing_scheduler_get_last_lr(scheduler);
+    case BOAT_SCHEDULER_LAMBDA_LR: return lambda_lr_scheduler_get_last_lr(scheduler);
+    default: return 0.0f;
     }
 }
 
@@ -105,14 +89,10 @@ BOAT_API float boat_scheduler_get_next_lr(const boat_scheduler_t* scheduler) {
     if (!scheduler) return 0.0f;
 
     switch (get_scheduler_type(scheduler)) {
-        case BOAT_SCHEDULER_STEP_LR:
-            return step_lr_scheduler_get_next_lr(scheduler);
-        case BOAT_SCHEDULER_COSINE_ANNEALING:
-            return cosine_annealing_scheduler_get_next_lr(scheduler);
-        case BOAT_SCHEDULER_LAMBDA_LR:
-            return lambda_lr_scheduler_get_next_lr(scheduler);
-        default:
-            return 0.0f;
+    case BOAT_SCHEDULER_STEP_LR: return step_lr_scheduler_get_next_lr(scheduler);
+    case BOAT_SCHEDULER_COSINE_ANNEALING: return cosine_annealing_scheduler_get_next_lr(scheduler);
+    case BOAT_SCHEDULER_LAMBDA_LR: return lambda_lr_scheduler_get_next_lr(scheduler);
+    default: return 0.0f;
     }
 }
 
@@ -121,19 +101,13 @@ BOAT_API void boat_scheduler_free(boat_scheduler_t* scheduler) {
     if (!scheduler) return;
 
     switch (get_scheduler_type(scheduler)) {
-        case BOAT_SCHEDULER_STEP_LR:
-            step_lr_scheduler_free(scheduler);
-            break;
-        case BOAT_SCHEDULER_COSINE_ANNEALING:
-            cosine_annealing_scheduler_free(scheduler);
-            break;
-        case BOAT_SCHEDULER_LAMBDA_LR:
-            lambda_lr_scheduler_free(scheduler);
-            break;
-        default:
-            // Unknown scheduler type, just free the memory
-            boat_free(scheduler);
-            break;
+    case BOAT_SCHEDULER_STEP_LR: step_lr_scheduler_free(scheduler); break;
+    case BOAT_SCHEDULER_COSINE_ANNEALING: cosine_annealing_scheduler_free(scheduler); break;
+    case BOAT_SCHEDULER_LAMBDA_LR: lambda_lr_scheduler_free(scheduler); break;
+    default:
+        // Unknown scheduler type, just free the memory
+        boat_free(scheduler);
+        break;
     }
 }
 

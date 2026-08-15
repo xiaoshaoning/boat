@@ -28,7 +28,8 @@ int main(int argc, char** argv) {
     boat_tensor_t* input = boat_tensor_create(shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* d = (float*)boat_tensor_data(input);
     size_t n = boat_tensor_nelements(input);
-    for (size_t i = 0; i < n; i++) d[i] = (float)(i % 256) / 255.0f;
+    for (size_t i = 0; i < n; i++)
+        d[i] = (float)(i % 256) / 255.0f;
 
     printf("Running inference...\n");
     boat_tensor_t* output = boat_onnx_runtime_run(rt, input);
@@ -43,7 +44,7 @@ int main(int argc, char** argv) {
     printf("Output shape: [");
     const int64_t* oshape = boat_tensor_shape(output);
     for (size_t i = 0; i < boat_tensor_ndim(output); i++)
-        printf("%lld%c", (long long)oshape[i], i+1 < boat_tensor_ndim(output) ? ',' : ']');
+        printf("%lld%c", (long long)oshape[i], i + 1 < boat_tensor_ndim(output) ? ',' : ']');
     printf("\n");
 
     const float* od = (const float*)boat_tensor_const_data(output);
@@ -55,10 +56,10 @@ int main(int argc, char** argv) {
     }
     float mean = sum / on;
     float rms = sqrtf(sum2 / on);
-    printf("Output stats: min=%.4f max=%.4f mean=%.4f rms=%.4f\n",
-           od[0], od[on-1], mean, rms);
+    printf("Output stats: min=%.4f max=%.4f mean=%.4f rms=%.4f\n", od[0], od[on - 1], mean, rms);
     printf("First 8 values: ");
-    for (int i = 0; i < 8 && i < (int)on; i++) printf("%.4f ", od[i]);
+    for (int i = 0; i < 8 && i < (int)on; i++)
+        printf("%.4f ", od[i]);
     printf("\n");
 
     boat_tensor_unref(output);

@@ -19,19 +19,16 @@ extern "C" {
 // lr: learning rate for Adam optimizer
 // h_loss: output scalar loss value (on host)
 // ---------------------------------------------------------------------------
-void nanochat_cuda_train_step(nanochat_cuda_model_t* model,
-                               const int* d_tokens, int seq_len,
-                               float lr, float* h_loss);
+void nanochat_cuda_train_step(nanochat_cuda_model_t* model, const int* d_tokens, int seq_len,
+                              float lr, float* h_loss);
 
 // ---------------------------------------------------------------------------
 // Cosine LR schedule helpers (caller-managed, not used internally)
 // ---------------------------------------------------------------------------
-static inline float nanochat_cosine_lr(int step, int warmup, int cooldown,
-                                        float peak_lr, float min_lr) {
-    if (step < warmup)
-        return min_lr + (peak_lr - min_lr) * (float)step / (float)warmup;
-    if (step >= cooldown)
-        return min_lr;
+static inline float nanochat_cosine_lr(int step, int warmup, int cooldown, float peak_lr,
+                                       float min_lr) {
+    if (step < warmup) return min_lr + (peak_lr - min_lr) * (float)step / (float)warmup;
+    if (step >= cooldown) return min_lr;
     float progress = (float)(step - warmup) / (float)(cooldown - warmup);
     float cosine = 0.5f * (1.0f + cosf((float)M_PI * progress));
     return min_lr + (peak_lr - min_lr) * cosine;

@@ -10,16 +10,17 @@
 
 // Softmax cross-entropy loss structure
 typedef struct {
-    boat_loss_type_t type;  // Always BOAT_LOSS_SOFTMAX_CROSS_ENTROPY
+    boat_loss_type_t type; // Always BOAT_LOSS_SOFTMAX_CROSS_ENTROPY
 } softmax_cross_entropy_loss_t;
 
 // Forward declaration for dispatch
-float softmax_cross_entropy_loss_compute(boat_loss_t* loss, const void* predictions, const void* targets);
+float softmax_cross_entropy_loss_compute(boat_loss_t* loss, const void* predictions,
+                                         const void* targets);
 
 // Create softmax cross-entropy loss function
 BOAT_API boat_loss_t* boat_softmax_cross_entropy_loss_create() {
-    softmax_cross_entropy_loss_t* loss =
-        (softmax_cross_entropy_loss_t*)boat_malloc(sizeof(softmax_cross_entropy_loss_t), BOAT_DEVICE_CPU);
+    softmax_cross_entropy_loss_t* loss = (softmax_cross_entropy_loss_t*)boat_malloc(
+        sizeof(softmax_cross_entropy_loss_t), BOAT_DEVICE_CPU);
     if (!loss) {
         return NULL;
     }
@@ -41,7 +42,8 @@ static void softmax_row(const float* logits, size_t n, float* out) {
         sum += out[i];
     }
     if (sum > 0.0f) {
-        for (size_t i = 0; i < n; i++) out[i] /= sum;
+        for (size_t i = 0; i < n; i++)
+            out[i] /= sum;
     }
 }
 
@@ -55,7 +57,8 @@ static int64_t read_label(const boat_tensor_t* targets, size_t idx) {
 }
 
 // Compute softmax cross-entropy: -mean(log(softmax(logits)[target])).
-float softmax_cross_entropy_loss_compute(boat_loss_t* loss, const void* predictions, const void* targets) {
+float softmax_cross_entropy_loss_compute(boat_loss_t* loss, const void* predictions,
+                                         const void* targets) {
     (void)loss;
     if (!predictions || !targets) return 0.0f;
 
@@ -96,7 +99,8 @@ float softmax_cross_entropy_loss_compute(boat_loss_t* loss, const void* predicti
 }
 
 // Backward: grad[i][j] = (softmax(logits[i])[j] - (j == target[i])) / batch.
-boat_tensor_t* softmax_cross_entropy_loss_backward(boat_loss_t* loss, const void* predictions, const void* targets) {
+boat_tensor_t* softmax_cross_entropy_loss_backward(boat_loss_t* loss, const void* predictions,
+                                                   const void* targets) {
     (void)loss;
     if (!predictions || !targets) return NULL;
 
@@ -114,7 +118,8 @@ boat_tensor_t* softmax_cross_entropy_loss_backward(boat_loss_t* loss, const void
     if (num_classes == 0) return NULL;
     if (boat_tensor_nelements(target) != batch) return NULL;
 
-    boat_tensor_t* grad = boat_tensor_create(logits_shape, 2, BOAT_DTYPE_FLOAT32, boat_tensor_device(logits));
+    boat_tensor_t* grad =
+        boat_tensor_create(logits_shape, 2, BOAT_DTYPE_FLOAT32, boat_tensor_device(logits));
     if (!grad) return NULL;
 
     const float* l = (const float*)boat_tensor_const_data(logits);

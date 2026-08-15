@@ -6,13 +6,15 @@
 #include <stdlib.h>
 
 // Layer operations for dense layer wrapper
-static boat_tensor_t* dense_layer_wrapper_forward(const boat_layer_t* layer, const boat_tensor_t* input) {
+static boat_tensor_t* dense_layer_wrapper_forward(const boat_layer_t* layer,
+                                                  const boat_tensor_t* input) {
     if (!layer || !layer->data || !input) return NULL;
     boat_dense_layer_t* dense_layer = (boat_dense_layer_t*)layer->data;
     return boat_dense_layer_forward(dense_layer, input);
 }
 
-static boat_tensor_t* dense_layer_wrapper_backward(const boat_layer_t* layer, const boat_tensor_t* grad_output) {
+static boat_tensor_t* dense_layer_wrapper_backward(const boat_layer_t* layer,
+                                                   const boat_tensor_t* grad_output) {
     if (!layer || !layer->data || !grad_output) return NULL;
     boat_dense_layer_t* dense_layer = (boat_dense_layer_t*)layer->data;
     return boat_dense_layer_backward(dense_layer, grad_output);
@@ -34,21 +36,21 @@ static void dense_layer_wrapper_free(const boat_layer_t* layer) {
     free(layer);
 }
 
-static const boat_layer_ops_t dense_layer_ops = {
-    .forward = dense_layer_wrapper_forward,
-    .backward = dense_layer_wrapper_backward,
-    .update = dense_layer_wrapper_update,
-    .free = dense_layer_wrapper_free
-};
+static const boat_layer_ops_t dense_layer_ops = {.forward = dense_layer_wrapper_forward,
+                                                 .backward = dense_layer_wrapper_backward,
+                                                 .update = dense_layer_wrapper_update,
+                                                 .free = dense_layer_wrapper_free};
 
 // Layer operations for normalization layer wrapper
-static boat_tensor_t* norm_layer_wrapper_forward(const boat_layer_t* layer, const boat_tensor_t* input) {
+static boat_tensor_t* norm_layer_wrapper_forward(const boat_layer_t* layer,
+                                                 const boat_tensor_t* input) {
     if (!layer || !layer->data || !input) return NULL;
     boat_norm_layer_t* norm_layer = (boat_norm_layer_t*)layer->data;
     return boat_norm_layer_forward(norm_layer, input);
 }
 
-static boat_tensor_t* norm_layer_wrapper_backward(const boat_layer_t* layer, const boat_tensor_t* grad_output) {
+static boat_tensor_t* norm_layer_wrapper_backward(const boat_layer_t* layer,
+                                                  const boat_tensor_t* grad_output) {
     if (!layer || !layer->data || !grad_output) return NULL;
     boat_norm_layer_t* norm_layer = (boat_norm_layer_t*)layer->data;
     return boat_norm_layer_backward(norm_layer, grad_output);
@@ -70,12 +72,10 @@ static void norm_layer_wrapper_free(const boat_layer_t* layer) {
     free(layer);
 }
 
-static const boat_layer_ops_t norm_layer_ops = {
-    .forward = norm_layer_wrapper_forward,
-    .backward = norm_layer_wrapper_backward,
-    .update = norm_layer_wrapper_update,
-    .free = norm_layer_wrapper_free
-};
+static const boat_layer_ops_t norm_layer_ops = {.forward = norm_layer_wrapper_forward,
+                                                .backward = norm_layer_wrapper_backward,
+                                                .update = norm_layer_wrapper_update,
+                                                .free = norm_layer_wrapper_free};
 
 int main() {
     setbuf(stdout, NULL); // Disable buffering for stdout

@@ -16,25 +16,37 @@ nanochat_weights_t* nanochat_weights_load(const char* model_dir) {
     }
 
     nanochat_weights_t* w = (nanochat_weights_t*)calloc(1, sizeof(nanochat_weights_t));
-    if (!w) { safetensors_close(&st); return NULL; }
+    if (!w) {
+        safetensors_close(&st);
+        return NULL;
+    }
 
     w->n_layers = NANOCHAT_NUM_LAYERS;
     w->vocab_size = NANOCHAT_VOCAB_SIZE;
     w->hidden_size = NANOCHAT_HIDDEN_SIZE;
     w->intermediate_size = NANOCHAT_INTERMEDIATE_SIZE;
 
-#define LOAD_WEIGHT(dst, name) do { \
-    int idx = safetensors_find(&st, name); \
-    if (idx < 0) { fprintf(stderr, "[NanoChat] Missing: %s\n", name); \
-                   nanochat_weights_free(w); safetensors_close(&st); return NULL; } \
-    boat_tensor_t* t = safetensors_load_tensor(&st, idx, 0); \
-    if (!t) { fprintf(stderr, "[NanoChat] Failed to load: %s\n", name); \
-              nanochat_weights_free(w); safetensors_close(&st); return NULL; } \
-    size_t n = boat_tensor_nelements(t); \
-    dst = (float*)malloc(n * sizeof(float)); \
-    memcpy(dst, boat_tensor_data(t), n * sizeof(float)); \
-    boat_tensor_unref(t); \
-} while(0)
+#define LOAD_WEIGHT(dst, name)                                                                     \
+    do {                                                                                           \
+        int idx = safetensors_find(&st, name);                                                     \
+        if (idx < 0) {                                                                             \
+            fprintf(stderr, "[NanoChat] Missing: %s\n", name);                                     \
+            nanochat_weights_free(w);                                                              \
+            safetensors_close(&st);                                                                \
+            return NULL;                                                                           \
+        }                                                                                          \
+        boat_tensor_t* t = safetensors_load_tensor(&st, idx, 0);                                   \
+        if (!t) {                                                                                  \
+            fprintf(stderr, "[NanoChat] Failed to load: %s\n", name);                              \
+            nanochat_weights_free(w);                                                              \
+            safetensors_close(&st);                                                                \
+            return NULL;                                                                           \
+        }                                                                                          \
+        size_t n = boat_tensor_nelements(t);                                                       \
+        dst = (float*)malloc(n * sizeof(float));                                                   \
+        memcpy(dst, boat_tensor_data(t), n * sizeof(float));                                       \
+        boat_tensor_unref(t);                                                                      \
+    } while (0)
 
     LOAD_WEIGHT(w->embed_tokens, "model.embed_tokens.weight");
     LOAD_WEIGHT(w->lm_head, "lm_head.weight");
@@ -65,8 +77,12 @@ void nanochat_weights_free(nanochat_weights_t* w) {
     free(w->embed_tokens);
     free(w->lm_head);
     for (int l = 0; l < w->n_layers && l < NANOCHAT_NUM_LAYERS; l++) {
-        free(w->q_proj[l]); free(w->k_proj[l]); free(w->v_proj[l]); free(w->o_proj[l]);
-        free(w->fc1[l]); free(w->fc2[l]);
+        free(w->q_proj[l]);
+        free(w->k_proj[l]);
+        free(w->v_proj[l]);
+        free(w->o_proj[l]);
+        free(w->fc1[l]);
+        free(w->fc2[l]);
     }
     memset(w, 0, sizeof(*w));
     free(w);

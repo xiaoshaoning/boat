@@ -22,12 +22,20 @@ static char* read_file(const char* path, size_t* out_len) {
     if (!f) return NULL;
     fseek(f, 0, SEEK_END);
     long len = ftell(f);
-    if (len <= 0) { fclose(f); return NULL; }
+    if (len <= 0) {
+        fclose(f);
+        return NULL;
+    }
     rewind(f);
     char* buf = (char*)malloc((size_t)len + 1);
-    if (!buf) { fclose(f); return NULL; }
+    if (!buf) {
+        fclose(f);
+        return NULL;
+    }
     if (fread(buf, 1, (size_t)len, f) != (size_t)len) {
-        free(buf); fclose(f); return NULL;
+        free(buf);
+        fclose(f);
+        return NULL;
     }
     buf[len] = '\0';
     fclose(f);
@@ -146,8 +154,8 @@ int main(int argc, char** argv) {
     // ---- Run encoder (Swin Transformer) ----
     printf("[Nougat] Running encoder (Swin) ...\n");
     fflush(stdout);
-    boat_tensor_t* encoder_output = boat_swin_forward(
-        &model->swin_config, model->encoder, img_tensor);
+    boat_tensor_t* encoder_output =
+        boat_swin_forward(&model->swin_config, model->encoder, img_tensor);
     boat_tensor_unref(img_tensor);
     if (!encoder_output) {
         fprintf(stderr, "Error: encoder forward failed\n");
@@ -157,8 +165,8 @@ int main(int argc, char** argv) {
     }
 
     const int64_t* eshape = boat_tensor_shape(encoder_output);
-    printf("[Nougat] Encoder output: [%lld, %lld, %lld]\n",
-           (long long)eshape[0], (long long)eshape[1], (long long)eshape[2]);
+    printf("[Nougat] Encoder output: [%lld, %lld, %lld]\n", (long long)eshape[0],
+           (long long)eshape[1], (long long)eshape[2]);
 
     // ---- Run decoder (autoregressive generation) ----
     printf("[Nougat] Generating LaTeX ...\n");
@@ -168,8 +176,8 @@ int main(int argc, char** argv) {
     int32_t* out_ids = NULL;
     int out_len = 0;
 
-    int ret = nougat_decoder_generate(
-        model, encoder_output, tokenizer, max_steps, device, &out_ids, &out_len);
+    int ret = nougat_decoder_generate(model, encoder_output, tokenizer, max_steps, device, &out_ids,
+                                      &out_len);
     boat_tensor_unref(encoder_output);
 
     if (ret != 0 || !out_ids) {

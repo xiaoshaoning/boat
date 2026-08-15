@@ -6,15 +6,20 @@
 
 int main() {
     minimind_tokenizer_t* tok = minimind_tokenizer_load("./weights");
-    if (!tok) { printf("Token load fail\n"); return 1; }
+    if (!tok) {
+        printf("Token load fail\n");
+        return 1;
+    }
 
     // Check first 10 merges (a, b as hex)
     printf("First 10 merges loaded:\n");
     for (int i = 0; i < 10; i++) {
         printf("  merge[%d]: a=", i);
-        for (char* p = tok->merges[i].a; *p; p++) printf("%02x ", (unsigned char)*p);
+        for (char* p = tok->merges[i].a; *p; p++)
+            printf("%02x ", (unsigned char)*p);
         printf(" b=");
-        for (char* p = tok->merges[i].b; *p; p++) printf("%02x ", (unsigned char)*p);
+        for (char* p = tok->merges[i].b; *p; p++)
+            printf("%02x ", (unsigned char)*p);
         printf("\n");
     }
 
@@ -45,8 +50,9 @@ int main() {
         int pos = 0;
         for (int i = 0; i < text_len && pos < 250; i++) {
             unsigned int cp = byte_to_unicode[(unsigned char)text[i]];
-            if (cp < 0x80) { unicode_buf[pos++] = (char)cp; }
-            else if (cp < 0x800) {
+            if (cp < 0x80) {
+                unicode_buf[pos++] = (char)cp;
+            } else if (cp < 0x800) {
                 unicode_buf[pos++] = (char)(0xC0 | (cp >> 6));
                 unicode_buf[pos++] = (char)(0x80 | (cp & 0x3F));
             } else {
@@ -68,9 +74,12 @@ int main() {
         const char* u = unicode_buf;
         while (*u && n_parts < 32) {
             int clen;
-            if ((unsigned char)*u < 0x80) clen = 1;
-            else if (((unsigned char)*u & 0xE0) == 0xC0) clen = 2;
-            else clen = 3;
+            if ((unsigned char)*u < 0x80)
+                clen = 1;
+            else if (((unsigned char)*u & 0xE0) == 0xC0)
+                clen = 2;
+            else
+                clen = 3;
             memcpy(parts[n_parts], u, clen);
             parts[n_parts][clen] = '\0';
             n_parts++;
@@ -80,7 +89,8 @@ int main() {
         printf("Initial parts (%d):\n", n_parts);
         for (int i = 0; i < n_parts; i++) {
             printf("  [%d]: ", i);
-            for (char* p = parts[i]; *p; p++) printf("%02x ", (unsigned char)*p);
+            for (char* p = parts[i]; *p; p++)
+                printf("%02x ", (unsigned char)*p);
             printf("\n");
         }
 
@@ -93,7 +103,10 @@ int main() {
                 for (int mi = 0; mi < tok->num_merges; mi++) {
                     if (strcmp(parts[i], tok->merges[mi].a) == 0 &&
                         strcmp(parts[i + 1], tok->merges[mi].b) == 0) {
-                        if (mi < best_rank) { best_rank = mi; best_i = i; }
+                        if (mi < best_rank) {
+                            best_rank = mi;
+                            best_i = i;
+                        }
                         break;
                     }
                 }
@@ -113,24 +126,29 @@ int main() {
 
             if (merge_count <= 10) {
                 printf("  merge #%d rank=%d: merged[%d]=", merge_count, best_rank, best_i);
-                for (char* p = parts[best_i]; *p; p++) printf("%02x ", (unsigned char)*p);
+                for (char* p = parts[best_i]; *p; p++)
+                    printf("%02x ", (unsigned char)*p);
                 printf(" (a=");
-                for (char* p = tok->merges[best_rank].a; *p; p++) printf("%02x ", (unsigned char)*p);
+                for (char* p = tok->merges[best_rank].a; *p; p++)
+                    printf("%02x ", (unsigned char)*p);
                 printf("b=");
-                for (char* p = tok->merges[best_rank].b; *p; p++) printf("%02x ", (unsigned char)*p);
+                for (char* p = tok->merges[best_rank].b; *p; p++)
+                    printf("%02x ", (unsigned char)*p);
                 printf(")\n");
             }
         }
         printf("Total merges applied: %d, final parts: %d\n", merge_count, n_parts);
         for (int i = 0; i < n_parts; i++) {
             printf("  final[%d]: ", i);
-            for (char* p = parts[i]; *p; p++) printf("%02x ", (unsigned char)*p);
+            for (char* p = parts[i]; *p; p++)
+                printf("%02x ", (unsigned char)*p);
             // Look up in vocab
             int found = 0;
             for (int v = 0; v < tok->vocab_size; v++) {
                 if (tok->vocab[v][0] && strcmp(tok->vocab[v], parts[i]) == 0) {
                     printf(" -> id=%d", v);
-                    found = 1; break;
+                    found = 1;
+                    break;
                 }
             }
             if (!found) printf(" -> NOT FOUND");

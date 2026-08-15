@@ -14,8 +14,10 @@ void json_init(json_ctx_t* ctx, const char* json_str, size_t len) {
 void json_skip_ws(json_ctx_t* ctx) {
     while (ctx->pos < ctx->len) {
         char c = ctx->data[ctx->pos];
-        if (c == ' ' || c == '\t' || c == '\n' || c == '\r') ctx->pos++;
-        else break;
+        if (c == ' ' || c == '\t' || c == '\n' || c == '\r')
+            ctx->pos++;
+        else
+            break;
     }
 }
 
@@ -33,9 +35,12 @@ char* json_parse_string(json_ctx_t* ctx) {
     if (json_next(ctx) != '"') return NULL;
     size_t start = ctx->pos;
     while (ctx->pos < ctx->len) {
-        if (ctx->data[ctx->pos] == '\\') ctx->pos += 2;
-        else if (ctx->data[ctx->pos] == '"') break;
-        else ctx->pos++;
+        if (ctx->data[ctx->pos] == '\\')
+            ctx->pos += 2;
+        else if (ctx->data[ctx->pos] == '"')
+            break;
+        else
+            ctx->pos++;
     }
     if (ctx->pos >= ctx->len) return NULL;
     size_t len = ctx->pos - start;
@@ -51,7 +56,10 @@ int64_t json_parse_int(json_ctx_t* ctx) {
     json_skip_ws(ctx);
     int64_t val = 0;
     int sign = 1;
-    if (ctx->pos < ctx->len && ctx->data[ctx->pos] == '-') { sign = -1; ctx->pos++; }
+    if (ctx->pos < ctx->len && ctx->data[ctx->pos] == '-') {
+        sign = -1;
+        ctx->pos++;
+    }
     while (ctx->pos < ctx->len && ctx->data[ctx->pos] >= '0' && ctx->data[ctx->pos] <= '9') {
         val = val * 10 + (ctx->data[ctx->pos] - '0');
         ctx->pos++;
@@ -69,7 +77,10 @@ double json_parse_number(json_ctx_t* ctx) {
 
 int json_expect(json_ctx_t* ctx, char c) {
     json_skip_ws(ctx);
-    if (ctx->pos < ctx->len && ctx->data[ctx->pos] == c) { ctx->pos++; return 1; }
+    if (ctx->pos < ctx->len && ctx->data[ctx->pos] == c) {
+        ctx->pos++;
+        return 1;
+    }
     return 0;
 }
 
@@ -79,9 +90,13 @@ int json_find_key(json_ctx_t* ctx, const char* key) {
         json_skip_ws(ctx);
         if (ctx->pos >= ctx->len) break;
         char c = ctx->data[ctx->pos];
-        if (c == '{' || c == '[') { depth++; ctx->pos++; }
-        else if (c == '}' || c == ']') { depth--; ctx->pos++; }
-        else if (c == '"') {
+        if (c == '{' || c == '[') {
+            depth++;
+            ctx->pos++;
+        } else if (c == '}' || c == ']') {
+            depth--;
+            ctx->pos++;
+        } else if (c == '"') {
             size_t save = ctx->pos;
             char* k = json_parse_string(ctx);
             if (!k) break;
@@ -93,9 +108,12 @@ int json_find_key(json_ctx_t* ctx, const char* key) {
                 return 1;
             }
             free(k);
-            if (found) { ctx->pos++; json_skip_value(ctx); }
-        }
-        else ctx->pos++;
+            if (found) {
+                ctx->pos++;
+                json_skip_value(ctx);
+            }
+        } else
+            ctx->pos++;
     }
     return 0;
 }
@@ -108,21 +126,44 @@ void json_skip_value(json_ctx_t* ctx) {
         int depth = 0;
         while (ctx->pos < ctx->len) {
             char cc = ctx->data[ctx->pos++];
-            if (cc == '{') depth++;
-            else if (cc == '}') { if (--depth == 0) return; }
-            else if (cc == '"') { while (ctx->pos < ctx->len) { if (ctx->data[ctx->pos] == '\\') ctx->pos += 2; else if (ctx->data[ctx->pos++] == '"') break; } }
+            if (cc == '{')
+                depth++;
+            else if (cc == '}') {
+                if (--depth == 0) return;
+            } else if (cc == '"') {
+                while (ctx->pos < ctx->len) {
+                    if (ctx->data[ctx->pos] == '\\')
+                        ctx->pos += 2;
+                    else if (ctx->data[ctx->pos++] == '"')
+                        break;
+                }
+            }
         }
     } else if (c == '[') {
         int depth = 0;
         while (ctx->pos < ctx->len) {
             char cc = ctx->data[ctx->pos++];
-            if (cc == '[') depth++;
-            else if (cc == ']') { if (--depth == 0) return; }
-            else if (cc == '"') { while (ctx->pos < ctx->len) { if (ctx->data[ctx->pos] == '\\') ctx->pos += 2; else if (ctx->data[ctx->pos++] == '"') break; } }
+            if (cc == '[')
+                depth++;
+            else if (cc == ']') {
+                if (--depth == 0) return;
+            } else if (cc == '"') {
+                while (ctx->pos < ctx->len) {
+                    if (ctx->data[ctx->pos] == '\\')
+                        ctx->pos += 2;
+                    else if (ctx->data[ctx->pos++] == '"')
+                        break;
+                }
+            }
         }
     } else if (c == '"') {
         ctx->pos++;
-        while (ctx->pos < ctx->len) { if (ctx->data[ctx->pos] == '\\') ctx->pos += 2; else if (ctx->data[ctx->pos++] == '"') break; }
+        while (ctx->pos < ctx->len) {
+            if (ctx->data[ctx->pos] == '\\')
+                ctx->pos += 2;
+            else if (ctx->data[ctx->pos++] == '"')
+                break;
+        }
     } else {
         while (ctx->pos < ctx->len) {
             char cc = ctx->data[ctx->pos];

@@ -7,9 +7,12 @@
 
 static void init_byte_encoding(nanochat_tokenizer_t* tok) {
     int kept[256] = {0};
-    for (int b = 33; b <= 126; b++) kept[b] = 1;
-    for (int b = 161; b <= 172; b++) kept[b] = 1;
-    for (int b = 174; b <= 255; b++) kept[b] = 1;
+    for (int b = 33; b <= 126; b++)
+        kept[b] = 1;
+    for (int b = 161; b <= 172; b++)
+        kept[b] = 1;
+    for (int b = 174; b <= 255; b++)
+        kept[b] = 1;
 
     int n = 0;
     for (int b = 0; b < 256; b++) {
@@ -20,7 +23,8 @@ static void init_byte_encoding(nanochat_tokenizer_t* tok) {
             cp = 256 + n;
             n++;
         }
-        unsigned char buf[4]; int blen = 0;
+        unsigned char buf[4];
+        int blen = 0;
         if (cp < 0x80) {
             buf[blen++] = (unsigned char)cp;
         } else if (cp < 0x800) {
@@ -46,9 +50,11 @@ static int unicode_to_byte(nanochat_tokenizer_t* tok, const char* s) {
     } else if (c < 0xE0) {
         cp = ((unsigned int)(s[0] & 0x1F) << 6) | (unsigned int)(s[1] & 0x3F);
     } else if (c < 0xF0) {
-        cp = ((unsigned int)(s[0] & 0x0F) << 12) | ((unsigned int)(s[1] & 0x3F) << 6) | (unsigned int)(s[2] & 0x3F);
+        cp = ((unsigned int)(s[0] & 0x0F) << 12) | ((unsigned int)(s[1] & 0x3F) << 6) |
+             (unsigned int)(s[2] & 0x3F);
     } else {
-        cp = ((unsigned int)(s[0] & 0x07) << 18) | ((unsigned int)(s[1] & 0x3F) << 12) | ((unsigned int)(s[2] & 0x3F) << 6) | ((unsigned int)(s[3] & 0x3F));
+        cp = ((unsigned int)(s[0] & 0x07) << 18) | ((unsigned int)(s[1] & 0x3F) << 12) |
+             ((unsigned int)(s[2] & 0x3F) << 6) | ((unsigned int)(s[3] & 0x3F));
     }
     if ((cp >= 33 && cp <= 126) || (cp >= 161 && cp <= 172) || (cp >= 174 && cp <= 255))
         return (int)cp;
@@ -67,20 +73,33 @@ int nanochat_tokenizer_init(nanochat_tokenizer_t* tok, const char* vocab_path) {
     init_byte_encoding(tok);
 
     FILE* f = fopen(vocab_path, "rb");
-    if (!f) { fprintf(stderr, "[NanoChat] Cannot open tokenizer file: %s\n", vocab_path); return 0; }
+    if (!f) {
+        fprintf(stderr, "[NanoChat] Cannot open tokenizer file: %s\n", vocab_path);
+        return 0;
+    }
     fseek(f, 0, SEEK_END);
     long fsize = ftell(f);
     fseek(f, 0, SEEK_SET);
     char* json_data = (char*)malloc(fsize + 1);
-    if (!json_data) { fclose(f); return 0; }
-    if (fread(json_data, 1, fsize, f) != (size_t)fsize) { free(json_data); fclose(f); return 0; }
+    if (!json_data) {
+        fclose(f);
+        return 0;
+    }
+    if (fread(json_data, 1, fsize, f) != (size_t)fsize) {
+        free(json_data);
+        fclose(f);
+        return 0;
+    }
     fclose(f);
     json_data[fsize] = '\0';
 
     json_ctx_t jctx;
     json_init(&jctx, json_data, fsize);
 
-    if (json_next(&jctx) != '{') { free(json_data); return 0; }
+    if (json_next(&jctx) != '{') {
+        free(json_data);
+        return 0;
+    }
 
     tok->tokens = (char**)calloc(NANOCHAT_VOCAB_SIZE, sizeof(char*));
     tok->lengths = (int*)calloc(NANOCHAT_VOCAB_SIZE, sizeof(int));
@@ -107,7 +126,8 @@ int nanochat_tokenizer_init(nanochat_tokenizer_t* tok, const char* vocab_path) {
                     if (jctx.pos >= (size_t)fsize || json_data[jctx.pos] == '}') break;
                     char* tk = json_parse_string(&jctx);
                     if (!tk) break;
-                    json_skip_ws(&jctx); json_expect(&jctx, ':');
+                    json_skip_ws(&jctx);
+                    json_expect(&jctx, ':');
                     if (strcmp(tk, "id") == 0) {
                         t_id = (int)json_parse_int(&jctx);
                     } else if (strcmp(tk, "content") == 0) {
@@ -139,7 +159,11 @@ int nanochat_tokenizer_init(nanochat_tokenizer_t* tok, const char* vocab_path) {
 
         } else if (strcmp(key, "model") == 0) {
             json_skip_ws(&jctx);
-            if (json_next(&jctx) != '{') { free(key); free(json_data); return 0; }
+            if (json_next(&jctx) != '{') {
+                free(key);
+                free(json_data);
+                return 0;
+            }
 
             // Parse model object keys
             while (1) {
@@ -189,7 +213,10 @@ int nanochat_tokenizer_init(nanochat_tokenizer_t* tok, const char* vocab_path) {
                             json_skip_ws(&jctx);
                             if (jctx.pos < (size_t)fsize && json_data[jctx.pos] == ',') jctx.pos++;
                             char* second = json_parse_string(&jctx);
-                            if (!second) { free(first); break; }
+                            if (!second) {
+                                free(first);
+                                break;
+                            }
                             json_skip_ws(&jctx);
                             if (jctx.pos < (size_t)fsize && json_data[jctx.pos] == ']') jctx.pos++;
                             json_skip_ws(&jctx);
@@ -203,12 +230,15 @@ int nanochat_tokenizer_init(nanochat_tokenizer_t* tok, const char* vocab_path) {
                             pair[first_len] = ' ';
                             memcpy(pair + first_len + 1, second, second_len);
                             pair[key_len] = '\0';
-                            free(first); free(second);
+                            free(first);
+                            free(second);
 
                             if (tok->num_merges >= cap) {
                                 cap *= 2;
-                                tok->merge_pairs = (char**)realloc(tok->merge_pairs, cap * sizeof(char*));
-                                tok->merge_priorities = (int*)realloc(tok->merge_priorities, cap * sizeof(int));
+                                tok->merge_pairs =
+                                    (char**)realloc(tok->merge_pairs, cap * sizeof(char*));
+                                tok->merge_priorities =
+                                    (int*)realloc(tok->merge_priorities, cap * sizeof(int));
                             }
                             tok->merge_pairs[tok->num_merges] = pair;
                             tok->merge_priorities[tok->num_merges] = tok->num_merges;
@@ -262,20 +292,22 @@ int nanochat_tokenizer_init(nanochat_tokenizer_t* tok, const char* vocab_path) {
     tok->work_ids = (int*)malloc(tok->work_cap * sizeof(int));
     tok->work_tokens = (char**)malloc(tok->work_cap * sizeof(char*));
 
-    fprintf(stderr, "[NanoChat] Tokenizer: vocab=%d/%d, merges=%d\n",
-            tok->n, NANOCHAT_VOCAB_SIZE, tok->num_merges);
+    fprintf(stderr, "[NanoChat] Tokenizer: vocab=%d/%d, merges=%d\n", tok->n, NANOCHAT_VOCAB_SIZE,
+            tok->num_merges);
     return 1;
 }
 
 void nanochat_tokenizer_free(nanochat_tokenizer_t* tok) {
     if (!tok) return;
     if (tok->tokens) {
-        for (int i = 0; i < NANOCHAT_VOCAB_SIZE; i++) free(tok->tokens[i]);
+        for (int i = 0; i < NANOCHAT_VOCAB_SIZE; i++)
+            free(tok->tokens[i]);
         free(tok->tokens);
     }
     free(tok->lengths);
     if (tok->merge_pairs) {
-        for (int i = 0; i < tok->num_merges; i++) free(tok->merge_pairs[i]);
+        for (int i = 0; i < tok->num_merges; i++)
+            free(tok->merge_pairs[i]);
         free(tok->merge_pairs);
     }
     free(tok->merge_priorities);
@@ -309,28 +341,55 @@ static int find_merge_priority(const nanochat_tokenizer_t* tok, const char* a, c
     return -1;
 }
 
-static int text_to_bytes_unicode(const nanochat_tokenizer_t* tok, const char* text,
-                                  size_t text_len, char* out, int out_cap) {
+static int text_to_bytes_unicode(const nanochat_tokenizer_t* tok, const char* text, size_t text_len,
+                                 char* out, int out_cap) {
     int out_pos = 0;
-    for (size_t i = 0; i < text_len && out_pos < out_cap - 8; ) {
+    for (size_t i = 0; i < text_len && out_pos < out_cap - 8;) {
         unsigned char c = (unsigned char)text[i];
         int seq_len;
-        if (c < 0x80) seq_len = 1;
-        else if (c < 0xE0) seq_len = 2;
-        else if (c < 0xF0) seq_len = 3;
-        else seq_len = 4;
+        if (c < 0x80)
+            seq_len = 1;
+        else if (c < 0xE0)
+            seq_len = 2;
+        else if (c < 0xF0)
+            seq_len = 3;
+        else
+            seq_len = 4;
 
         unsigned int cp;
-        if (seq_len == 1) cp = c;
-        else if (seq_len == 2) cp = ((unsigned int)(text[i] & 0x1F) << 6) | (unsigned int)(text[i + 1] & 0x3F);
-        else if (seq_len == 3) cp = ((unsigned int)(text[i] & 0x0F) << 12) | ((unsigned int)(text[i + 1] & 0x3F) << 6) | (unsigned int)(text[i + 2] & 0x3F);
-        else cp = ((unsigned int)(text[i] & 0x07) << 18) | ((unsigned int)(text[i + 1] & 0x3F) << 12) | ((unsigned int)(text[i + 2] & 0x3F) << 6) | (unsigned int)(text[i + 3] & 0x3F);
+        if (seq_len == 1)
+            cp = c;
+        else if (seq_len == 2)
+            cp = ((unsigned int)(text[i] & 0x1F) << 6) | (unsigned int)(text[i + 1] & 0x3F);
+        else if (seq_len == 3)
+            cp = ((unsigned int)(text[i] & 0x0F) << 12) |
+                 ((unsigned int)(text[i + 1] & 0x3F) << 6) | (unsigned int)(text[i + 2] & 0x3F);
+        else
+            cp = ((unsigned int)(text[i] & 0x07) << 18) |
+                 ((unsigned int)(text[i + 1] & 0x3F) << 12) |
+                 ((unsigned int)(text[i + 2] & 0x3F) << 6) | (unsigned int)(text[i + 3] & 0x3F);
 
-        unsigned char bytes[4]; int nbytes;
-        if (cp < 0x80) { bytes[0] = cp; nbytes = 1; }
-        else if (cp < 0x800) { bytes[0] = 0xC0 | (cp >> 6); bytes[1] = 0x80 | (cp & 0x3F); nbytes = 2; }
-        else if (cp < 0x10000) { bytes[0] = 0xE0 | (cp >> 12); bytes[1] = 0x80 | ((cp >> 6) & 0x3F); bytes[2] = 0x80 | (cp & 0x3F); nbytes = 3; }
-        else { bytes[0] = 0xF0 | (cp >> 18); bytes[1] = 0x80 | ((cp >> 12) & 0x3F); bytes[2] = 0x80 | ((cp >> 6) & 0x3F); bytes[3] = 0x80 | (cp & 0x3F); nbytes = 4; }
+        unsigned char bytes[4];
+        int nbytes;
+        if (cp < 0x80) {
+            bytes[0] = cp;
+            nbytes = 1;
+        } else if (cp < 0x800) {
+            bytes[0] = 0xC0 | (cp >> 6);
+            bytes[1] = 0x80 | (cp & 0x3F);
+            nbytes = 2;
+        } else if (cp < 0x10000) {
+            bytes[0] = 0xE0 | (cp >> 12);
+            bytes[1] = 0x80 | ((cp >> 6) & 0x3F);
+            bytes[2] = 0x80 | (cp & 0x3F);
+            nbytes = 3;
+        } else {
+            bytes[0] = 0xF0 | (cp >> 18);
+            bytes[1] = 0x80 | ((cp >> 12) & 0x3F);
+            bytes[2] = 0x80 | ((cp >> 6) & 0x3F);
+            bytes[3] = 0x80 | (cp & 0x3F);
+            nbytes = 4;
+        }
 
         for (int j = 0; j < nbytes && out_pos < out_cap - 5; j++) {
             const char* mapped = tok->byte_to_unicode[bytes[j]];
@@ -352,10 +411,14 @@ static char* unicode_to_text(const nanochat_tokenizer_t* tok, const char* s) {
     while (pos < len) {
         unsigned char c = (unsigned char)s[pos];
         int seq_len;
-        if (c < 0x80) seq_len = 1;
-        else if (c < 0xE0) seq_len = 2;
-        else if (c < 0xF0) seq_len = 3;
-        else seq_len = 4;
+        if (c < 0x80)
+            seq_len = 1;
+        else if (c < 0xE0)
+            seq_len = 2;
+        else if (c < 0xF0)
+            seq_len = 3;
+        else
+            seq_len = 4;
         if (pos + seq_len > len) break;
         char tmp[16];
         memcpy(tmp, s + pos, seq_len);
@@ -369,7 +432,8 @@ static char* unicode_to_text(const nanochat_tokenizer_t* tok, const char* s) {
     char* result = (char*)malloc(nbytes + 1);
     // Skip leading NULL bytes (e.g. from BOS token)
     int skip = 0;
-    while (skip < nbytes && bytes[skip] == 0) skip++;
+    while (skip < nbytes && bytes[skip] == 0)
+        skip++;
     int out_len = nbytes - skip;
     memcpy(result, bytes + skip, out_len);
     result[out_len] = '\0';
@@ -377,7 +441,8 @@ static char* unicode_to_text(const nanochat_tokenizer_t* tok, const char* s) {
     return result;
 }
 
-static int find_best_pair(const nanochat_tokenizer_t* tok, const char** tokens, int n, int* out_priority) {
+static int find_best_pair(const nanochat_tokenizer_t* tok, const char** tokens, int n,
+                          int* out_priority) {
     int best_priority = tok->num_merges;
     int best_idx = -1;
     for (int i = 0; i < n - 1; i++) {
@@ -391,10 +456,13 @@ static int find_best_pair(const nanochat_tokenizer_t* tok, const char** tokens, 
     return best_idx;
 }
 
-int* nanochat_tokenizer_encode(const nanochat_tokenizer_t* tok, const char* text,
-                                 size_t text_len, int* out_len) {
+int* nanochat_tokenizer_encode(const nanochat_tokenizer_t* tok, const char* text, size_t text_len,
+                               int* out_len) {
     char* unicode_text = (char*)malloc(text_len * 8 + 1);
-    if (!unicode_text) { *out_len = 0; return NULL; }
+    if (!unicode_text) {
+        *out_len = 0;
+        return NULL;
+    }
     int unicode_len = text_to_bytes_unicode(tok, text, text_len, unicode_text, text_len * 8);
 
     // Pre-tokenization: split on whitespace (GPT-2 style)
@@ -405,15 +473,17 @@ int* nanochat_tokenizer_encode(const nanochat_tokenizer_t* tok, const char* text
 
     int i = 0;
     while (i < unicode_len && num_words < max_words) {
-        if (unicode_text[i] == ' ' || unicode_text[i] == '\t' ||
-            unicode_text[i] == '\n' || unicode_text[i] == '\r') {
+        if (unicode_text[i] == ' ' || unicode_text[i] == '\t' || unicode_text[i] == '\n' ||
+            unicode_text[i] == '\r') {
             int ws_start = i;
             while (i < unicode_len && (unicode_text[i] == ' ' || unicode_text[i] == '\t' ||
-                   unicode_text[i] == '\n' || unicode_text[i] == '\r')) i++;
+                                       unicode_text[i] == '\n' || unicode_text[i] == '\r'))
+                i++;
             if (i < unicode_len) {
                 int word_start = ws_start;
                 while (i < unicode_len && unicode_text[i] != ' ' && unicode_text[i] != '\t' &&
-                       unicode_text[i] != '\n' && unicode_text[i] != '\r') i++;
+                       unicode_text[i] != '\n' && unicode_text[i] != '\r')
+                    i++;
                 word_starts[num_words] = word_start;
                 word_ends[num_words] = i;
                 num_words++;
@@ -421,7 +491,8 @@ int* nanochat_tokenizer_encode(const nanochat_tokenizer_t* tok, const char* text
         } else {
             word_starts[num_words] = i;
             while (i < unicode_len && unicode_text[i] != ' ' && unicode_text[i] != '\t' &&
-                   unicode_text[i] != '\n' && unicode_text[i] != '\r') i++;
+                   unicode_text[i] != '\n' && unicode_text[i] != '\r')
+                i++;
             word_ends[num_words] = i;
             num_words++;
         }
@@ -439,10 +510,14 @@ int* nanochat_tokenizer_encode(const nanochat_tokenizer_t* tok, const char* text
         while (pos < wlen) {
             unsigned char c = (unsigned char)wstart[pos];
             int seq_len;
-            if (c < 0x80) seq_len = 1;
-            else if (c < 0xE0) seq_len = 2;
-            else if (c < 0xF0) seq_len = 3;
-            else seq_len = 4;
+            if (c < 0x80)
+                seq_len = 1;
+            else if (c < 0xE0)
+                seq_len = 2;
+            else if (c < 0xF0)
+                seq_len = 3;
+            else
+                seq_len = 4;
             if (pos + seq_len > wlen) break;
             if (ntokens >= tok->work_cap) break;
             memcpy(tok->work_tokens[ntokens] = (char*)malloc(seq_len + 1), wstart + pos, seq_len);
@@ -458,10 +533,12 @@ int* nanochat_tokenizer_encode(const nanochat_tokenizer_t* tok, const char* text
         do {
             changed = 0;
             int best_priority;
-            int best_idx = find_best_pair(tok, (const char**)tok->work_tokens, ntokens, &best_priority);
+            int best_idx =
+                find_best_pair(tok, (const char**)tok->work_tokens, ntokens, &best_priority);
             if (best_idx < 0) break;
 
-            int merged_len = (int)(strlen(tok->work_tokens[best_idx]) + strlen(tok->work_tokens[best_idx + 1]));
+            int merged_len =
+                (int)(strlen(tok->work_tokens[best_idx]) + strlen(tok->work_tokens[best_idx + 1]));
             char* merged = (char*)malloc(merged_len + 1);
             strcpy(merged, tok->work_tokens[best_idx]);
             strcat(merged, tok->work_tokens[best_idx + 1]);
@@ -490,7 +567,7 @@ int* nanochat_tokenizer_encode(const nanochat_tokenizer_t* tok, const char* text
                 // For byte-level BPE, map each unicode char to its byte equivalent
                 const char* wtok = tok->work_tokens[j];
                 size_t wtok_len = strlen(wtok);
-                for (size_t k = 0; k < wtok_len; ) {
+                for (size_t k = 0; k < wtok_len;) {
                     unsigned char c = (unsigned char)wtok[k];
                     int seq_len = (c < 0x80) ? 1 : (c < 0xE0) ? 2 : (c < 0xF0) ? 3 : 4;
                     if (k + seq_len > wtok_len) break;

@@ -32,22 +32,26 @@ typedef struct boat_optimizer_header_t {
 // boat_optimizer_t* boat_rmsprop_optimizer_create(float learning_rate, float alpha, float epsilon);
 
 // Optimizer implementations (defined in respective files)
-void adam_optimizer_add_parameter(boat_optimizer_t* optimizer, boat_tensor_t* param, boat_tensor_t* grad);
+void adam_optimizer_add_parameter(boat_optimizer_t* optimizer, boat_tensor_t* param,
+                                  boat_tensor_t* grad);
 void adam_optimizer_step(boat_optimizer_t* optimizer);
 void adam_optimizer_zero_grad(boat_optimizer_t* optimizer);
 void adam_optimizer_free(boat_optimizer_t* optimizer);
 
-void rmsprop_optimizer_add_parameter(boat_optimizer_t* optimizer, boat_tensor_t* param, boat_tensor_t* grad);
+void rmsprop_optimizer_add_parameter(boat_optimizer_t* optimizer, boat_tensor_t* param,
+                                     boat_tensor_t* grad);
 void rmsprop_optimizer_step(boat_optimizer_t* optimizer);
 void rmsprop_optimizer_zero_grad(boat_optimizer_t* optimizer);
 void rmsprop_optimizer_free(boat_optimizer_t* optimizer);
 
-void adagrad_optimizer_add_parameter(boat_optimizer_t* optimizer, boat_tensor_t* param, boat_tensor_t* grad);
+void adagrad_optimizer_add_parameter(boat_optimizer_t* optimizer, boat_tensor_t* param,
+                                     boat_tensor_t* grad);
 void adagrad_optimizer_step(boat_optimizer_t* optimizer);
 void adagrad_optimizer_zero_grad(boat_optimizer_t* optimizer);
 void adagrad_optimizer_free(boat_optimizer_t* optimizer);
 
-void sgd_optimizer_add_parameter(boat_optimizer_t* optimizer, boat_tensor_t* param, boat_tensor_t* grad);
+void sgd_optimizer_add_parameter(boat_optimizer_t* optimizer, boat_tensor_t* param,
+                                 boat_tensor_t* grad);
 void sgd_optimizer_step(boat_optimizer_t* optimizer);
 void sgd_optimizer_zero_grad(boat_optimizer_t* optimizer);
 void sgd_optimizer_free(boat_optimizer_t* optimizer);
@@ -93,26 +97,16 @@ static boat_optimizer_type_t get_optimizer_type(const boat_optimizer_t* optimize
 }
 
 // Generic optimizer functions
-BOAT_API void boat_optimizer_add_parameter(boat_optimizer_t* optimizer,
-                                  boat_tensor_t* param,
-                                  boat_tensor_t* grad) {
+BOAT_API void boat_optimizer_add_parameter(boat_optimizer_t* optimizer, boat_tensor_t* param,
+                                           boat_tensor_t* grad) {
     if (!optimizer) return;
 
     switch (get_optimizer_type(optimizer)) {
-        case BOAT_OPTIMIZER_ADAM:
-            adam_optimizer_add_parameter(optimizer, param, grad);
-            break;
-        case BOAT_OPTIMIZER_RMSPROP:
-            rmsprop_optimizer_add_parameter(optimizer, param, grad);
-            break;
-        case BOAT_OPTIMIZER_ADAGRAD:
-            adagrad_optimizer_add_parameter(optimizer, param, grad);
-            break;
-        case BOAT_OPTIMIZER_SGD:
-            sgd_optimizer_add_parameter(optimizer, param, grad);
-            break;
-        default:
-            break;
+    case BOAT_OPTIMIZER_ADAM: adam_optimizer_add_parameter(optimizer, param, grad); break;
+    case BOAT_OPTIMIZER_RMSPROP: rmsprop_optimizer_add_parameter(optimizer, param, grad); break;
+    case BOAT_OPTIMIZER_ADAGRAD: adagrad_optimizer_add_parameter(optimizer, param, grad); break;
+    case BOAT_OPTIMIZER_SGD: sgd_optimizer_add_parameter(optimizer, param, grad); break;
+    default: break;
     }
 }
 
@@ -120,20 +114,11 @@ BOAT_API void boat_optimizer_step(boat_optimizer_t* optimizer) {
     if (!optimizer) return;
 
     switch (get_optimizer_type(optimizer)) {
-        case BOAT_OPTIMIZER_ADAM:
-            adam_optimizer_step(optimizer);
-            break;
-        case BOAT_OPTIMIZER_RMSPROP:
-            rmsprop_optimizer_step(optimizer);
-            break;
-        case BOAT_OPTIMIZER_ADAGRAD:
-            adagrad_optimizer_step(optimizer);
-            break;
-        case BOAT_OPTIMIZER_SGD:
-            sgd_optimizer_step(optimizer);
-            break;
-        default:
-            break;
+    case BOAT_OPTIMIZER_ADAM: adam_optimizer_step(optimizer); break;
+    case BOAT_OPTIMIZER_RMSPROP: rmsprop_optimizer_step(optimizer); break;
+    case BOAT_OPTIMIZER_ADAGRAD: adagrad_optimizer_step(optimizer); break;
+    case BOAT_OPTIMIZER_SGD: sgd_optimizer_step(optimizer); break;
+    default: break;
     }
 }
 
@@ -141,20 +126,11 @@ BOAT_API void boat_optimizer_zero_grad(boat_optimizer_t* optimizer) {
     if (!optimizer) return;
 
     switch (get_optimizer_type(optimizer)) {
-        case BOAT_OPTIMIZER_ADAM:
-            adam_optimizer_zero_grad(optimizer);
-            break;
-        case BOAT_OPTIMIZER_RMSPROP:
-            rmsprop_optimizer_zero_grad(optimizer);
-            break;
-        case BOAT_OPTIMIZER_ADAGRAD:
-            adagrad_optimizer_zero_grad(optimizer);
-            break;
-        case BOAT_OPTIMIZER_SGD:
-            sgd_optimizer_zero_grad(optimizer);
-            break;
-        default:
-            break;
+    case BOAT_OPTIMIZER_ADAM: adam_optimizer_zero_grad(optimizer); break;
+    case BOAT_OPTIMIZER_RMSPROP: rmsprop_optimizer_zero_grad(optimizer); break;
+    case BOAT_OPTIMIZER_ADAGRAD: adagrad_optimizer_zero_grad(optimizer); break;
+    case BOAT_OPTIMIZER_SGD: sgd_optimizer_zero_grad(optimizer); break;
+    default: break;
     }
 }
 
@@ -162,20 +138,11 @@ BOAT_API void boat_optimizer_free(boat_optimizer_t* optimizer) {
     if (!optimizer) return;
 
     switch (get_optimizer_type(optimizer)) {
-        case BOAT_OPTIMIZER_ADAM:
-            adam_optimizer_free(optimizer);
-            break;
-        case BOAT_OPTIMIZER_RMSPROP:
-            rmsprop_optimizer_free(optimizer);
-            break;
-        case BOAT_OPTIMIZER_ADAGRAD:
-            adagrad_optimizer_free(optimizer);
-            break;
-        case BOAT_OPTIMIZER_SGD:
-            sgd_optimizer_free(optimizer);
-            break;
-        default:
-            break;
+    case BOAT_OPTIMIZER_ADAM: adam_optimizer_free(optimizer); break;
+    case BOAT_OPTIMIZER_RMSPROP: rmsprop_optimizer_free(optimizer); break;
+    case BOAT_OPTIMIZER_ADAGRAD: adagrad_optimizer_free(optimizer); break;
+    case BOAT_OPTIMIZER_SGD: sgd_optimizer_free(optimizer); break;
+    default: break;
     }
 }
 
@@ -184,16 +151,11 @@ BOAT_API float boat_optimizer_get_learning_rate(const boat_optimizer_t* optimize
     if (!optimizer) return 0.0f;
 
     switch (get_optimizer_type(optimizer)) {
-        case BOAT_OPTIMIZER_ADAM:
-            return adam_optimizer_get_learning_rate(optimizer);
-        case BOAT_OPTIMIZER_RMSPROP:
-            return rmsprop_optimizer_get_learning_rate(optimizer);
-        case BOAT_OPTIMIZER_ADAGRAD:
-            return adagrad_optimizer_get_learning_rate(optimizer);
-        case BOAT_OPTIMIZER_SGD:
-            return sgd_optimizer_get_learning_rate(optimizer);
-        default:
-            return 0.0f;
+    case BOAT_OPTIMIZER_ADAM: return adam_optimizer_get_learning_rate(optimizer);
+    case BOAT_OPTIMIZER_RMSPROP: return rmsprop_optimizer_get_learning_rate(optimizer);
+    case BOAT_OPTIMIZER_ADAGRAD: return adagrad_optimizer_get_learning_rate(optimizer);
+    case BOAT_OPTIMIZER_SGD: return sgd_optimizer_get_learning_rate(optimizer);
+    default: return 0.0f;
     }
 }
 
@@ -202,36 +164,26 @@ BOAT_API void boat_optimizer_set_learning_rate(boat_optimizer_t* optimizer, floa
     if (!optimizer) return;
 
     switch (get_optimizer_type(optimizer)) {
-        case BOAT_OPTIMIZER_ADAM:
-            adam_optimizer_set_learning_rate(optimizer, learning_rate);
-            break;
-        case BOAT_OPTIMIZER_RMSPROP:
-            rmsprop_optimizer_set_learning_rate(optimizer, learning_rate);
-            break;
-        case BOAT_OPTIMIZER_ADAGRAD:
-            adagrad_optimizer_set_learning_rate(optimizer, learning_rate);
-            break;
-        case BOAT_OPTIMIZER_SGD:
-            sgd_optimizer_set_learning_rate(optimizer, learning_rate);
-            break;
-        default:
-            break;
+    case BOAT_OPTIMIZER_ADAM: adam_optimizer_set_learning_rate(optimizer, learning_rate); break;
+    case BOAT_OPTIMIZER_RMSPROP:
+        rmsprop_optimizer_set_learning_rate(optimizer, learning_rate);
+        break;
+    case BOAT_OPTIMIZER_ADAGRAD:
+        adagrad_optimizer_set_learning_rate(optimizer, learning_rate);
+        break;
+    case BOAT_OPTIMIZER_SGD: sgd_optimizer_set_learning_rate(optimizer, learning_rate); break;
+    default: break;
     }
 }
 
 BOAT_API float boat_optimizer_get_weight_decay(const boat_optimizer_t* optimizer) {
     if (!optimizer) return 0.0f;
     switch (get_optimizer_type(optimizer)) {
-        case BOAT_OPTIMIZER_ADAM:
-            return adam_optimizer_get_weight_decay(optimizer);
-        case BOAT_OPTIMIZER_RMSPROP:
-            return rmsprop_optimizer_get_weight_decay(optimizer);
-        case BOAT_OPTIMIZER_ADAGRAD:
-            return adagrad_optimizer_get_weight_decay(optimizer);
-        case BOAT_OPTIMIZER_SGD:
-            return sgd_optimizer_get_weight_decay(optimizer);
-        default:
-            break;
+    case BOAT_OPTIMIZER_ADAM: return adam_optimizer_get_weight_decay(optimizer);
+    case BOAT_OPTIMIZER_RMSPROP: return rmsprop_optimizer_get_weight_decay(optimizer);
+    case BOAT_OPTIMIZER_ADAGRAD: return adagrad_optimizer_get_weight_decay(optimizer);
+    case BOAT_OPTIMIZER_SGD: return sgd_optimizer_get_weight_decay(optimizer);
+    default: break;
     }
     return 0.0f;
 }
@@ -239,19 +191,10 @@ BOAT_API float boat_optimizer_get_weight_decay(const boat_optimizer_t* optimizer
 BOAT_API void boat_optimizer_set_weight_decay(boat_optimizer_t* optimizer, float weight_decay) {
     if (!optimizer) return;
     switch (get_optimizer_type(optimizer)) {
-        case BOAT_OPTIMIZER_ADAM:
-            adam_optimizer_set_weight_decay(optimizer, weight_decay);
-            break;
-        case BOAT_OPTIMIZER_RMSPROP:
-            rmsprop_optimizer_set_weight_decay(optimizer, weight_decay);
-            break;
-        case BOAT_OPTIMIZER_ADAGRAD:
-            adagrad_optimizer_set_weight_decay(optimizer, weight_decay);
-            break;
-        case BOAT_OPTIMIZER_SGD:
-            sgd_optimizer_set_weight_decay(optimizer, weight_decay);
-            break;
-        default:
-            break;
+    case BOAT_OPTIMIZER_ADAM: adam_optimizer_set_weight_decay(optimizer, weight_decay); break;
+    case BOAT_OPTIMIZER_RMSPROP: rmsprop_optimizer_set_weight_decay(optimizer, weight_decay); break;
+    case BOAT_OPTIMIZER_ADAGRAD: adagrad_optimizer_set_weight_decay(optimizer, weight_decay); break;
+    case BOAT_OPTIMIZER_SGD: sgd_optimizer_set_weight_decay(optimizer, weight_decay); break;
+    default: break;
     }
 }

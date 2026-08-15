@@ -12,16 +12,18 @@
 
 // Graph model private structure
 typedef struct {
-    boat_model_t* model;         // Base model
-    boat_node_t* input_node;     // Input node in the graph
-    boat_node_t* output_node;    // Output node in the graph
-    boat_tensor_t** parameters;  // Array of parameter tensors
-    size_t parameter_count;      // Number of parameters
-    size_t parameter_capacity;   // Capacity of parameters array
+    boat_model_t* model;        // Base model
+    boat_node_t* input_node;    // Input node in the graph
+    boat_node_t* output_node;   // Output node in the graph
+    boat_tensor_t** parameters; // Array of parameter tensors
+    size_t parameter_count;     // Number of parameters
+    size_t parameter_capacity;  // Capacity of parameters array
 } boat_graph_model_private_t;
 
 // Graph model creation
-BOAT_API boat_model_t* boat_graph_model_create(const boat_graph_t* graph, const boat_node_t* input_node, const boat_node_t* output_node) {
+BOAT_API boat_model_t* boat_graph_model_create(const boat_graph_t* graph,
+                                               const boat_node_t* input_node,
+                                               const boat_node_t* output_node) {
     if (!graph || !input_node || !output_node) {
         return NULL;
     }
@@ -33,7 +35,8 @@ BOAT_API boat_model_t* boat_graph_model_create(const boat_graph_t* graph, const 
     }
 
     // Allocate private data
-    boat_graph_model_private_t* private = boat_malloc(sizeof(boat_graph_model_private_t), BOAT_DEVICE_CPU);
+    boat_graph_model_private_t* private =
+        boat_malloc(sizeof(boat_graph_model_private_t), BOAT_DEVICE_CPU);
     if (!private) {
         boat_model_free(model);
         return NULL;
@@ -58,15 +61,18 @@ BOAT_API void boat_graph_model_add_parameter(const boat_model_t* model, boat_ten
         return;
     }
 
-    boat_graph_model_private_t* private = (boat_graph_model_private_t*)boat_model_get_user_data(model);
+    boat_graph_model_private_t* private =
+        (boat_graph_model_private_t*)boat_model_get_user_data(model);
     if (!private) {
         return;
     }
 
     // Resize parameters array if needed
     if (private->parameter_count >= private->parameter_capacity) {
-        size_t new_capacity = private->parameter_capacity == 0 ? 8 : private->parameter_capacity * 2;
-        boat_tensor_t** new_params = boat_realloc(private->parameters, new_capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
+        size_t new_capacity =
+            private->parameter_capacity == 0 ? 8 : private->parameter_capacity * 2;
+        boat_tensor_t** new_params = boat_realloc(
+            private->parameters, new_capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
         if (!new_params) {
             return;
         }

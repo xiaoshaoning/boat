@@ -18,9 +18,14 @@ int spm_init(spm_tokenizer_t* tok, const char* vocab_path) {
     long fsize = ftell(f);
     fseek(f, 0, SEEK_SET);
     char* json_data = (char*)malloc((size_t)fsize + 1);
-    if (!json_data) { fclose(f); return 0; }
+    if (!json_data) {
+        fclose(f);
+        return 0;
+    }
     if (fread(json_data, 1, (size_t)fsize, f) != (size_t)fsize) {
-        free(json_data); fclose(f); return 0;
+        free(json_data);
+        fclose(f);
+        return 0;
     }
     json_data[fsize] = '\0';
     fclose(f);
@@ -53,7 +58,10 @@ int spm_init(spm_tokenizer_t* tok, const char* vocab_path) {
         }
     }
 
-    if (count == 0) { free(json_data); return 0; }
+    if (count == 0) {
+        free(json_data);
+        return 0;
+    }
 
     // Allocate
     tok->n = count;
@@ -62,12 +70,14 @@ int spm_init(spm_tokenizer_t* tok, const char* vocab_path) {
     tok->lengths = (int*)malloc(count * sizeof(int));
     tok->sorted = (int*)malloc(count * sizeof(int));
     if (!tok->tokens || !tok->ids || !tok->lengths || !tok->sorted) {
-        free(json_data); spm_free(tok); return 0;
+        free(json_data);
+        spm_free(tok);
+        return 0;
     }
 
     // Second pass: parse all entries
     int idx = 0;
-    tok->unk_id = 1;  // default
+    tok->unk_id = 1; // default
     tok->bos_id = 0;
     tok->eos_id = 0;
     tok->max_token_len = 0;
@@ -86,20 +96,22 @@ int spm_init(spm_tokenizer_t* tok, const char* vocab_path) {
         // SentencePiece sometimes adds \x00 or BOM to tokens
         char* clean = token_str;
         // Skip leading \x01 (SOH) byte prefix markers
-        while ((unsigned char)*clean == 0x01 || *clean == '\xef' ||
-               (unsigned char)*clean == 0xbb || *clean == '\xbf') {
+        while ((unsigned char)*clean == 0x01 || *clean == '\xef' || (unsigned char)*clean == 0xbb ||
+               *clean == '\xbf') {
             clean++;
         }
 
         tok->ids[idx] = id;
         tok->tokens[idx] = strdup(clean);
         tok->lengths[idx] = (int)strlen(clean);
-        if (tok->lengths[idx] > tok->max_token_len)
-            tok->max_token_len = tok->lengths[idx];
+        if (tok->lengths[idx] > tok->max_token_len) tok->max_token_len = tok->lengths[idx];
         tok->sorted[idx] = idx;
 
         if (strcmp(clean, "<unk>") == 0) tok->unk_id = id;
-        if (strcmp(clean, "</s>") == 0) { tok->bos_id = id; tok->eos_id = id; }
+        if (strcmp(clean, "</s>") == 0) {
+            tok->bos_id = id;
+            tok->eos_id = id;
+        }
 
         free(token_str);
         idx++;
@@ -131,7 +143,8 @@ int spm_init(spm_tokenizer_t* tok, const char* vocab_path) {
 
 void spm_free(spm_tokenizer_t* tok) {
     if (!tok) return;
-    for (int i = 0; i < tok->n; i++) free(tok->tokens[i]);
+    for (int i = 0; i < tok->n; i++)
+        free(tok->tokens[i]);
     free(tok->tokens);
     free(tok->ids);
     free(tok->lengths);
@@ -148,13 +161,19 @@ void spm_free(spm_tokenizer_t* tok) {
 #define SPACE_MARKER_LEN 3
 
 int* spm_encode(const spm_tokenizer_t* tok, const char* text, size_t text_len, int* out_len) {
-    if (!tok || !text) { *out_len = 0; return NULL; }
+    if (!tok || !text) {
+        *out_len = 0;
+        return NULL;
+    }
 
     // Prepare input buffer: add space prefix, replace ' ' with U+2581
     // Upper bound: text_len + prefix + overhead for space replacement
     size_t buf_cap = text_len + 16 + SPACE_MARKER_LEN * 2;
     char* buf = (char*)malloc(buf_cap);
-    if (!buf) { *out_len = 0; return NULL; }
+    if (!buf) {
+        *out_len = 0;
+        return NULL;
+    }
     size_t blen = 0;
 
     // Add space prefix (word start marker in SentencePiece)
@@ -169,7 +188,10 @@ int* spm_encode(const spm_tokenizer_t* tok, const char* text, size_t text_len, i
             if (blen + SPACE_MARKER_LEN >= buf_cap) {
                 buf_cap *= 2;
                 buf = (char*)realloc(buf, buf_cap);
-                if (!buf) { *out_len = 0; return NULL; }
+                if (!buf) {
+                    *out_len = 0;
+                    return NULL;
+                }
             }
             memcpy(buf + blen, SPACE_MARKER, SPACE_MARKER_LEN);
             blen += SPACE_MARKER_LEN;
@@ -177,7 +199,10 @@ int* spm_encode(const spm_tokenizer_t* tok, const char* text, size_t text_len, i
             if (blen + 1 >= buf_cap) {
                 buf_cap *= 2;
                 buf = (char*)realloc(buf, buf_cap);
-                if (!buf) { *out_len = 0; return NULL; }
+                if (!buf) {
+                    *out_len = 0;
+                    return NULL;
+                }
             }
             buf[blen++] = (char)c;
         }
@@ -185,7 +210,11 @@ int* spm_encode(const spm_tokenizer_t* tok, const char* text, size_t text_len, i
 
     // Greedy encoding
     int* ids = (int*)malloc(tok->n * 2 * sizeof(int)); // worst case: each byte is a token
-    if (!ids) { free(buf); *out_len = 0; return NULL; }
+    if (!ids) {
+        free(buf);
+        *out_len = 0;
+        return NULL;
+    }
     int n_ids = 0;
 
     size_t pos = 0;
@@ -240,8 +269,7 @@ char* spm_decode(const spm_tokenizer_t* tok, const int* ids, int n_ids) {
         if (!token_str) continue;
 
         // Skip special tokens
-        if (ids[i] == tok->bos_id || ids[i] == tok->eos_id || ids[i] == tok->unk_id)
-            continue;
+        if (ids[i] == tok->bos_id || ids[i] == tok->eos_id || ids[i] == tok->unk_id) continue;
 
         size_t tlen = strlen(token_str);
 

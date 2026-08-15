@@ -55,8 +55,8 @@ typedef struct boat_transform_chain_t boat_transform_chain_t;
 
 BOAT_API boat_transform_chain_t* boat_transform_chain_create(void);
 BOAT_API void boat_transform_chain_free(boat_transform_chain_t* chain);
-BOAT_API void boat_transform_chain_add(boat_transform_chain_t* chain,
-                                       boat_transform_func_t fn, void* context);
+BOAT_API void boat_transform_chain_add(boat_transform_chain_t* chain, boat_transform_func_t fn,
+                                       void* context);
 // Apply all transforms in the chain sequentially.
 // The input sample may be freed during the chain — the returned tensor
 // is the final result (caller must unref).
@@ -87,8 +87,8 @@ typedef struct boat_dataloader_t boat_dataloader_t;
 
 // Create a dataloader that iterates over dataset in batches.
 // When shuffle is true, indices are randomly permuted each epoch.
-BOAT_API boat_dataloader_t* boat_dataloader_create(boat_dataset_t* dataset,
-                                                   size_t batch_size, bool shuffle);
+BOAT_API boat_dataloader_t* boat_dataloader_create(boat_dataset_t* dataset, size_t batch_size,
+                                                   bool shuffle);
 
 // Free the dataloader (does NOT free the dataset).
 BOAT_API void boat_dataloader_free(boat_dataloader_t* loader);
@@ -99,8 +99,7 @@ BOAT_API void boat_dataloader_reset(boat_dataloader_t* loader);
 // Fetch the next batch.  Returns true on success, false at end of epoch.
 // *batch_data and *batch_labels are newly created tensors — caller must
 // unref them when done.
-BOAT_API bool boat_dataloader_next(boat_dataloader_t* loader,
-                                   boat_tensor_t** batch_data,
+BOAT_API bool boat_dataloader_next(boat_dataloader_t* loader, boat_tensor_t** batch_data,
                                    boat_tensor_t** batch_labels);
 
 // Number of batches per epoch.
@@ -113,7 +112,7 @@ BOAT_API size_t boat_dataloader_batch_size(const boat_dataloader_t* loader);
 // The dataloader does NOT take ownership of the chain — the caller must
 // keep it alive and free it after the dataloader is destroyed.
 BOAT_API void boat_dataloader_set_transform(boat_dataloader_t* loader,
-                                           boat_transform_chain_t* transform);
+                                            boat_transform_chain_t* transform);
 
 // Current index within the epoch (0-based, resets on each boat_dataloader_reset).
 BOAT_API size_t boat_dataloader_current_batch_idx(const boat_dataloader_t* loader);

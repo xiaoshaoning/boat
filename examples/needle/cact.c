@@ -36,8 +36,7 @@ static uint16_t load_u16_le(const uint8_t* p) {
 }
 
 static uint32_t load_u32_le(const uint8_t* p) {
-    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) |
-           ((uint32_t)p[3] << 24);
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
 
 static uint64_t load_u64_le(const uint8_t* p) {
@@ -63,7 +62,7 @@ static float f16_to_f32(uint16_t h) {
     uint32_t bits;
     if (exp == 0) {
         if (man == 0) {
-            bits = sign << 31;  // +/- 0
+            bits = sign << 31; // +/- 0
         } else {
             // Subnormal: normalize.
             exp = 127 - 15 + 1;
@@ -75,7 +74,7 @@ static float f16_to_f32(uint16_t h) {
             bits = (sign << 31) | (exp << 23) | (man << 13);
         }
     } else if (exp == 0x1F) {
-        bits = (sign << 31) | 0x7F800000u | (man << 13);  // inf/nan
+        bits = (sign << 31) | 0x7F800000u | (man << 13); // inf/nan
     } else {
         bits = (sign << 31) | ((exp - 15 + 127) << 23) | (man << 13);
     }
@@ -168,8 +167,7 @@ int needle_cact_open(needle_cact_t* cact, const char* path) {
     }
 
     // Directory.
-    cact->recs = (needle_cact_rec_t*)malloc(
-        (size_t)h->num_tensors * sizeof(needle_cact_rec_t));
+    cact->recs = (needle_cact_rec_t*)malloc((size_t)h->num_tensors * sizeof(needle_cact_rec_t));
     if (!cact->recs) {
         needle_cact_close(cact);
         return -1;
@@ -187,7 +185,7 @@ int needle_cact_open(needle_cact_t* cact, const char* path) {
         r->nbytes = load_u64_le(d + 28);
         r->group_size = load_u32_le(d + 36);
         r->bits = load_u32_le(d + 40);
-        d += 44;  // <BBHIIIIQQII
+        d += 44; // <BBHIIIIQQII
     }
     return 0;
 }
@@ -208,8 +206,8 @@ static size_t rec_nelements(const needle_cact_rec_t* r) {
 }
 
 // Dequantize one CQ tensor into `out` (fp32 [out, in]).
-static int dequant_cq(const needle_cact_t* cact, const needle_cact_rec_t* r,
-                      float* out, size_t out_cap) {
+static int dequant_cq(const needle_cact_t* cact, const needle_cact_rec_t* r, float* out,
+                      size_t out_cap) {
     const uint32_t out_rows = r->shape[0];
     const uint32_t in_dim = r->shape[1];
     const uint32_t g = r->group_size ? r->group_size : 128u;
@@ -225,7 +223,7 @@ static int dequant_cq(const needle_cact_t* cact, const needle_cact_rec_t* r,
     const uint8_t* blob = cact->owned + r->offset;
     size_t per_row;
     if (bits == NEEDLE_TERNARY_RECORD_BITS) {
-        per_row = (size_t)in_pad * 2 / 8;  // 4 crumb-packed 2-bit fields/byte
+        per_row = (size_t)in_pad * 2 / 8; // 4 crumb-packed 2-bit fields/byte
     } else {
         per_row = (size_t)in_pad * bits / 8;
     }
@@ -241,7 +239,7 @@ static int dequant_cq(const needle_cact_t* cact, const needle_cact_rec_t* r,
 
     const float* codebook;
     uint32_t levels;
-    float c_over_sqrtg;  // ternary centroid magnitude / sqrt(group), analytic
+    float c_over_sqrtg; // ternary centroid magnitude / sqrt(group), analytic
     if (bits == 2) {
         codebook = cact->codebook;
         levels = 4;
@@ -257,7 +255,7 @@ static int dequant_cq(const needle_cact_t* cact, const needle_cact_rec_t* r,
     } else if (bits == NEEDLE_TERNARY_RECORD_BITS) {
         codebook = NULL;
         levels = 3;
-        c_over_sqrtg = 1.2240064f / sqrtf((float)g);  // 3-level Lloyd-Max centroid
+        c_over_sqrtg = 1.2240064f / sqrtf((float)g); // 3-level Lloyd-Max centroid
     } else {
         return -1;
     }
@@ -278,7 +276,7 @@ static int dequant_cq(const needle_cact_t* cact, const needle_cact_rec_t* r,
                 uint32_t idx = (uint32_t)((word >> (i * bits)) & ((1u << bits) - 1u));
                 if (bits == NEEDLE_TERNARY_RECORD_BITS) {
                     // crumb 3,0,1 -> trit 0,1,2 ; sign-extend 2-bit -> -1,0,+1
-                    int32_t trit = (int32_t)(idx << 30) >> 30;  // sign extend 2 bits
+                    int32_t trit = (int32_t)(idx << 30) >> 30; // sign extend 2 bits
                     rowbuf[(size_t)c8 * 8 + i] = (float)trit * c_over_sqrtg;
                 } else {
                     if (idx >= levels) {
@@ -308,8 +306,7 @@ static int dequant_cq(const needle_cact_t* cact, const needle_cact_rec_t* r,
     return (int)((size_t)out_rows * in_dim);
 }
 
-int needle_cact_tensor_f32(const needle_cact_t* cact, uint32_t idx,
-                           float* out, size_t out_cap) {
+int needle_cact_tensor_f32(const needle_cact_t* cact, uint32_t idx, float* out, size_t out_cap) {
     if (idx >= cact->hdr.num_tensors) {
         return -1;
     }
@@ -337,11 +334,11 @@ int needle_cact_tensor_f32(const needle_cact_t* cact, uint32_t idx,
         }
         return (int)n;
     }
-    return -1;  // RAW
+    return -1; // RAW
 }
 
-int needle_cact_tensor_raw(const needle_cact_t* cact, uint32_t idx,
-                           const uint8_t** data, size_t* nbytes) {
+int needle_cact_tensor_raw(const needle_cact_t* cact, uint32_t idx, const uint8_t** data,
+                           size_t* nbytes) {
     if (idx >= cact->hdr.num_tensors) {
         return -1;
     }
@@ -357,11 +354,11 @@ uint32_t needle_cact_index_layer(const needle_cact_t* cact, uint32_t layer) {
 }
 
 uint32_t needle_cact_index_mhc_scalar(const needle_cact_t* cact, uint32_t which) {
-    return 1 + cact->hdr.num_layers * 14 + which;  // which in [0,6)
+    return 1 + cact->hdr.num_layers * 14 + which; // which in [0,6)
 }
 
 uint32_t needle_cact_index_mhc_phi(const needle_cact_t* cact, uint32_t which) {
-    return 1 + cact->hdr.num_layers * 14 + 6 + which;  // which in [0,3)
+    return 1 + cact->hdr.num_layers * 14 + 6 + which; // which in [0,3)
 }
 
 uint32_t needle_cact_index_engram(const needle_cact_t* cact, uint32_t site) {
@@ -378,5 +375,5 @@ uint32_t needle_cact_index_tokenizer(const needle_cact_t* cact) {
             return i;
         }
     }
-    return cact->hdr.num_tensors;  // invalid sentinel
+    return cact->hdr.num_tensors; // invalid sentinel
 }

@@ -9,7 +9,10 @@
 #include <assert.h>
 #include <math.h>
 
-static float fabsdiff(float a, float b) { float d = a - b; return d < 0 ? -d : d; }
+static float fabsdiff(float a, float b) {
+    float d = a - b;
+    return d < 0 ? -d : d;
+}
 
 // Numerical gradient of a scalar function of x[idx].
 static float numeric_grad(float* x, int idx, int n, float (*fn)(const float*, int)) {
@@ -25,11 +28,17 @@ static float numeric_grad(float* x, int idx, int n, float (*fn)(const float*, in
 
 // fn: compute scalar = full sum of x.
 static float fn_sum(const float* x, int n) {
-    float s = 0; for (int i = 0; i < n; i++) s += x[i]; return s;
+    float s = 0;
+    for (int i = 0; i < n; i++)
+        s += x[i];
+    return s;
 }
 // fn: compute scalar = full mean of x.
 static float fn_mean(const float* x, int n) {
-    float s = 0; for (int i = 0; i < n; i++) s += x[i]; return s / (float)n;
+    float s = 0;
+    for (int i = 0; i < n; i++)
+        s += x[i];
+    return s / (float)n;
 }
 
 static void test_tensor_level_reductions(void) {
@@ -49,7 +58,8 @@ static void test_tensor_level_reductions(void) {
     boat_tensor_t* m = boat_mean(a, dim0, 1, false);
     float* md = (float*)boat_tensor_data(m);
     assert(m && boat_tensor_shape(m)[0] == 3);
-    assert(fabsdiff(md[0], 2.5f) < 1e-5 && fabsdiff(md[1], 3.5f) < 1e-5 && fabsdiff(md[2], 4.5f) < 1e-5);
+    assert(fabsdiff(md[0], 2.5f) < 1e-5 && fabsdiff(md[1], 3.5f) < 1e-5 &&
+           fabsdiff(md[2], 4.5f) < 1e-5);
     boat_tensor_free(m);
 
     // Full reduction -> scalar (ndim 0)
@@ -74,7 +84,8 @@ static void test_autodiff_sum_gradient(void) {
     float vals[] = {1, 2, 3, 4, 5, 6};
     boat_variable_t* x = boat_variable_create_with_shape(sh, 2, BOAT_DTYPE_FLOAT32, true);
     float* xd = (float*)boat_tensor_data(boat_variable_data(x));
-    for (int i = 0; i < 6; i++) xd[i] = vals[i];
+    for (int i = 0; i < 6; i++)
+        xd[i] = vals[i];
 
     // Full sum (scalar). Analytic grad = all ones.
     boat_variable_t* s = boat_var_sum(x, NULL, 0, false);
@@ -84,7 +95,8 @@ static void test_autodiff_sum_gradient(void) {
 
     boat_variable_backward(s, NULL);
     float* g = (float*)boat_tensor_data(boat_variable_grad(x));
-    for (int i = 0; i < 6; i++) assert(fabsdiff(g[i], 1.0f) < 1e-5);
+    for (int i = 0; i < 6; i++)
+        assert(fabsdiff(g[i], 1.0f) < 1e-5);
     boat_variable_free(s);
 
     // mean over dim 0. Analytic grad = 0.5 everywhere.
@@ -94,7 +106,8 @@ static void test_autodiff_sum_gradient(void) {
     assert(m != NULL);
     boat_variable_backward(m, NULL);
     g = (float*)boat_tensor_data(boat_variable_grad(x));
-    for (int i = 0; i < 6; i++) assert(fabsdiff(g[i], 0.5f) < 1e-5);
+    for (int i = 0; i < 6; i++)
+        assert(fabsdiff(g[i], 0.5f) < 1e-5);
     boat_variable_free(m);
 
     // max over dim 1. Analytic grad routes only to argmax.
@@ -105,7 +118,8 @@ static void test_autodiff_sum_gradient(void) {
     boat_variable_backward(mx, NULL);
     g = (float*)boat_tensor_data(boat_variable_grad(x));
     float want[] = {0, 0, 1, 0, 0, 1};
-    for (int i = 0; i < 6; i++) assert(fabsdiff(g[i], want[i]) < 1e-5);
+    for (int i = 0; i < 6; i++)
+        assert(fabsdiff(g[i], want[i]) < 1e-5);
     boat_variable_free(mx);
 
     boat_variable_free(x);
@@ -118,22 +132,26 @@ static void test_numeric_gradient_check(void) {
     boat_variable_t* x = boat_variable_create_with_shape(sh, 1, BOAT_DTYPE_FLOAT32, true);
     float* xd = (float*)boat_tensor_data(boat_variable_data(x));
     float vals[] = {0.5f, -1.2f, 3.3f, 2.0f};
-    for (int i = 0; i < 4; i++) xd[i] = vals[i];
+    for (int i = 0; i < 4; i++)
+        xd[i] = vals[i];
 
     // sum: numeric vs analytic (all ones)
     boat_variable_t* s = boat_var_sum(x, NULL, 0, false);
     boat_variable_backward(s, NULL);
     float* g = (float*)boat_tensor_data(boat_variable_grad(x));
-    for (int i = 0; i < 4; i++) assert(fabsdiff(g[i], numeric_grad(xd, i, 4, fn_sum)) < 1e-2);
+    for (int i = 0; i < 4; i++)
+        assert(fabsdiff(g[i], numeric_grad(xd, i, 4, fn_sum)) < 1e-2);
     boat_variable_free(s);
 
     // mean: numeric vs analytic (all 0.25)
     boat_variable_zero_grad(x);
-    for (int i = 0; i < 4; i++) xd[i] = vals[i];
+    for (int i = 0; i < 4; i++)
+        xd[i] = vals[i];
     boat_variable_t* m = boat_var_mean(x, NULL, 0, false);
     boat_variable_backward(m, NULL);
     g = (float*)boat_tensor_data(boat_variable_grad(x));
-    for (int i = 0; i < 4; i++) assert(fabsdiff(g[i], numeric_grad(xd, i, 4, fn_mean)) < 1e-2);
+    for (int i = 0; i < 4; i++)
+        assert(fabsdiff(g[i], numeric_grad(xd, i, 4, fn_mean)) < 1e-2);
     boat_variable_free(m);
 
     boat_variable_free(x);

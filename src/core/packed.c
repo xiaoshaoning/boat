@@ -117,9 +117,9 @@ BOAT_API void boat_pack_float4(const float* src, uint8_t* dst, size_t n) {
     for (size_t i = 0; i < n; i += 2) {
         uint8_t byte = 0;
 
-            boat_float4_t f4 = boat_float4_from_float(src[i]);
-            byte |= (f4.sign << 7);
-            byte |= (f4.exponent << 4);
+        boat_float4_t f4 = boat_float4_from_float(src[i]);
+        byte |= (f4.sign << 7);
+        byte |= (f4.exponent << 4);
 
         if (i + 1 < n) {
             boat_float4_t f4_2 = boat_float4_from_float(src[i + 1]);
@@ -135,10 +135,10 @@ BOAT_API void boat_unpack_float4(const uint8_t* src, float* dst, size_t n) {
     for (size_t i = 0; i < n; i += 2) {
         uint8_t byte = src[i / 2];
 
-            boat_float4_t f4;
-            f4.sign = (byte >> 7) & 1;
-            f4.exponent = (byte >> 4) & 0x07;
-            dst[i] = boat_float4_to_float(f4);
+        boat_float4_t f4;
+        f4.sign = (byte >> 7) & 1;
+        f4.exponent = (byte >> 4) & 0x07;
+        dst[i] = boat_float4_to_float(f4);
 
         if (i + 1 < n) {
             boat_float4_t f4_2;
@@ -301,75 +301,66 @@ BOAT_API void boat_add_float8(const uint8_t* a, const uint8_t* b, uint8_t* out, 
 // Memory access optimizations for packed types
 BOAT_API size_t boat_packed_element_offset(boat_dtype_t dtype, size_t index) {
     switch (dtype) {
-        case BOAT_DTYPE_BITS1:
-            return index / 8;
-        case BOAT_DTYPE_BITS2:
-            return index / 4;
-        case BOAT_DTYPE_FLOAT4:
-            return index / 2;
-        case BOAT_DTYPE_FLOAT8:
-            return index;
-        default:
-            return index; // For non-packed types, one element per byte/word
+    case BOAT_DTYPE_BITS1: return index / 8;
+    case BOAT_DTYPE_BITS2: return index / 4;
+    case BOAT_DTYPE_FLOAT4: return index / 2;
+    case BOAT_DTYPE_FLOAT8: return index;
+    default: return index; // For non-packed types, one element per byte/word
     }
 }
 
 BOAT_API uint8_t boat_packed_read_element(const uint8_t* data, boat_dtype_t dtype, size_t index) {
     switch (dtype) {
-        case BOAT_DTYPE_BITS1: {
-            size_t byte_idx = index / 8;
-            int bit = index % 8;
-            return (data[byte_idx] >> bit) & 1;
+    case BOAT_DTYPE_BITS1: {
+        size_t byte_idx = index / 8;
+        int bit = index % 8;
+        return (data[byte_idx] >> bit) & 1;
+    }
+    case BOAT_DTYPE_BITS2: {
+        size_t byte_idx = index / 4;
+        int nibble = index % 4;
+        return (data[byte_idx] >> (nibble * 2)) & 0x03;
+    }
+    case BOAT_DTYPE_FLOAT4: {
+        size_t byte_idx = index / 2;
+        if (index % 2 == 0) {
+            return (data[byte_idx] >> 4) & 0x0F;
+        } else {
+            return data[byte_idx] & 0x0F;
         }
-        case BOAT_DTYPE_BITS2: {
-            size_t byte_idx = index / 4;
-            int nibble = index % 4;
-            return (data[byte_idx] >> (nibble * 2)) & 0x03;
-        }
-        case BOAT_DTYPE_FLOAT4: {
-            size_t byte_idx = index / 2;
-            if (index % 2 == 0) {
-                return (data[byte_idx] >> 4) & 0x0F;
-            } else {
-                return data[byte_idx] & 0x0F;
-            }
-        }
-        case BOAT_DTYPE_FLOAT8:
-            return data[index];
-        default:
-            return 0;
+    }
+    case BOAT_DTYPE_FLOAT8: return data[index];
+    default: return 0;
     }
 }
 
-BOAT_API void boat_packed_write_element(uint8_t* data, boat_dtype_t dtype, size_t index, uint8_t value) {
+BOAT_API void boat_packed_write_element(uint8_t* data, boat_dtype_t dtype, size_t index,
+                                        uint8_t value) {
     switch (dtype) {
-        case BOAT_DTYPE_BITS1: {
-            size_t byte_idx = index / 8;
-            int bit = index % 8;
-            uint8_t mask = ~(1 << bit);
-            data[byte_idx] = (data[byte_idx] & mask) | ((value & 1) << bit);
-            break;
+    case BOAT_DTYPE_BITS1: {
+        size_t byte_idx = index / 8;
+        int bit = index % 8;
+        uint8_t mask = ~(1 << bit);
+        data[byte_idx] = (data[byte_idx] & mask) | ((value & 1) << bit);
+        break;
+    }
+    case BOAT_DTYPE_BITS2: {
+        size_t byte_idx = index / 4;
+        int nibble = index % 4;
+        uint8_t mask = ~(0x03 << (nibble * 2));
+        data[byte_idx] = (data[byte_idx] & mask) | ((value & 0x03) << (nibble * 2));
+        break;
+    }
+    case BOAT_DTYPE_FLOAT4: {
+        size_t byte_idx = index / 2;
+        if (index % 2 == 0) {
+            data[byte_idx] = (data[byte_idx] & 0x0F) | ((value & 0x0F) << 4);
+        } else {
+            data[byte_idx] = (data[byte_idx] & 0xF0) | (value & 0x0F);
         }
-        case BOAT_DTYPE_BITS2: {
-            size_t byte_idx = index / 4;
-            int nibble = index % 4;
-            uint8_t mask = ~(0x03 << (nibble * 2));
-            data[byte_idx] = (data[byte_idx] & mask) | ((value & 0x03) << (nibble * 2));
-            break;
-        }
-        case BOAT_DTYPE_FLOAT4: {
-            size_t byte_idx = index / 2;
-            if (index % 2 == 0) {
-                data[byte_idx] = (data[byte_idx] & 0x0F) | ((value & 0x0F) << 4);
-            } else {
-                data[byte_idx] = (data[byte_idx] & 0xF0) | (value & 0x0F);
-            }
-            break;
-        }
-        case BOAT_DTYPE_FLOAT8:
-            data[index] = value;
-            break;
-        default:
-            break;
+        break;
+    }
+    case BOAT_DTYPE_FLOAT8: data[index] = value; break;
+    default: break;
     }
 }

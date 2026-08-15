@@ -10,18 +10,15 @@
 
 // Internal node structure
 struct boat_node_t {
-    size_t id;                    // Unique node identifier
-    void* data;                   // User data associated with node
-    boat_node_type_t type;        // Node type
+    size_t id;              // Unique node identifier
+    void* data;             // User data associated with node
+    boat_node_type_t type;  // Node type
     void (*free_fn)(void*); // Function to free user data
-    size_t ref_count;             // Reference count
+    size_t ref_count;       // Reference count
 };
 
-
-
 // Node creation and destruction
-static boat_node_t* boat_node_create(void* data, boat_node_type_t type,
-                                     void (*free_fn)(void*)) {
+static boat_node_t* boat_node_create(void* data, boat_node_type_t type, void (*free_fn)(void*)) {
     boat_node_t* node = boat_malloc(sizeof(boat_node_t), BOAT_DEVICE_CPU);
     if (!node) {
         return NULL;
@@ -78,9 +75,8 @@ BOAT_API boat_node_type_t boat_node_type(const boat_node_t* node) {
 }
 
 // Node operations for graph
-BOAT_API boat_node_t* boat_graph_add_node(boat_graph_t* graph, void* data,
-                                 boat_node_type_t type,
-                                 void (*free_fn)(void*)) {
+BOAT_API boat_node_t* boat_graph_add_node(boat_graph_t* graph, void* data, boat_node_type_t type,
+                                          void (*free_fn)(void*)) {
     if (!graph) {
         return NULL;
     }
@@ -165,8 +161,6 @@ BOAT_API boat_node_t* boat_graph_get_node(const boat_graph_t* graph, size_t id) 
 
     return NULL;
 }
-
-
 
 // Graph creation and management (basic implementation)
 BOAT_API boat_graph_t* boat_graph_create() {
@@ -324,11 +318,11 @@ BOAT_API void boat_node_set_data(boat_node_t* node, void* data, void (*free_fn)(
 // Node type conversion
 BOAT_API const char* boat_node_type_name(boat_node_type_t type) {
     switch (type) {
-        case BOAT_NODE_TYPE_VARIABLE: return "VARIABLE";
-        case BOAT_NODE_TYPE_OPERATION: return "OPERATION";
-        case BOAT_NODE_TYPE_CONSTANT: return "CONSTANT";
-        case BOAT_NODE_TYPE_PLACEHOLDER: return "PLACEHOLDER";
-        case BOAT_NODE_TYPE_OUTPUT: return "OUTPUT";
-        default: return "UNKNOWN";
+    case BOAT_NODE_TYPE_VARIABLE: return "VARIABLE";
+    case BOAT_NODE_TYPE_OPERATION: return "OPERATION";
+    case BOAT_NODE_TYPE_CONSTANT: return "CONSTANT";
+    case BOAT_NODE_TYPE_PLACEHOLDER: return "PLACEHOLDER";
+    case BOAT_NODE_TYPE_OUTPUT: return "OUTPUT";
+    default: return "UNKNOWN";
     }
 }

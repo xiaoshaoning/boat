@@ -17,8 +17,10 @@ static int close_enough(float a, float b) {
 static float prelu_sum(boat_prelu_layer_t* layer, boat_tensor_t* input) {
     boat_tensor_t* out = boat_prelu_layer_forward(layer, input);
     assert(out != NULL);
-    float s = 0; float* od = (float*)boat_tensor_data(out);
-    for (size_t i = 0; i < boat_tensor_nelements(out); i++) s += od[i];
+    float s = 0;
+    float* od = (float*)boat_tensor_data(out);
+    for (size_t i = 0; i < boat_tensor_nelements(out); i++)
+        s += od[i];
     boat_tensor_free(out);
     return s;
 }
@@ -26,8 +28,10 @@ static float prelu_sum(boat_prelu_layer_t* layer, boat_tensor_t* input) {
 static float bn_sum(boat_batchnorm2d_layer_t* layer, boat_tensor_t* input) {
     boat_tensor_t* out = boat_batchnorm2d_layer_forward(layer, input);
     assert(out != NULL);
-    float s = 0; float* od = (float*)boat_tensor_data(out);
-    for (size_t i = 0; i < boat_tensor_nelements(out); i++) s += od[i];
+    float s = 0;
+    float* od = (float*)boat_tensor_data(out);
+    for (size_t i = 0; i < boat_tensor_nelements(out); i++)
+        s += od[i];
     boat_tensor_free(out);
     return s;
 }
@@ -40,8 +44,9 @@ static void test_prelu_gradcheck(void) {
     int64_t ish[] = {1, 2, 2, 2};
     boat_tensor_t* input = boat_tensor_create(ish, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* id = (float*)boat_tensor_data(input);
-    float iv[] = {1.0f, -2.0f, 3.0f, -4.0f,  -1.0f, 2.0f, -3.0f, 4.0f};
-    for (int i = 0; i < 8; i++) id[i] = iv[i];
+    float iv[] = {1.0f, -2.0f, 3.0f, -4.0f, -1.0f, 2.0f, -3.0f, 4.0f};
+    for (int i = 0; i < 8; i++)
+        id[i] = iv[i];
 
     // Set per-channel slopes [0.25, 0.5].
     int64_t ssh[] = {2, 1, 1};
@@ -56,7 +61,8 @@ static void test_prelu_gradcheck(void) {
     int64_t osh[] = {1, 2, 2, 2};
     boat_tensor_t* grad_out = boat_tensor_create(osh, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* gd = (float*)boat_tensor_data(grad_out);
-    for (int i = 0; i < 8; i++) gd[i] = 1.0f;
+    for (int i = 0; i < 8; i++)
+        gd[i] = 1.0f;
     boat_tensor_t* grad_in = boat_prelu_layer_backward(layer, grad_out);
     assert(grad_in != NULL);
     float* gi = (float*)boat_tensor_data(grad_in);
@@ -67,8 +73,10 @@ static void test_prelu_gradcheck(void) {
     float eps = 1e-3f;
     for (int i = 0; i < 8; i++) {
         float o = id[i];
-        id[i] = o + eps; float lp = prelu_sum(layer, input);
-        id[i] = o - eps; float lm = prelu_sum(layer, input);
+        id[i] = o + eps;
+        float lp = prelu_sum(layer, input);
+        id[i] = o - eps;
+        float lm = prelu_sum(layer, input);
         id[i] = o;
         assert(close_enough(gi[i], (lp - lm) / (2 * eps)));
     }
@@ -78,8 +86,10 @@ static void test_prelu_gradcheck(void) {
     float* sd = (float*)boat_tensor_data(sl);
     for (int c = 0; c < 2; c++) {
         float o = sd[c];
-        sd[c] = o + eps; float lp = prelu_sum(layer, input);
-        sd[c] = o - eps; float lm = prelu_sum(layer, input);
+        sd[c] = o + eps;
+        float lp = prelu_sum(layer, input);
+        sd[c] = o - eps;
+        float lm = prelu_sum(layer, input);
         sd[c] = o;
         assert(close_enough(gslope[c], (lp - lm) / (2 * eps)));
     }
@@ -98,11 +108,12 @@ static void test_batchnorm_gradcheck(void) {
     assert(layer != NULL);
     boat_batchnorm2d_layer_set_training(layer, true);
 
-    int64_t ish[] = {2, (int64_t)C, 2, 2};  // [N, C, H, W] = [2, 2, 2, 2]
+    int64_t ish[] = {2, (int64_t)C, 2, 2}; // [N, C, H, W] = [2, 2, 2, 2]
     boat_tensor_t* input = boat_tensor_create(ish, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* id = (float*)boat_tensor_data(input);
-    float iv[] = {1, 2, 3, 4,  5, 6, 7, 8,   2, 4, 6, 8,  10, 12, 14, 16};
-    for (int i = 0; i < 16; i++) id[i] = iv[i];
+    float iv[] = {1, 2, 3, 4, 5, 6, 7, 8, 2, 4, 6, 8, 10, 12, 14, 16};
+    for (int i = 0; i < 16; i++)
+        id[i] = iv[i];
 
     // Set weight (gamma) and bias (beta) to non-trivial values.
     int64_t wsh[] = {(int64_t)C};
@@ -120,7 +131,8 @@ static void test_batchnorm_gradcheck(void) {
     int64_t osh[] = {2, (int64_t)C, 2, 2};
     boat_tensor_t* grad_out = boat_tensor_create(osh, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* gd = (float*)boat_tensor_data(grad_out);
-    for (int i = 0; i < 16; i++) gd[i] = 1.0f;
+    for (int i = 0; i < 16; i++)
+        gd[i] = 1.0f;
     boat_tensor_t* grad_in = boat_batchnorm2d_layer_backward(layer, grad_out);
     assert(grad_in != NULL);
     float* gi = (float*)boat_tensor_data(grad_in);
@@ -132,8 +144,10 @@ static void test_batchnorm_gradcheck(void) {
     float eps = 1e-3f;
     for (int i = 0; i < 16; i++) {
         float o = id[i];
-        id[i] = o + eps; float lp = bn_sum(layer, input);
-        id[i] = o - eps; float lm = bn_sum(layer, input);
+        id[i] = o + eps;
+        float lp = bn_sum(layer, input);
+        id[i] = o - eps;
+        float lm = bn_sum(layer, input);
         id[i] = o;
         assert(close_enough(gi[i], (lp - lm) / (2 * eps)));
     }
@@ -143,14 +157,18 @@ static void test_batchnorm_gradcheck(void) {
     float* bd = (float*)boat_tensor_data(boat_batchnorm2d_layer_get_bias(layer));
     for (int c = 0; c < 2; c++) {
         float o = wd[c];
-        wd[c] = o + eps; float lp = bn_sum(layer, input);
-        wd[c] = o - eps; float lm = bn_sum(layer, input);
+        wd[c] = o + eps;
+        float lp = bn_sum(layer, input);
+        wd[c] = o - eps;
+        float lm = bn_sum(layer, input);
         wd[c] = o;
         assert(close_enough(gw[c], (lp - lm) / (2 * eps)));
 
         o = bd[c];
-        bd[c] = o + eps; lp = bn_sum(layer, input);
-        bd[c] = o - eps; lm = bn_sum(layer, input);
+        bd[c] = o + eps;
+        lp = bn_sum(layer, input);
+        bd[c] = o - eps;
+        lm = bn_sum(layer, input);
         bd[c] = o;
         assert(close_enough(gb[c], (lp - lm) / (2 * eps)));
     }

@@ -8,7 +8,10 @@
 #include <assert.h>
 #include <math.h>
 
-static float fd(float a, float b) { float d = fabsf(a - b); return d; }
+static float fd(float a, float b) {
+    float d = fabsf(a - b);
+    return d;
+}
 
 static int close_f(float a, float b) {
     // half precision has ~3 decimal digits
@@ -20,7 +23,7 @@ static int close_f(float a, float b) {
 static void test_conversion(void) {
     printf("Testing FP16 <-> FP32 conversion...\n");
     float vals[] = {0.0f, 1.0f, -1.0f, 2.0f, 0.5f, 0.25f, 1.5f, -3.25f, 100.0f, 65504.0f};
-    for (size_t i = 0; i < sizeof(vals)/sizeof(vals[0]); i++) {
+    for (size_t i = 0; i < sizeof(vals) / sizeof(vals[0]); i++) {
         uint16_t h = boat_f32_to_f16(vals[i]);
         float back = boat_f16_to_f32(h);
         assert(close_f(back, vals[i]));
@@ -35,8 +38,10 @@ static void test_conversion(void) {
 static void test_arith(void) {
     printf("Testing FP16 element-wise arithmetic...\n");
     int64_t sh[] = {4};
-    uint16_t ad[] = {boat_f32_to_f16(1.0f), boat_f32_to_f16(2.0f), boat_f32_to_f16(3.5f), boat_f32_to_f16(-2.0f)};
-    uint16_t bd[] = {boat_f32_to_f16(2.0f), boat_f32_to_f16(3.0f), boat_f32_to_f16(0.5f), boat_f32_to_f16(4.0f)};
+    uint16_t ad[] = {boat_f32_to_f16(1.0f), boat_f32_to_f16(2.0f), boat_f32_to_f16(3.5f),
+                     boat_f32_to_f16(-2.0f)};
+    uint16_t bd[] = {boat_f32_to_f16(2.0f), boat_f32_to_f16(3.0f), boat_f32_to_f16(0.5f),
+                     boat_f32_to_f16(4.0f)};
     boat_tensor_t* a = boat_tensor_from_data(sh, 1, BOAT_DTYPE_FLOAT16, ad);
     boat_tensor_t* b = boat_tensor_from_data(sh, 1, BOAT_DTYPE_FLOAT16, bd);
 
@@ -57,8 +62,12 @@ static void test_arith(void) {
     // FP16 should produce FP16 output dtype.
     assert(boat_tensor_dtype(s) == BOAT_DTYPE_FLOAT16);
 
-    boat_tensor_free(a); boat_tensor_free(b);
-    boat_tensor_free(s); boat_tensor_free(d); boat_tensor_free(m); boat_tensor_free(v);
+    boat_tensor_free(a);
+    boat_tensor_free(b);
+    boat_tensor_free(s);
+    boat_tensor_free(d);
+    boat_tensor_free(m);
+    boat_tensor_free(v);
     printf("  OK\n");
 }
 

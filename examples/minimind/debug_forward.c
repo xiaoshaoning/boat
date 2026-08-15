@@ -12,14 +12,17 @@ void rmsnorm(float* x, const float* weight, int n_rows, int dim, float eps);
 
 int main(int argc, char** argv) {
     minimind_model_t m;
-    if (minimind_model_init(&m, "./weights") != 0) { return 1; }
+    if (minimind_model_init(&m, "./weights") != 0) {
+        return 1;
+    }
 
     // Read input tokens
     FILE* f = fopen("debug_data/input.bin", "rb");
     int n_tokens;
     fread(&n_tokens, sizeof(int), 1, f);
     int tokens[32];
-    for (int i = 0; i < n_tokens; i++) fread(&tokens[i], sizeof(int), 1, f);
+    for (int i = 0; i < n_tokens; i++)
+        fread(&tokens[i], sizeof(int), 1, f);
     fclose(f);
 
     int HS = m.config.hidden_size;
@@ -54,9 +57,12 @@ int main(int argc, char** argv) {
                 if (err > max_err) max_err = err;
             }
             printf("Layer %d: max abs error = %e", l, max_err);
-            if (max_err < 1e-4f) printf(" OK\n");
-            else if (max_err < 1e-2f) printf(" WARN\n");
-            else printf(" FAIL\n");
+            if (max_err < 1e-4f)
+                printf(" OK\n");
+            else if (max_err < 1e-2f)
+                printf(" WARN\n");
+            else
+                printf(" FAIL\n");
             free(py_hidden);
         }
     }
@@ -71,7 +77,8 @@ int main(int argc, char** argv) {
     for (int v = 0; v < VS; v++) {
         const float* emb_row = m.lm_head + (size_t)v * HS;
         float dot = 0.0f;
-        for (int i = 0; i < HS; i++) dot += last_hidden[i] * emb_row[i];
+        for (int i = 0; i < HS; i++)
+            dot += last_hidden[i] * emb_row[i];
         logits[v] = dot;
     }
 

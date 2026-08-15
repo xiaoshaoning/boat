@@ -17,7 +17,8 @@
 
 // Create LambdaLR scheduler
 BOAT_API boat_scheduler_t* boat_lambda_lr_scheduler_create(float base_learning_rate,
-                                                           float (*lambda_fn)(int step, float base_lr)) {
+                                                           float (*lambda_fn)(int step,
+                                                                              float base_lr)) {
     // Validate hyperparameters
     if (base_learning_rate <= 0.0f) {
         return NULL;
@@ -27,7 +28,8 @@ BOAT_API boat_scheduler_t* boat_lambda_lr_scheduler_create(float base_learning_r
     }
 
     // Allocate scheduler state
-    boat_lambda_lr_state_t* state = (boat_lambda_lr_state_t*)boat_malloc(sizeof(boat_lambda_lr_state_t), BOAT_DEVICE_CPU);
+    boat_lambda_lr_state_t* state =
+        (boat_lambda_lr_state_t*)boat_malloc(sizeof(boat_lambda_lr_state_t), BOAT_DEVICE_CPU);
     if (!state) {
         return NULL;
     }

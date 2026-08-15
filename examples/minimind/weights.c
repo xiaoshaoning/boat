@@ -22,12 +22,18 @@
 
 static char* read_file(const char* path, size_t* out_len) {
     FILE* f = fopen(path, "rb");
-    if (!f) { fprintf(stderr, "Cannot open: %s\n", path); return NULL; }
+    if (!f) {
+        fprintf(stderr, "Cannot open: %s\n", path);
+        return NULL;
+    }
     fseek(f, 0, SEEK_END);
     long sz = ftell(f);
     fseek(f, 0, SEEK_SET);
     char* buf = (char*)malloc(sz + 1);
-    if (!buf) { fclose(f); return NULL; }
+    if (!buf) {
+        fclose(f);
+        return NULL;
+    }
     size_t nread = fread(buf, 1, sz, f);
     fclose(f);
     buf[nread] = '\0';
@@ -52,7 +58,10 @@ static int json_parse_array_int(json_ctx_t* ctx, int* out, int max_n) {
     int n = 0;
     while (n < max_n) {
         json_skip_ws(ctx);
-        if (json_peek(ctx) == ']') { ctx->pos++; break; }
+        if (json_peek(ctx) == ']') {
+            ctx->pos++;
+            break;
+        }
         out[n++] = (int)json_parse_int(ctx);
         json_skip_ws(ctx);
         if (json_peek(ctx) == ',') ctx->pos++;
@@ -69,13 +78,22 @@ static int parse_meta(const char* json_str, size_t len, wt_entry_t* entries, int
     int num = 0;
     while (num < MAX_WEIGHTS) {
         json_skip_ws(&ctx);
-        if (json_peek(&ctx) == '}') { ctx.pos++; break; }
+        if (json_peek(&ctx) == '}') {
+            ctx.pos++;
+            break;
+        }
         if (json_peek(&ctx) == ',') ctx.pos++;
 
         char* name = json_parse_string(&ctx);
         if (!name) break;
-        if (json_next(&ctx) != ':') { free(name); break; }
-        if (json_next(&ctx) != '{') { free(name); break; }
+        if (json_next(&ctx) != ':') {
+            free(name);
+            break;
+        }
+        if (json_next(&ctx) != '{') {
+            free(name);
+            break;
+        }
 
         wt_entry_t* e = &entries[num];
         e->name = name;
@@ -84,10 +102,16 @@ static int parse_meta(const char* json_str, size_t len, wt_entry_t* entries, int
 
         while (1) {
             json_skip_ws(&ctx);
-            if (json_peek(&ctx) == '}') { ctx.pos++; break; }
+            if (json_peek(&ctx) == '}') {
+                ctx.pos++;
+                break;
+            }
             if (json_peek(&ctx) == ',') ctx.pos++;
             char* key = json_parse_string(&ctx);
-            if (!key) { free(name); break; }
+            if (!key) {
+                free(name);
+                break;
+            }
             json_expect(&ctx, ':');
 
             if (strcmp(key, "offset") == 0) {
@@ -130,8 +154,8 @@ static void load_weight_copy(float** dst, const float* src, int n) {
 }
 
 // --- RoPE table precomputation ---
-static void precompute_rope(float* cos_table, float* sin_table,
-                             int max_seq_len, int head_dim, float theta) {
+static void precompute_rope(float* cos_table, float* sin_table, int max_seq_len, int head_dim,
+                            float theta) {
     int half_dim = head_dim / 2;
     float* freqs = (float*)malloc(half_dim * sizeof(float));
     // Python: freqs = 1.0 / (theta ** (arange(0, dim, 2)[:dim//2].float() / dim))
@@ -183,7 +207,8 @@ int minimind_weights_load(minimind_model_t* m, const char* model_dir) {
     size_t bin_len;
     char* bin_data_char = read_file(bin_path, &bin_len);
     if (!bin_data_char) {
-        for (int i = 0; i < n_entries; i++) free(entries[i].name);
+        for (int i = 0; i < n_entries; i++)
+            free(entries[i].name);
         return -1;
     }
     const float* bin_data = (const float*)bin_data_char;
@@ -193,25 +218,33 @@ int minimind_weights_load(minimind_model_t* m, const char* model_dir) {
     // 3. Helper to get tensor data
 #define GET_TENSOR(name) find_entry(entries, n_entries, name)
 // Load a 2D weight with transpose (for linear layers: PyTorch [out,in] -> C [in,out])
-#define LOAD_WEIGHT_T(dst, name) do { \
-    wt_entry_t* _e = GET_TENSOR(name); \
-    if (!_e) { fprintf(stderr, "Missing: %s\n", name); return -1; } \
-    int _d0 = _e->shape[0], _d1 = (_e->ndim > 1) ? _e->shape[1] : 0; \
-    if (_e->ndim == 2 && _d0 > 1 && _d1 > 1) \
-        load_weight_transpose(&(dst), bin_data + _e->offset / 4, _d0, _d1); \
-    else \
-        load_weight_copy(&(dst), bin_data + _e->offset / 4, _d0); \
-} while(0)
+#define LOAD_WEIGHT_T(dst, name)                                                                   \
+    do {                                                                                           \
+        wt_entry_t* _e = GET_TENSOR(name);                                                         \
+        if (!_e) {                                                                                 \
+            fprintf(stderr, "Missing: %s\n", name);                                                \
+            return -1;                                                                             \
+        }                                                                                          \
+        int _d0 = _e->shape[0], _d1 = (_e->ndim > 1) ? _e->shape[1] : 0;                           \
+        if (_e->ndim == 2 && _d0 > 1 && _d1 > 1)                                                   \
+            load_weight_transpose(&(dst), bin_data + _e->offset / 4, _d0, _d1);                    \
+        else                                                                                       \
+            load_weight_copy(&(dst), bin_data + _e->offset / 4, _d0);                              \
+    } while (0)
 // Load without transpose (for embeddings: keep [vocab_size, hidden_size] layout)
-#define LOAD_WEIGHT(dst, name) do { \
-    wt_entry_t* _e = GET_TENSOR(name); \
-    if (!_e) { fprintf(stderr, "Missing: %s\n", name); return -1; } \
-    int _d0 = _e->shape[0], _d1 = (_e->ndim > 1) ? _e->shape[1] : 0; \
-    if (_e->ndim == 2 && _d0 > 1 && _d1 > 1) \
-        load_weight_copy(&(dst), bin_data + _e->offset / 4, _d0 * _d1); \
-    else \
-        load_weight_copy(&(dst), bin_data + _e->offset / 4, _d0); \
-} while(0)
+#define LOAD_WEIGHT(dst, name)                                                                     \
+    do {                                                                                           \
+        wt_entry_t* _e = GET_TENSOR(name);                                                         \
+        if (!_e) {                                                                                 \
+            fprintf(stderr, "Missing: %s\n", name);                                                \
+            return -1;                                                                             \
+        }                                                                                          \
+        int _d0 = _e->shape[0], _d1 = (_e->ndim > 1) ? _e->shape[1] : 0;                           \
+        if (_e->ndim == 2 && _d0 > 1 && _d1 > 1)                                                   \
+            load_weight_copy(&(dst), bin_data + _e->offset / 4, _d0 * _d1);                        \
+        else                                                                                       \
+            load_weight_copy(&(dst), bin_data + _e->offset / 4, _d0);                              \
+    } while (0)
 
     // 4. Load weights by name
     // Embeddings: NO transpose (lookup table, [vocab_size, hidden_size])
@@ -268,25 +301,26 @@ int minimind_weights_load(minimind_model_t* m, const char* model_dir) {
     m->kv_len = 0;
 
     // 7. Allocate working buffers
-    size_t hidden_sz  = (size_t)cfg.max_seq_len * cfg.hidden_size;
-    size_t q_sz       = (size_t)cfg.max_seq_len * cfg.num_heads * cfg.head_dim;
-    size_t kv_sz      = (size_t)cfg.max_seq_len * cfg.num_kv_heads * cfg.head_dim;
-    size_t ffn_sz     = (size_t)cfg.max_seq_len * cfg.intermediate_size;
+    size_t hidden_sz = (size_t)cfg.max_seq_len * cfg.hidden_size;
+    size_t q_sz = (size_t)cfg.max_seq_len * cfg.num_heads * cfg.head_dim;
+    size_t kv_sz = (size_t)cfg.max_seq_len * cfg.num_kv_heads * cfg.head_dim;
+    size_t ffn_sz = (size_t)cfg.max_seq_len * cfg.intermediate_size;
 
-    m->hidden   = (float*)calloc(hidden_sz, sizeof(float));
-    m->hidden2  = (float*)calloc(hidden_sz, sizeof(float));
-    m->q_buf    = (float*)calloc(q_sz, sizeof(float));
-    m->k_buf    = (float*)calloc(kv_sz, sizeof(float));
-    m->v_buf    = (float*)calloc(kv_sz, sizeof(float));
+    m->hidden = (float*)calloc(hidden_sz, sizeof(float));
+    m->hidden2 = (float*)calloc(hidden_sz, sizeof(float));
+    m->q_buf = (float*)calloc(q_sz, sizeof(float));
+    m->k_buf = (float*)calloc(kv_sz, sizeof(float));
+    m->v_buf = (float*)calloc(kv_sz, sizeof(float));
     m->attn_out = (float*)calloc(hidden_sz, sizeof(float));
     m->ffn_gate = (float*)calloc(ffn_sz, sizeof(float));
-    m->ffn_up   = (float*)calloc(ffn_sz, sizeof(float));
+    m->ffn_up = (float*)calloc(ffn_sz, sizeof(float));
 
     // Cleanup metadata entries
-    for (int i = 0; i < n_entries; i++) free(entries[i].name);
+    for (int i = 0; i < n_entries; i++)
+        free(entries[i].name);
 
-    printf("MiniMind weights loaded: %d layers, %.1f MB weights\n",
-           cfg.num_layers, (double)bin_len / (1024.0 * 1024.0));
+    printf("MiniMind weights loaded: %d layers, %.1f MB weights\n", cfg.num_layers,
+           (double)bin_len / (1024.0 * 1024.0));
     return 0;
 #undef GET_TENSOR
 #undef LOAD_WEIGHT
@@ -300,15 +334,26 @@ void minimind_weights_free(minimind_model_t* m) {
         free(m->k_cache[l]);
         free(m->v_cache[l]);
         // Free individual weight arrays
-        free(m->q_proj[l]); free(m->k_proj[l]); free(m->v_proj[l]); free(m->o_proj[l]);
-        free(m->q_norm_weight[l]); free(m->k_norm_weight[l]);
-        free(m->input_layernorm_weight[l]); free(m->post_attention_layernorm_weight[l]);
-        free(m->gate_proj[l]); free(m->down_proj[l]); free(m->up_proj[l]);
+        free(m->q_proj[l]);
+        free(m->k_proj[l]);
+        free(m->v_proj[l]);
+        free(m->o_proj[l]);
+        free(m->q_norm_weight[l]);
+        free(m->k_norm_weight[l]);
+        free(m->input_layernorm_weight[l]);
+        free(m->post_attention_layernorm_weight[l]);
+        free(m->gate_proj[l]);
+        free(m->down_proj[l]);
+        free(m->up_proj[l]);
     }
-    free(m->embed_tokens);  // frees both embed_tokens and lm_head (same pointer)
+    free(m->embed_tokens); // frees both embed_tokens and lm_head (same pointer)
     free(m->final_norm_weight);
-    free(m->hidden); free(m->hidden2);
-    free(m->q_buf); free(m->k_buf); free(m->v_buf);
+    free(m->hidden);
+    free(m->hidden2);
+    free(m->q_buf);
+    free(m->k_buf);
+    free(m->v_buf);
     free(m->attn_out);
-    free(m->ffn_gate); free(m->ffn_up);
+    free(m->ffn_gate);
+    free(m->ffn_up);
 }

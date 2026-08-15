@@ -99,7 +99,8 @@ int main() {
             printf("  Step %2d: learning rate = %f\n", step, current_lr);
         }
 
-        printf("Final learning rate after 20 steps: %f\n", boat_optimizer_get_learning_rate(optimizer));
+        printf("Final learning rate after 20 steps: %f\n",
+               boat_optimizer_get_learning_rate(optimizer));
         printf("\n");
 
         boat_scheduler_free(scheduler);
@@ -135,7 +136,8 @@ int main() {
 
             float current_lr = boat_optimizer_get_learning_rate(optimizer);
             float expected_lr = 0.1f * expf(-0.1f * (float)step);
-            printf("  Step %2d: learning rate = %f (expected: %f)\n", step, current_lr, expected_lr);
+            printf("  Step %2d: learning rate = %f (expected: %f)\n", step, current_lr,
+                   expected_lr);
         }
 
         printf("\n");

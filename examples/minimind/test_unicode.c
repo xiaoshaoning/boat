@@ -62,17 +62,24 @@ static void test_text(const char* name, const char* utf8_text) {
     int idx = 0;
     while (*p) {
         int clen;
-        if ((unsigned char)*p < 0x80) clen = 1;
-        else if (((unsigned char)*p & 0xE0) == 0xC0) clen = 2;
-        else clen = 3;
+        if ((unsigned char)*p < 0x80)
+            clen = 1;
+        else if (((unsigned char)*p & 0xE0) == 0xC0)
+            clen = 2;
+        else
+            clen = 3;
         printf("  char[%d]: ", idx);
         for (int j = 0; j < clen; j++)
             printf("%02x ", (unsigned char)p[j]);
         // Show as codepoint
         unsigned int cp;
-        if (clen == 1) cp = (unsigned char)p[0];
-        else if (clen == 2) cp = ((unsigned char)p[0] & 0x1F) << 6 | ((unsigned char)p[1] & 0x3F);
-        else cp = ((unsigned char)p[0] & 0x0F) << 12 | ((unsigned char)p[1] & 0x3F) << 6 | ((unsigned char)p[2] & 0x3F);
+        if (clen == 1)
+            cp = (unsigned char)p[0];
+        else if (clen == 2)
+            cp = ((unsigned char)p[0] & 0x1F) << 6 | ((unsigned char)p[1] & 0x3F);
+        else
+            cp = ((unsigned char)p[0] & 0x0F) << 12 | ((unsigned char)p[1] & 0x3F) << 6 |
+                 ((unsigned char)p[2] & 0x3F);
         printf(" (U+%04X)\n", cp);
         p += clen;
         idx++;
@@ -80,7 +87,7 @@ static void test_text(const char* name, const char* utf8_text) {
 }
 
 int main() {
-    test_text("你好", "\xe4\xbd\xa0\xe5\xa5\xbd");  // 你好 as raw bytes
+    test_text("你好", "\xe4\xbd\xa0\xe5\xa5\xbd"); // 你好 as raw bytes
     test_text("user\\n", "user\n");
     test_text("newline only", "\n");
     return 0;

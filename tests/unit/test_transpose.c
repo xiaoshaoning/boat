@@ -10,7 +10,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define ASSERT(cond, msg) if (!(cond)) { printf("FAIL: %s\n", msg); return false; }
+#define ASSERT(cond, msg)                                                                          \
+    if (!(cond)) {                                                                                 \
+        printf("FAIL: %s\n", msg);                                                                 \
+        return false;                                                                              \
+    }
 
 static bool test_2d_transpose() {
     printf("  Testing 2D transpose... ");
@@ -20,7 +24,8 @@ static bool test_2d_transpose() {
     ASSERT(t, "Failed to create tensor");
 
     float* data = (float*)boat_tensor_data(t);
-    for (int i = 0; i < 6; i++) data[i] = (float)i + 1.0f;
+    for (int i = 0; i < 6; i++)
+        data[i] = (float)i + 1.0f;
 
     boat_tensor_t* t_t = boat_transpose(t, 0, 1);
     ASSERT(t_t, "Transpose failed");
@@ -61,8 +66,9 @@ static bool test_4d_transpose_last_two_dims() {
     ASSERT(t, "Failed to create tensor");
 
     float* data = (float*)boat_tensor_data(t);
-    size_t total = 2*2*3*4;
-    for (size_t i = 0; i < total; i++) data[i] = (float)i + 1.0f;
+    size_t total = 2 * 2 * 3 * 4;
+    for (size_t i = 0; i < total; i++)
+        data[i] = (float)i + 1.0f;
 
     boat_tensor_t* t_t = boat_transpose(t, 2, 3); // swap seq_len and head_size
     ASSERT(t_t, "Transpose failed");
@@ -109,8 +115,9 @@ static bool test_transpose_identity() {
     ASSERT(t, "Failed to create tensor");
 
     float* data = (float*)boat_tensor_data(t);
-    size_t total = 2*3*4;
-    for (size_t i = 0; i < total; i++) data[i] = (float)rand() / RAND_MAX;
+    size_t total = 2 * 3 * 4;
+    for (size_t i = 0; i < total; i++)
+        data[i] = (float)rand() / RAND_MAX;
 
     boat_tensor_t* t1 = boat_transpose(t, 0, 1);
     ASSERT(t1, "First transpose failed");
@@ -152,7 +159,8 @@ static bool test_transpose_different_dtypes() {
         if (!t) all_pass = false;
 
         double* data = (double*)boat_tensor_data(t);
-        for (int i = 0; i < 6; i++) data[i] = (double)i + 1.0;
+        for (int i = 0; i < 6; i++)
+            data[i] = (double)i + 1.0;
 
         boat_tensor_t* t_t = boat_transpose(t, 0, 1);
         if (!t_t) all_pass = false;
@@ -173,7 +181,8 @@ static bool test_transpose_different_dtypes() {
         if (!t) all_pass = false;
 
         uint8_t* data = (uint8_t*)boat_tensor_data(t);
-        for (int i = 0; i < 6; i++) data[i] = (uint8_t)(i + 1);
+        for (int i = 0; i < 6; i++)
+            data[i] = (uint8_t)(i + 1);
 
         boat_tensor_t* t_t = boat_transpose(t, 0, 1);
         if (!t_t) all_pass = false;
@@ -199,7 +208,8 @@ static bool test_transpose_different_dtypes() {
         if (!t) all_pass = false;
 
         int8_t* data = (int8_t*)boat_tensor_data(t);
-        for (int i = 0; i < 6; i++) data[i] = (int8_t)(i + 1);
+        for (int i = 0; i < 6; i++)
+            data[i] = (int8_t)(i + 1);
 
         boat_tensor_t* t_t = boat_transpose(t, 0, 1);
         if (!t_t) all_pass = false;

@@ -5,7 +5,10 @@
 #include <string.h>
 #include <float.h>
 
-typedef struct { float val; int idx; } val_idx_t;
+typedef struct {
+    float val;
+    int idx;
+} val_idx_t;
 
 static int cmp_desc(const void* a, const void* b) {
     const val_idx_t* pa = (const val_idx_t*)a;
@@ -13,8 +16,7 @@ static int cmp_desc(const void* a, const void* b) {
     return (pa->val > pb->val) ? -1 : (pa->val < pb->val) ? 1 : 0;
 }
 
-int nanochat_sample_token(const float* logits, int vocab_size,
-                           int top_k, float temp) {
+int nanochat_sample_token(const float* logits, int vocab_size, int top_k, float temp) {
     if (temp <= 0.0f) {
         int best = 0;
         for (int i = 1; i < vocab_size; i++)
@@ -43,7 +45,11 @@ int nanochat_sample_token(const float* logits, int vocab_size,
     float cum = 0.0f;
     for (int i = 0; i < top_k; i++) {
         cum += arr[i].val;
-        if (r <= cum) { int idx = arr[i].idx; free(arr); return idx; }
+        if (r <= cum) {
+            int idx = arr[i].idx;
+            free(arr);
+            return idx;
+        }
     }
     int idx = arr[top_k - 1].idx;
     free(arr);

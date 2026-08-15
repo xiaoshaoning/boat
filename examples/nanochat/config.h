@@ -1,17 +1,17 @@
 // config.h - NanoChat model configuration
 #pragma once
 
-#define NANOCHAT_VOCAB_SIZE      65536
-#define NANOCHAT_HIDDEN_SIZE     2176
-#define NANOCHAT_NUM_HEADS       17
-#define NANOCHAT_NUM_KV_HEADS    17  // MHA (n_kv == n_head)
-#define NANOCHAT_HEAD_DIM        128 // hidden_size / num_heads
-#define NANOCHAT_NUM_LAYERS      34
+#define NANOCHAT_VOCAB_SIZE 65536
+#define NANOCHAT_HIDDEN_SIZE 2176
+#define NANOCHAT_NUM_HEADS 17
+#define NANOCHAT_NUM_KV_HEADS 17 // MHA (n_kv == n_head)
+#define NANOCHAT_HEAD_DIM 128    // hidden_size / num_heads
+#define NANOCHAT_NUM_LAYERS 34
 #define NANOCHAT_INTERMEDIATE_SIZE 8704
-#define NANOCHAT_MAX_SEQ_LEN     2048
-#define NANOCHAT_ROPE_THETA      10000.0f
-#define NANOCHAT_RMS_EPS         1e-6f
-#define NANOCHAT_SOFTCAP         15.0f
+#define NANOCHAT_MAX_SEQ_LEN 2048
+#define NANOCHAT_ROPE_THETA 10000.0f
+#define NANOCHAT_RMS_EPS 1e-6f
+#define NANOCHAT_SOFTCAP 15.0f
 
 typedef struct {
     int vocab_size;

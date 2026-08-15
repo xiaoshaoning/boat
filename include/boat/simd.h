@@ -20,35 +20,35 @@ extern "C" {
 
 // Detect AVX2
 #if defined(__AVX2__)
-    #define BOAT_HAVE_AVX2 1
-    #include <immintrin.h>
+#define BOAT_HAVE_AVX2 1
+#include <immintrin.h>
 #else
-    #define BOAT_HAVE_AVX2 0
+#define BOAT_HAVE_AVX2 0
 #endif
 
 // Detect SSE4.1 (fallback for older x86)
 #if defined(__SSE4_1__) || defined(__SSE4_2__) || (defined(_MSC_VER) && !BOAT_HAVE_AVX2)
-    #define BOAT_HAVE_SSE41 1
-    #if !BOAT_HAVE_AVX2
-        #include <smmintrin.h>
-    #endif
+#define BOAT_HAVE_SSE41 1
+#if !BOAT_HAVE_AVX2
+#include <smmintrin.h>
+#endif
 #else
-    #define BOAT_HAVE_SSE41 0
+#define BOAT_HAVE_SSE41 0
 #endif
 
 // Detect NEON (ARM)
 #if defined(__ARM_NEON) || defined(__ARM_NEON__) || defined(__aarch64__)
-    #define BOAT_HAVE_NEON 1
-    #include <arm_neon.h>
+#define BOAT_HAVE_NEON 1
+#include <arm_neon.h>
 #else
-    #define BOAT_HAVE_NEON 0
+#define BOAT_HAVE_NEON 0
 #endif
 
 // FMA detection: MSVC enables FMA with /arch:AVX2; GCC/Clang need -mfma
 #if BOAT_HAVE_AVX2 && (defined(_MSC_VER) || defined(__FMA__))
-    #define BOAT_HAVE_FMA 1
+#define BOAT_HAVE_FMA 1
 #else
-    #define BOAT_HAVE_FMA 0
+#define BOAT_HAVE_FMA 0
 #endif
 
 #define BOAT_SIMD_ALIGNMENT 32
@@ -87,12 +87,11 @@ BOAT_API float boat_simd_sum_reduce_f32(const float* a, size_t n);
 
 // 2D transpose of a contiguous [rows, cols] f32 matrix (row-major):
 // dst[c * rows + r] = src[r * cols + c]. Tiled SIMD when available.
-BOAT_API void boat_simd_transpose2d_f32(const float* src, float* dst,
-                                        size_t rows, size_t cols);
+BOAT_API void boat_simd_transpose2d_f32(const float* src, float* dst, size_t rows, size_t cols);
 
 // Check if two arrays are element-wise equal within tolerance
-BOAT_API bool boat_simd_allclose_f32(const float* a, const float* b, size_t n,
-                             float rtol, float atol);
+BOAT_API bool boat_simd_allclose_f32(const float* a, const float* b, size_t n, float rtol,
+                                     float atol);
 
 #ifdef __cplusplus
 }

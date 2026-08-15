@@ -21,7 +21,11 @@ static int tests_total = 0;
 // Helper: create a boat_layer_t wrapper for model_add_layer
 static boat_layer_t* wrap(void* data, boat_layer_type_t type) {
     boat_layer_t* w = malloc(sizeof(boat_layer_t));
-    if (w) { w->data = data; w->type = type; w->ops = NULL; }
+    if (w) {
+        w->data = data;
+        w->type = type;
+        w->ops = NULL;
+    }
     return w;
 }
 
@@ -29,7 +33,8 @@ static boat_layer_t* wrap(void* data, boat_layer_type_t type) {
 static void fill_tensor(boat_tensor_t* t, float base) {
     float* d = (float*)boat_tensor_data(t);
     size_t n = boat_tensor_nelements(t);
-    for (size_t i = 0; i < n; i++) d[i] = base + (float)(i % 7) * 0.1f;
+    for (size_t i = 0; i < n; i++)
+        d[i] = base + (float)(i % 7) * 0.1f;
 }
 
 // Helper: compare two float tensors
@@ -45,15 +50,17 @@ static int tensors_equal(const boat_tensor_t* a, const boat_tensor_t* b) {
 }
 
 // Simulated training step: returns loss value
-static float train_step(boat_dense_layer_t* fc1, boat_relu_layer_t* relu,
-                        boat_dense_layer_t* fc2, boat_softmax_layer_t* sm,
-                        const boat_tensor_t* x, const boat_tensor_t* y,
+static float train_step(boat_dense_layer_t* fc1, boat_relu_layer_t* relu, boat_dense_layer_t* fc2,
+                        boat_softmax_layer_t* sm, const boat_tensor_t* x, const boat_tensor_t* y,
                         boat_optimizer_t* opt, size_t batch_size, size_t n_classes) {
     // Forward
     boat_tensor_t* a1 = boat_dense_layer_forward(fc1, x);
-    boat_tensor_t* a2 = boat_relu_layer_forward(relu, a1); boat_tensor_unref(a1);
-    boat_tensor_t* a3 = boat_dense_layer_forward(fc2, a2); boat_tensor_unref(a2);
-    boat_tensor_t* out = boat_softmax_layer_forward(sm, a3); boat_tensor_unref(a3);
+    boat_tensor_t* a2 = boat_relu_layer_forward(relu, a1);
+    boat_tensor_unref(a1);
+    boat_tensor_t* a3 = boat_dense_layer_forward(fc2, a2);
+    boat_tensor_unref(a2);
+    boat_tensor_t* out = boat_softmax_layer_forward(sm, a3);
+    boat_tensor_unref(a3);
 
     // Compute cross-entropy loss manually for monitoring
     float* out_data = (float*)boat_tensor_data(out);
@@ -80,9 +87,21 @@ static float train_step(boat_dense_layer_t* fc1, boat_relu_layer_t* relu,
     // Backward
     boat_tensor_t* g = grad;
     boat_tensor_t* t;
-    t = boat_dense_layer_backward(fc2, g);                  if (t) { boat_tensor_unref(g); g = t; }
-    t = boat_relu_layer_backward(relu, g);                  if (t) { boat_tensor_unref(g); g = t; }
-    t = boat_dense_layer_backward(fc1, g);                  if (t) { boat_tensor_unref(g); g = t; }
+    t = boat_dense_layer_backward(fc2, g);
+    if (t) {
+        boat_tensor_unref(g);
+        g = t;
+    }
+    t = boat_relu_layer_backward(relu, g);
+    if (t) {
+        boat_tensor_unref(g);
+        g = t;
+    }
+    t = boat_dense_layer_backward(fc1, g);
+    if (t) {
+        boat_tensor_unref(g);
+        g = t;
+    }
     boat_tensor_unref(g);
 
     // Update
@@ -159,23 +178,32 @@ static int step_load_and_compare(void) {
     int64_t in_shape[] = {2, 4}; // batch=2, features=4
     boat_tensor_t* input = boat_tensor_create(in_shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* in_data = (float*)boat_tensor_data(input);
-    in_data[0] = 1.0f; in_data[1] = 2.0f; in_data[2] = 3.0f; in_data[3] = 4.0f;
-    in_data[4] = 0.5f; in_data[5] = 1.5f; in_data[6] = 2.5f; in_data[7] = 3.5f;
+    in_data[0] = 1.0f;
+    in_data[1] = 2.0f;
+    in_data[2] = 3.0f;
+    in_data[3] = 4.0f;
+    in_data[4] = 0.5f;
+    in_data[5] = 1.5f;
+    in_data[6] = 2.5f;
+    in_data[7] = 3.5f;
 
     // Run reference forward pass (manual)
     boat_tensor_t* ref_out;
     {
         boat_tensor_t* a1 = boat_dense_layer_forward(ref_fc1, input);
-        boat_tensor_t* a2 = boat_relu_layer_forward(ref_relu, a1); boat_tensor_unref(a1);
-        boat_tensor_t* a3 = boat_dense_layer_forward(ref_fc2, a2); boat_tensor_unref(a2);
-        ref_out = boat_softmax_layer_forward(ref_sm, a3); boat_tensor_unref(a3);
+        boat_tensor_t* a2 = boat_relu_layer_forward(ref_relu, a1);
+        boat_tensor_unref(a1);
+        boat_tensor_t* a3 = boat_dense_layer_forward(ref_fc2, a2);
+        boat_tensor_unref(a2);
+        ref_out = boat_softmax_layer_forward(ref_sm, a3);
+        boat_tensor_unref(a3);
     }
     printf("Reference forward output:\n");
     {
         const float* rd = (const float*)boat_tensor_const_data(ref_out);
         const int64_t* rs = boat_tensor_shape(ref_out);
-        printf("  shape [%lld,%lld], data [%.6f, %.6f, %.6f, %.6f]\n",
-               (long long)rs[0], (long long)rs[1], rd[0], rd[1], rd[2], rd[3]);
+        printf("  shape [%lld,%lld], data [%.6f, %.6f, %.6f, %.6f]\n", (long long)rs[0],
+               (long long)rs[1], rd[0], rd[1], rd[2], rd[3]);
     }
 
     // Load saved model
@@ -184,15 +212,16 @@ static int step_load_and_compare(void) {
         printf("FAILED: boat_model_load returned NULL\n");
         boat_tensor_unref(ref_out);
         boat_tensor_unref(input);
-        boat_dense_layer_free(ref_fc1); boat_relu_layer_free(ref_relu);
-        boat_dense_layer_free(ref_fc2); boat_softmax_layer_free(ref_sm);
+        boat_dense_layer_free(ref_fc1);
+        boat_relu_layer_free(ref_relu);
+        boat_dense_layer_free(ref_fc2);
+        boat_softmax_layer_free(ref_sm);
         return 1;
     }
     printf("Model loaded from '%s' (%zu layers)\n", MODEL_FILE, boat_model_layer_count(loaded));
     for (size_t i = 0; i < boat_model_layer_count(loaded); i++) {
         boat_layer_t* l = boat_model_get_layer(loaded, i);
-        printf("  Layer %zu: type=%d, ops=%s\n",
-               i, l->type, l->ops ? "set" : "NULL");
+        printf("  Layer %zu: type=%d, ops=%s\n", i, l->type, l->ops ? "set" : "NULL");
     }
 
     // Run forward on loaded model using boat_model_forward
@@ -202,16 +231,18 @@ static int step_load_and_compare(void) {
         boat_tensor_unref(ref_out);
         boat_tensor_unref(input);
         boat_model_free(loaded);
-        boat_dense_layer_free(ref_fc1); boat_relu_layer_free(ref_relu);
-        boat_dense_layer_free(ref_fc2); boat_softmax_layer_free(ref_sm);
+        boat_dense_layer_free(ref_fc1);
+        boat_relu_layer_free(ref_relu);
+        boat_dense_layer_free(ref_fc2);
+        boat_softmax_layer_free(ref_sm);
         return 1;
     }
     printf("Loaded model forward output:\n");
     {
         const float* rd = (const float*)boat_tensor_const_data(loaded_out);
         const int64_t* rs = boat_tensor_shape(loaded_out);
-        printf("  shape [%lld,%lld], data [%.6f, %.6f, %.6f, %.6f]\n",
-               (long long)rs[0], (long long)rs[1], rd[0], rd[1], rd[2], rd[3]);
+        printf("  shape [%lld,%lld], data [%.6f, %.6f, %.6f, %.6f]\n", (long long)rs[0],
+               (long long)rs[1], rd[0], rd[1], rd[2], rd[3]);
     }
 
     // Compare
@@ -221,8 +252,10 @@ static int step_load_and_compare(void) {
         boat_tensor_unref(loaded_out);
         boat_tensor_unref(input);
         boat_model_free(loaded);
-        boat_dense_layer_free(ref_fc1); boat_relu_layer_free(ref_relu);
-        boat_dense_layer_free(ref_fc2); boat_softmax_layer_free(ref_sm);
+        boat_dense_layer_free(ref_fc1);
+        boat_relu_layer_free(ref_relu);
+        boat_dense_layer_free(ref_fc2);
+        boat_softmax_layer_free(ref_sm);
         return 1;
     }
     printf("Outputs match exactly — saved and loaded model produce identical results.\n");
@@ -231,8 +264,10 @@ static int step_load_and_compare(void) {
     boat_tensor_unref(loaded_out);
     boat_tensor_unref(input);
     boat_model_free(loaded);
-    boat_dense_layer_free(ref_fc1); boat_relu_layer_free(ref_relu);
-    boat_dense_layer_free(ref_fc2); boat_softmax_layer_free(ref_sm);
+    boat_dense_layer_free(ref_fc1);
+    boat_relu_layer_free(ref_relu);
+    boat_dense_layer_free(ref_fc2);
+    boat_softmax_layer_free(ref_sm);
 
     tests_total++;
     printf("PASSED\n");
@@ -263,14 +298,15 @@ static int step_train_loaded(void) {
         x_data[i * 4 + 2] = (float)(i % 3) * 0.5f;
         x_data[i * 4 + 3] = (float)(i % 4) * 0.25f;
     }
-    printf("Synthetic data: %zu samples, %zu features, %zu classes\n",
-           batch_size, n_features, n_classes);
+    printf("Synthetic data: %zu samples, %zu features, %zu classes\n", batch_size, n_features,
+           n_classes);
 
     // Load previously saved model
     boat_model_t* model = boat_model_load(MODEL_FILE);
     if (!model) {
         printf("FAILED: boat_model_load\n");
-        boat_tensor_unref(x); boat_tensor_unref(y);
+        boat_tensor_unref(x);
+        boat_tensor_unref(y);
         return 1;
     }
     printf("Model loaded (%zu layers). Continuing training...\n", boat_model_layer_count(model));
@@ -282,7 +318,8 @@ static int step_train_loaded(void) {
     boat_layer_t* l3 = boat_model_get_layer(model, 3);
     if (!l0 || !l1 || !l2 || !l3) {
         printf("FAILED: get_layer returned NULL\n");
-        boat_tensor_unref(x); boat_tensor_unref(y);
+        boat_tensor_unref(x);
+        boat_tensor_unref(y);
         boat_model_free(model);
         return 1;
     }
@@ -295,10 +332,14 @@ static int step_train_loaded(void) {
     // Create optimizer and register parameters
     float lr = 0.01f;
     boat_optimizer_t* opt = boat_adam_optimizer_create(lr, 0.9f, 0.999f, 1e-8f);
-    boat_optimizer_add_parameter(opt, boat_dense_layer_get_weight(fc1), boat_dense_layer_get_grad_weight(fc1));
-    boat_optimizer_add_parameter(opt, boat_dense_layer_get_bias(fc1), boat_dense_layer_get_grad_bias(fc1));
-    boat_optimizer_add_parameter(opt, boat_dense_layer_get_weight(fc2), boat_dense_layer_get_grad_weight(fc2));
-    boat_optimizer_add_parameter(opt, boat_dense_layer_get_bias(fc2), boat_dense_layer_get_grad_bias(fc2));
+    boat_optimizer_add_parameter(opt, boat_dense_layer_get_weight(fc1),
+                                 boat_dense_layer_get_grad_weight(fc1));
+    boat_optimizer_add_parameter(opt, boat_dense_layer_get_bias(fc1),
+                                 boat_dense_layer_get_grad_bias(fc1));
+    boat_optimizer_add_parameter(opt, boat_dense_layer_get_weight(fc2),
+                                 boat_dense_layer_get_grad_weight(fc2));
+    boat_optimizer_add_parameter(opt, boat_dense_layer_get_bias(fc2),
+                                 boat_dense_layer_get_grad_bias(fc2));
 
     printf("Training %d epochs...\n", (int)n_epochs);
     for (int epoch = 0; epoch < (int)n_epochs; epoch++) {
@@ -310,14 +351,16 @@ static int step_train_loaded(void) {
     if (!boat_model_save(model, MODEL_FILE)) {
         printf("FAILED: boat_model_save after training\n");
         boat_optimizer_free(opt);
-        boat_tensor_unref(x); boat_tensor_unref(y);
+        boat_tensor_unref(x);
+        boat_tensor_unref(y);
         boat_model_free(model);
         return 1;
     }
     printf("Model saved again to '%s' (after continued training)\n", MODEL_FILE);
 
     boat_optimizer_free(opt);
-    boat_tensor_unref(x); boat_tensor_unref(y);
+    boat_tensor_unref(x);
+    boat_tensor_unref(y);
     boat_model_free(model);
 
     tests_total++;
@@ -354,7 +397,8 @@ static int step_verify_training(void) {
     boat_model_t* model = boat_model_load(MODEL_FILE);
     if (!model) {
         printf("FAILED: boat_model_load\n");
-        boat_tensor_unref(x); boat_tensor_unref(y);
+        boat_tensor_unref(x);
+        boat_tensor_unref(y);
         return 1;
     }
 
@@ -364,10 +408,14 @@ static int step_verify_training(void) {
     boat_softmax_layer_t* sm = (boat_softmax_layer_t*)boat_model_get_layer(model, 3)->data;
 
     boat_optimizer_t* opt = boat_adam_optimizer_create(0.01f, 0.9f, 0.999f, 1e-8f);
-    boat_optimizer_add_parameter(opt, boat_dense_layer_get_weight(fc1), boat_dense_layer_get_grad_weight(fc1));
-    boat_optimizer_add_parameter(opt, boat_dense_layer_get_bias(fc1), boat_dense_layer_get_grad_bias(fc1));
-    boat_optimizer_add_parameter(opt, boat_dense_layer_get_weight(fc2), boat_dense_layer_get_grad_weight(fc2));
-    boat_optimizer_add_parameter(opt, boat_dense_layer_get_bias(fc2), boat_dense_layer_get_grad_bias(fc2));
+    boat_optimizer_add_parameter(opt, boat_dense_layer_get_weight(fc1),
+                                 boat_dense_layer_get_grad_weight(fc1));
+    boat_optimizer_add_parameter(opt, boat_dense_layer_get_bias(fc1),
+                                 boat_dense_layer_get_grad_bias(fc1));
+    boat_optimizer_add_parameter(opt, boat_dense_layer_get_weight(fc2),
+                                 boat_dense_layer_get_grad_weight(fc2));
+    boat_optimizer_add_parameter(opt, boat_dense_layer_get_bias(fc2),
+                                 boat_dense_layer_get_grad_bias(fc2));
 
     float prev_loss = 1e10f;
     int converged = 0;
@@ -383,7 +431,8 @@ static int step_verify_training(void) {
     }
 
     boat_optimizer_free(opt);
-    boat_tensor_unref(x); boat_tensor_unref(y);
+    boat_tensor_unref(x);
+    boat_tensor_unref(y);
     boat_model_free(model);
 
     if (!converged) {

@@ -11,17 +11,19 @@
 
 // Embedding layer structure
 struct boat_embedding_t {
-    size_t num_embeddings;   // Vocab size / number of rows
-    size_t embedding_dim;    // Dimensionality of each embedding
-    boat_tensor_t* weight;   // Weight tensor [num_embeddings, embedding_dim]
+    size_t num_embeddings; // Vocab size / number of rows
+    size_t embedding_dim;  // Dimensionality of each embedding
+    boat_tensor_t* weight; // Weight tensor [num_embeddings, embedding_dim]
 };
 
-BOAT_API boat_embedding_t* BOAT_CALL boat_embedding_create(size_t num_embeddings, size_t embedding_dim) {
+BOAT_API boat_embedding_t* BOAT_CALL boat_embedding_create(size_t num_embeddings,
+                                                           size_t embedding_dim) {
     if (num_embeddings == 0 || embedding_dim == 0) {
         return NULL;
     }
 
-    boat_embedding_t* emb = (boat_embedding_t*)boat_malloc(sizeof(boat_embedding_t), BOAT_DEVICE_CPU);
+    boat_embedding_t* emb =
+        (boat_embedding_t*)boat_malloc(sizeof(boat_embedding_t), BOAT_DEVICE_CPU);
     if (!emb) {
         return NULL;
     }
@@ -30,7 +32,7 @@ BOAT_API boat_embedding_t* BOAT_CALL boat_embedding_create(size_t num_embeddings
     emb->embedding_dim = embedding_dim;
 
     // Create weight tensor initialized to zeros
-    const int64_t shape[] = { (int64_t)num_embeddings, (int64_t)embedding_dim };
+    const int64_t shape[] = {(int64_t)num_embeddings, (int64_t)embedding_dim};
     emb->weight = boat_tensor_create(shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!emb->weight) {
         boat_free(emb);
@@ -50,7 +52,8 @@ BOAT_API void BOAT_CALL boat_embedding_free(boat_embedding_t* emb) {
     boat_free(emb);
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_embedding_forward(boat_embedding_t* emb, const boat_tensor_t* indices) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_embedding_forward(boat_embedding_t* emb,
+                                                         const boat_tensor_t* indices) {
     if (!emb || !emb->weight || !indices) {
         return NULL;
     }
@@ -63,8 +66,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_embedding_forward(boat_embedding_t* emb, 
     // The gather reads host memory directly; device tensors are not supported.
     if (boat_tensor_device(indices) != BOAT_DEVICE_CPU ||
         boat_tensor_device(emb->weight) != BOAT_DEVICE_CPU) {
-        boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED,
-                        "[Embedding] only CPU gather is implemented\n");
+        boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Embedding] only CPU gather is implemented\n");
         return NULL;
     }
 
@@ -72,9 +74,9 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_embedding_forward(boat_embedding_t* emb, 
     size_t num_indices = (size_t)boat_tensor_nelements(indices);
 
     // Create output tensor [num_indices, embedding_dim]
-    const int64_t out_shape[] = { (int64_t)num_indices, (int64_t)emb->embedding_dim };
-    boat_tensor_t* output = boat_tensor_create(out_shape, 2, BOAT_DTYPE_FLOAT32,
-                                                boat_tensor_device(indices));
+    const int64_t out_shape[] = {(int64_t)num_indices, (int64_t)emb->embedding_dim};
+    boat_tensor_t* output =
+        boat_tensor_create(out_shape, 2, BOAT_DTYPE_FLOAT32, boat_tensor_device(indices));
     if (!output) {
         return NULL;
     }
@@ -107,7 +109,8 @@ BOAT_API void BOAT_CALL boat_embedding_set_weight(boat_embedding_t* emb, boat_te
     size_t ndim = boat_tensor_ndim(weight);
     const int64_t* shape = boat_tensor_shape(weight);
 
-    if (ndim != 2 || (size_t)shape[0] != emb->num_embeddings || (size_t)shape[1] != emb->embedding_dim) {
+    if (ndim != 2 || (size_t)shape[0] != emb->num_embeddings ||
+        (size_t)shape[1] != emb->embedding_dim) {
         return;
     }
 

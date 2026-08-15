@@ -23,7 +23,8 @@ static float dense_sum(boat_dense_layer_t* layer, boat_tensor_t* input) {
     assert(out != NULL);
     float sum = 0.0f;
     float* od = (float*)boat_tensor_data(out);
-    for (size_t i = 0; i < boat_tensor_nelements(out); i++) sum += od[i];
+    for (size_t i = 0; i < boat_tensor_nelements(out); i++)
+        sum += od[i];
     boat_tensor_free(out);
     return sum;
 }
@@ -33,14 +34,16 @@ static float pool_sum(boat_pool_layer_t* layer, boat_tensor_t* input) {
     assert(out != NULL);
     float sum = 0.0f;
     float* od = (float*)boat_tensor_data(out);
-    for (size_t i = 0; i < boat_tensor_nelements(out); i++) sum += od[i];
+    for (size_t i = 0; i < boat_tensor_nelements(out); i++)
+        sum += od[i];
     boat_tensor_free(out);
     return sum;
 }
 
 static void fill_ones(boat_tensor_t* t) {
     float* d = (float*)boat_tensor_data(t);
-    for (size_t i = 0; i < boat_tensor_nelements(t); i++) d[i] = 1.0f;
+    for (size_t i = 0; i < boat_tensor_nelements(t); i++)
+        d[i] = 1.0f;
 }
 
 static void test_dense_gradcheck(void) {
@@ -52,8 +55,9 @@ static void test_dense_gradcheck(void) {
     int64_t ish[] = {(int64_t)batch, (int64_t)in};
     boat_tensor_t* input = boat_tensor_create(ish, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* id = (float*)boat_tensor_data(input);
-    float iv[] = {0.5f, -1.0f, 2.0f, 0.0f,  1.5f, 0.25f, -0.5f, 3.0f};
-    for (int i = 0; i < 8; i++) id[i] = iv[i];
+    float iv[] = {0.5f, -1.0f, 2.0f, 0.0f, 1.5f, 0.25f, -0.5f, 3.0f};
+    for (int i = 0; i < 8; i++)
+        id[i] = iv[i];
 
     // Forward then backward with grad_output = ones.
     boat_tensor_t* out = boat_dense_layer_forward(layer, input);
@@ -72,8 +76,10 @@ static void test_dense_gradcheck(void) {
     float eps = 1e-3f;
     for (int i = 0; i < 8; i++) {
         float o = id[i];
-        id[i] = o + eps; float lp = dense_sum(layer, input);
-        id[i] = o - eps; float lm = dense_sum(layer, input);
+        id[i] = o + eps;
+        float lp = dense_sum(layer, input);
+        id[i] = o - eps;
+        float lm = dense_sum(layer, input);
         id[i] = o;
         assert(close_enough(gi[i], (lp - lm) / (2 * eps)));
     }
@@ -84,8 +90,10 @@ static void test_dense_gradcheck(void) {
     size_t wn = boat_tensor_nelements(wt);
     for (size_t i = 0; i < wn; i++) {
         float o = wd[i];
-        wd[i] = o + eps; float lp = dense_sum(layer, input);
-        wd[i] = o - eps; float lm = dense_sum(layer, input);
+        wd[i] = o + eps;
+        float lp = dense_sum(layer, input);
+        wd[i] = o - eps;
+        float lm = dense_sum(layer, input);
         wd[i] = o;
         assert(close_enough(gw[i], (lp - lm) / (2 * eps)));
     }
@@ -96,8 +104,10 @@ static void test_dense_gradcheck(void) {
     size_t bn = boat_tensor_nelements(bt);
     for (size_t i = 0; i < bn; i++) {
         float o = bd[i];
-        bd[i] = o + eps; float lp = dense_sum(layer, input);
-        bd[i] = o - eps; float lm = dense_sum(layer, input);
+        bd[i] = o + eps;
+        float lp = dense_sum(layer, input);
+        bd[i] = o - eps;
+        float lm = dense_sum(layer, input);
         bd[i] = o;
         assert(close_enough(gb[i], (lp - lm) / (2 * eps)));
     }
@@ -118,8 +128,9 @@ static void test_maxpool_gradcheck(void) {
     boat_tensor_t* input = boat_tensor_create(ish, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* id = (float*)boat_tensor_data(input);
     // 4x4 with distinct values so argmax is unambiguous.
-    float iv[] = {1,2,3,4,  5,6,7,8,  9,10,11,12,  13,14,15,16};
-    for (int i = 0; i < 16; i++) id[i] = iv[i];
+    float iv[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+    for (int i = 0; i < 16; i++)
+        id[i] = iv[i];
 
     boat_tensor_t* out = boat_pool_layer_forward(layer, input);
     assert(out != NULL);
@@ -140,8 +151,10 @@ static void test_maxpool_gradcheck(void) {
     float eps = 1e-3f;
     for (int i = 0; i < 16; i++) {
         float o = id[i];
-        id[i] = o + eps; float lp = pool_sum(layer, input);
-        id[i] = o - eps; float lm = pool_sum(layer, input);
+        id[i] = o + eps;
+        float lp = pool_sum(layer, input);
+        id[i] = o - eps;
+        float lm = pool_sum(layer, input);
         id[i] = o;
         assert(close_enough(gi[i], (lp - lm) / (2 * eps)));
     }

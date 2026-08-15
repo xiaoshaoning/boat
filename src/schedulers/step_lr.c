@@ -16,8 +16,7 @@
 #include "schedulers_internal.h"
 
 // Create StepLR scheduler
-BOAT_API boat_scheduler_t* boat_step_lr_scheduler_create(float base_learning_rate,
-                                                         int step_size,
+BOAT_API boat_scheduler_t* boat_step_lr_scheduler_create(float base_learning_rate, int step_size,
                                                          float gamma) {
     // Validate hyperparameters
     if (base_learning_rate <= 0.0f) {
@@ -31,7 +30,8 @@ BOAT_API boat_scheduler_t* boat_step_lr_scheduler_create(float base_learning_rat
     }
 
     // Allocate scheduler state
-    boat_step_lr_state_t* state = (boat_step_lr_state_t*)boat_malloc(sizeof(boat_step_lr_state_t), BOAT_DEVICE_CPU);
+    boat_step_lr_state_t* state =
+        (boat_step_lr_state_t*)boat_malloc(sizeof(boat_step_lr_state_t), BOAT_DEVICE_CPU);
     if (!state) {
         return NULL;
     }

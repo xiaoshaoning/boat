@@ -8,12 +8,13 @@
 
 // Flatten layer structure
 struct boat_flatten_layer_t {
-    int64_t* cached_shape;    // Shape of input tensor from forward pass
-    size_t cached_ndim;       // Number of dimensions
+    int64_t* cached_shape; // Shape of input tensor from forward pass
+    size_t cached_ndim;    // Number of dimensions
 };
 
 BOAT_API boat_flatten_layer_t* BOAT_CALL boat_flatten_layer_create() {
-    boat_flatten_layer_t* layer = (boat_flatten_layer_t*)boat_malloc(sizeof(boat_flatten_layer_t), BOAT_DEVICE_CPU);
+    boat_flatten_layer_t* layer =
+        (boat_flatten_layer_t*)boat_malloc(sizeof(boat_flatten_layer_t), BOAT_DEVICE_CPU);
     if (!layer) {
         return NULL;
     }
@@ -32,7 +33,8 @@ BOAT_API void BOAT_CALL boat_flatten_layer_free(boat_flatten_layer_t* layer) {
     boat_free(layer);
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_forward(boat_flatten_layer_t* layer, const boat_tensor_t* input) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_forward(boat_flatten_layer_t* layer,
+                                                             const boat_tensor_t* input) {
     if (!layer || !input) {
         return NULL;
     }
@@ -42,7 +44,8 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_forward(boat_flatten_layer_
     size_t ndim = boat_tensor_ndim(input);
 
     if (ndim < 2) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[FlattenLayer] Expects at least 2D input tensor\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                        "[FlattenLayer] Expects at least 2D input tensor\n");
         return NULL;
     }
 
@@ -66,18 +69,21 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_forward(boat_flatten_layer_
         features *= input_shape[i];
     }
 
-    const int64_t output_shape[] = { batch, features };
+    const int64_t output_shape[] = {batch, features};
     return boat_tensor_reshape(input, output_shape, 2);
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_backward(const boat_flatten_layer_t* layer, const boat_tensor_t* grad_output) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_backward(const boat_flatten_layer_t* layer,
+                                                              const boat_tensor_t* grad_output) {
     if (!layer || !grad_output) {
         return NULL;
     }
 
     // Check if shape is cached
     if (!layer->cached_shape || layer->cached_ndim == 0) {
-        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[FlattenLayer] Backward called without cached shape (forward not called)\n");
+        boat_set_errorf(
+            BOAT_ERROR_INVALID_OPERATION,
+            "[FlattenLayer] Backward called without cached shape (forward not called)\n");
         return NULL;
     }
 
@@ -85,7 +91,8 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_backward(const boat_flatten
     return boat_tensor_reshape(grad_output, layer->cached_shape, layer->cached_ndim);
 }
 
-BOAT_API void BOAT_CALL boat_flatten_layer_update(boat_flatten_layer_t* layer, float learning_rate) {
+BOAT_API void BOAT_CALL boat_flatten_layer_update(boat_flatten_layer_t* layer,
+                                                  float learning_rate) {
     (void)layer;
     (void)learning_rate;
     // Flatten layer has no parameters to update

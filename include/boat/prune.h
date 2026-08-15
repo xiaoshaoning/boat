@@ -16,12 +16,14 @@ extern "C" {
 
 // Pruning configuration
 typedef struct {
-    float sparsity;            // Target sparsity ratio [0.0, 1.0), e.g. 0.5 = prune 50%
-    bool structured;           // false = element-wise magnitude, true = structured (channel/filter)
-    float threshold;           // Alternative to sparsity: prune weights with |w| < threshold. Set <=0 to compute from sparsity.
-    size_t iterative_steps;    // Number of prune+finetune cycles. 1 = one-shot.
-    size_t prune_dim;          // For structured: dimension along which to prune (0 = out_channels for Conv2D, 1 = output_features for Dense)
-    float min_keep_ratio;      // For structured: minimum fraction of units to keep [0.0, 1.0]
+    float sparsity;  // Target sparsity ratio [0.0, 1.0), e.g. 0.5 = prune 50%
+    bool structured; // false = element-wise magnitude, true = structured (channel/filter)
+    float threshold; // Alternative to sparsity: prune weights with |w| < threshold. Set <=0 to
+                     // compute from sparsity.
+    size_t iterative_steps; // Number of prune+finetune cycles. 1 = one-shot.
+    size_t prune_dim;       // For structured: dimension along which to prune (0 = out_channels for
+                            // Conv2D, 1 = output_features for Dense)
+    float min_keep_ratio;   // For structured: minimum fraction of units to keep [0.0, 1.0]
 } boat_prune_config_t;
 
 // Default config: 50% sparsity, magnitude-based, one-shot
@@ -53,7 +55,7 @@ BOAT_API boat_tensor_t* boat_create_magnitude_mask(const boat_tensor_t* weight, 
 // min_keep_ratio prevents pruning every slice.
 // Returns a new FP32 tensor. Caller owns it.
 BOAT_API boat_tensor_t* boat_create_structured_mask(const boat_tensor_t* weight, size_t dim,
-                                                     float threshold, float min_keep_ratio);
+                                                    float threshold, float min_keep_ratio);
 
 // Apply a mask to a weight tensor in-place: weight[i] *= mask[i].
 // Both must be FP32 with identical shape.
@@ -63,7 +65,7 @@ BOAT_API bool boat_apply_mask(boat_tensor_t* weight, const boat_tensor_t* mask);
 // Prune a single layer's weight and store the mask in the context.
 // If a mask already exists for this layer, it is replaced.
 BOAT_API bool boat_prune_layer(boat_prune_context_t* ctx, size_t layer_index,
-                                const boat_prune_config_t* config);
+                               const boat_prune_config_t* config);
 
 // Prune all prunable layers (Dense, Conv2D) in the model according to config.
 BOAT_API bool boat_prune_model(boat_prune_context_t* ctx, const boat_prune_config_t* config);
@@ -81,7 +83,7 @@ BOAT_API void boat_prune_remove_all_masks(boat_prune_context_t* ctx);
 // Apply fake quantization (QAT) to all pruned layers' weights.
 // Uses boat_fake_quantize on each weight. The model must be FP32.
 BOAT_API bool boat_prune_fake_quantize_model(const boat_prune_context_t* ctx,
-                                              const boat_quant_config_t* quant_config);
+                                             const boat_quant_config_t* quant_config);
 
 // Compute sparsity of a weight tensor: fraction of elements exactly zero.
 BOAT_API float boat_compute_sparsity(const boat_tensor_t* weight);

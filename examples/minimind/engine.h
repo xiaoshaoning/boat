@@ -7,8 +7,8 @@
 // max_tokens: max new tokens to generate
 // temperature: 0.0 = greedy, >0 = sampling (typical: 0.85)
 // top_k: 0 = no filtering, >0 = keep top k (typical: 50)
-char* minimind_generate(minimind_model_t* m, const char* prompt,
-                        int max_tokens, float temperature, int top_k);
+char* minimind_generate(minimind_model_t* m, const char* prompt, int max_tokens, float temperature,
+                        int top_k);
 
 // Get the chat template formatted prompt.
 // Returns malloc'd string (caller frees).

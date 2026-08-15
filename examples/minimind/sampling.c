@@ -5,8 +5,7 @@
 #include <math.h>
 #include <float.h>
 
-int minimind_sample_token(const float* logits, int vocab_size,
-                           int top_k, float temperature) {
+int minimind_sample_token(const float* logits, int vocab_size, int top_k, float temperature) {
     // Copy logits
     float* work = (float*)malloc((size_t)vocab_size * sizeof(float));
     memcpy(work, logits, (size_t)vocab_size * sizeof(float));
@@ -14,7 +13,8 @@ int minimind_sample_token(const float* logits, int vocab_size,
     // Temperature scaling
     if (temperature > 0.0f) {
         float inv_temp = 1.0f / temperature;
-        for (int i = 0; i < vocab_size; i++) work[i] *= inv_temp;
+        for (int i = 0; i < vocab_size; i++)
+            work[i] *= inv_temp;
     }
 
     // Top-k filtering
@@ -26,7 +26,9 @@ int minimind_sample_token(const float* logits, int vocab_size,
         for (int i = 0; i < vocab_size - 1; i++) {
             for (int j = i + 1; j < vocab_size; j++) {
                 if (sorted[j] > sorted[i]) {
-                    float t = sorted[i]; sorted[i] = sorted[j]; sorted[j] = t;
+                    float t = sorted[i];
+                    sorted[i] = sorted[j];
+                    sorted[j] = t;
                 }
             }
         }
@@ -44,7 +46,10 @@ int minimind_sample_token(const float* logits, int vocab_size,
     }
     float sum = 0.0f;
     for (int i = 0; i < vocab_size; i++) {
-        if (work[i] <= -1e30f) { work[i] = 0.0f; continue; }
+        if (work[i] <= -1e30f) {
+            work[i] = 0.0f;
+            continue;
+        }
         work[i] = expf(work[i] - max_val);
         sum += work[i];
     }
@@ -54,7 +59,10 @@ int minimind_sample_token(const float* logits, int vocab_size,
         int best = 0;
         float best_val = logits[0];
         for (int i = 1; i < vocab_size; i++) {
-            if (logits[i] > best_val) { best_val = logits[i]; best = i; }
+            if (logits[i] > best_val) {
+                best_val = logits[i];
+                best = i;
+            }
         }
         free(work);
         return best;
@@ -66,7 +74,10 @@ int minimind_sample_token(const float* logits, int vocab_size,
     int chosen = 0;
     for (int i = 0; i < vocab_size; i++) {
         cumsum += work[i] / sum;
-        if (r <= cumsum) { chosen = i; break; }
+        if (r <= cumsum) {
+            chosen = i;
+            break;
+        }
     }
     free(work);
     return chosen;

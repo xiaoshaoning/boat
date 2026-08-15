@@ -11,14 +11,15 @@
 
 static int g_failures = 0;
 
-#define CHECK(cond, msg) do { \
-    if (!(cond)) { \
-        printf("  FAIL: %s\n", msg); \
-        g_failures++; \
-    } else { \
-        printf("  OK: %s\n", msg); \
-    } \
-} while (0)
+#define CHECK(cond, msg)                                                                           \
+    do {                                                                                           \
+        if (!(cond)) {                                                                             \
+            printf("  FAIL: %s\n", msg);                                                           \
+            g_failures++;                                                                          \
+        } else {                                                                                   \
+            printf("  OK: %s\n", msg);                                                             \
+        }                                                                                          \
+    } while (0)
 
 #define ALLOC_F32(n) ((float*)malloc((n) * sizeof(float)))
 
@@ -31,16 +32,18 @@ static float sigmoidf(float x) {
 // LSTM reference. Weights use [in, out] convention;
 // gate order is [input, forget, cell, output] over 4*hidden.
 static void ref_lstm_forward(const float* x, const float* w_ih, const float* w_hh,
-                             const float* b_ih, const float* b_hh,
-                             size_t batch, size_t T, size_t in, size_t h,
-                             float* out) {
+                             const float* b_ih, const float* b_hh, size_t batch, size_t T,
+                             size_t in, size_t h, float* out) {
     size_t gdim = 4 * h;
     float* h_prev = (float*)calloc(batch * h, sizeof(float));
     float* c_prev = (float*)calloc(batch * h, sizeof(float));
     float* h_curr = ALLOC_F32(batch * h);
     float* c_curr = ALLOC_F32(batch * h);
     if (!h_prev || !c_prev || !h_curr || !c_curr) {
-        free(h_prev); free(c_prev); free(h_curr); free(c_curr);
+        free(h_prev);
+        free(c_prev);
+        free(h_curr);
+        free(c_curr);
         return;
     }
 
@@ -78,19 +81,22 @@ static void ref_lstm_forward(const float* x, const float* w_ih, const float* w_h
         memcpy(c_prev, c_curr, batch * h * sizeof(float));
     }
 
-    free(h_prev); free(c_prev); free(h_curr); free(c_curr);
+    free(h_prev);
+    free(c_prev);
+    free(h_curr);
+    free(c_curr);
 }
 
 // GRU reference. Gate order is [reset, update, new] over 3*hidden.
-static void ref_gru_forward(const float* x, const float* w_ih, const float* w_hh,
-                            const float* b_ih, const float* b_hh,
-                            size_t batch, size_t T, size_t in, size_t h,
+static void ref_gru_forward(const float* x, const float* w_ih, const float* w_hh, const float* b_ih,
+                            const float* b_hh, size_t batch, size_t T, size_t in, size_t h,
                             float* out) {
     size_t gdim = 3 * h;
     float* h_prev = (float*)calloc(batch * h, sizeof(float));
     float* h_curr = ALLOC_F32(batch * h);
     if (!h_prev || !h_curr) {
-        free(h_prev); free(h_curr);
+        free(h_prev);
+        free(h_curr);
         return;
     }
 
@@ -124,7 +130,8 @@ static void ref_gru_forward(const float* x, const float* w_ih, const float* w_hh
         memcpy(h_prev, h_curr, batch * h * sizeof(float));
     }
 
-    free(h_prev); free(h_curr);
+    free(h_prev);
+    free(h_curr);
 }
 
 // ---------- helpers ----------
@@ -149,7 +156,8 @@ static float run_lstm_loss(boat_lstm_layer_t* layer, boat_tensor_t* input) {
     const float* d = (const float*)boat_tensor_const_data(out);
     size_t n = boat_tensor_nelements(out);
     float sum = 0.0f;
-    for (size_t i = 0; i < n; i++) sum += d[i];
+    for (size_t i = 0; i < n; i++)
+        sum += d[i];
     boat_tensor_free(out);
     return sum;
 }
@@ -160,14 +168,15 @@ static float run_gru_loss(boat_gru_layer_t* layer, boat_tensor_t* input) {
     const float* d = (const float*)boat_tensor_const_data(out);
     size_t n = boat_tensor_nelements(out);
     float sum = 0.0f;
-    for (size_t i = 0; i < n; i++) sum += d[i];
+    for (size_t i = 0; i < n; i++)
+        sum += d[i];
     boat_tensor_free(out);
     return sum;
 }
 
 // Central finite difference of a scalar loss w.r.t. one element of `param`.
-static float numerical_grad(float (*loss_fn)(void* ctx), void* ctx,
-                            boat_tensor_t* param, size_t idx, float eps) {
+static float numerical_grad(float (*loss_fn)(void* ctx), void* ctx, boat_tensor_t* param,
+                            size_t idx, float eps) {
     float* data = (float*)boat_tensor_data(param);
     float orig = data[idx];
     data[idx] = orig + eps;
@@ -178,8 +187,8 @@ static float numerical_grad(float (*loss_fn)(void* ctx), void* ctx,
     return (plus - minus) / (2.0f * eps);
 }
 
-static int compare_grads(const char* name, const float* analytic, const float* numeric,
-                         size_t n, float atol, float rtol) {
+static int compare_grads(const char* name, const float* analytic, const float* numeric, size_t n,
+                         float atol, float rtol) {
     int bad = 0;
     for (size_t i = 0; i < n; i++) {
         float diff = fabsf(analytic[i] - numeric[i]);
@@ -188,15 +197,15 @@ static int compare_grads(const char* name, const float* analytic, const float* n
         if (scale > 0.0f && diff / scale <= rtol) continue;
         bad++;
         if (bad <= 5) {
-            printf("    %s[%zu] analytic=%.6f numeric=%.6f diff=%.6f\n",
-                   name, i, analytic[i], numeric[i], diff);
+            printf("    %s[%zu] analytic=%.6f numeric=%.6f diff=%.6f\n", name, i, analytic[i],
+                   numeric[i], diff);
         }
     }
     return bad;
 }
 
-static int check_tensor_close(const char* name, const float* a, const float* b,
-                              size_t n, float atol, float rtol) {
+static int check_tensor_close(const char* name, const float* a, const float* b, size_t n,
+                              float atol, float rtol) {
     int bad = 0;
     for (size_t i = 0; i < n; i++) {
         float diff = fabsf(a[i] - b[i]);
@@ -205,8 +214,7 @@ static int check_tensor_close(const char* name, const float* a, const float* b,
         if (scale > 0.0f && diff / scale <= rtol) continue;
         bad++;
         if (bad <= 3) {
-            printf("    %s[%zu] got=%.6f expected=%.6f diff=%.6f\n",
-                   name, i, a[i], b[i], diff);
+            printf("    %s[%zu] got=%.6f expected=%.6f diff=%.6f\n", name, i, a[i], b[i], diff);
         }
     }
     return bad;
@@ -238,9 +246,9 @@ static int test_lstm_forward_reference(void) {
     fill_random(x, batch * T * in, 0.3f, 15);
 
     boat_lstm_layer_t* layer = boat_lstm_layer_create(in, h, 1, false, 0.0f);
-    int64_t shp_ih[] = { (int64_t)in, (int64_t)gdim };
-    int64_t shp_hh[] = { (int64_t)h, (int64_t)gdim };
-    int64_t shp_b[] = { (int64_t)gdim };
+    int64_t shp_ih[] = {(int64_t)in, (int64_t)gdim};
+    int64_t shp_hh[] = {(int64_t)h, (int64_t)gdim};
+    int64_t shp_b[] = {(int64_t)gdim};
     boat_tensor_t* t_wih = make_tensor(shp_ih, 2, w_ih, in * gdim);
     boat_tensor_t* t_whh = make_tensor(shp_hh, 2, w_hh, h * gdim);
     boat_tensor_t* t_bih = make_tensor(shp_b, 1, b_ih, gdim);
@@ -249,20 +257,22 @@ static int test_lstm_forward_reference(void) {
     boat_lstm_layer_set_weight_hh(layer, t_whh);
     boat_lstm_layer_set_bias_ih(layer, t_bih);
     boat_lstm_layer_set_bias_hh(layer, t_bhh);
-    boat_tensor_unref(t_wih); boat_tensor_unref(t_whh);
-    boat_tensor_unref(t_bih); boat_tensor_unref(t_bhh);
+    boat_tensor_unref(t_wih);
+    boat_tensor_unref(t_whh);
+    boat_tensor_unref(t_bih);
+    boat_tensor_unref(t_bhh);
 
-    int64_t shp_x[] = { (int64_t)batch, (int64_t)T, (int64_t)in };
+    int64_t shp_x[] = {(int64_t)batch, (int64_t)T, (int64_t)in};
     boat_tensor_t* input = make_tensor(shp_x, 3, x, batch * T * in);
 
     boat_tensor_t* out = boat_lstm_layer_forward(layer, input);
     CHECK(out != NULL, "LSTM forward returns output");
     if (out) {
         const int64_t* oshape = boat_tensor_shape(out);
-        if (boat_tensor_ndim(out) == 3 && oshape[0] == (int64_t)batch &&
-            oshape[1] == (int64_t)T && oshape[2] == (int64_t)h) {
-            printf("  OK: output shape [%lld,%lld,%lld]\n",
-                   (long long)oshape[0], (long long)oshape[1], (long long)oshape[2]);
+        if (boat_tensor_ndim(out) == 3 && oshape[0] == (int64_t)batch && oshape[1] == (int64_t)T &&
+            oshape[2] == (int64_t)h) {
+            printf("  OK: output shape [%lld,%lld,%lld]\n", (long long)oshape[0],
+                   (long long)oshape[1], (long long)oshape[2]);
         } else {
             printf("  FAIL: unexpected output shape\n");
             g_failures++;
@@ -270,7 +280,8 @@ static int test_lstm_forward_reference(void) {
         ref_lstm_forward(x, w_ih, w_hh, b_ih, b_hh, batch, T, in, h, ref);
         bad = check_tensor_close("lstm_out", (const float*)boat_tensor_const_data(out), ref,
                                  batch * T * h, 1e-4f, 1e-3f);
-        if (bad == 0) printf("  OK: forward values match reference\n");
+        if (bad == 0)
+            printf("  OK: forward values match reference\n");
         else {
             printf("  FAIL: %d output mismatches vs reference\n", bad);
             g_failures++;
@@ -281,7 +292,12 @@ static int test_lstm_forward_reference(void) {
     boat_tensor_free(input);
     boat_lstm_layer_free(layer);
 done:
-    free(w_ih); free(w_hh); free(b_ih); free(b_hh); free(x); free(ref);
+    free(w_ih);
+    free(w_hh);
+    free(b_ih);
+    free(b_hh);
+    free(x);
+    free(ref);
     return bad;
 }
 
@@ -311,8 +327,8 @@ static int test_lstm_backward_gradients(void) {
     float* num_bih = ALLOC_F32(gdim);
     float* num_bhh = ALLOC_F32(gdim);
     float* num_x = ALLOC_F32(batch * T * in);
-    if (!w_ih || !w_hh || !b_ih || !b_hh || !x ||
-        !num_wih || !num_whh || !num_bih || !num_bhh || !num_x) {
+    if (!w_ih || !w_hh || !b_ih || !b_hh || !x || !num_wih || !num_whh || !num_bih || !num_bhh ||
+        !num_x) {
         printf("  FAIL: allocation failed\n");
         g_failures++;
         goto done;
@@ -324,9 +340,9 @@ static int test_lstm_backward_gradients(void) {
     fill_random(x, batch * T * in, 0.3f, 25);
 
     boat_lstm_layer_t* layer = boat_lstm_layer_create(in, h, 1, false, 0.0f);
-    int64_t shp_ih[] = { (int64_t)in, (int64_t)gdim };
-    int64_t shp_hh[] = { (int64_t)h, (int64_t)gdim };
-    int64_t shp_b[] = { (int64_t)gdim };
+    int64_t shp_ih[] = {(int64_t)in, (int64_t)gdim};
+    int64_t shp_hh[] = {(int64_t)h, (int64_t)gdim};
+    int64_t shp_b[] = {(int64_t)gdim};
     boat_tensor_t* t_wih = make_tensor(shp_ih, 2, w_ih, in * gdim);
     boat_tensor_t* t_whh = make_tensor(shp_hh, 2, w_hh, h * gdim);
     boat_tensor_t* t_bih = make_tensor(shp_b, 1, b_ih, gdim);
@@ -335,27 +351,35 @@ static int test_lstm_backward_gradients(void) {
     boat_lstm_layer_set_weight_hh(layer, t_whh);
     boat_lstm_layer_set_bias_ih(layer, t_bih);
     boat_lstm_layer_set_bias_hh(layer, t_bhh);
-    boat_tensor_unref(t_wih); boat_tensor_unref(t_whh);
-    boat_tensor_unref(t_bih); boat_tensor_unref(t_bhh);
+    boat_tensor_unref(t_wih);
+    boat_tensor_unref(t_whh);
+    boat_tensor_unref(t_bih);
+    boat_tensor_unref(t_bhh);
 
-    int64_t shp_x[] = { (int64_t)batch, (int64_t)T, (int64_t)in };
+    int64_t shp_x[] = {(int64_t)batch, (int64_t)T, (int64_t)in};
     boat_tensor_t* input = make_tensor(shp_x, 3, x, batch * T * in);
 
-    lstm_ctx_t ctx = { layer, input };
+    lstm_ctx_t ctx = {layer, input};
     const float eps = 1e-3f, atol = 1e-3f, rtol = 1e-2f;
 
-    for (size_t i = 0; i < in * gdim; i++) num_wih[i] = numerical_grad(lstm_loss_cb, &ctx, t_wih, i, eps);
-    for (size_t i = 0; i < h * gdim; i++) num_whh[i] = numerical_grad(lstm_loss_cb, &ctx, t_whh, i, eps);
-    for (size_t i = 0; i < gdim; i++) num_bih[i] = numerical_grad(lstm_loss_cb, &ctx, t_bih, i, eps);
-    for (size_t i = 0; i < gdim; i++) num_bhh[i] = numerical_grad(lstm_loss_cb, &ctx, t_bhh, i, eps);
-    for (size_t i = 0; i < batch * T * in; i++) num_x[i] = numerical_grad(lstm_loss_cb, &ctx, input, i, eps);
+    for (size_t i = 0; i < in * gdim; i++)
+        num_wih[i] = numerical_grad(lstm_loss_cb, &ctx, t_wih, i, eps);
+    for (size_t i = 0; i < h * gdim; i++)
+        num_whh[i] = numerical_grad(lstm_loss_cb, &ctx, t_whh, i, eps);
+    for (size_t i = 0; i < gdim; i++)
+        num_bih[i] = numerical_grad(lstm_loss_cb, &ctx, t_bih, i, eps);
+    for (size_t i = 0; i < gdim; i++)
+        num_bhh[i] = numerical_grad(lstm_loss_cb, &ctx, t_bhh, i, eps);
+    for (size_t i = 0; i < batch * T * in; i++)
+        num_x[i] = numerical_grad(lstm_loss_cb, &ctx, input, i, eps);
 
     // Analytical gradients (single forward + backward with ones)
     boat_tensor_t* out = boat_lstm_layer_forward(layer, input);
-    int64_t shp_go[] = { (int64_t)batch, (int64_t)T, (int64_t)h };
+    int64_t shp_go[] = {(int64_t)batch, (int64_t)T, (int64_t)h};
     boat_tensor_t* grad_out = boat_tensor_create(shp_go, 3, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* god = (float*)boat_tensor_data(grad_out);
-    for (size_t i = 0; i < batch * T * h; i++) god[i] = 1.0f;
+    for (size_t i = 0; i < batch * T * h; i++)
+        god[i] = 1.0f;
     boat_tensor_free(out);
 
     boat_tensor_t* grad_in = boat_lstm_layer_backward(layer, grad_out);
@@ -367,10 +391,14 @@ static int test_lstm_backward_gradients(void) {
     }
     CHECK(boat_tensor_nelements(grad_in) == batch * T * in, "grad_input shape matches input");
 
-    const float* gwih = (const float*)boat_tensor_const_data(boat_lstm_layer_get_grad_weight_ih(layer));
-    const float* gwhh = (const float*)boat_tensor_const_data(boat_lstm_layer_get_grad_weight_hh(layer));
-    const float* gbih = (const float*)boat_tensor_const_data(boat_lstm_layer_get_grad_bias_ih(layer));
-    const float* gbhh = (const float*)boat_tensor_const_data(boat_lstm_layer_get_grad_bias_hh(layer));
+    const float* gwih =
+        (const float*)boat_tensor_const_data(boat_lstm_layer_get_grad_weight_ih(layer));
+    const float* gwhh =
+        (const float*)boat_tensor_const_data(boat_lstm_layer_get_grad_weight_hh(layer));
+    const float* gbih =
+        (const float*)boat_tensor_const_data(boat_lstm_layer_get_grad_bias_ih(layer));
+    const float* gbhh =
+        (const float*)boat_tensor_const_data(boat_lstm_layer_get_grad_bias_hh(layer));
     const float* gx = (const float*)boat_tensor_const_data(grad_in);
 
     bad = compare_grads("w_ih", gwih, num_wih, in * gdim, atol, rtol);
@@ -394,8 +422,16 @@ static int test_lstm_backward_gradients(void) {
     boat_tensor_free(input);
     boat_lstm_layer_free(layer);
 done:
-    free(w_ih); free(w_hh); free(b_ih); free(b_hh); free(x);
-    free(num_wih); free(num_whh); free(num_bih); free(num_bhh); free(num_x);
+    free(w_ih);
+    free(w_hh);
+    free(b_ih);
+    free(b_hh);
+    free(x);
+    free(num_wih);
+    free(num_whh);
+    free(num_bih);
+    free(num_bhh);
+    free(num_x);
     return bad;
 }
 
@@ -413,7 +449,8 @@ static int test_lstm_update(void) {
     float* gwih_snap = ALLOC_F32(in * gdim);
     float* gbih_snap = ALLOC_F32(gdim);
     int bad = 0;
-    if (!w_ih || !w_hh || !b_ih || !b_hh || !x || !w_ih_copy || !b_ih_copy || !gwih_snap || !gbih_snap) {
+    if (!w_ih || !w_hh || !b_ih || !b_hh || !x || !w_ih_copy || !b_ih_copy || !gwih_snap ||
+        !gbih_snap) {
         printf("  FAIL: allocation failed\n");
         g_failures++;
         goto done;
@@ -426,9 +463,9 @@ static int test_lstm_update(void) {
     memcpy(b_ih_copy, b_ih, gdim * sizeof(float));
 
     boat_lstm_layer_t* layer = boat_lstm_layer_create(in, h, 1, false, 0.0f);
-    int64_t shp_ih[] = { (int64_t)in, (int64_t)gdim };
-    int64_t shp_hh[] = { (int64_t)h, (int64_t)gdim };
-    int64_t shp_b[] = { (int64_t)gdim };
+    int64_t shp_ih[] = {(int64_t)in, (int64_t)gdim};
+    int64_t shp_hh[] = {(int64_t)h, (int64_t)gdim};
+    int64_t shp_b[] = {(int64_t)gdim};
     boat_tensor_t* t_wih = make_tensor(shp_ih, 2, w_ih, in * gdim);
     boat_tensor_t* t_whh = make_tensor(shp_hh, 2, w_hh, h * gdim);
     boat_tensor_t* t_bih = make_tensor(shp_b, 1, b_ih, gdim);
@@ -439,7 +476,7 @@ static int test_lstm_update(void) {
     boat_lstm_layer_set_bias_hh(layer, t_bhh);
     // Keep local references so we can read the updated weights after update()
 
-    int64_t shp_x[] = { 1, 2, (int64_t)in };
+    int64_t shp_x[] = {1, 2, (int64_t)in};
     fill_random(x, 1 * 2 * in, 0.3f, 35);
     boat_tensor_t* input = make_tensor(shp_x, 3, x, 1 * 2 * in);
 
@@ -447,10 +484,11 @@ static int test_lstm_update(void) {
     boat_tensor_t* grad_out = NULL;
     boat_tensor_t* grad_in = NULL;
     out = boat_lstm_layer_forward(layer, input);
-    int64_t shp_go[] = { 1, 2, (int64_t)h };
+    int64_t shp_go[] = {1, 2, (int64_t)h};
     grad_out = boat_tensor_create(shp_go, 3, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* god = (float*)boat_tensor_data(grad_out);
-    for (size_t i = 0; i < 1 * 2 * h; i++) god[i] = 0.5f;
+    for (size_t i = 0; i < 1 * 2 * h; i++)
+        god[i] = 0.5f;
     grad_in = boat_lstm_layer_backward(layer, grad_out);
     CHECK(grad_in != NULL, "backward before update");
     if (!grad_in) {
@@ -495,8 +533,15 @@ cleanup:
     boat_tensor_free(t_bhh);
     boat_lstm_layer_free(layer);
 done:
-    free(w_ih); free(w_hh); free(b_ih); free(b_hh); free(x);
-    free(w_ih_copy); free(b_ih_copy); free(gwih_snap); free(gbih_snap);
+    free(w_ih);
+    free(w_hh);
+    free(b_ih);
+    free(b_hh);
+    free(x);
+    free(w_ih_copy);
+    free(b_ih_copy);
+    free(gwih_snap);
+    free(gbih_snap);
     return bad;
 }
 
@@ -526,9 +571,9 @@ static int test_gru_forward_reference(void) {
     fill_random(x, batch * T * in, 0.3f, 45);
 
     boat_gru_layer_t* layer = boat_gru_layer_create(in, h, 1, false, 0.0f);
-    int64_t shp_ih[] = { (int64_t)in, (int64_t)gdim };
-    int64_t shp_hh[] = { (int64_t)h, (int64_t)gdim };
-    int64_t shp_b[] = { (int64_t)gdim };
+    int64_t shp_ih[] = {(int64_t)in, (int64_t)gdim};
+    int64_t shp_hh[] = {(int64_t)h, (int64_t)gdim};
+    int64_t shp_b[] = {(int64_t)gdim};
     boat_tensor_t* t_wih = make_tensor(shp_ih, 2, w_ih, in * gdim);
     boat_tensor_t* t_whh = make_tensor(shp_hh, 2, w_hh, h * gdim);
     boat_tensor_t* t_bih = make_tensor(shp_b, 1, b_ih, gdim);
@@ -537,20 +582,22 @@ static int test_gru_forward_reference(void) {
     boat_gru_layer_set_weight_hh(layer, t_whh);
     boat_gru_layer_set_bias_ih(layer, t_bih);
     boat_gru_layer_set_bias_hh(layer, t_bhh);
-    boat_tensor_unref(t_wih); boat_tensor_unref(t_whh);
-    boat_tensor_unref(t_bih); boat_tensor_unref(t_bhh);
+    boat_tensor_unref(t_wih);
+    boat_tensor_unref(t_whh);
+    boat_tensor_unref(t_bih);
+    boat_tensor_unref(t_bhh);
 
-    int64_t shp_x[] = { (int64_t)batch, (int64_t)T, (int64_t)in };
+    int64_t shp_x[] = {(int64_t)batch, (int64_t)T, (int64_t)in};
     boat_tensor_t* input = make_tensor(shp_x, 3, x, batch * T * in);
 
     boat_tensor_t* out = boat_gru_layer_forward(layer, input);
     CHECK(out != NULL, "GRU forward returns output");
     if (out) {
         const int64_t* oshape = boat_tensor_shape(out);
-        if (boat_tensor_ndim(out) == 3 && oshape[0] == (int64_t)batch &&
-            oshape[1] == (int64_t)T && oshape[2] == (int64_t)h) {
-            printf("  OK: output shape [%lld,%lld,%lld]\n",
-                   (long long)oshape[0], (long long)oshape[1], (long long)oshape[2]);
+        if (boat_tensor_ndim(out) == 3 && oshape[0] == (int64_t)batch && oshape[1] == (int64_t)T &&
+            oshape[2] == (int64_t)h) {
+            printf("  OK: output shape [%lld,%lld,%lld]\n", (long long)oshape[0],
+                   (long long)oshape[1], (long long)oshape[2]);
         } else {
             printf("  FAIL: unexpected output shape\n");
             g_failures++;
@@ -558,7 +605,8 @@ static int test_gru_forward_reference(void) {
         ref_gru_forward(x, w_ih, w_hh, b_ih, b_hh, batch, T, in, h, ref);
         bad = check_tensor_close("gru_out", (const float*)boat_tensor_const_data(out), ref,
                                  batch * T * h, 1e-4f, 1e-3f);
-        if (bad == 0) printf("  OK: forward values match reference\n");
+        if (bad == 0)
+            printf("  OK: forward values match reference\n");
         else {
             printf("  FAIL: %d output mismatches vs reference\n", bad);
             g_failures++;
@@ -569,7 +617,12 @@ static int test_gru_forward_reference(void) {
     boat_tensor_free(input);
     boat_gru_layer_free(layer);
 done:
-    free(w_ih); free(w_hh); free(b_ih); free(b_hh); free(x); free(ref);
+    free(w_ih);
+    free(w_hh);
+    free(b_ih);
+    free(b_hh);
+    free(x);
+    free(ref);
     return bad;
 }
 
@@ -599,8 +652,8 @@ static int test_gru_backward_gradients(void) {
     float* num_bih = ALLOC_F32(gdim);
     float* num_bhh = ALLOC_F32(gdim);
     float* num_x = ALLOC_F32(batch * T * in);
-    if (!w_ih || !w_hh || !b_ih || !b_hh || !x ||
-        !num_wih || !num_whh || !num_bih || !num_bhh || !num_x) {
+    if (!w_ih || !w_hh || !b_ih || !b_hh || !x || !num_wih || !num_whh || !num_bih || !num_bhh ||
+        !num_x) {
         printf("  FAIL: allocation failed\n");
         g_failures++;
         goto done;
@@ -612,9 +665,9 @@ static int test_gru_backward_gradients(void) {
     fill_random(x, batch * T * in, 0.3f, 55);
 
     boat_gru_layer_t* layer = boat_gru_layer_create(in, h, 1, false, 0.0f);
-    int64_t shp_ih[] = { (int64_t)in, (int64_t)gdim };
-    int64_t shp_hh[] = { (int64_t)h, (int64_t)gdim };
-    int64_t shp_b[] = { (int64_t)gdim };
+    int64_t shp_ih[] = {(int64_t)in, (int64_t)gdim};
+    int64_t shp_hh[] = {(int64_t)h, (int64_t)gdim};
+    int64_t shp_b[] = {(int64_t)gdim};
     boat_tensor_t* t_wih = make_tensor(shp_ih, 2, w_ih, in * gdim);
     boat_tensor_t* t_whh = make_tensor(shp_hh, 2, w_hh, h * gdim);
     boat_tensor_t* t_bih = make_tensor(shp_b, 1, b_ih, gdim);
@@ -623,26 +676,34 @@ static int test_gru_backward_gradients(void) {
     boat_gru_layer_set_weight_hh(layer, t_whh);
     boat_gru_layer_set_bias_ih(layer, t_bih);
     boat_gru_layer_set_bias_hh(layer, t_bhh);
-    boat_tensor_unref(t_wih); boat_tensor_unref(t_whh);
-    boat_tensor_unref(t_bih); boat_tensor_unref(t_bhh);
+    boat_tensor_unref(t_wih);
+    boat_tensor_unref(t_whh);
+    boat_tensor_unref(t_bih);
+    boat_tensor_unref(t_bhh);
 
-    int64_t shp_x[] = { (int64_t)batch, (int64_t)T, (int64_t)in };
+    int64_t shp_x[] = {(int64_t)batch, (int64_t)T, (int64_t)in};
     boat_tensor_t* input = make_tensor(shp_x, 3, x, batch * T * in);
 
-    gru_ctx_t ctx = { layer, input };
+    gru_ctx_t ctx = {layer, input};
     const float eps = 1e-3f, atol = 1e-3f, rtol = 1e-2f;
 
-    for (size_t i = 0; i < in * gdim; i++) num_wih[i] = numerical_grad(gru_loss_cb, &ctx, t_wih, i, eps);
-    for (size_t i = 0; i < h * gdim; i++) num_whh[i] = numerical_grad(gru_loss_cb, &ctx, t_whh, i, eps);
-    for (size_t i = 0; i < gdim; i++) num_bih[i] = numerical_grad(gru_loss_cb, &ctx, t_bih, i, eps);
-    for (size_t i = 0; i < gdim; i++) num_bhh[i] = numerical_grad(gru_loss_cb, &ctx, t_bhh, i, eps);
-    for (size_t i = 0; i < batch * T * in; i++) num_x[i] = numerical_grad(gru_loss_cb, &ctx, input, i, eps);
+    for (size_t i = 0; i < in * gdim; i++)
+        num_wih[i] = numerical_grad(gru_loss_cb, &ctx, t_wih, i, eps);
+    for (size_t i = 0; i < h * gdim; i++)
+        num_whh[i] = numerical_grad(gru_loss_cb, &ctx, t_whh, i, eps);
+    for (size_t i = 0; i < gdim; i++)
+        num_bih[i] = numerical_grad(gru_loss_cb, &ctx, t_bih, i, eps);
+    for (size_t i = 0; i < gdim; i++)
+        num_bhh[i] = numerical_grad(gru_loss_cb, &ctx, t_bhh, i, eps);
+    for (size_t i = 0; i < batch * T * in; i++)
+        num_x[i] = numerical_grad(gru_loss_cb, &ctx, input, i, eps);
 
     boat_tensor_t* out = boat_gru_layer_forward(layer, input);
-    int64_t shp_go[] = { (int64_t)batch, (int64_t)T, (int64_t)h };
+    int64_t shp_go[] = {(int64_t)batch, (int64_t)T, (int64_t)h};
     boat_tensor_t* grad_out = boat_tensor_create(shp_go, 3, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* god = (float*)boat_tensor_data(grad_out);
-    for (size_t i = 0; i < batch * T * h; i++) god[i] = 1.0f;
+    for (size_t i = 0; i < batch * T * h; i++)
+        god[i] = 1.0f;
     boat_tensor_free(out);
 
     boat_tensor_t* grad_in = boat_gru_layer_backward(layer, grad_out);
@@ -654,10 +715,14 @@ static int test_gru_backward_gradients(void) {
     }
     CHECK(boat_tensor_nelements(grad_in) == batch * T * in, "grad_input shape matches input");
 
-    const float* gwih = (const float*)boat_tensor_const_data(boat_gru_layer_get_grad_weight_ih(layer));
-    const float* gwhh = (const float*)boat_tensor_const_data(boat_gru_layer_get_grad_weight_hh(layer));
-    const float* gbih = (const float*)boat_tensor_const_data(boat_gru_layer_get_grad_bias_ih(layer));
-    const float* gbhh = (const float*)boat_tensor_const_data(boat_gru_layer_get_grad_bias_hh(layer));
+    const float* gwih =
+        (const float*)boat_tensor_const_data(boat_gru_layer_get_grad_weight_ih(layer));
+    const float* gwhh =
+        (const float*)boat_tensor_const_data(boat_gru_layer_get_grad_weight_hh(layer));
+    const float* gbih =
+        (const float*)boat_tensor_const_data(boat_gru_layer_get_grad_bias_ih(layer));
+    const float* gbhh =
+        (const float*)boat_tensor_const_data(boat_gru_layer_get_grad_bias_hh(layer));
     const float* gx = (const float*)boat_tensor_const_data(grad_in);
 
     bad = compare_grads("w_ih", gwih, num_wih, in * gdim, atol, rtol);
@@ -681,8 +746,16 @@ static int test_gru_backward_gradients(void) {
     boat_tensor_free(input);
     boat_gru_layer_free(layer);
 done:
-    free(w_ih); free(w_hh); free(b_ih); free(b_hh); free(x);
-    free(num_wih); free(num_whh); free(num_bih); free(num_bhh); free(num_x);
+    free(w_ih);
+    free(w_hh);
+    free(b_ih);
+    free(b_hh);
+    free(x);
+    free(num_wih);
+    free(num_whh);
+    free(num_bih);
+    free(num_bhh);
+    free(num_x);
     return bad;
 }
 

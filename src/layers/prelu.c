@@ -13,7 +13,8 @@ struct boat_prelu_layer_t {
 };
 
 BOAT_API boat_prelu_layer_t* BOAT_CALL boat_prelu_layer_create(size_t num_params) {
-    boat_prelu_layer_t* layer = (boat_prelu_layer_t*)boat_malloc(sizeof(boat_prelu_layer_t), BOAT_DEVICE_CPU);
+    boat_prelu_layer_t* layer =
+        (boat_prelu_layer_t*)boat_malloc(sizeof(boat_prelu_layer_t), BOAT_DEVICE_CPU);
     if (!layer) return NULL;
     layer->slope = NULL;
     layer->grad_slope = NULL;
@@ -21,10 +22,14 @@ BOAT_API boat_prelu_layer_t* BOAT_CALL boat_prelu_layer_create(size_t num_params
     if (num_params > 0) {
         int64_t shape[] = {(int64_t)num_params, 1, 1};
         layer->slope = boat_tensor_create(shape, 3, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
-        if (!layer->slope) { boat_free(layer); return NULL; }
+        if (!layer->slope) {
+            boat_free(layer);
+            return NULL;
+        }
         // Initialize slope to 0.25 (default PReLU init)
         float* d = (float*)boat_tensor_data(layer->slope);
-        for (size_t i = 0; i < num_params; i++) d[i] = 0.25f;
+        for (size_t i = 0; i < num_params; i++)
+            d[i] = 0.25f;
     }
     return layer;
 }
@@ -37,11 +42,12 @@ BOAT_API void BOAT_CALL boat_prelu_layer_free(boat_prelu_layer_t* layer) {
     boat_free(layer);
 }
 
-BOAT_API void BOAT_CALL boat_prelu_layer_set_slope(boat_prelu_layer_t* layer, const boat_tensor_t* slope) {
+BOAT_API void BOAT_CALL boat_prelu_layer_set_slope(boat_prelu_layer_t* layer,
+                                                   const boat_tensor_t* slope) {
     if (!layer || !slope) return;
     if (layer->slope) boat_tensor_unref(layer->slope);
     layer->slope = boat_tensor_create(boat_tensor_shape(slope), boat_tensor_ndim(slope),
-                                       BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+                                      BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (layer->slope) {
         memcpy(boat_tensor_data(layer->slope), boat_tensor_const_data(slope),
                boat_tensor_nbytes(slope));
@@ -59,15 +65,17 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_prelu_layer_get_grad_slope(const boat_pre
 // Channel index for a linear element index in an NCHW tensor.
 static size_t channel_index(const int64_t* shape, size_t ndim, size_t linear) {
     size_t spatial = 1;
-    for (size_t d = 2; d < ndim; d++) spatial *= (size_t)shape[d];
+    for (size_t d = 2; d < ndim; d++)
+        spatial *= (size_t)shape[d];
     size_t ch_dim = (ndim > 1) ? 1 : 0;
     size_t ch_stride = (ndim > 1) ? spatial : 1;
-    if (ch_dim == 0) return 0;  // no channel dim; scalar slope
+    if (ch_dim == 0) return 0; // no channel dim; scalar slope
     // linear = n * (C * ch_stride) + c * ch_stride + sp
     return (linear / ch_stride) % (size_t)shape[ch_dim];
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_prelu_layer_forward(const boat_prelu_layer_t* layer, const boat_tensor_t* input) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_prelu_layer_forward(const boat_prelu_layer_t* layer,
+                                                           const boat_tensor_t* input) {
     if (!layer || !input) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[PReLULayer] NULL input or layer\n");
         return NULL;
@@ -95,7 +103,8 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_prelu_layer_forward(const boat_prelu_laye
 
     size_t channels = 1;
     if (layer->slope) channels = (size_t)boat_tensor_shape(layer->slope)[0];
-    const float* slope_data = layer->slope ? (const float*)boat_tensor_const_data(layer->slope) : NULL;
+    const float* slope_data =
+        layer->slope ? (const float*)boat_tensor_const_data(layer->slope) : NULL;
 
     if (slope_data && channels > 1) {
         for (size_t i = 0; i < n; i++) {
@@ -115,10 +124,12 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_prelu_layer_forward(const boat_prelu_laye
     return result;
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_prelu_layer_backward(boat_prelu_layer_t* layer, const boat_tensor_t* grad_output) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_prelu_layer_backward(boat_prelu_layer_t* layer,
+                                                            const boat_tensor_t* grad_output) {
     if (!layer || !grad_output) return NULL;
     if (!layer->cache_input) {
-        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[PReLULayer] backward requires a prior forward pass\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION,
+                        "[PReLULayer] backward requires a prior forward pass\n");
         return NULL;
     }
     if (boat_tensor_dtype(grad_output) != BOAT_DTYPE_FLOAT32) return NULL;
@@ -132,7 +143,8 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_prelu_layer_backward(boat_prelu_layer_t* 
 
     size_t channels = 1;
     if (layer->slope) channels = (size_t)boat_tensor_shape(layer->slope)[0];
-    const float* slope_data = layer->slope ? (const float*)boat_tensor_const_data(layer->slope) : NULL;
+    const float* slope_data =
+        layer->slope ? (const float*)boat_tensor_const_data(layer->slope) : NULL;
 
     // grad_slope accumulator (shape [C, 1, 1]).
     if (!layer->grad_slope) {
@@ -175,5 +187,6 @@ BOAT_API void BOAT_CALL boat_prelu_layer_update(boat_prelu_layer_t* layer, float
     float* s = (float*)boat_tensor_data(layer->slope);
     float* gs = (float*)boat_tensor_data(layer->grad_slope);
     size_t n = boat_tensor_nelements(layer->slope);
-    for (size_t i = 0; i < n; i++) s[i] -= learning_rate * gs[i];
+    for (size_t i = 0; i < n; i++)
+        s[i] -= learning_rate * gs[i];
 }

@@ -17,7 +17,7 @@
 typedef struct boat_sgd_state_t {
     boat_optimizer_type_t type;
     float learning_rate;
-    float weight_decay;  // L2 gradient penalty coefficient (0 = off)
+    float weight_decay; // L2 gradient penalty coefficient (0 = off)
     float momentum;
     int use_nesterov;
 
@@ -51,8 +51,7 @@ static void sgd_expand_capacity(boat_sgd_state_t* state);
 static void sgd_update_parameter(boat_sgd_state_t* state, size_t idx);
 
 // Create SGD optimizer
-BOAT_API boat_optimizer_t* boat_sgd_optimizer_create(float learning_rate,
-                                            float momentum) {
+BOAT_API boat_optimizer_t* boat_sgd_optimizer_create(float learning_rate, float momentum) {
     // Parameter validation
     if (learning_rate <= 0.0f) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[SGD] Learning rate must be positive\n");
@@ -64,7 +63,8 @@ BOAT_API boat_optimizer_t* boat_sgd_optimizer_create(float learning_rate,
     }
 
     // Allocate optimizer state
-    boat_sgd_state_t* state = (boat_sgd_state_t*)boat_malloc(sizeof(boat_sgd_state_t), BOAT_DEVICE_CPU);
+    boat_sgd_state_t* state =
+        (boat_sgd_state_t*)boat_malloc(sizeof(boat_sgd_state_t), BOAT_DEVICE_CPU);
     if (!state) {
         boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[SGD] Failed to allocate optimizer state\n");
         return NULL;
@@ -77,12 +77,15 @@ BOAT_API boat_optimizer_t* boat_sgd_optimizer_create(float learning_rate,
     state->momentum = momentum;
     state->use_nesterov = 0;
     state->num_params = 0;
-    state->capacity = 16;  // Initial capacity
+    state->capacity = 16; // Initial capacity
 
     // Allocate arrays
-    state->params = (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
-    state->grads = (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
-    state->velocity = (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
+    state->params =
+        (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
+    state->grads =
+        (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
+    state->velocity =
+        (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
 
     if (!state->params || !state->grads || !state->velocity) {
         boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[SGD] Failed to allocate optimizer arrays\n");
@@ -111,9 +114,8 @@ BOAT_API void boat_sgd_set_nesterov(boat_optimizer_t* optimizer, int use_nestero
 }
 
 // Add a parameter to the optimizer
-void sgd_optimizer_add_parameter(boat_optimizer_t* optimizer,
-                              boat_tensor_t* param,
-                              boat_tensor_t* grad) {
+void sgd_optimizer_add_parameter(boat_optimizer_t* optimizer, boat_tensor_t* param,
+                                 boat_tensor_t* grad) {
     if (!optimizer || !param || !grad) {
         return;
     }
@@ -218,7 +220,7 @@ static void sgd_update_parameter(boat_sgd_state_t* state, size_t idx) {
         if (boat_tensor_dtype(param) == BOAT_DTYPE_BFLOAT16) {
             if (momentum > 0.0f) {
                 boat_cuda_sgd_momentum_bf16(param_data, grad_data, vel_data, lr, momentum,
-                                             state->use_nesterov ? true : false, num_elements);
+                                            state->use_nesterov ? true : false, num_elements);
             } else {
                 boat_cuda_sgd_update_bf16(param_data, grad_data, lr, num_elements);
             }
@@ -226,7 +228,7 @@ static void sgd_update_parameter(boat_sgd_state_t* state, size_t idx) {
         }
         if (momentum > 0.0f) {
             boat_cuda_sgd_momentum_f32(param_data, grad_data, vel_data, lr, momentum,
-                                        state->use_nesterov ? true : false, num_elements);
+                                       state->use_nesterov ? true : false, num_elements);
         } else {
             boat_cuda_sgd_update_f32(param_data, grad_data, lr, num_elements);
         }

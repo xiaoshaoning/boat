@@ -4,8 +4,9 @@
 
 // Gradient analysis configuration
 #include <stdbool.h>
-static bool enable_gradient_analysis = false;  // Enable detailed gradient error analysis
-static bool use_double_precision_numerical = false;  // Use double precision for numerical gradient computation
+static bool enable_gradient_analysis = false; // Enable detailed gradient error analysis
+static bool use_double_precision_numerical =
+    false; // Use double precision for numerical gradient computation
 
 #include <boat/layers.h>
 #include <boat/tensor.h>
@@ -18,10 +19,8 @@ static bool use_double_precision_numerical = false;  // Use double precision for
 
 // Helper function to compute numerical gradient using finite differences
 static float compute_numerical_gradient_element(const boat_conv_layer_t* layer,
-                                                boat_tensor_t* input,
-                                                boat_tensor_t* param,
-                                                size_t idx,
-                                                float epsilon) {
+                                                boat_tensor_t* input, boat_tensor_t* param,
+                                                size_t idx, float epsilon) {
     // Save original value
     float* data = (float*)boat_tensor_data(param);
     float original = data[idx];
@@ -61,8 +60,8 @@ static float compute_numerical_gradient_element(const boat_conv_layer_t* layer,
 }
 
 // Check gradient agreement with relative and absolute tolerances
-static bool check_gradient_agreement(float analytical, float numerical,
-                                     float rel_tol, float abs_tol) {
+static bool check_gradient_agreement(float analytical, float numerical, float rel_tol,
+                                     float abs_tol) {
     float diff = fabsf(analytical - numerical);
     if (diff <= abs_tol) {
         return true;
@@ -94,10 +93,8 @@ static float compute_absolute_error(float analytical, float numerical) {
 
 // Helper function to compute numerical gradient using double precision
 static double compute_numerical_gradient_element_fp64(const boat_conv_layer_t* layer,
-                                                     boat_tensor_t* input,
-                                                     boat_tensor_t* param,
-                                                     size_t idx,
-                                                     double epsilon) {
+                                                      boat_tensor_t* input, boat_tensor_t* param,
+                                                      size_t idx, double epsilon) {
     // Save original value (float32)
     float* data = (float*)boat_tensor_data(param);
     float original = data[idx];
@@ -137,12 +134,9 @@ static double compute_numerical_gradient_element_fp64(const boat_conv_layer_t* l
 }
 
 // Test gradient for a specific parameter tensor
-static bool test_parameter_gradient(const boat_conv_layer_t* layer,
-                                    boat_tensor_t* input,
-                                    boat_tensor_t* param,
-                                    boat_tensor_t* grad,
-                                    const char* param_name,
-                                    size_t max_tests) {
+static bool test_parameter_gradient(const boat_conv_layer_t* layer, boat_tensor_t* input,
+                                    boat_tensor_t* param, boat_tensor_t* grad,
+                                    const char* param_name, size_t max_tests) {
     if (!param || !grad) {
         printf("    %s: no parameter or gradient (skipping)\n", param_name);
         return true;
@@ -150,9 +144,9 @@ static bool test_parameter_gradient(const boat_conv_layer_t* layer,
 
     printf("    Testing %s... ", param_name);
 
-    const float epsilon = 1e-3f;  // Increased from 1e-4 to 1e-3
-    const float rel_tol = 1e-2f;  // Increased from 1e-3 to 1e-2
-    const float abs_tol = 1e-3f;  // Increased from 1e-5 to 1e-3
+    const float epsilon = 1e-3f; // Increased from 1e-4 to 1e-3
+    const float rel_tol = 1e-2f; // Increased from 1e-3 to 1e-2
+    const float abs_tol = 1e-3f; // Increased from 1e-5 to 1e-3
 
     size_t num_elements = boat_tensor_nelements(param);
     float* grad_data = (float*)boat_tensor_data(grad);
@@ -174,7 +168,8 @@ static bool test_parameter_gradient(const boat_conv_layer_t* layer,
     for (size_t i = 0; i < num_elements && tests_done < max_tests; i += step) {
         float numerical_fp32;
         if (use_double_precision_numerical) {
-            double numerical_fp64 = compute_numerical_gradient_element_fp64(layer, input, param, i, (double)epsilon);
+            double numerical_fp64 =
+                compute_numerical_gradient_element_fp64(layer, input, param, i, (double)epsilon);
             numerical_fp32 = (float)numerical_fp64;
         } else {
             numerical_fp32 = compute_numerical_gradient_element(layer, input, param, i, epsilon);
@@ -192,8 +187,8 @@ static bool test_parameter_gradient(const boat_conv_layer_t* layer,
 
         if (!check_gradient_agreement(analytical, numerical_fp32, rel_tol, abs_tol)) {
             if (failures < 3) {
-                printf("\n      mismatch at %zu: analytical=%g, numerical=%g, diff=%g",
-                       i, analytical, numerical_fp32, analytical - numerical_fp32);
+                printf("\n      mismatch at %zu: analytical=%g, numerical=%g, diff=%g", i,
+                       analytical, numerical_fp32, analytical - numerical_fp32);
             }
             failures++;
         }
@@ -208,8 +203,9 @@ static bool test_parameter_gradient(const boat_conv_layer_t* layer,
     if (failures > 0) {
         printf("\n      FAILED: %d/%d elements\n", failures, tests_done);
         if (enable_gradient_analysis) {
-            printf("      Error statistics: max_rel=%.2e, avg_rel=%.2e, max_abs=%.2e, avg_abs=%.2e\n",
-                   max_rel_error, avg_rel_error, max_abs_error, avg_abs_error);
+            printf(
+                "      Error statistics: max_rel=%.2e, avg_rel=%.2e, max_abs=%.2e, avg_abs=%.2e\n",
+                max_rel_error, avg_rel_error, max_abs_error, avg_abs_error);
         }
         return false;
     } else {
@@ -224,16 +220,15 @@ static bool test_parameter_gradient(const boat_conv_layer_t* layer,
 }
 
 // Test convolution layer gradient for a specific configuration
-static bool test_conv_gradient_config(size_t in_channels, size_t out_channels,
-                                      size_t kernel_size, size_t stride, size_t padding,
-                                      const char* config_name) {
+static bool test_conv_gradient_config(size_t in_channels, size_t out_channels, size_t kernel_size,
+                                      size_t stride, size_t padding, const char* config_name) {
     printf("Testing configuration: %s\n", config_name);
     printf("  in_channels=%zu, out_channels=%zu, kernel=%zu, stride=%zu, padding=%zu\n",
            in_channels, out_channels, kernel_size, stride, padding);
 
     // Create convolution layer
-    boat_conv_layer_t* layer = boat_conv_layer_create(in_channels, out_channels,
-                                                      kernel_size, stride, padding, 1);
+    boat_conv_layer_t* layer =
+        boat_conv_layer_create(in_channels, out_channels, kernel_size, stride, padding, 1);
     if (!layer) {
         fprintf(stderr, "ERROR: Failed to create convolution layer\n");
         return false;
@@ -276,7 +271,8 @@ static bool test_conv_gradient_config(size_t in_channels, size_t out_channels,
         output_shape[i] = output_shape_ptr[i];
     }
 
-    boat_tensor_t* grad_output = boat_tensor_create(output_shape, output_ndim, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    boat_tensor_t* grad_output =
+        boat_tensor_create(output_shape, output_ndim, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!grad_output) {
         fprintf(stderr, "ERROR: Failed to create gradient output tensor\n");
         boat_tensor_unref(output);
@@ -317,8 +313,9 @@ static bool test_conv_gradient_config(size_t in_channels, size_t out_channels,
 
     // Test weight gradient
     if (weight && grad_weight) {
-        all_pass = test_parameter_gradient(layer, input, weight, grad_weight,
-                                          "weight", max_tests_per_param) && all_pass;
+        all_pass = test_parameter_gradient(layer, input, weight, grad_weight, "weight",
+                                           max_tests_per_param) &&
+                   all_pass;
     } else {
         printf("    weight or grad_weight missing\n");
         all_pass = false;
@@ -326,8 +323,9 @@ static bool test_conv_gradient_config(size_t in_channels, size_t out_channels,
 
     // Test bias gradient (if bias exists)
     if (bias && grad_bias) {
-        all_pass = test_parameter_gradient(layer, input, bias, grad_bias,
-                                          "bias", max_tests_per_param) && all_pass;
+        all_pass =
+            test_parameter_gradient(layer, input, bias, grad_bias, "bias", max_tests_per_param) &&
+            all_pass;
     } else {
         printf("    bias or grad_bias missing (bias may be disabled)\n");
     }
@@ -345,10 +343,10 @@ static bool test_conv_gradient_config(size_t in_channels, size_t out_channels,
 int main() {
     // Enable gradient analysis for detailed error reporting
     enable_gradient_analysis = true;
-    use_double_precision_numerical = true;  // Use double precision for numerical gradient computation
+    use_double_precision_numerical =
+        true; // Use double precision for numerical gradient computation
     printf("Gradient analysis enabled: %s, Double precision: %s\n",
-           enable_gradient_analysis ? "yes" : "no",
-           use_double_precision_numerical ? "yes" : "no");
+           enable_gradient_analysis ? "yes" : "no", use_double_precision_numerical ? "yes" : "no");
 
     // Debug: write to file to verify execution
     FILE* debug = fopen("debug_test_conv.txt", "w");

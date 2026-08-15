@@ -22,31 +22,31 @@ extern "C" {
 
 // GGUF metadata value types
 typedef enum {
-    GGUF_TYPE_UINT8   = 0,
-    GGUF_TYPE_INT8    = 1,
-    GGUF_TYPE_UINT16  = 2,
-    GGUF_TYPE_INT16   = 3,
-    GGUF_TYPE_UINT32  = 4,
-    GGUF_TYPE_INT32   = 5,
+    GGUF_TYPE_UINT8 = 0,
+    GGUF_TYPE_INT8 = 1,
+    GGUF_TYPE_UINT16 = 2,
+    GGUF_TYPE_INT16 = 3,
+    GGUF_TYPE_UINT32 = 4,
+    GGUF_TYPE_INT32 = 5,
     GGUF_TYPE_FLOAT32 = 6,
-    GGUF_TYPE_BOOL    = 7,
-    GGUF_TYPE_STRING  = 8,
-    GGUF_TYPE_ARRAY   = 9,
-    GGUF_TYPE_UINT64  = 10,
-    GGUF_TYPE_INT64   = 11,
+    GGUF_TYPE_BOOL = 7,
+    GGUF_TYPE_STRING = 8,
+    GGUF_TYPE_ARRAY = 9,
+    GGUF_TYPE_UINT64 = 10,
+    GGUF_TYPE_INT64 = 11,
     GGUF_TYPE_FLOAT64 = 12,
 } gguf_type_t;
 
 // GGML tensor data types (subset relevant to GGUF)
 typedef enum {
-    GGML_TYPE_F32   = 0,
-    GGML_TYPE_F16   = 1,
-    GGML_TYPE_Q4_0  = 2,
-    GGML_TYPE_Q4_1  = 3,
-    GGML_TYPE_Q5_0  = 6,
-    GGML_TYPE_Q5_1  = 7,
-    GGML_TYPE_Q8_0  = 8,
-    GGML_TYPE_Q8_1  = 9,
+    GGML_TYPE_F32 = 0,
+    GGML_TYPE_F16 = 1,
+    GGML_TYPE_Q4_0 = 2,
+    GGML_TYPE_Q4_1 = 3,
+    GGML_TYPE_Q5_0 = 6,
+    GGML_TYPE_Q5_1 = 7,
+    GGML_TYPE_Q8_0 = 8,
+    GGML_TYPE_Q8_1 = 9,
 } ggml_type_t;
 
 // Load GGUF model from file

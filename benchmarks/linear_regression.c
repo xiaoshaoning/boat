@@ -24,11 +24,8 @@ typedef struct {
 } benchmark_result_t;
 
 // Generate synthetic linear regression data: y = Wx + b + noise
-static void generate_linear_data(
-    boat_tensor_t** x_out, boat_tensor_t** y_out,
-    int num_samples, int input_dim, int output_dim,
-    float noise_std
-) {
+static void generate_linear_data(boat_tensor_t** x_out, boat_tensor_t** y_out, int num_samples,
+                                 int input_dim, int output_dim, float noise_std) {
     // Create input tensor: [num_samples, input_dim]
     int64_t x_shape[] = {num_samples, input_dim};
     *x_out = boat_tensor_create(x_shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
@@ -99,12 +96,8 @@ static void generate_linear_data(
 }
 
 // Simple linear model: y = xW + b
-static boat_variable_t* linear_model(
-    const boat_variable_t* x,
-    boat_variable_t* W,
-    boat_variable_t* b,
-    boat_variable_t** xW_out
-) {
+static boat_variable_t* linear_model(const boat_variable_t* x, boat_variable_t* W,
+                                     boat_variable_t* b, boat_variable_t** xW_out) {
     // x shape: [batch, input_dim]
     // W shape: [input_dim, output_dim]
     // b shape: [output_dim]
@@ -119,17 +112,10 @@ static boat_variable_t* linear_model(
 }
 
 // Run training with given optimizer and scheduler
-static benchmark_result_t run_training(
-    const char* optimizer_name,
-    boat_optimizer_t* optimizer,
-    boat_scheduler_t* scheduler,
-    boat_variable_t* W,
-    const boat_variable_t* b,
-    boat_tensor_t* x_data,
-    boat_tensor_t* y_data,
-    int max_steps,
-    float loss_threshold
-) {
+static benchmark_result_t run_training(const char* optimizer_name, boat_optimizer_t* optimizer,
+                                       boat_scheduler_t* scheduler, boat_variable_t* W,
+                                       const boat_variable_t* b, boat_tensor_t* x_data,
+                                       boat_tensor_t* y_data, int max_steps, float loss_threshold) {
     benchmark_result_t result = {0};
     result.optimizer_name = optimizer_name;
     result.scheduler_name = scheduler ? "with scheduler" : "no scheduler";
@@ -141,7 +127,8 @@ static benchmark_result_t run_training(
 
     // Convert data to variables
     boat_variable_t* x_var = boat_variable_create(x_data, false); // No gradient needed for input
-    boat_variable_t* y_true_var = boat_variable_create(y_data, false); // No gradient needed for target
+    boat_variable_t* y_true_var =
+        boat_variable_create(y_data, false); // No gradient needed for target
 
     bool params_registered = false;
 
@@ -285,9 +272,9 @@ void run_optimizer_benchmark() {
         return;
     }
 
-    printf("Data shape: x=%lldx%lld, y=%lldx%lld\n\n",
-           boat_tensor_shape(x_data)[0], boat_tensor_shape(x_data)[1],
-           boat_tensor_shape(y_data)[0], boat_tensor_shape(y_data)[1]);
+    printf("Data shape: x=%lldx%lld, y=%lldx%lld\n\n", boat_tensor_shape(x_data)[0],
+           boat_tensor_shape(x_data)[1], boat_tensor_shape(y_data)[0],
+           boat_tensor_shape(y_data)[1]);
 
     // Initialize parameters (will be reset for each optimizer)
     int64_t W_shape[] = {input_dim, output_dim};
@@ -317,11 +304,12 @@ void run_optimizer_benchmark() {
         }
 
         // Create optimizer
-        boat_optimizer_t* optimizer = boat_adam_optimizer_create(learning_rate, 0.9f, 0.999f, 1e-8f);
+        boat_optimizer_t* optimizer =
+            boat_adam_optimizer_create(learning_rate, 0.9f, 0.999f, 1e-8f);
 
         // Run training
-        results[result_count] = run_training(
-            "Adam", optimizer, NULL, W, b, x_data, y_data, max_steps, loss_threshold);
+        results[result_count] =
+            run_training("Adam", optimizer, NULL, W, b, x_data, y_data, max_steps, loss_threshold);
         result_count++;
 
         // Cleanup
@@ -350,14 +338,15 @@ void run_optimizer_benchmark() {
         }
 
         // Create optimizer
-        boat_optimizer_t* optimizer = boat_adam_optimizer_create(learning_rate, 0.9f, 0.999f, 1e-8f);
+        boat_optimizer_t* optimizer =
+            boat_adam_optimizer_create(learning_rate, 0.9f, 0.999f, 1e-8f);
 
         // Create scheduler
         boat_scheduler_t* scheduler = boat_step_lr_scheduler_create(learning_rate, 200, 0.5f);
 
         // Run training
-        results[result_count] = run_training(
-            "Adam+StepLR", optimizer, scheduler, W, b, x_data, y_data, max_steps, loss_threshold);
+        results[result_count] = run_training("Adam+StepLR", optimizer, scheduler, W, b, x_data,
+                                             y_data, max_steps, loss_threshold);
         result_count++;
 
         // Cleanup
@@ -390,8 +379,8 @@ void run_optimizer_benchmark() {
         boat_optimizer_t* optimizer = boat_rmsprop_optimizer_create(learning_rate, 0.99f, 1e-8f);
 
         // Run training
-        results[result_count] = run_training(
-            "RMSprop", optimizer, NULL, W, b, x_data, y_data, max_steps, loss_threshold);
+        results[result_count] = run_training("RMSprop", optimizer, NULL, W, b, x_data, y_data,
+                                             max_steps, loss_threshold);
         result_count++;
 
         // Cleanup
@@ -423,8 +412,8 @@ void run_optimizer_benchmark() {
         boat_optimizer_t* optimizer = boat_adagrad_optimizer_create(learning_rate, 1e-8f);
 
         // Run training
-        results[result_count] = run_training(
-            "Adagrad", optimizer, NULL, W, b, x_data, y_data, max_steps, loss_threshold);
+        results[result_count] = run_training("Adagrad", optimizer, NULL, W, b, x_data, y_data,
+                                             max_steps, loss_threshold);
         result_count++;
 
         // Cleanup
@@ -436,17 +425,14 @@ void run_optimizer_benchmark() {
     // Print summary
     printf("\n\nBenchmark Results Summary\n");
     printf("=========================\n");
-    printf("%-20s %-20s %-15s %-15s %-15s\n",
-           "Optimizer", "Scheduler", "Steps to Converge", "Final Loss", "Time (ms)");
-    printf("%-20s %-20s %-15s %-15s %-15s\n",
-           "---------", "---------", "-----------------", "----------", "---------");
+    printf("%-20s %-20s %-15s %-15s %-15s\n", "Optimizer", "Scheduler", "Steps to Converge",
+           "Final Loss", "Time (ms)");
+    printf("%-20s %-20s %-15s %-15s %-15s\n", "---------", "---------", "-----------------",
+           "----------", "---------");
 
     for (int i = 0; i < result_count; i++) {
-        printf("%-20s %-20s %-15d %-15.6f %-15.2f\n",
-               results[i].optimizer_name,
-               results[i].scheduler_name,
-               results[i].steps_to_converge,
-               results[i].final_loss,
+        printf("%-20s %-20s %-15d %-15.6f %-15.2f\n", results[i].optimizer_name,
+               results[i].scheduler_name, results[i].steps_to_converge, results[i].final_loss,
                results[i].training_time_ms);
     }
 

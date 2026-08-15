@@ -15,8 +15,7 @@ static inline float silu(float x) {
 }
 
 // C = A * B  where A[M,K] * B[K,N] -> C[M,N]
-static void matmul(const float* A, const float* B, float* C,
-                   int M, int K, int N) {
+static void matmul(const float* A, const float* B, float* C, int M, int K, int N) {
     for (int i = 0; i < M; i++) {
         for (int j = 0; j < N; j++) {
             float sum = 0.0f;
@@ -34,24 +33,27 @@ void rmsnorm(float* x, const float* weight, int n_rows, int dim, float eps) {
     for (int r = 0; r < n_rows; r++) {
         float* row = x + r * dim;
         float sum_sq = 0.0f;
-        for (int i = 0; i < dim; i++) sum_sq += row[i] * row[i];
+        for (int i = 0; i < dim; i++)
+            sum_sq += row[i] * row[i];
         float inv_rms = 1.0f / sqrtf(sum_sq / dim + eps);
-        for (int i = 0; i < dim; i++) row[i] = row[i] * inv_rms * weight[i];
+        for (int i = 0; i < dim; i++)
+            row[i] = row[i] * inv_rms * weight[i];
     }
 }
 
 // --- QK-Norm: per-head RMSNorm ---
 // q_buf: [n_tokens, num_heads * head_dim] = [n, 768]
 // k_buf: [n_tokens, num_kv_heads * head_dim] = [n, 384]
-static void qk_norm(float* q_buf, float* k_buf, int n_tokens,
-                    const float* q_norm_w, const float* k_norm_w,
-                    int num_heads, int num_kv_heads, int head_dim, float eps) {
+static void qk_norm(float* q_buf, float* k_buf, int n_tokens, const float* q_norm_w,
+                    const float* k_norm_w, int num_heads, int num_kv_heads, int head_dim,
+                    float eps) {
     // Q: 8 heads, each 96-dim
     for (int t = 0; t < n_tokens; t++) {
         for (int h = 0; h < num_heads; h++) {
             float* head = q_buf + (t * num_heads + h) * head_dim;
             float sum_sq = 0.0f;
-            for (int i = 0; i < head_dim; i++) sum_sq += head[i] * head[i];
+            for (int i = 0; i < head_dim; i++)
+                sum_sq += head[i] * head[i];
             float inv_rms = 1.0f / sqrtf(sum_sq / head_dim + eps);
             for (int i = 0; i < head_dim; i++)
                 head[i] = head[i] * inv_rms * q_norm_w[i];
@@ -62,7 +64,8 @@ static void qk_norm(float* q_buf, float* k_buf, int n_tokens,
         for (int h = 0; h < num_kv_heads; h++) {
             float* head = k_buf + (t * num_kv_heads + h) * head_dim;
             float sum_sq = 0.0f;
-            for (int i = 0; i < head_dim; i++) sum_sq += head[i] * head[i];
+            for (int i = 0; i < head_dim; i++)
+                sum_sq += head[i] * head[i];
             float inv_rms = 1.0f / sqrtf(sum_sq / head_dim + eps);
             for (int i = 0; i < head_dim; i++)
                 head[i] = head[i] * inv_rms * k_norm_w[i];
@@ -73,8 +76,8 @@ static void qk_norm(float* q_buf, float* k_buf, int n_tokens,
 // --- RoPE ---
 // cos/sin tables: [max_seq_len, head_dim]
 static void apply_rope(float* q_buf, float* k_buf, int n_tokens, int start_pos,
-                       const float* cos_table, const float* sin_table,
-                       int num_heads, int num_kv_heads, int head_dim, int max_seq_len) {
+                       const float* cos_table, const float* sin_table, int num_heads,
+                       int num_kv_heads, int head_dim, int max_seq_len) {
     for (int t = 0; t < n_tokens; t++) {
         int pos = start_pos + t;
         const float* cos = cos_table + pos * head_dim;
@@ -86,7 +89,7 @@ static void apply_rope(float* q_buf, float* k_buf, int n_tokens, int start_pos,
             for (int i = 0; i < head_dim / 2; i++) {
                 float x0 = head[2 * i];
                 float x1 = head[2 * i + 1];
-                head[2 * i]     = x0 * cos[2 * i] - x1 * sin[2 * i];
+                head[2 * i] = x0 * cos[2 * i] - x1 * sin[2 * i];
                 head[2 * i + 1] = x1 * cos[2 * i] + x0 * sin[2 * i];
             }
         }
@@ -96,7 +99,7 @@ static void apply_rope(float* q_buf, float* k_buf, int n_tokens, int start_pos,
             for (int i = 0; i < head_dim / 2; i++) {
                 float x0 = head[2 * i];
                 float x1 = head[2 * i + 1];
-                head[2 * i]     = x0 * cos[2 * i] - x1 * sin[2 * i];
+                head[2 * i] = x0 * cos[2 * i] - x1 * sin[2 * i];
                 head[2 * i + 1] = x1 * cos[2 * i] + x0 * sin[2 * i];
             }
         }
@@ -107,9 +110,8 @@ static void apply_rope(float* q_buf, float* k_buf, int n_tokens, int start_pos,
 // Q: [n_tokens, 8, 96], K: [kv_len, 4, 96], V: [kv_len, 4, 96]
 // Output: [n_tokens, 768]
 static void gqa_attention_prefill(const float* q, const float* k_cache, const float* v_cache,
-                                   int n_tokens, int kv_len,
-                                   int num_heads, int num_kv_heads, int head_dim,
-                                   float* output) {
+                                  int n_tokens, int kv_len, int num_heads, int num_kv_heads,
+                                  int head_dim, float* output) {
     float scale = 1.0f / sqrtf((float)head_dim);
     int n_rep = num_heads / num_kv_heads; // 2
 
@@ -119,7 +121,9 @@ static void gqa_attention_prefill(const float* q, const float* k_cache, const fl
             int kv_h = h / n_rep;
             const float* q_head = q + (t * num_heads + h) * head_dim;
             int attend_len = kv_len - (n_tokens - 1 - t); // causal: only positions <= current token
-            if (attend_len <= 0) { attend_len = kv_len; } // prefill: past tokens are all visible
+            if (attend_len <= 0) {
+                attend_len = kv_len;
+            } // prefill: past tokens are all visible
 
             // Compute scores
             float* scores = (float*)malloc(attend_len * sizeof(float));
@@ -127,7 +131,8 @@ static void gqa_attention_prefill(const float* q, const float* k_cache, const fl
             for (int k = 0; k < attend_len; k++) {
                 const float* k_head = k_cache + k * num_kv_heads * head_dim + kv_h * head_dim;
                 float dot = 0.0f;
-                for (int d = 0; d < head_dim; d++) dot += q_head[d] * k_head[d];
+                for (int d = 0; d < head_dim; d++)
+                    dot += q_head[d] * k_head[d];
                 scores[k] = dot * scale;
                 if (scores[k] > max_score) max_score = scores[k];
             }
@@ -138,7 +143,8 @@ static void gqa_attention_prefill(const float* q, const float* k_cache, const fl
                 scores[k] = expf(scores[k] - max_score);
                 sum += scores[k];
             }
-            for (int k = 0; k < attend_len; k++) scores[k] /= sum;
+            for (int k = 0; k < attend_len; k++)
+                scores[k] /= sum;
 
             // Weighted sum of V
             float* out_head = output + (t * num_heads + h) * head_dim;
@@ -156,9 +162,8 @@ static void gqa_attention_prefill(const float* q, const float* k_cache, const fl
 // --- GQA Attention (single token decode) ---
 // Q: [1, 8, 96], K: [kv_len, 4, 96], V: [kv_len, 4, 96]
 static void gqa_attention_decode(const float* q, const float* k_cache, const float* v_cache,
-                                  int kv_len,
-                                  int num_heads, int num_kv_heads, int head_dim,
-                                  float* output) {
+                                 int kv_len, int num_heads, int num_kv_heads, int head_dim,
+                                 float* output) {
     float scale = 1.0f / sqrtf((float)head_dim);
     int n_rep = num_heads / num_kv_heads;
 
@@ -171,7 +176,8 @@ static void gqa_attention_decode(const float* q, const float* k_cache, const flo
         for (int k = 0; k < kv_len; k++) {
             const float* k_head = k_cache + k * num_kv_heads * head_dim + kv_h * head_dim;
             float dot = 0.0f;
-            for (int d = 0; d < head_dim; d++) dot += q_head[d] * k_head[d];
+            for (int d = 0; d < head_dim; d++)
+                dot += q_head[d] * k_head[d];
             scores[k] = dot * scale;
             if (scores[k] > max_score) max_score = scores[k];
         }
@@ -181,7 +187,8 @@ static void gqa_attention_decode(const float* q, const float* k_cache, const flo
             scores[k] = expf(scores[k] - max_score);
             sum += scores[k];
         }
-        for (int k = 0; k < kv_len; k++) scores[k] /= sum;
+        for (int k = 0; k < kv_len; k++)
+            scores[k] /= sum;
 
         float* out_head = output + h * head_dim;
         memset(out_head, 0, head_dim * sizeof(float));
@@ -199,10 +206,9 @@ static void gqa_attention_decode(const float* q, const float* k_cache, const flo
 // up: input @ up_proj -> [n, int_dim]
 // down_input = silu(gate[i]) * up[i]
 // output = down_input @ down_proj -> [n, hidden]
-static void swiglu_ffn(const float* input, int n_tokens,
-                       const float* gate_proj, const float* up_proj, const float* down_proj,
-                       int hidden_size, int intermediate_size,
-                       float* gate_buf, float* up_buf, float* output) {
+static void swiglu_ffn(const float* input, int n_tokens, const float* gate_proj,
+                       const float* up_proj, const float* down_proj, int hidden_size,
+                       int intermediate_size, float* gate_buf, float* up_buf, float* output) {
     matmul(input, gate_proj, gate_buf, n_tokens, hidden_size, intermediate_size);
     matmul(input, up_proj, up_buf, n_tokens, hidden_size, intermediate_size);
 
@@ -217,8 +223,7 @@ static void swiglu_ffn(const float* input, int n_tokens,
 
 // --- Single layer forward ---
 // (non-static for debug comparison)
-void layer_forward(minimind_model_t* m, int layer_idx, float* hidden,
-                           int n_tokens, int start_pos) {
+void layer_forward(minimind_model_t* m, int layer_idx, float* hidden, int n_tokens, int start_pos) {
     minimind_config_t* cfg = &m->config;
     int HS = cfg->hidden_size;
     int NH = cfg->num_heads;
@@ -237,43 +242,45 @@ void layer_forward(minimind_model_t* m, int layer_idx, float* hidden,
     matmul(m->hidden2, m->v_proj[layer_idx], m->v_buf, n_tokens, HS, NKH * HD);
 
     // c) QK-Norm
-    qk_norm(m->q_buf, m->k_buf, n_tokens,
-            m->q_norm_weight[layer_idx], m->k_norm_weight[layer_idx],
+    qk_norm(m->q_buf, m->k_buf, n_tokens, m->q_norm_weight[layer_idx], m->k_norm_weight[layer_idx],
             NH, NKH, HD, eps);
 
     // d) RoPE
-    apply_rope(m->q_buf, m->k_buf, n_tokens, start_pos,
-               m->cos_table, m->sin_table, NH, NKH, HD, m->max_seq_len);
+    apply_rope(m->q_buf, m->k_buf, n_tokens, start_pos, m->cos_table, m->sin_table, NH, NKH, HD,
+               m->max_seq_len);
 
     // e) KV cache: append
     int kv_dim = NKH * HD;
     int cur_kv_len = m->kv_len;
-    memcpy(m->k_cache[layer_idx] + cur_kv_len * kv_dim, m->k_buf, (size_t)n_tokens * kv_dim * sizeof(float));
-    memcpy(m->v_cache[layer_idx] + cur_kv_len * kv_dim, m->v_buf, (size_t)n_tokens * kv_dim * sizeof(float));
+    memcpy(m->k_cache[layer_idx] + cur_kv_len * kv_dim, m->k_buf,
+           (size_t)n_tokens * kv_dim * sizeof(float));
+    memcpy(m->v_cache[layer_idx] + cur_kv_len * kv_dim, m->v_buf,
+           (size_t)n_tokens * kv_dim * sizeof(float));
 
     // f) GQA attention
     int total_kv = cur_kv_len + n_tokens;
     if (n_tokens > 1) {
-        gqa_attention_prefill(m->q_buf, m->k_cache[layer_idx], m->v_cache[layer_idx],
-                              n_tokens, total_kv, NH, NKH, HD, m->attn_out);
+        gqa_attention_prefill(m->q_buf, m->k_cache[layer_idx], m->v_cache[layer_idx], n_tokens,
+                              total_kv, NH, NKH, HD, m->attn_out);
     } else {
-        gqa_attention_decode(m->q_buf, m->k_cache[layer_idx], m->v_cache[layer_idx],
-                             total_kv, NH, NKH, HD, m->attn_out);
+        gqa_attention_decode(m->q_buf, m->k_cache[layer_idx], m->v_cache[layer_idx], total_kv, NH,
+                             NKH, HD, m->attn_out);
     }
 
     // g) Output projection + residual
     matmul(m->attn_out, m->o_proj[layer_idx], m->hidden2, n_tokens, HS, HS);
-    for (int i = 0; i < n_tokens * HS; i++) hidden[i] += m->hidden2[i];
+    for (int i = 0; i < n_tokens * HS; i++)
+        hidden[i] += m->hidden2[i];
 
     // h) Post-attention RMSNorm
     memcpy(m->hidden2, hidden, (size_t)n_tokens * HS * sizeof(float));
     rmsnorm(m->hidden2, m->post_attention_layernorm_weight[layer_idx], n_tokens, HS, eps);
 
     // i) SwiGLU FFN + residual
-    swiglu_ffn(m->hidden2, n_tokens,
-               m->gate_proj[layer_idx], m->up_proj[layer_idx], m->down_proj[layer_idx],
-               HS, IS, m->ffn_gate, m->ffn_up, m->attn_out);
-    for (int i = 0; i < n_tokens * HS; i++) hidden[i] += m->attn_out[i];
+    swiglu_ffn(m->hidden2, n_tokens, m->gate_proj[layer_idx], m->up_proj[layer_idx],
+               m->down_proj[layer_idx], HS, IS, m->ffn_gate, m->ffn_up, m->attn_out);
+    for (int i = 0; i < n_tokens * HS; i++)
+        hidden[i] += m->attn_out[i];
 }
 
 // ===== Public API =====
@@ -295,8 +302,7 @@ void minimind_model_free(minimind_model_t* m) {
     minimind_weights_free(m);
 }
 
-void minimind_prefill(minimind_model_t* m, const int* tokens, int n_tokens,
-                       float* logits_out) {
+void minimind_prefill(minimind_model_t* m, const int* tokens, int n_tokens, float* logits_out) {
     int HS = m->config.hidden_size;
     int VS = m->config.vocab_size;
 
@@ -307,8 +313,7 @@ void minimind_prefill(minimind_model_t* m, const int* tokens, int n_tokens,
     for (int t = 0; t < n_tokens; t++) {
         int tid = tokens[t];
         if (tid < 0 || tid >= VS) tid = 0;
-        memcpy(m->hidden + t * HS, m->embed_tokens + (size_t)tid * HS,
-               HS * sizeof(float));
+        memcpy(m->hidden + t * HS, m->embed_tokens + (size_t)tid * HS, HS * sizeof(float));
     }
 
     // Forward through all layers
@@ -325,7 +330,8 @@ void minimind_prefill(minimind_model_t* m, const int* tokens, int n_tokens,
     for (int v = 0; v < VS; v++) {
         const float* emb_row = m->lm_head + (size_t)v * HS;
         float dot = 0.0f;
-        for (int i = 0; i < HS; i++) dot += last_hidden[i] * emb_row[i];
+        for (int i = 0; i < HS; i++)
+            dot += last_hidden[i] * emb_row[i];
         logits_out[v] = dot;
     }
 }
@@ -352,7 +358,8 @@ void minimind_decode(minimind_model_t* m, int token, float* logits_out) {
     for (int v = 0; v < VS; v++) {
         const float* emb_row = m->lm_head + (size_t)v * HS;
         float dot = 0.0f;
-        for (int i = 0; i < HS; i++) dot += m->hidden[i] * emb_row[i];
+        for (int i = 0; i < HS; i++)
+            dot += m->hidden[i] * emb_row[i];
         logits_out[v] = dot;
     }
 }

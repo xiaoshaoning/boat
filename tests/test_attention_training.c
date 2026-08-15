@@ -25,7 +25,8 @@ static float compute_mse_loss(const boat_tensor_t* output, const boat_tensor_t* 
 }
 
 // Create gradient tensor for MSE loss: dL/doutput = 2*(output - target)/n
-static boat_tensor_t* create_mse_gradient(const boat_tensor_t* output, const boat_tensor_t* target) {
+static boat_tensor_t* create_mse_gradient(const boat_tensor_t* output,
+                                          const boat_tensor_t* target) {
     boat_tensor_t* grad = boat_tensor_create_like(output);
     if (!grad) return NULL;
 
@@ -44,16 +45,14 @@ int main() {
     printf("=== Attention Layer End-to-End Training Test ===\n\n");
 
     // Configuration for a small attention layer
-    boat_attention_config_t config = {
-        .hidden_size = 32,
-        .num_heads = 4,
-        .head_size = 8,
-        .dropout_prob = 0.0f,  // No dropout for deterministic test
-        .causal_mask = false,
-        .use_bias = true,
-        .use_rotary = false,
-        .rotary_theta = 10000.0f
-    };
+    boat_attention_config_t config = {.hidden_size = 32,
+                                      .num_heads = 4,
+                                      .head_size = 8,
+                                      .dropout_prob = 0.0f, // No dropout for deterministic test
+                                      .causal_mask = false,
+                                      .use_bias = true,
+                                      .use_rotary = false,
+                                      .rotary_theta = 10000.0f};
 
     // Create attention layer
     boat_attention_t* attention = boat_attention_create(&config);

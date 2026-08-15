@@ -11,12 +11,13 @@
 
 // Huber loss structure
 typedef struct {
-    boat_loss_type_t type;  // Always BOAT_LOSS_HUBER
-    float delta;            // Huber delta parameter
+    boat_loss_type_t type; // Always BOAT_LOSS_HUBER
+    float delta;           // Huber delta parameter
 } huber_loss_t;
 
 // Forward declaration for dispatch
-float huber_loss_compute(boat_loss_t* loss_ptr, const void* predictions_ptr, const void* targets_ptr);
+float huber_loss_compute(boat_loss_t* loss_ptr, const void* predictions_ptr,
+                         const void* targets_ptr);
 
 // Create Huber loss function with specified delta
 BOAT_API boat_loss_t* boat_huber_loss_create(float delta) {
@@ -36,7 +37,8 @@ BOAT_API boat_loss_t* boat_huber_loss_create(float delta) {
 }
 
 // Compute Huber loss between predictions and targets
-float huber_loss_compute(boat_loss_t* loss_ptr, const void* predictions_ptr, const void* targets_ptr) {
+float huber_loss_compute(boat_loss_t* loss_ptr, const void* predictions_ptr,
+                         const void* targets_ptr) {
     if (!loss_ptr || !predictions_ptr || !targets_ptr) {
         return 0.0f;
     }
@@ -93,7 +95,8 @@ float huber_loss_compute(boat_loss_t* loss_ptr, const void* predictions_ptr, con
 }
 
 // Compute Huber backward gradient
-boat_tensor_t* huber_loss_backward(boat_loss_t* loss_ptr, const void* predictions_ptr, const void* targets_ptr) {
+boat_tensor_t* huber_loss_backward(boat_loss_t* loss_ptr, const void* predictions_ptr,
+                                   const void* targets_ptr) {
     if (!loss_ptr || !predictions_ptr || !targets_ptr) {
         return NULL;
     }

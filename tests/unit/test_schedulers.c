@@ -98,7 +98,8 @@ int main() {
 
             // Manual calculation for verification
             float step = (float)(i + 1);
-            float expected = 0.01f + 0.5f * (0.1f - 0.01f) * (1.0f + cosf(3.14159265358979323846f * step / 20.0f));
+            float expected = 0.01f + 0.5f * (0.1f - 0.01f) *
+                                         (1.0f + cosf(3.14159265358979323846f * step / 20.0f));
 
             assert(float_equal(lr, expected, 1e-6f));
         }

@@ -19,7 +19,8 @@ int main() {
 
     // Set custom weight (3x2 matrix)
     int64_t weight_shape[] = {3, 2};
-    boat_tensor_t* weight = boat_tensor_create(weight_shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    boat_tensor_t* weight =
+        boat_tensor_create(weight_shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!weight) {
         fprintf(stderr, "Failed to create weight tensor\n");
         boat_dense_layer_free(dense);
@@ -27,9 +28,12 @@ int main() {
     }
     float* weight_data = (float*)boat_tensor_data(weight);
     // Simple weights: identity-like (but 3x2)
-    weight_data[0] = 1.0f; weight_data[1] = 0.0f;  // row 0
-    weight_data[2] = 0.0f; weight_data[3] = 1.0f;  // row 1
-    weight_data[4] = 0.5f; weight_data[5] = 0.5f;  // row 2
+    weight_data[0] = 1.0f;
+    weight_data[1] = 0.0f; // row 0
+    weight_data[2] = 0.0f;
+    weight_data[3] = 1.0f; // row 1
+    weight_data[4] = 0.5f;
+    weight_data[5] = 0.5f; // row 2
     boat_dense_layer_set_weight(dense, weight);
     boat_tensor_unref(weight); // layer now owns weight
 
@@ -57,8 +61,12 @@ int main() {
     }
     float* input_data = (float*)boat_tensor_data(input);
     // Simple input: two samples
-    input_data[0] = 1.0f; input_data[1] = 0.0f; input_data[2] = 0.0f; // sample 1
-    input_data[3] = 0.0f; input_data[4] = 1.0f; input_data[5] = 0.0f; // sample 2
+    input_data[0] = 1.0f;
+    input_data[1] = 0.0f;
+    input_data[2] = 0.0f; // sample 1
+    input_data[3] = 0.0f;
+    input_data[4] = 1.0f;
+    input_data[5] = 0.0f; // sample 2
 
     // Forward pass
     boat_tensor_t* output = boat_dense_layer_forward(dense, input);
@@ -77,8 +85,9 @@ int main() {
     printf("]\n");
 
     // Expected output calculation:
-    // Sample 1: [1,0,0] @ [[1,0],[0,1],[0.5,0.5]] + [0.1,0.2] = [1*1+0*0+0*0.5, 1*0+0*1+0*0.5] + [0.1,0.2] = [1.0, 0.0] + [0.1,0.2] = [1.1, 0.2]
-    // Sample 2: [0,1,0] @ ... = [0*1+1*0+0*0.5, 0*0+1*1+0*0.5] + [0.1,0.2] = [0.0, 1.0] + [0.1,0.2] = [0.1, 1.2]
+    // Sample 1: [1,0,0] @ [[1,0],[0,1],[0.5,0.5]] + [0.1,0.2] = [1*1+0*0+0*0.5, 1*0+0*1+0*0.5] +
+    // [0.1,0.2] = [1.0, 0.0] + [0.1,0.2] = [1.1, 0.2] Sample 2: [0,1,0] @ ... = [0*1+1*0+0*0.5,
+    // 0*0+1*1+0*0.5] + [0.1,0.2] = [0.0, 1.0] + [0.1,0.2] = [0.1, 1.2]
     float* output_data = (float*)boat_tensor_data(output);
     float expected[4] = {1.1f, 0.2f, 0.1f, 1.2f};
     float tolerance = 1e-5f;

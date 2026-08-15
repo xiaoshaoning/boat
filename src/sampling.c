@@ -8,7 +8,10 @@
 #include <string.h>
 #include <float.h>
 
-typedef struct { float val; int idx; } val_idx_t;
+typedef struct {
+    float val;
+    int idx;
+} val_idx_t;
 
 static int cmp_desc(const void* a, const void* b) {
     const val_idx_t* pa = (const val_idx_t*)a;
@@ -16,8 +19,7 @@ static int cmp_desc(const void* a, const void* b) {
     return (pa->val > pb->val) ? -1 : (pa->val < pb->val) ? 1 : 0;
 }
 
-BOAT_API int boat_sample_token(const float* logits, int vocab_size,
-                       int top_k, float temperature) {
+BOAT_API int boat_sample_token(const float* logits, int vocab_size, int top_k, float temperature) {
     if (!logits || vocab_size <= 0) {
         return 0;
     }

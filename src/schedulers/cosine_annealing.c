@@ -17,8 +17,7 @@
 
 // Create CosineAnnealing scheduler
 BOAT_API boat_scheduler_t* boat_cosine_annealing_scheduler_create(float base_learning_rate,
-                                                                  int T_max,
-                                                                  float eta_min) {
+                                                                  int T_max, float eta_min) {
     // Validate hyperparameters
     if (base_learning_rate <= 0.0f) {
         return NULL;
@@ -35,7 +34,8 @@ BOAT_API boat_scheduler_t* boat_cosine_annealing_scheduler_create(float base_lea
     }
 
     // Allocate scheduler state
-    boat_cosine_annealing_state_t* state = (boat_cosine_annealing_state_t*)boat_malloc(sizeof(boat_cosine_annealing_state_t), BOAT_DEVICE_CPU);
+    boat_cosine_annealing_state_t* state = (boat_cosine_annealing_state_t*)boat_malloc(
+        sizeof(boat_cosine_annealing_state_t), BOAT_DEVICE_CPU);
     if (!state) {
         return NULL;
     }
@@ -72,7 +72,8 @@ void cosine_annealing_scheduler_step(boat_scheduler_t* scheduler) {
     }
 
     float cos_factor = cosf(3.14159265358979323846f * step / T_max_f);
-    float new_lr = state->eta_min + 0.5f * (state->header.base_learning_rate - state->eta_min) * (1.0f + cos_factor);
+    float new_lr = state->eta_min +
+                   0.5f * (state->header.base_learning_rate - state->eta_min) * (1.0f + cos_factor);
 
     // Update last learning rate
     state->header.last_learning_rate = new_lr;
@@ -113,7 +114,8 @@ float cosine_annealing_scheduler_get_next_lr(const boat_scheduler_t* scheduler) 
     }
 
     float cos_factor = cosf(3.14159265358979323846f * step / T_max_f);
-    float next_lr = state->eta_min + 0.5f * (state->header.base_learning_rate - state->eta_min) * (1.0f + cos_factor);
+    float next_lr = state->eta_min + 0.5f * (state->header.base_learning_rate - state->eta_min) *
+                                         (1.0f + cos_factor);
 
     return next_lr;
 }

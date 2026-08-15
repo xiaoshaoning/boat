@@ -22,40 +22,40 @@ typedef struct boat_tensor_t boat_tensor_t;
 // Data type enumeration
 typedef enum {
     // Standard floating point types
-    BOAT_DTYPE_FLOAT64,   // 64-bit floating point (double)
-    BOAT_DTYPE_FLOAT32,   // 32-bit floating point (float)
-    BOAT_DTYPE_FLOAT16,   // 16-bit floating point (half precision)
+    BOAT_DTYPE_FLOAT64, // 64-bit floating point (double)
+    BOAT_DTYPE_FLOAT32, // 32-bit floating point (float)
+    BOAT_DTYPE_FLOAT16, // 16-bit floating point (half precision)
 
     // Custom floating point types
-    BOAT_DTYPE_FLOAT8,    // 8-bit floating point (custom format)
-    BOAT_DTYPE_FLOAT4,    // 4-bit floating point (custom format)
+    BOAT_DTYPE_FLOAT8, // 8-bit floating point (custom format)
+    BOAT_DTYPE_FLOAT4, // 4-bit floating point (custom format)
 
     // Integer types
-    BOAT_DTYPE_INT64,     // 64-bit integer
-    BOAT_DTYPE_INT32,     // 32-bit integer
-    BOAT_DTYPE_UINT8,     // 8-bit unsigned integer
+    BOAT_DTYPE_INT64, // 64-bit integer
+    BOAT_DTYPE_INT32, // 32-bit integer
+    BOAT_DTYPE_UINT8, // 8-bit unsigned integer
 
     // Low-bit quantization types
-    BOAT_DTYPE_BITS2,     // 2-bit packed values
-    BOAT_DTYPE_BITS1,     // 1-bit packed values (binary)
+    BOAT_DTYPE_BITS2, // 2-bit packed values
+    BOAT_DTYPE_BITS1, // 1-bit packed values (binary)
 
     // Special types
-    BOAT_DTYPE_BOOL,      // boolean (1 byte per element)
+    BOAT_DTYPE_BOOL, // boolean (1 byte per element)
 
     // Future types (at end for backward compat with serialization)
-    BOAT_DTYPE_INT8,      // 8-bit signed integer
-    BOAT_DTYPE_BFLOAT16,  // 16-bit brain floating point (BF16)
+    BOAT_DTYPE_INT8,     // 8-bit signed integer
+    BOAT_DTYPE_BFLOAT16, // 16-bit brain floating point (BF16)
 
-    BOAT_DTYPE_COUNT      // number of data types
+    BOAT_DTYPE_COUNT // number of data types
 } boat_dtype_t;
 
 // Device type (CPU or GPU)
 #ifndef BOAT_DEVICE_T_DEFINED
 #define BOAT_DEVICE_T_DEFINED
 enum boat_device_enum {
-    BOAT_DEVICE_CPU,      // CPU device
-    BOAT_DEVICE_CUDA,     // CUDA device (future)
-    BOAT_DEVICE_COUNT     // number of device types
+    BOAT_DEVICE_CPU,  // CPU device
+    BOAT_DEVICE_CUDA, // CUDA device (future)
+    BOAT_DEVICE_COUNT // number of device types
 };
 typedef enum boat_device_enum boat_device_t;
 #endif
@@ -64,9 +64,11 @@ typedef enum boat_device_enum boat_device_t;
 #define BOAT_MAX_DIMS 8
 
 // Tensor creation and destruction
-BOAT_API boat_tensor_t* boat_tensor_create(const int64_t* shape, size_t ndim, boat_dtype_t dtype, boat_device_t device);
+BOAT_API boat_tensor_t* boat_tensor_create(const int64_t* shape, size_t ndim, boat_dtype_t dtype,
+                                           boat_device_t device);
 BOAT_API boat_tensor_t* boat_tensor_create_like(const boat_tensor_t* other);
-BOAT_API boat_tensor_t* boat_tensor_from_data(const int64_t* shape, size_t ndim, boat_dtype_t dtype, const void* data);
+BOAT_API boat_tensor_t* boat_tensor_from_data(const int64_t* shape, size_t ndim, boat_dtype_t dtype,
+                                              const void* data);
 BOAT_API void boat_tensor_free(boat_tensor_t* tensor);
 
 // Reference counting
@@ -87,11 +89,16 @@ BOAT_API void* boat_tensor_data(const boat_tensor_t* tensor);
 BOAT_API const void* boat_tensor_const_data(const boat_tensor_t* tensor);
 
 // Tensor operations
-BOAT_API boat_tensor_t* boat_tensor_reshape(const boat_tensor_t* tensor, const int64_t* new_shape, size_t new_ndim);
-BOAT_API boat_tensor_t* boat_tensor_transpose(const boat_tensor_t* tensor, const size_t* perm, size_t nperm);
-BOAT_API boat_tensor_t* boat_tensor_slice(const boat_tensor_t* tensor, const size_t* start, const size_t* end, const size_t* step);
-BOAT_API boat_tensor_t* boat_tensor_concatenate(const boat_tensor_t** tensors, size_t n_tensors, size_t axis);
-BOAT_API boat_tensor_t* boat_tensor_stack(const boat_tensor_t** tensors, size_t n_tensors, size_t axis);
+BOAT_API boat_tensor_t* boat_tensor_reshape(const boat_tensor_t* tensor, const int64_t* new_shape,
+                                            size_t new_ndim);
+BOAT_API boat_tensor_t* boat_tensor_transpose(const boat_tensor_t* tensor, const size_t* perm,
+                                              size_t nperm);
+BOAT_API boat_tensor_t* boat_tensor_slice(const boat_tensor_t* tensor, const size_t* start,
+                                          const size_t* end, const size_t* step);
+BOAT_API boat_tensor_t* boat_tensor_concatenate(const boat_tensor_t** tensors, size_t n_tensors,
+                                                size_t axis);
+BOAT_API boat_tensor_t* boat_tensor_stack(const boat_tensor_t** tensors, size_t n_tensors,
+                                          size_t axis);
 
 // Memory operations
 BOAT_API boat_tensor_t* boat_tensor_to_device(const boat_tensor_t* tensor, boat_device_t dev);
@@ -102,7 +109,8 @@ BOAT_API boat_tensor_t* boat_tensor_contiguous(const boat_tensor_t* tensor);
 BOAT_API void boat_tensor_print(const boat_tensor_t* tensor);
 BOAT_API char* boat_tensor_to_string(const boat_tensor_t* tensor);
 BOAT_API bool boat_tensor_equal(const boat_tensor_t* a, const boat_tensor_t* b);
-BOAT_API bool boat_tensor_allclose(const boat_tensor_t* a, const boat_tensor_t* b, float rtol, float atol);
+BOAT_API bool boat_tensor_allclose(const boat_tensor_t* a, const boat_tensor_t* b, float rtol,
+                                   float atol);
 
 // Data type information
 BOAT_API size_t boat_dtype_size(boat_dtype_t dtype);
@@ -118,7 +126,9 @@ BOAT_API bool boat_tensor_is_per_channel(const boat_tensor_t* tensor);
 BOAT_API size_t boat_tensor_num_channels(const boat_tensor_t* tensor);
 BOAT_API const float* boat_tensor_get_scales(const boat_tensor_t* tensor);
 BOAT_API const int32_t* boat_tensor_get_zero_points(const boat_tensor_t* tensor);
-BOAT_API void boat_tensor_set_per_channel_quant_params(boat_tensor_t* tensor, const float* scales, const int32_t* zero_points, size_t n_channels);
+BOAT_API void boat_tensor_set_per_channel_quant_params(boat_tensor_t* tensor, const float* scales,
+                                                       const int32_t* zero_points,
+                                                       size_t n_channels);
 
 // BF16 conversion utilities
 static inline uint16_t boat_f32_to_bf16(float f) {
@@ -145,13 +155,16 @@ static inline float boat_f16_to_f32(uint16_t h) {
             r = sign;
         } else {
             // subnormal: normalize
-            while ((mant & 0x400) == 0) { mant <<= 1; exp--; }
+            while ((mant & 0x400) == 0) {
+                mant <<= 1;
+                exp--;
+            }
             exp++;
             mant &= 0x3FF;
             r = sign | ((uint32_t)(exp + 112) << 23) | (mant << 13);
         }
     } else if (exp == 31) {
-        r = sign | 0x7F800000u | (mant << 13);  // inf / nan
+        r = sign | 0x7F800000u | (mant << 13); // inf / nan
     } else {
         r = sign | ((uint32_t)(exp + 112) << 23) | (mant << 13);
     }
@@ -174,10 +187,13 @@ static inline uint16_t boat_f32_to_f16(float f) {
     } else if (exponent >= 113u) {
         // normal half (abs >= 2^-14)
         uint32_t e = exponent - 112u;
-        uint32_t m = mantissa + 0x1000u;  // round to nearest
-        if (m >> 24) { e++; m = 0; }      // mantissa overflow carries
+        uint32_t m = mantissa + 0x1000u; // round to nearest
+        if (m >> 24) {
+            e++;
+            m = 0;
+        } // mantissa overflow carries
         if (e >= 31u) {
-            h = (uint16_t)(sign | 0x7C00u);  // overflow to inf
+            h = (uint16_t)(sign | 0x7C00u); // overflow to inf
         } else {
             h = (uint16_t)(sign | (e << 10) | (m >> 13));
         }
@@ -185,9 +201,9 @@ static inline uint16_t boat_f32_to_f16(float f) {
         // subnormal half: [2^-24, 2^-14)
         uint32_t shift = 126u - exponent;
         uint32_t m = ((mantissa | 0x800000u) + (1u << (shift - 1))) >> shift;
-        h = (uint16_t)(sign | (m >= 0x400u ? 0x400u : m));  // round up to min normal
+        h = (uint16_t)(sign | (m >= 0x400u ? 0x400u : m)); // round up to min normal
     } else {
-        h = (uint16_t)sign;  // too small -> (signed) zero
+        h = (uint16_t)sign; // too small -> (signed) zero
     }
     return h;
 }

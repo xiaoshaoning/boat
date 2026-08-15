@@ -77,8 +77,8 @@ void test_optimization_api() {
     boat_graph_simplify(graph);
 
     // Test optimization flags
-    unsigned int flags = BOAT_OPTIMIZE_CSE | BOAT_OPTIMIZE_DCE |
-                        BOAT_OPTIMIZE_CONSTANT_FOLD | BOAT_OPTIMIZE_SIMPLIFY;
+    unsigned int flags = BOAT_OPTIMIZE_CSE | BOAT_OPTIMIZE_DCE | BOAT_OPTIMIZE_CONSTANT_FOLD |
+                         BOAT_OPTIMIZE_SIMPLIFY;
     assert(flags == BOAT_OPTIMIZE_ALL);
 
     boat_graph_free(graph);

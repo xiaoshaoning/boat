@@ -27,11 +27,8 @@ BOAT_API boat_quant_config_t boat_quant_config_default(void) {
     return cfg;
 }
 
-BOAT_API void boat_compute_quant_params(float min_val, float max_val,
-                                         boat_dtype_t quant_dtype,
-                                         bool symmetric,
-                                         float* out_scale,
-                                         int32_t* out_zero_point) {
+BOAT_API void boat_compute_quant_params(float min_val, float max_val, boat_dtype_t quant_dtype,
+                                        bool symmetric, float* out_scale, int32_t* out_zero_point) {
     // Degenerate case: all values identical
     if (max_val - min_val < 1e-10f) {
         float abs_val = fmaxf(fabsf(min_val), 1e-10f);
@@ -112,14 +109,13 @@ BOAT_API void boat_compute_quant_params(float min_val, float max_val,
 // ---------------------------------------------------------------------------
 
 BOAT_API boat_tensor_t* boat_quantize_tensor(const boat_tensor_t* fp32_tensor,
-                                              const boat_quant_config_t* config) {
+                                             const boat_quant_config_t* config) {
     if (!fp32_tensor || !config) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Quantize] NULL argument\n");
         return NULL;
     }
     if (boat_tensor_dtype(fp32_tensor) != BOAT_DTYPE_FLOAT32) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
-                        "[Quantize] expected FLOAT32 tensor, got %s\n",
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Quantize] expected FLOAT32 tensor, got %s\n",
                         boat_dtype_name(boat_tensor_dtype(fp32_tensor)));
         return NULL;
     }
@@ -138,14 +134,14 @@ BOAT_API boat_tensor_t* boat_quantize_tensor(const boat_tensor_t* fp32_tensor,
     // Compute scale / zero_point
     float scale;
     int32_t zero_point;
-    boat_compute_quant_params(min_val, max_val, config->quant_dtype,
-                              config->symmetric, &scale, &zero_point);
+    boat_compute_quant_params(min_val, max_val, config->quant_dtype, config->symmetric, &scale,
+                              &zero_point);
 
     // Create quantized output tensor with the requested dtype
     const int64_t* shape = boat_tensor_shape(fp32_tensor);
     size_t ndim = boat_tensor_ndim(fp32_tensor);
-    boat_tensor_t* quantized = boat_tensor_create(shape, ndim, config->quant_dtype,
-                                                   BOAT_DEVICE_CPU);
+    boat_tensor_t* quantized =
+        boat_tensor_create(shape, ndim, config->quant_dtype, BOAT_DEVICE_CPU);
     if (!quantized) return NULL;
 
     // Set quantization parameters
@@ -225,9 +221,8 @@ BOAT_API boat_tensor_t* boat_dequantize_tensor(const boat_tensor_t* quantized_te
         return NULL;
     }
     boat_dtype_t dt = boat_tensor_dtype(quantized_tensor);
-    if (dt != BOAT_DTYPE_UINT8 && dt != BOAT_DTYPE_INT8 &&
-        dt != BOAT_DTYPE_BITS2 && dt != BOAT_DTYPE_BITS1 &&
-        dt != BOAT_DTYPE_FLOAT4) {
+    if (dt != BOAT_DTYPE_UINT8 && dt != BOAT_DTYPE_INT8 && dt != BOAT_DTYPE_BITS2 &&
+        dt != BOAT_DTYPE_BITS1 && dt != BOAT_DTYPE_FLOAT4) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
                         "[Dequantize] expected UINT8/INT8/BITS2/BITS1/FLOAT4 tensor, got %s\n",
                         boat_dtype_name(dt));
@@ -239,8 +234,7 @@ BOAT_API boat_tensor_t* boat_dequantize_tensor(const boat_tensor_t* quantized_te
         size_t n = boat_tensor_nelements(quantized_tensor);
         const int64_t* shape = boat_tensor_shape(quantized_tensor);
         size_t ndim = boat_tensor_ndim(quantized_tensor);
-        boat_tensor_t* fp32 = boat_tensor_create(shape, ndim, BOAT_DTYPE_FLOAT32,
-                                                  BOAT_DEVICE_CPU);
+        boat_tensor_t* fp32 = boat_tensor_create(shape, ndim, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
         if (!fp32) return NULL;
         const uint8_t* src = (const uint8_t*)boat_tensor_const_data(quantized_tensor);
         float* dst = (float*)boat_tensor_data(fp32);
@@ -259,8 +253,7 @@ BOAT_API boat_tensor_t* boat_dequantize_tensor(const boat_tensor_t* quantized_te
     size_t n = boat_tensor_nelements(quantized_tensor);
     const int64_t* shape = boat_tensor_shape(quantized_tensor);
     size_t ndim = boat_tensor_ndim(quantized_tensor);
-    boat_tensor_t* fp32 = boat_tensor_create(shape, ndim, BOAT_DTYPE_FLOAT32,
-                                              BOAT_DEVICE_CPU);
+    boat_tensor_t* fp32 = boat_tensor_create(shape, ndim, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!fp32) return NULL;
 
     float* dst = (float*)boat_tensor_data(fp32);
@@ -315,22 +308,21 @@ static bool is_weight_quantizable(boat_layer_type_t type) {
 }
 
 static bool quantize_layer_weight(void* layer_data, boat_layer_type_t type,
-                                   const boat_quant_config_t* config) {
+                                  const boat_quant_config_t* config) {
     boat_tensor_t* weight = NULL;
     boat_tensor_t* (*get_weight)(const void*) = NULL;
     void (*set_weight)(void*, boat_tensor_t*) = NULL;
 
     switch (type) {
-        case BOAT_LAYER_TYPE_DENSE:
-            get_weight = (void*)(void*)boat_dense_layer_get_weight;
-            set_weight = (void*)(void*)boat_dense_layer_set_weight;
-            break;
-        case BOAT_LAYER_TYPE_CONV2D:
-            get_weight = (void*)(void*)boat_conv_layer_get_weight;
-            set_weight = (void*)(void*)boat_conv_layer_set_weight;
-            break;
-        default:
-            return false;
+    case BOAT_LAYER_TYPE_DENSE:
+        get_weight = (void*)(void*)boat_dense_layer_get_weight;
+        set_weight = (void*)(void*)boat_dense_layer_set_weight;
+        break;
+    case BOAT_LAYER_TYPE_CONV2D:
+        get_weight = (void*)(void*)boat_conv_layer_get_weight;
+        set_weight = (void*)(void*)boat_conv_layer_set_weight;
+        break;
+    default: return false;
     }
 
     weight = get_weight(layer_data);
@@ -364,16 +356,15 @@ static bool dequantize_layer_weight(void* layer_data, boat_layer_type_t type) {
     void (*set_weight)(void*, boat_tensor_t*) = NULL;
 
     switch (type) {
-        case BOAT_LAYER_TYPE_DENSE:
-            get_weight = (void*)(void*)boat_dense_layer_get_weight;
-            set_weight = (void*)(void*)boat_dense_layer_set_weight;
-            break;
-        case BOAT_LAYER_TYPE_CONV2D:
-            get_weight = (void*)(void*)boat_conv_layer_get_weight;
-            set_weight = (void*)(void*)boat_conv_layer_set_weight;
-            break;
-        default:
-            return false;
+    case BOAT_LAYER_TYPE_DENSE:
+        get_weight = (void*)(void*)boat_dense_layer_get_weight;
+        set_weight = (void*)(void*)boat_dense_layer_set_weight;
+        break;
+    case BOAT_LAYER_TYPE_CONV2D:
+        get_weight = (void*)(void*)boat_conv_layer_get_weight;
+        set_weight = (void*)(void*)boat_conv_layer_set_weight;
+        break;
+    default: return false;
     }
 
     weight = get_weight(layer_data);
@@ -381,9 +372,9 @@ static bool dequantize_layer_weight(void* layer_data, boat_layer_type_t type) {
 
     // Only dequantize quantized tensors with scale != 0 (FLOAT4 always has scale=1)
     boat_dtype_t wdt = boat_tensor_dtype(weight);
-    bool is_quantized = (wdt == BOAT_DTYPE_UINT8 || wdt == BOAT_DTYPE_INT8 ||
-                         wdt == BOAT_DTYPE_BITS2 || wdt == BOAT_DTYPE_BITS1 ||
-                         wdt == BOAT_DTYPE_FLOAT4);
+    bool is_quantized =
+        (wdt == BOAT_DTYPE_UINT8 || wdt == BOAT_DTYPE_INT8 || wdt == BOAT_DTYPE_BITS2 ||
+         wdt == BOAT_DTYPE_BITS1 || wdt == BOAT_DTYPE_FLOAT4);
     if (!is_quantized) {
         return true; // not quantized, skip
     }
@@ -404,11 +395,9 @@ static bool dequantize_layer_weight(void* layer_data, boat_layer_type_t type) {
     return true;
 }
 
-BOAT_API bool boat_model_quantize(boat_model_t* model,
-                                   const boat_quant_config_t* config) {
+BOAT_API bool boat_model_quantize(boat_model_t* model, const boat_quant_config_t* config) {
     if (!model || !config) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
-                        "[ModelQuantize] NULL argument\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ModelQuantize] NULL argument\n");
         return false;
     }
 
@@ -426,8 +415,7 @@ BOAT_API bool boat_model_quantize(boat_model_t* model,
 
 BOAT_API bool boat_model_dequantize(boat_model_t* model) {
     if (!model) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
-                        "[ModelDequantize] NULL argument\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ModelDequantize] NULL argument\n");
         return false;
     }
 
@@ -449,15 +437,12 @@ BOAT_API bool boat_model_dequantize(boat_model_t* model) {
 
 BOAT_API boat_calibration_data_t* boat_calibration_create(size_t num_layers) {
     boat_calibration_data_t* calib =
-        (boat_calibration_data_t*)boat_malloc(sizeof(boat_calibration_data_t),
-                                               BOAT_DEVICE_CPU);
+        (boat_calibration_data_t*)boat_malloc(sizeof(boat_calibration_data_t), BOAT_DEVICE_CPU);
     if (!calib) return NULL;
 
     calib->num_layers = num_layers;
-    calib->layer_min = (float*)boat_malloc(sizeof(float) * num_layers,
-                                           BOAT_DEVICE_CPU);
-    calib->layer_max = (float*)boat_malloc(sizeof(float) * num_layers,
-                                           BOAT_DEVICE_CPU);
+    calib->layer_min = (float*)boat_malloc(sizeof(float) * num_layers, BOAT_DEVICE_CPU);
+    calib->layer_max = (float*)boat_malloc(sizeof(float) * num_layers, BOAT_DEVICE_CPU);
     if (!calib->layer_min || !calib->layer_max) {
         boat_free(calib->layer_min);
         boat_free(calib->layer_max);
@@ -473,9 +458,8 @@ BOAT_API boat_calibration_data_t* boat_calibration_create(size_t num_layers) {
     return calib;
 }
 
-BOAT_API void boat_calibration_observe(boat_calibration_data_t* calib,
-                                        size_t layer_index,
-                                        const boat_tensor_t* activation) {
+BOAT_API void boat_calibration_observe(boat_calibration_data_t* calib, size_t layer_index,
+                                       const boat_tensor_t* activation) {
     if (!calib || !activation) return;
     if (layer_index >= calib->num_layers) return;
     if (boat_tensor_dtype(activation) != BOAT_DTYPE_FLOAT32) return;
@@ -491,9 +475,8 @@ BOAT_API void boat_calibration_observe(boat_calibration_data_t* calib,
     }
 }
 
-BOAT_API bool boat_calibration_get_range(const boat_calibration_data_t* calib,
-                                          size_t layer_index,
-                                          float* out_min, float* out_max) {
+BOAT_API bool boat_calibration_get_range(const boat_calibration_data_t* calib, size_t layer_index,
+                                         float* out_min, float* out_max) {
     if (!calib || !out_min || !out_max) return false;
     if (layer_index >= calib->num_layers) return false;
     if (calib->layer_min[layer_index] == FLT_MAX) return false; // no observations
@@ -515,10 +498,9 @@ BOAT_API void boat_calibration_free(boat_calibration_data_t* calib) {
 // Per-channel quantization
 // ---------------------------------------------------------------------------
 
-BOAT_API boat_tensor_t* boat_quantize_tensor_per_channel(
-    const boat_tensor_t* fp32_tensor,
-    const boat_quant_config_t* config,
-    size_t channel_dim) {
+BOAT_API boat_tensor_t* boat_quantize_tensor_per_channel(const boat_tensor_t* fp32_tensor,
+                                                         const boat_quant_config_t* config,
+                                                         size_t channel_dim) {
     if (!fp32_tensor || !config) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[QuantizePerChannel] NULL argument\n");
         return NULL;
@@ -575,13 +557,13 @@ BOAT_API boat_tensor_t* boat_quantize_tensor_per_channel(
                 if (v > max_val) max_val = v;
             }
         }
-        boat_compute_quant_params(min_val, max_val, config->quant_dtype,
-                                  config->symmetric, &scales[c], &zero_points[c]);
+        boat_compute_quant_params(min_val, max_val, config->quant_dtype, config->symmetric,
+                                  &scales[c], &zero_points[c]);
     }
 
     // Create quantized output tensor
-    boat_tensor_t* quantized = boat_tensor_create(shape, ndim, config->quant_dtype,
-                                                   BOAT_DEVICE_CPU);
+    boat_tensor_t* quantized =
+        boat_tensor_create(shape, ndim, config->quant_dtype, BOAT_DEVICE_CPU);
     if (!quantized) {
         boat_free(scales);
         boat_free(zero_points);
@@ -614,7 +596,8 @@ BOAT_API boat_tensor_t* boat_quantize_tensor_per_channel(
 
         if (config->quant_dtype == BOAT_DTYPE_BITS2) {
             // BITS2: quantize to [0,3] then pack
-            uint8_t* unpacked = (uint8_t*)boat_malloc(sizeof(uint8_t) * total_elements, BOAT_DEVICE_CPU);
+            uint8_t* unpacked =
+                (uint8_t*)boat_malloc(sizeof(uint8_t) * total_elements, BOAT_DEVICE_CPU);
             if (!unpacked) {
                 boat_tensor_unref(quantized);
                 boat_free(scales);
@@ -747,8 +730,8 @@ BOAT_API boat_tensor_t* boat_dequantize_tensor_per_channel(const boat_tensor_t* 
 
     const int64_t* fp32_shape = boat_tensor_shape(quantized_tensor);
     size_t fp32_ndim = boat_tensor_ndim(quantized_tensor);
-    boat_tensor_t* fp32 = boat_tensor_create(fp32_shape, fp32_ndim, BOAT_DTYPE_FLOAT32,
-                                              BOAT_DEVICE_CPU);
+    boat_tensor_t* fp32 =
+        boat_tensor_create(fp32_shape, fp32_ndim, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!fp32) return NULL;
 
     float* dst = (float*)boat_tensor_data(fp32);
@@ -760,7 +743,8 @@ BOAT_API boat_tensor_t* boat_dequantize_tensor_per_channel(const boat_tensor_t* 
     }
 
     if (dt == BOAT_DTYPE_BITS2) {
-        uint8_t* unpacked = (uint8_t*)boat_malloc(sizeof(uint8_t) * total_elements, BOAT_DEVICE_CPU);
+        uint8_t* unpacked =
+            (uint8_t*)boat_malloc(sizeof(uint8_t) * total_elements, BOAT_DEVICE_CPU);
         if (!unpacked) {
             boat_tensor_unref(fp32);
             return NULL;
@@ -860,8 +844,8 @@ BOAT_API bool boat_fake_quantize(boat_tensor_t* tensor, const boat_quant_config_
 }
 
 BOAT_API bool boat_fake_quantize_per_channel(boat_tensor_t* tensor,
-                                              const boat_quant_config_t* config,
-                                              size_t channel_dim) {
+                                             const boat_quant_config_t* config,
+                                             size_t channel_dim) {
     if (!tensor || !config) return false;
     if (boat_tensor_dtype(tensor) != BOAT_DTYPE_FLOAT32) return false;
 

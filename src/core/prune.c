@@ -19,7 +19,7 @@
 
 typedef struct {
     size_t layer_index;
-    boat_tensor_t* mask;   // FP32, same shape as weight, values 1.0 (keep) or 0.0 (pruned)
+    boat_tensor_t* mask; // FP32, same shape as weight, values 1.0 (keep) or 0.0 (pruned)
 } boat_prune_mask_entry_t;
 
 struct boat_prune_context_t {
@@ -40,12 +40,11 @@ static bool is_layer_prunable(boat_layer_type_t type) {
 // Get weight tensor for a layer
 static boat_tensor_t* get_layer_weight(void* layer_data, boat_layer_type_t type) {
     switch (type) {
-        case BOAT_LAYER_TYPE_DENSE:
-            return boat_dense_layer_get_weight((const boat_dense_layer_t*)layer_data);
-        case BOAT_LAYER_TYPE_CONV2D:
-            return boat_conv_layer_get_weight((const boat_conv_layer_t*)layer_data);
-        default:
-            return NULL;
+    case BOAT_LAYER_TYPE_DENSE:
+        return boat_dense_layer_get_weight((const boat_dense_layer_t*)layer_data);
+    case BOAT_LAYER_TYPE_CONV2D:
+        return boat_conv_layer_get_weight((const boat_conv_layer_t*)layer_data);
+    default: return NULL;
     }
 }
 
@@ -74,8 +73,8 @@ BOAT_API boat_prune_context_t* boat_prune_context_create(boat_model_t* model) {
         return NULL;
     }
 
-    boat_prune_context_t* ctx = (boat_prune_context_t*)boat_malloc(
-        sizeof(boat_prune_context_t), BOAT_DEVICE_CPU);
+    boat_prune_context_t* ctx =
+        (boat_prune_context_t*)boat_malloc(sizeof(boat_prune_context_t), BOAT_DEVICE_CPU);
     if (!ctx) return NULL;
 
     ctx->model = model;
@@ -187,7 +186,8 @@ BOAT_API float boat_compute_prune_threshold(const boat_tensor_t* weight, float s
 
 BOAT_API boat_tensor_t* boat_create_magnitude_mask(const boat_tensor_t* weight, float threshold) {
     if (!weight) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Prune] NULL weight in create_magnitude_mask\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                        "[Prune] NULL weight in create_magnitude_mask\n");
         return NULL;
     }
 
@@ -209,9 +209,10 @@ BOAT_API boat_tensor_t* boat_create_magnitude_mask(const boat_tensor_t* weight, 
 }
 
 BOAT_API boat_tensor_t* boat_create_structured_mask(const boat_tensor_t* weight, size_t dim,
-                                                     float threshold, float min_keep_ratio) {
+                                                    float threshold, float min_keep_ratio) {
     if (!weight) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Prune] NULL weight in create_structured_mask\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                        "[Prune] NULL weight in create_structured_mask\n");
         return NULL;
     }
 
@@ -219,8 +220,8 @@ BOAT_API boat_tensor_t* boat_create_structured_mask(const boat_tensor_t* weight,
     const int64_t* shape = boat_tensor_shape(weight);
 
     if (dim >= ndim) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
-                        "[Prune] dim %zu out of range (ndim=%zu)\n", dim, ndim);
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Prune] dim %zu out of range (ndim=%zu)\n",
+                        dim, ndim);
         return NULL;
     }
 
@@ -233,7 +234,7 @@ BOAT_API boat_tensor_t* boat_create_structured_mask(const boat_tensor_t* weight,
     for (size_t i = dim; i < ndim; i++) {
         slice_stride *= (size_t)shape[i];
     }
-    size_t outer_stride = slice_stride; // elements per slice along dim
+    size_t outer_stride = slice_stride;              // elements per slice along dim
     size_t inner_stride = slice_stride / n_channels; // elements per channel within a slice
 
     float* l2_norms = (float*)boat_malloc(sizeof(float) * n_channels, BOAT_DEVICE_CPU);
@@ -341,7 +342,7 @@ BOAT_API bool boat_apply_mask(boat_tensor_t* weight, const boat_tensor_t* mask) 
 // ---------------------------------------------------------------------------
 
 BOAT_API bool boat_prune_layer(boat_prune_context_t* ctx, size_t layer_index,
-                                const boat_prune_config_t* config) {
+                               const boat_prune_config_t* config) {
     if (!ctx || !config) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Prune] NULL argument\n");
         return false;
@@ -349,13 +350,15 @@ BOAT_API bool boat_prune_layer(boat_prune_context_t* ctx, size_t layer_index,
 
     boat_layer_t* layer = boat_model_get_layer(ctx->model, layer_index);
     if (!layer || !is_layer_prunable(layer->type)) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Prune] Layer %zu not prunable\n", layer_index);
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Prune] Layer %zu not prunable\n",
+                        layer_index);
         return false;
     }
 
     boat_tensor_t* weight = get_layer_weight(layer->data, layer->type);
     if (!weight) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Prune] Layer %zu has no weight\n", layer_index);
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Prune] Layer %zu has no weight\n",
+                        layer_index);
         return false;
     }
     if (boat_tensor_dtype(weight) != BOAT_DTYPE_FLOAT32) {
@@ -397,7 +400,7 @@ BOAT_API bool boat_prune_layer(boat_prune_context_t* ctx, size_t layer_index,
                 boat_tensor_unref(ctx->entries[i].mask);
             }
             ctx->entries[i].mask = mask;
-            boat_tensor_ref(mask); // context owns a ref
+            boat_tensor_ref(mask);   // context owns a ref
             boat_tensor_unref(mask); // drop our local ref (context has it)
             return true;
         }
@@ -479,7 +482,7 @@ BOAT_API void boat_prune_remove_all_masks(boat_prune_context_t* ctx) {
 // ---------------------------------------------------------------------------
 
 BOAT_API bool boat_prune_fake_quantize_model(const boat_prune_context_t* ctx,
-                                              const boat_quant_config_t* quant_config) {
+                                             const boat_quant_config_t* quant_config) {
     if (!ctx || !quant_config) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Prune] NULL argument\n");
         return false;

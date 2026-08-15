@@ -46,8 +46,10 @@ int main() {
         // Set values
         float* a_data = (float*)boat_tensor_data(boat_variable_data(a));
         float* b_data = (float*)boat_tensor_data(boat_variable_data(b));
-        a_data[0] = 2.0f; a_data[1] = 3.0f;
-        b_data[0] = 4.0f; b_data[1] = 5.0f;
+        a_data[0] = 2.0f;
+        a_data[1] = 3.0f;
+        b_data[0] = 4.0f;
+        b_data[1] = 5.0f;
 
         // Perform addition
         boat_variable_t* c = boat_var_add(a, b);
@@ -75,14 +77,16 @@ int main() {
 
         float* a_data = (float*)boat_tensor_data(boat_variable_data(a));
         float* b_data = (float*)boat_tensor_data(boat_variable_data(b));
-        a_data[0] = 2.0f; a_data[1] = 3.0f;
-        b_data[0] = 4.0f; b_data[1] = 5.0f;
+        a_data[0] = 2.0f;
+        a_data[1] = 3.0f;
+        b_data[0] = 4.0f;
+        b_data[1] = 5.0f;
 
         boat_variable_t* c = boat_var_mul(a, b);
         assert(c != NULL);
 
         float* c_data = (float*)boat_tensor_data(boat_variable_data(c));
-        assert(c_data[0] == 8.0f); // 2 * 4
+        assert(c_data[0] == 8.0f);  // 2 * 4
         assert(c_data[1] == 15.0f); // 3 * 5
 
         boat_variable_free(c);
@@ -124,8 +128,10 @@ int main() {
         // Set values
         float* a_data = (float*)boat_tensor_data(boat_variable_data(a));
         float* b_data = (float*)boat_tensor_data(boat_variable_data(b));
-        a_data[0] = 2.0f; a_data[1] = 3.0f;
-        b_data[0] = 4.0f; b_data[1] = 5.0f;
+        a_data[0] = 2.0f;
+        a_data[1] = 3.0f;
+        b_data[0] = 4.0f;
+        b_data[1] = 5.0f;
 
         // Perform addition
         boat_variable_t* c = boat_var_add(a, b);
@@ -172,8 +178,10 @@ int main() {
 
         float* a_data = (float*)boat_tensor_data(boat_variable_data(a));
         float* b_data = (float*)boat_tensor_data(boat_variable_data(b));
-        a_data[0] = 2.0f; a_data[1] = 3.0f;
-        b_data[0] = 4.0f; b_data[1] = 5.0f;
+        a_data[0] = 2.0f;
+        a_data[1] = 3.0f;
+        b_data[0] = 4.0f;
+        b_data[1] = 5.0f;
 
         boat_variable_t* c = boat_var_mul(a, b);
         assert(c != NULL);
@@ -250,8 +258,10 @@ int main() {
 
         float* a_data = (float*)boat_tensor_data(boat_variable_data(a));
         float* b_data = (float*)boat_tensor_data(boat_variable_data(b));
-        a_data[0] = 5.0f; a_data[1] = 8.0f;
-        b_data[0] = 2.0f; b_data[1] = 3.0f;
+        a_data[0] = 5.0f;
+        a_data[1] = 8.0f;
+        b_data[0] = 2.0f;
+        b_data[1] = 3.0f;
 
         boat_variable_t* c = boat_var_sub(a, b);
         assert(c != NULL);
@@ -294,8 +304,10 @@ int main() {
 
         float* a_data = (float*)boat_tensor_data(boat_variable_data(a));
         float* b_data = (float*)boat_tensor_data(boat_variable_data(b));
-        a_data[0] = 6.0f; a_data[1] = 12.0f;
-        b_data[0] = 2.0f; b_data[1] = 3.0f;
+        a_data[0] = 6.0f;
+        a_data[1] = 12.0f;
+        b_data[0] = 2.0f;
+        b_data[1] = 3.0f;
 
         boat_variable_t* c = boat_var_div(a, b);
         assert(c != NULL);
@@ -317,11 +329,11 @@ int main() {
         float* a_grad_data = (float*)boat_tensor_data(a_grad);
         float* b_grad_data = (float*)boat_tensor_data(b_grad);
         // Gradient ∂L/∂a = ∂L/∂c / b = 1 / b
-        assert(a_grad_data[0] == 0.5f);  // 1 / 2 = 0.5
-        assert(a_grad_data[1] == 0.3333333333f);  // 1 / 3 ≈ 0.333...
+        assert(a_grad_data[0] == 0.5f);          // 1 / 2 = 0.5
+        assert(a_grad_data[1] == 0.3333333333f); // 1 / 3 ≈ 0.333...
         // Gradient ∂L/∂b = -∂L/∂c * a / b² = -1 * a / b²
-        assert(b_grad_data[0] == -1.5f);  // -1 * 6 / 4 = -1.5
-        assert(b_grad_data[1] == -1.3333333333f);  // -1 * 12 / 9 = -1.333...
+        assert(b_grad_data[0] == -1.5f);          // -1 * 6 / 4 = -1.5
+        assert(b_grad_data[1] == -1.3333333333f); // -1 * 12 / 9 = -1.333...
 
         boat_variable_free(c);
         boat_variable_free(b);
@@ -338,8 +350,12 @@ int main() {
 
         float* a_data = (float*)boat_tensor_data(boat_variable_data(a));
         float* b_data = (float*)boat_tensor_data(boat_variable_data(b));
-        a_data[0] = 1.0f; a_data[1] = 2.0f; a_data[2] = 3.0f;
-        b_data[0] = 4.0f; b_data[1] = 5.0f; b_data[2] = 6.0f;
+        a_data[0] = 1.0f;
+        a_data[1] = 2.0f;
+        a_data[2] = 3.0f;
+        b_data[0] = 4.0f;
+        b_data[1] = 5.0f;
+        b_data[2] = 6.0f;
 
         boat_variable_t* c = boat_var_dot(a, b);
         assert(c != NULL);
@@ -375,17 +391,21 @@ int main() {
 
     // Test 11: Softmax operation and gradient
     {
-        int64_t shape[] = {2, 3};  // 2 rows, 3 columns
+        int64_t shape[] = {2, 3}; // 2 rows, 3 columns
         boat_variable_t* a = boat_variable_create_with_shape(shape, 2, BOAT_DTYPE_FLOAT32, true);
         assert(a != NULL);
 
         float* a_data = (float*)boat_tensor_data(boat_variable_data(a));
         // Simple test values
-        a_data[0] = 1.0f; a_data[1] = 2.0f; a_data[2] = 3.0f;
-        a_data[3] = 4.0f; a_data[4] = 5.0f; a_data[5] = 6.0f;
+        a_data[0] = 1.0f;
+        a_data[1] = 2.0f;
+        a_data[2] = 3.0f;
+        a_data[3] = 4.0f;
+        a_data[4] = 5.0f;
+        a_data[5] = 6.0f;
 
         // Test softmax
-        boat_variable_t* b = boat_var_softmax(a, -1);  // last dimension
+        boat_variable_t* b = boat_var_softmax(a, -1); // last dimension
         assert(b != NULL);
 
         float* b_data = (float*)boat_tensor_data(boat_variable_data(b));
@@ -419,17 +439,21 @@ int main() {
 
     // Test 12: Log softmax operation and gradient
     {
-        int64_t shape[] = {2, 3};  // 2 rows, 3 columns
+        int64_t shape[] = {2, 3}; // 2 rows, 3 columns
         boat_variable_t* a = boat_variable_create_with_shape(shape, 2, BOAT_DTYPE_FLOAT32, true);
         assert(a != NULL);
 
         float* a_data = (float*)boat_tensor_data(boat_variable_data(a));
         // Simple test values
-        a_data[0] = 1.0f; a_data[1] = 2.0f; a_data[2] = 3.0f;
-        a_data[3] = 4.0f; a_data[4] = 5.0f; a_data[5] = 6.0f;
+        a_data[0] = 1.0f;
+        a_data[1] = 2.0f;
+        a_data[2] = 3.0f;
+        a_data[3] = 4.0f;
+        a_data[4] = 5.0f;
+        a_data[5] = 6.0f;
 
         // Test log_softmax
-        boat_variable_t* b = boat_var_log_softmax(a, -1);  // last dimension
+        boat_variable_t* b = boat_var_log_softmax(a, -1); // last dimension
         assert(b != NULL);
 
         float* b_data = (float*)boat_tensor_data(boat_variable_data(b));

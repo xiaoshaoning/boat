@@ -1,5 +1,5 @@
 // test_simple.c - Simple test to check linking
-#define BOAT_BUILDING_DLL 0  // Explicitly not building DLL
+#define BOAT_BUILDING_DLL 0 // Explicitly not building DLL
 #include <boat/tensor.h>
 #include <stdio.h>
 

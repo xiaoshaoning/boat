@@ -26,8 +26,8 @@ struct boat_conv_layer_t {
     boat_tensor_t* grad_bias;
 
     // Cache for backward pass
-    boat_tensor_t* cache_input;  // Input tensor from forward pass
-    int64_t cache_input_shape[4]; // [batch, in_channels, height, width]
+    boat_tensor_t* cache_input;    // Input tensor from forward pass
+    int64_t cache_input_shape[4];  // [batch, in_channels, height, width]
     int64_t cache_output_shape[4]; // [batch, out_channels, height_out, width_out]
 };
 
@@ -51,7 +51,8 @@ static boat_tensor_t* compute_input_gradient(const boat_conv_layer_t* layer,
     int64_t width_out = output_shape[3];
 
     // Create gradient input tensor with same shape as input
-    boat_tensor_t* grad_input = boat_tensor_create(input_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    boat_tensor_t* grad_input =
+        boat_tensor_create(input_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!grad_input) {
         return NULL;
     }
@@ -95,12 +96,21 @@ static boat_tensor_t* compute_input_gradient(const boat_conv_layer_t* layer,
                                     int64_t iw = ow * layer->stride - layer->padding + kw;
                                     if (iw < 0 || iw >= width) continue;
 
-                                    // grad_input uses same weights as forward (no 180-degree rotation)
-                                    size_t weight_idx = ((oc * in_channels_per_group + ic_local) * layer->kernel_size + kh) * layer->kernel_size + kw;
-                                    size_t grad_output_idx = ((b * out_channels + oc) * height_out + oh) * width_out + ow;
-                                    size_t grad_input_idx = ((b * in_channels + ic) * height + ih) * width + iw;
+                                    // grad_input uses same weights as forward (no 180-degree
+                                    // rotation)
+                                    size_t weight_idx = ((oc * in_channels_per_group + ic_local) *
+                                                             layer->kernel_size +
+                                                         kh) *
+                                                            layer->kernel_size +
+                                                        kw;
+                                    size_t grad_output_idx =
+                                        ((b * out_channels + oc) * height_out + oh) * width_out +
+                                        ow;
+                                    size_t grad_input_idx =
+                                        ((b * in_channels + ic) * height + ih) * width + iw;
 
-                                    grad_input_data[grad_input_idx] += weight_data[weight_idx] * grad_output_data[grad_output_idx];
+                                    grad_input_data[grad_input_idx] +=
+                                        weight_data[weight_idx] * grad_output_data[grad_output_idx];
                                 }
                             }
                         }
@@ -117,8 +127,7 @@ static boat_tensor_t* compute_input_gradient(const boat_conv_layer_t* layer,
 
 static bool compute_weight_gradient_into(const boat_conv_layer_t* layer,
                                          const boat_tensor_t* cached_input,
-                                         const int64_t* input_shape,
-                                         const int64_t* output_shape,
+                                         const int64_t* input_shape, const int64_t* output_shape,
                                          const boat_tensor_t* grad_output,
                                          boat_tensor_t* grad_weight) {
     if (!layer || !cached_input || !grad_output || !grad_weight) {
@@ -173,11 +182,19 @@ static bool compute_weight_gradient_into(const boat_conv_layer_t* layer,
                                     int64_t iw = ow * layer->stride - layer->padding + kw;
                                     if (iw < 0 || iw >= width) continue;
 
-                                    size_t input_idx = ((b * in_channels + ic) * height + ih) * width + iw;
-                                    size_t grad_output_idx = ((b * out_channels + oc) * height_out + oh) * width_out + ow;
-                                    size_t weight_idx = ((oc * in_channels_per_group + ic_local) * layer->kernel_size + kh) * layer->kernel_size + kw;
+                                    size_t input_idx =
+                                        ((b * in_channels + ic) * height + ih) * width + iw;
+                                    size_t grad_output_idx =
+                                        ((b * out_channels + oc) * height_out + oh) * width_out +
+                                        ow;
+                                    size_t weight_idx = ((oc * in_channels_per_group + ic_local) *
+                                                             layer->kernel_size +
+                                                         kh) *
+                                                            layer->kernel_size +
+                                                        kw;
 
-                                    grad_weight_data[weight_idx] += input_data[input_idx] * grad_output_data[grad_output_idx];
+                                    grad_weight_data[weight_idx] +=
+                                        input_data[input_idx] * grad_output_data[grad_output_idx];
                                 }
                             }
                         }
@@ -192,10 +209,8 @@ static bool compute_weight_gradient_into(const boat_conv_layer_t* layer,
 
 // Helper function: compute gradient with respect to bias
 
-static bool compute_bias_gradient_into(const boat_conv_layer_t* layer,
-                                       const int64_t* output_shape,
-                                       const boat_tensor_t* grad_output,
-                                       boat_tensor_t* grad_bias) {
+static bool compute_bias_gradient_into(const boat_conv_layer_t* layer, const int64_t* output_shape,
+                                       const boat_tensor_t* grad_output, boat_tensor_t* grad_bias) {
     if (!layer || !grad_output || !grad_bias) {
         return false;
     }
@@ -222,7 +237,8 @@ static bool compute_bias_gradient_into(const boat_conv_layer_t* layer,
             float sum = 0.0f;
             for (int64_t oh = 0; oh < height_out; oh++) {
                 for (int64_t ow = 0; ow < width_out; ow++) {
-                    size_t grad_output_idx = ((b * out_channels + oc) * height_out + oh) * width_out + ow;
+                    size_t grad_output_idx =
+                        ((b * out_channels + oc) * height_out + oh) * width_out + ow;
                     sum += grad_output_data[grad_output_idx];
                 }
             }
@@ -232,11 +248,14 @@ static bool compute_bias_gradient_into(const boat_conv_layer_t* layer,
     return true;
 }
 
-BOAT_API boat_conv_layer_t* BOAT_CALL boat_conv_layer_create(size_t in_channels, size_t out_channels,
-                                           size_t kernel_size, size_t stride, size_t padding,
-                                           size_t groups) {
-    BOAT_DEBUG_PRINT("DEBUG conv_create called: in=%zu, out=%zu, k=%zu, groups=%zu\n", in_channels, out_channels, kernel_size, groups);
-    boat_conv_layer_t* layer = (boat_conv_layer_t*)boat_malloc(sizeof(boat_conv_layer_t), BOAT_DEVICE_CPU);
+BOAT_API boat_conv_layer_t* BOAT_CALL boat_conv_layer_create(size_t in_channels,
+                                                             size_t out_channels,
+                                                             size_t kernel_size, size_t stride,
+                                                             size_t padding, size_t groups) {
+    BOAT_DEBUG_PRINT("DEBUG conv_create called: in=%zu, out=%zu, k=%zu, groups=%zu\n", in_channels,
+                     out_channels, kernel_size, groups);
+    boat_conv_layer_t* layer =
+        (boat_conv_layer_t*)boat_malloc(sizeof(boat_conv_layer_t), BOAT_DEVICE_CPU);
     if (!layer) {
         BOAT_DEBUG_PRINT("DEBUG conv_create: malloc failed\n");
         return NULL;
@@ -244,8 +263,9 @@ BOAT_API boat_conv_layer_t* BOAT_CALL boat_conv_layer_create(size_t in_channels,
 
     // Validate groups
     if (groups == 0 || in_channels % groups != 0 || out_channels % groups != 0) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] groups=%zu must divide in_channels=%zu and out_channels=%zu\n",
-                groups, in_channels, out_channels);
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                        "[ConvLayer] groups=%zu must divide in_channels=%zu and out_channels=%zu\n",
+                        groups, in_channels, out_channels);
         boat_free(layer);
         return NULL;
     }
@@ -260,7 +280,8 @@ BOAT_API boat_conv_layer_t* BOAT_CALL boat_conv_layer_create(size_t in_channels,
 
     // Create weight tensor: [out_channels, in_channels/groups, kernel_size, kernel_size]
     size_t in_channels_per_group = in_channels / groups;
-    const int64_t weight_shape[] = { (int64_t)out_channels, (int64_t)in_channels_per_group, (int64_t)kernel_size, (int64_t)kernel_size };
+    const int64_t weight_shape[] = {(int64_t)out_channels, (int64_t)in_channels_per_group,
+                                    (int64_t)kernel_size, (int64_t)kernel_size};
     layer->weight = boat_tensor_create(weight_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!layer->weight) {
         boat_free(layer);
@@ -276,7 +297,7 @@ BOAT_API boat_conv_layer_t* BOAT_CALL boat_conv_layer_create(size_t in_channels,
     }
 
     // Create bias tensor: [out_channels]
-    const int64_t bias_shape[] = { (int64_t)out_channels };
+    const int64_t bias_shape[] = {(int64_t)out_channels};
     layer->bias = boat_tensor_create(bias_shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!layer->bias) {
         boat_tensor_free(layer->weight);
@@ -345,10 +366,9 @@ BOAT_API void BOAT_CALL boat_conv_layer_free(boat_conv_layer_t* layer) {
 // [max(0, pad-kw), min(wo, wi+pad-kw)), so the accumulation over ow is a
 // contiguous, in-bounds vectorized FMA with no boundary branches.
 // ---------------------------------------------------------------------------
-static void conv2d_forward_stride1(const float* in, const float* w, const float* bias,
-                                   float* out, int64_t batch, int64_t in_ch,
-                                   int64_t out_ch, int64_t h, int64_t wi,
-                                   int64_t ho, int64_t wo, size_t ks, size_t pad,
+static void conv2d_forward_stride1(const float* in, const float* w, const float* bias, float* out,
+                                   int64_t batch, int64_t in_ch, int64_t out_ch, int64_t h,
+                                   int64_t wi, int64_t ho, int64_t wo, size_t ks, size_t pad,
                                    size_t groups) {
     const size_t ocpg = out_ch / groups;
     const size_t icpg = in_ch / groups;
@@ -365,10 +385,8 @@ static void conv2d_forward_stride1(const float* in, const float* w, const float*
                         for (size_t kh = 0; kh < ks; kh++) {
                             const int64_t ih = ih_base + (int64_t)kh;
                             if (ih < 0 || ih >= h) continue;
-                            const float* in_row =
-                                in + ((b * in_ch + (int64_t)ic) * h + ih) * wi;
-                            const float* w_row =
-                                w + ((oc * icpg + icl) * ks + kh) * ks;
+                            const float* in_row = in + ((b * in_ch + (int64_t)ic) * h + ih) * wi;
+                            const float* w_row = w + ((oc * icpg + icl) * ks + kh) * ks;
                             for (size_t kw = 0; kw < ks; kw++) {
                                 const int64_t iw_off = (int64_t)kw - (int64_t)pad;
                                 const int64_t lo = iw_off < 0 ? -iw_off : 0;
@@ -389,7 +407,8 @@ static void conv2d_forward_stride1(const float* in, const float* w, const float*
 #endif
                                     _mm256_storeu_ps(orow + ow, va);
                                 }
-                                for (; ow < hi; ow++) orow[ow] += in_off[ow] * wv;
+                                for (; ow < hi; ow++)
+                                    orow[ow] += in_off[ow] * wv;
 #elif BOAT_HAVE_NEON
                                 int64_t ow = lo;
                                 const float32x4_t vw = vdupq_n_f32(wv);
@@ -403,9 +422,11 @@ static void conv2d_forward_stride1(const float* in, const float* w, const float*
 #endif
                                     vst1q_f32(orow + ow, va);
                                 }
-                                for (; ow < hi; ow++) orow[ow] += in_off[ow] * wv;
+                                for (; ow < hi; ow++)
+                                    orow[ow] += in_off[ow] * wv;
 #else
-                                for (int64_t ow = lo; ow < hi; ow++) orow[ow] += in_off[ow] * wv;
+                                for (int64_t ow = lo; ow < hi; ow++)
+                                    orow[ow] += in_off[ow] * wv;
 #endif
                             }
                         }
@@ -415,14 +436,16 @@ static void conv2d_forward_stride1(const float* in, const float* w, const float*
                     const float bv = bias[oc];
                     float* op = out + (b * out_ch + (int64_t)oc) * ho * wo;
                     const size_t plane = (size_t)ho * wo;
-                    for (size_t i = 0; i < plane; i++) op[i] += bv;
+                    for (size_t i = 0; i < plane; i++)
+                        op[i] += bv;
                 }
             }
         }
     }
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* layer, const boat_tensor_t* input) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* layer,
+                                                          const boat_tensor_t* input) {
     if (!layer || !input) {
         return NULL;
     }
@@ -430,7 +453,8 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
     // Output shape: [batch, out_channels, height_out, width_out]
     const int64_t* input_shape = boat_tensor_shape(input);
     if (boat_tensor_ndim(input) != 4) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Conv2d expects 4D input tensor\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                        "[ConvLayer] Conv2d expects 4D input tensor\n");
         return NULL;
     }
 
@@ -440,27 +464,33 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
     int64_t width = input_shape[3];
 
     if ((size_t)in_channels != layer->in_channels) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Input channels %lld don't match layer in_channels %zu\n", in_channels, layer->in_channels);
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                        "[ConvLayer] Input channels %lld don't match layer in_channels %zu\n",
+                        in_channels, layer->in_channels);
         return NULL;
     }
 
     // Check data types
     if (boat_tensor_dtype(input) != BOAT_DTYPE_FLOAT32) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Conv2d only supports FLOAT32 input tensors\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                        "[ConvLayer] Conv2d only supports FLOAT32 input tensors\n");
         return NULL;
     }
     // Allow quantized weights (UINT8/INT8/BITS2/FLOAT4 with scale != 0)
     boat_dtype_t wdt = boat_tensor_dtype(layer->weight);
-    bool weight_quantized = (wdt == BOAT_DTYPE_UINT8 || wdt == BOAT_DTYPE_INT8 ||
-                             wdt == BOAT_DTYPE_BITS2 || wdt == BOAT_DTYPE_BITS1 ||
-                             wdt == BOAT_DTYPE_FLOAT4) &&
-                            (wdt == BOAT_DTYPE_FLOAT4 || boat_tensor_get_scale(layer->weight) != 0.0f);
+    bool weight_quantized =
+        (wdt == BOAT_DTYPE_UINT8 || wdt == BOAT_DTYPE_INT8 || wdt == BOAT_DTYPE_BITS2 ||
+         wdt == BOAT_DTYPE_BITS1 || wdt == BOAT_DTYPE_FLOAT4) &&
+        (wdt == BOAT_DTYPE_FLOAT4 || boat_tensor_get_scale(layer->weight) != 0.0f);
     if (wdt != BOAT_DTYPE_FLOAT32 && !weight_quantized) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Conv2d weight tensor must be FLOAT32 or quantized UINT8/INT8/BITS2/BITS1/FLOAT4\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                        "[ConvLayer] Conv2d weight tensor must be FLOAT32 or quantized "
+                        "UINT8/INT8/BITS2/BITS1/FLOAT4\n");
         return NULL;
     }
     if (layer->use_bias && layer->bias && boat_tensor_dtype(layer->bias) != BOAT_DTYPE_FLOAT32) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Conv2d bias tensor must be FLOAT32\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                        "[ConvLayer] Conv2d bias tensor must be FLOAT32\n");
         return NULL;
     }
 
@@ -483,8 +513,12 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
 
     // Validate output dimensions
     if (height_out <= 0 || width_out <= 0) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Invalid convolution parameters - output dimensions would be non-positive: height_out=%lld, width_out=%lld (height=%lld, width=%lld, padding=%zu, kernel_size=%zu, stride=%zu)\n",
-                height_out, width_out, height, width, layer->padding, layer->kernel_size, layer->stride);
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                        "[ConvLayer] Invalid convolution parameters - output dimensions would be "
+                        "non-positive: height_out=%lld, width_out=%lld (height=%lld, width=%lld, "
+                        "padding=%zu, kernel_size=%zu, stride=%zu)\n",
+                        height_out, width_out, height, width, layer->padding, layer->kernel_size,
+                        layer->stride);
         return NULL;
     }
 
@@ -496,7 +530,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
 
     // Cache input tensor for backward pass
     layer->cache_input = (boat_tensor_t*)input;
-    boat_tensor_ref(layer->cache_input);  // Increase ref count
+    boat_tensor_ref(layer->cache_input); // Increase ref count
 
     // Cache input shape
     layer->cache_input_shape[0] = batch;
@@ -511,8 +545,9 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
     layer->cache_output_shape[3] = width_out;
 
     // Create output tensor
-    const int64_t output_shape[] = { batch, (int64_t)layer->out_channels, height_out, width_out };
-    boat_tensor_t* output = boat_tensor_create(output_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    const int64_t output_shape[] = {batch, (int64_t)layer->out_channels, height_out, width_out};
+    boat_tensor_t* output =
+        boat_tensor_create(output_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!output) {
         if (dequantized_weight) boat_tensor_free(dequantized_weight);
         return NULL;
@@ -532,11 +567,10 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
     // Stride-1 uses the SIMD interior fast path; other strides use the general
     // scalar loop below (identical semantics; accumulation order differs).
     if (layer->stride == 1) {
-        conv2d_forward_stride1(input_data, weight_data, bias_data, output_data,
-                               batch, (int64_t)in_channels,
-                               (int64_t)layer->out_channels, height, width,
-                               height_out, width_out, layer->kernel_size,
-                               layer->padding, layer->groups);
+        conv2d_forward_stride1(input_data, weight_data, bias_data, output_data, batch,
+                               (int64_t)in_channels, (int64_t)layer->out_channels, height, width,
+                               height_out, width_out, layer->kernel_size, layer->padding,
+                               layer->groups);
         if (dequantized_weight) boat_tensor_free(dequantized_weight);
         return output;
     }
@@ -574,14 +608,20 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
                                     int64_t iw = iw_start + kw;
                                     if (iw < 0 || iw >= width) continue;
 
-                                    size_t input_idx = ((b * layer->in_channels + ic) * height + ih) * width + iw;
-                                    size_t weight_idx = ((oc * in_channels_per_group + ic_local) * layer->kernel_size + kh) * layer->kernel_size + kw;
+                                    size_t input_idx =
+                                        ((b * layer->in_channels + ic) * height + ih) * width + iw;
+                                    size_t weight_idx = ((oc * in_channels_per_group + ic_local) *
+                                                             layer->kernel_size +
+                                                         kh) *
+                                                            layer->kernel_size +
+                                                        kw;
 
                                     sum += input_data[input_idx] * weight_data[weight_idx];
                                 }
                             }
 
-                            size_t output_idx = ((b * layer->out_channels + oc) * height_out + oh) * width_out + ow;
+                            size_t output_idx =
+                                ((b * layer->out_channels + oc) * height_out + oh) * width_out + ow;
                             output_data[output_idx] += sum;
                         }
                     }
@@ -592,7 +632,8 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
                     float bias = bias_data[oc];
                     for (int64_t oh = 0; oh < height_out; oh++) {
                         for (int64_t ow = 0; ow < width_out; ow++) {
-                            size_t output_idx = ((b * layer->out_channels + oc) * height_out + oh) * width_out + ow;
+                            size_t output_idx =
+                                ((b * layer->out_channels + oc) * height_out + oh) * width_out + ow;
                             output_data[output_idx] += bias;
                         }
                     }
@@ -609,17 +650,21 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
     return output;
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* layer, const boat_tensor_t* grad_output) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* layer,
+                                                           const boat_tensor_t* grad_output) {
     if (!layer || !grad_output) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] conv backward: NULL input\n");
         return NULL;
     }
-    BOAT_DEBUG_PRINT("[conv backward] layer=%p, grad_output=%p\n", (void*)layer, (void*)grad_output);
+    BOAT_DEBUG_PRINT("[conv backward] layer=%p, grad_output=%p\n", (void*)layer,
+                     (void*)grad_output);
     BOAT_DEBUG_PRINT("[conv backward] cache_input=%p\n", (void*)layer->cache_input);
 
     // Check that cached input exists
     if (!layer->cache_input) {
-        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[ConvLayer] conv backward: no cached input (forward not called or cache cleared)\n");
+        boat_set_errorf(
+            BOAT_ERROR_INVALID_OPERATION,
+            "[ConvLayer] conv backward: no cached input (forward not called or cache cleared)\n");
         return NULL;
     }
 
@@ -629,10 +674,12 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* la
         grad_shape[1] != layer->cache_output_shape[1] ||
         grad_shape[2] != layer->cache_output_shape[2] ||
         grad_shape[3] != layer->cache_output_shape[3]) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] conv backward: grad_output shape [%lld, %lld, %lld, %lld] doesn't match cached output shape [%lld, %lld, %lld, %lld]\n",
-                grad_shape[0], grad_shape[1], grad_shape[2], grad_shape[3],
-                layer->cache_output_shape[0], layer->cache_output_shape[1],
-                layer->cache_output_shape[2], layer->cache_output_shape[3]);
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                        "[ConvLayer] conv backward: grad_output shape [%lld, %lld, %lld, %lld] "
+                        "doesn't match cached output shape [%lld, %lld, %lld, %lld]\n",
+                        grad_shape[0], grad_shape[1], grad_shape[2], grad_shape[3],
+                        layer->cache_output_shape[0], layer->cache_output_shape[1],
+                        layer->cache_output_shape[2], layer->cache_output_shape[3]);
         return NULL;
     }
 
@@ -643,17 +690,18 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* la
         boat_tensor_device(layer->weight) == BOAT_DEVICE_CUDA) {
 
         // Allocate grad_input on CUDA device
-        boat_tensor_t* grad_input = boat_tensor_create(
-            layer->cache_input_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CUDA);
+        boat_tensor_t* grad_input =
+            boat_tensor_create(layer->cache_input_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CUDA);
         if (!grad_input) {
-            boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[ConvLayer] conv backward: failed to create CUDA grad_input\n");
+            boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY,
+                            "[ConvLayer] conv backward: failed to create CUDA grad_input\n");
             return NULL;
         }
 
         // Replace CPU grad_weight with CUDA version
         size_t in_cpg = layer->in_channels / layer->groups;
-        const int64_t wshape[] = { (int64_t)layer->out_channels, (int64_t)in_cpg,
-                                   (int64_t)layer->kernel_size, (int64_t)layer->kernel_size };
+        const int64_t wshape[] = {(int64_t)layer->out_channels, (int64_t)in_cpg,
+                                  (int64_t)layer->kernel_size, (int64_t)layer->kernel_size};
         if (layer->grad_weight) boat_tensor_free(layer->grad_weight);
         layer->grad_weight = boat_tensor_create(wshape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CUDA);
         if (!layer->grad_weight) {
@@ -664,7 +712,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* la
         // Replace CPU grad_bias with CUDA version
         if (layer->use_bias) {
             if (layer->grad_bias) boat_tensor_free(layer->grad_bias);
-            const int64_t bshape[] = { (int64_t)layer->out_channels };
+            const int64_t bshape[] = {(int64_t)layer->out_channels};
             layer->grad_bias = boat_tensor_create(bshape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CUDA);
             if (!layer->grad_bias) {
                 boat_tensor_free(grad_input);
@@ -681,31 +729,30 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* la
         float* d_grad_bias = layer->use_bias ? (float*)boat_tensor_data(layer->grad_bias) : NULL;
 
         // Compute input gradient via cuDNN
-        boat_cuda_conv2d_cudnn_backward_input_f32(d_grad_output, d_weight, d_grad_input,
-            (size_t)layer->cache_input_shape[0], (size_t)layer->cache_input_shape[1],
-            (size_t)layer->cache_input_shape[2], (size_t)layer->cache_input_shape[3],
-            layer->out_channels, layer->kernel_size, layer->kernel_size,
-            layer->padding, layer->stride, layer->groups);
+        boat_cuda_conv2d_cudnn_backward_input_f32(
+            d_grad_output, d_weight, d_grad_input, (size_t)layer->cache_input_shape[0],
+            (size_t)layer->cache_input_shape[1], (size_t)layer->cache_input_shape[2],
+            (size_t)layer->cache_input_shape[3], layer->out_channels, layer->kernel_size,
+            layer->kernel_size, layer->padding, layer->stride, layer->groups);
 
         // Compute weight + bias gradients via cuDNN
-        boat_cuda_conv2d_cudnn_backward_filter_f32(d_input, d_grad_output,
-            d_grad_weight, d_grad_bias,
-            (size_t)layer->cache_input_shape[0], (size_t)layer->cache_input_shape[1],
-            (size_t)layer->cache_input_shape[2], (size_t)layer->cache_input_shape[3],
-            layer->out_channels, layer->kernel_size, layer->kernel_size,
-            layer->padding, layer->stride, layer->groups);
+        boat_cuda_conv2d_cudnn_backward_filter_f32(
+            d_input, d_grad_output, d_grad_weight, d_grad_bias, (size_t)layer->cache_input_shape[0],
+            (size_t)layer->cache_input_shape[1], (size_t)layer->cache_input_shape[2],
+            (size_t)layer->cache_input_shape[3], layer->out_channels, layer->kernel_size,
+            layer->kernel_size, layer->padding, layer->stride, layer->groups);
 
         return grad_input;
     }
 #endif
 
     // CPU backward path: compute gradients using helper functions
-    boat_tensor_t* grad_input = compute_input_gradient(layer, layer->cache_input,
-                                                       layer->cache_input_shape,
-                                                       layer->cache_output_shape,
-                                                       grad_output);
+    boat_tensor_t* grad_input =
+        compute_input_gradient(layer, layer->cache_input, layer->cache_input_shape,
+                               layer->cache_output_shape, grad_output);
     if (!grad_input) {
-        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[ConvLayer] conv backward: failed to compute input gradient\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION,
+                        "[ConvLayer] conv backward: failed to compute input gradient\n");
         return NULL;
     }
 
@@ -713,21 +760,22 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* la
     if (!layer->grad_weight) {
         // Create gradient weight tensor if it doesn't exist (should exist)
         size_t in_channels_per_group = layer->in_channels / layer->groups;
-        const int64_t weight_shape[] = { (int64_t)layer->out_channels, (int64_t)in_channels_per_group,
-                                         (int64_t)layer->kernel_size, (int64_t)layer->kernel_size };
-        layer->grad_weight = boat_tensor_create(weight_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+        const int64_t weight_shape[] = {(int64_t)layer->out_channels,
+                                        (int64_t)in_channels_per_group, (int64_t)layer->kernel_size,
+                                        (int64_t)layer->kernel_size};
+        layer->grad_weight =
+            boat_tensor_create(weight_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
         if (!layer->grad_weight) {
-            boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[ConvLayer] conv backward: failed to create grad_weight tensor\n");
+            boat_set_errorf(BOAT_ERROR_INVALID_OPERATION,
+                            "[ConvLayer] conv backward: failed to create grad_weight tensor\n");
             boat_tensor_free(grad_input);
             return NULL;
         }
     }
-    if (!compute_weight_gradient_into(layer, layer->cache_input,
-                                      layer->cache_input_shape,
-                                      layer->cache_output_shape,
-                                      grad_output,
-                                      layer->grad_weight)) {
-        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[ConvLayer] conv backward: failed to compute weight gradient\n");
+    if (!compute_weight_gradient_into(layer, layer->cache_input, layer->cache_input_shape,
+                                      layer->cache_output_shape, grad_output, layer->grad_weight)) {
+        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION,
+                        "[ConvLayer] conv backward: failed to compute weight gradient\n");
         boat_tensor_free(grad_input);
         return NULL;
     }
@@ -735,16 +783,20 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_backward(boat_conv_layer_t* la
     // Bias gradient (only if bias is used)
     if (layer->use_bias) {
         if (!layer->grad_bias) {
-            const int64_t bias_shape[] = { (int64_t)layer->out_channels };
-            layer->grad_bias = boat_tensor_create(bias_shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+            const int64_t bias_shape[] = {(int64_t)layer->out_channels};
+            layer->grad_bias =
+                boat_tensor_create(bias_shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
             if (!layer->grad_bias) {
-                boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[ConvLayer] conv backward: failed to create grad_bias tensor\n");
+                boat_set_errorf(BOAT_ERROR_INVALID_OPERATION,
+                                "[ConvLayer] conv backward: failed to create grad_bias tensor\n");
                 boat_tensor_free(grad_input);
                 return NULL;
             }
         }
-        if (!compute_bias_gradient_into(layer, layer->cache_output_shape, grad_output, layer->grad_bias)) {
-            boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[ConvLayer] conv backward: failed to compute bias gradient\n");
+        if (!compute_bias_gradient_into(layer, layer->cache_output_shape, grad_output,
+                                        layer->grad_bias)) {
+            boat_set_errorf(BOAT_ERROR_INVALID_OPERATION,
+                            "[ConvLayer] conv backward: failed to compute bias gradient\n");
             boat_tensor_free(grad_input);
             return NULL;
         }
@@ -776,7 +828,7 @@ BOAT_API void BOAT_CALL boat_conv_layer_update(boat_conv_layer_t* layer, float l
     if (layer->grad_weight && layer->weight) {
         boat_tensor_t* scaled_grad = boat_mul_scalar(layer->grad_weight, learning_rate);
         if (scaled_grad) {
-            boat_sub_(layer->weight, scaled_grad);  // weight -= learning_rate * grad_weight
+            boat_sub_(layer->weight, scaled_grad); // weight -= learning_rate * grad_weight
             boat_tensor_unref(scaled_grad);
         }
     }
@@ -784,7 +836,7 @@ BOAT_API void BOAT_CALL boat_conv_layer_update(boat_conv_layer_t* layer, float l
     if (layer->use_bias && layer->grad_bias && layer->bias) {
         boat_tensor_t* scaled_grad = boat_mul_scalar(layer->grad_bias, learning_rate);
         if (scaled_grad) {
-            boat_sub_(layer->bias, scaled_grad);    // bias -= learning_rate * grad_bias
+            boat_sub_(layer->bias, scaled_grad); // bias -= learning_rate * grad_bias
             boat_tensor_unref(scaled_grad);
         }
     }
@@ -793,7 +845,8 @@ BOAT_API void BOAT_CALL boat_conv_layer_update(boat_conv_layer_t* layer, float l
 }
 
 // Parameter access functions for model loading
-BOAT_API void BOAT_CALL boat_conv_layer_set_weight(boat_conv_layer_t* layer, boat_tensor_t* weight) {
+BOAT_API void BOAT_CALL boat_conv_layer_set_weight(boat_conv_layer_t* layer,
+                                                   boat_tensor_t* weight) {
     if (!layer || !weight) {
         return;
     }
@@ -804,9 +857,12 @@ BOAT_API void BOAT_CALL boat_conv_layer_set_weight(boat_conv_layer_t* layer, boa
         weight_shape[1] != (int64_t)in_channels_per_group ||
         weight_shape[2] != (int64_t)layer->kernel_size ||
         weight_shape[3] != (int64_t)layer->kernel_size) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Weight shape [%lld, %lld, %lld, %lld] does not match layer dimensions [%zu, %zu, %zu, %zu]\n",
-                weight_shape[0], weight_shape[1], weight_shape[2], weight_shape[3],
-                layer->out_channels, in_channels_per_group, layer->kernel_size, layer->kernel_size);
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                        "[ConvLayer] Weight shape [%lld, %lld, %lld, %lld] does not match layer "
+                        "dimensions [%zu, %zu, %zu, %zu]\n",
+                        weight_shape[0], weight_shape[1], weight_shape[2], weight_shape[3],
+                        layer->out_channels, in_channels_per_group, layer->kernel_size,
+                        layer->kernel_size);
         return;
     }
     // Replace weight tensor
@@ -822,14 +878,16 @@ BOAT_API void BOAT_CALL boat_conv_layer_set_bias(boat_conv_layer_t* layer, boat_
         return;
     }
     if (!layer->use_bias) {
-        BOAT_DEBUG_PRINT("[ConvLayer] Warning: Layer was created without bias, ignoring bias tensor\n");
+        BOAT_DEBUG_PRINT(
+            "[ConvLayer] Warning: Layer was created without bias, ignoring bias tensor\n");
         return;
     }
     // Check bias shape matches output channels
     const int64_t* bias_shape = boat_tensor_shape(bias);
     if (bias_shape[0] != (int64_t)layer->out_channels) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[ConvLayer] Bias shape [%lld] does not match output channels %zu\n",
-                bias_shape[0], layer->out_channels);
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                        "[ConvLayer] Bias shape [%lld] does not match output channels %zu\n",
+                        bias_shape[0], layer->out_channels);
         return;
     }
     // Replace bias tensor
@@ -840,20 +898,25 @@ BOAT_API void BOAT_CALL boat_conv_layer_set_bias(boat_conv_layer_t* layer, boat_
     boat_tensor_ref(bias);
 }
 
-BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_conv_layer_get_weight(const boat_conv_layer_t* layer) {
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL
+boat_conv_layer_get_weight(const boat_conv_layer_t* layer) {
     return layer ? layer->weight : NULL;
 }
 
-BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_conv_layer_get_bias(const boat_conv_layer_t* layer) {
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL
+boat_conv_layer_get_bias(const boat_conv_layer_t* layer) {
     return layer ? layer->bias : NULL;
 }
 
-BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_conv_layer_get_grad_weight(const boat_conv_layer_t* layer) {
-    BOAT_DEBUG_PRINT("DEBUG get_grad_weight: layer=%p, grad_weight=%p\n", layer, layer ? layer->grad_weight : NULL);
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL
+boat_conv_layer_get_grad_weight(const boat_conv_layer_t* layer) {
+    BOAT_DEBUG_PRINT("DEBUG get_grad_weight: layer=%p, grad_weight=%p\n", layer,
+                     layer ? layer->grad_weight : NULL);
     return layer ? layer->grad_weight : NULL;
 }
 
-BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_conv_layer_get_grad_bias(const boat_conv_layer_t* layer) {
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL
+boat_conv_layer_get_grad_bias(const boat_conv_layer_t* layer) {
     return layer ? layer->grad_bias : NULL;
 }
 
@@ -861,7 +924,8 @@ BOAT_API BOAT_NOINLINE size_t BOAT_CALL boat_conv_layer_get_stride(const boat_co
     return layer ? layer->stride : 0;
 }
 
-BOAT_API BOAT_NOINLINE size_t BOAT_CALL boat_conv_layer_get_padding(const boat_conv_layer_t* layer) {
+BOAT_API BOAT_NOINLINE size_t BOAT_CALL
+boat_conv_layer_get_padding(const boat_conv_layer_t* layer) {
     return layer ? layer->padding : 0;
 }
 

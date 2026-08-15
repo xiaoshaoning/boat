@@ -18,12 +18,12 @@ struct boat_layernorm_t {
     boat_layernorm_config_t config;
 
     // Learnable parameters (if elementwise_affine is true)
-    boat_tensor_t* weight;  // gamma
-    boat_tensor_t* bias;    // beta
+    boat_tensor_t* weight; // gamma
+    boat_tensor_t* bias;   // beta
 
     // Gradient accumulators
-    boat_tensor_t* grad_weight;  // dL/dgamma
-    boat_tensor_t* grad_bias;    // dL/dbeta
+    boat_tensor_t* grad_weight; // dL/dgamma
+    boat_tensor_t* grad_bias;   // dL/dbeta
 
     // Cache for backward pass
     boat_tensor_t* cache_input;
@@ -36,10 +36,10 @@ struct boat_rmsnorm_t {
     boat_rmsnorm_config_t config;
 
     // Learnable scale (if elementwise_affine is true)
-    boat_tensor_t* weight;  // gamma
+    boat_tensor_t* weight; // gamma
 
     // Gradient accumulator
-    boat_tensor_t* grad_weight;  // dL/dgamma
+    boat_tensor_t* grad_weight; // dL/dgamma
 
     // Cache for backward pass
     boat_tensor_t* cache_input;
@@ -48,7 +48,7 @@ struct boat_rmsnorm_t {
 
 // Helper function to create weight tensor
 static boat_tensor_t* create_weight_tensor(size_t normalized_shape) {
-    const int64_t shape[] = { (int64_t)normalized_shape };
+    const int64_t shape[] = {(int64_t)normalized_shape};
     boat_tensor_t* weight = boat_tensor_create(shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
 
     if (!weight) {
@@ -67,7 +67,7 @@ static boat_tensor_t* create_weight_tensor(size_t normalized_shape) {
 
 // Helper function to create bias tensor
 static boat_tensor_t* create_bias_tensor(size_t normalized_shape) {
-    const int64_t shape[] = { (int64_t)normalized_shape };
+    const int64_t shape[] = {(int64_t)normalized_shape};
     boat_tensor_t* bias = boat_tensor_create(shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
 
     if (!bias) {
@@ -87,7 +87,8 @@ BOAT_API boat_layernorm_t* boat_layernorm_create(const boat_layernorm_config_t* 
         return NULL;
     }
 
-    boat_layernorm_t* norm = (boat_layernorm_t*)boat_malloc(sizeof(boat_layernorm_t), BOAT_DEVICE_CPU);
+    boat_layernorm_t* norm =
+        (boat_layernorm_t*)boat_malloc(sizeof(boat_layernorm_t), BOAT_DEVICE_CPU);
     if (!norm) {
         return NULL;
     }
@@ -198,8 +199,8 @@ BOAT_API void boat_rmsnorm_free(boat_rmsnorm_t* norm) {
 }
 
 // Helper function to compute mean and variance along last dimension
-static void compute_mean_variance(const float* input, size_t batch_size, size_t seq_len, size_t hidden_size,
-                                  float* mean, float* variance) {
+static void compute_mean_variance(const float* input, size_t batch_size, size_t seq_len,
+                                  size_t hidden_size, float* mean, float* variance) {
     for (size_t b = 0; b < batch_size; b++) {
         for (size_t s = 0; s < seq_len; s++) {
             size_t offset = b * seq_len * hidden_size + s * hidden_size;
@@ -277,14 +278,13 @@ BOAT_API boat_tensor_t* boat_layernorm_forward(boat_layernorm_t* norm, const boa
 
 #ifdef BOAT_WITH_CUDA
     if (boat_tensor_device(input) == BOAT_DEVICE_CUDA) {
-        const float* gamma = norm->weight ? (const float*)boat_tensor_const_data(norm->weight) : NULL;
+        const float* gamma =
+            norm->weight ? (const float*)boat_tensor_const_data(norm->weight) : NULL;
         const float* beta = norm->bias ? (const float*)boat_tensor_const_data(norm->bias) : NULL;
 
-        boat_cuda_layernorm_forward_f32(
-            (const float*)boat_tensor_const_data(input),
-            gamma, beta,
-            (float*)boat_tensor_data(output),
-            (int64_t)outer_elements, (int64_t)hidden_size, norm->config.eps);
+        boat_cuda_layernorm_forward_f32((const float*)boat_tensor_const_data(input), gamma, beta,
+                                        (float*)boat_tensor_data(output), (int64_t)outer_elements,
+                                        (int64_t)hidden_size, norm->config.eps);
 
         // Cache input for backward pass
         if (norm->cache_input) boat_tensor_free(norm->cache_input);
@@ -317,7 +317,8 @@ BOAT_API boat_tensor_t* boat_layernorm_forward(boat_layernorm_t* norm, const boa
 
     // Apply layer normalization
     float eps = norm->config.eps;
-    const float* weight_data = norm->weight ? (const float*)boat_tensor_const_data(norm->weight) : NULL;
+    const float* weight_data =
+        norm->weight ? (const float*)boat_tensor_const_data(norm->weight) : NULL;
     const float* bias_data = norm->bias ? (const float*)boat_tensor_const_data(norm->bias) : NULL;
 
     for (size_t b = 0; b < batch_size; b++) {
@@ -350,7 +351,7 @@ BOAT_API boat_tensor_t* boat_layernorm_forward(boat_layernorm_t* norm, const boa
     if (norm->cache_mean) boat_tensor_free(norm->cache_mean);
     if (norm->cache_variance) boat_tensor_free(norm->cache_variance);
     norm->cache_input = boat_tensor_clone(input);
-    const int64_t stats_shape[] = { (int64_t)outer_elements };
+    const int64_t stats_shape[] = {(int64_t)outer_elements};
     norm->cache_mean = boat_tensor_create(stats_shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     norm->cache_variance = boat_tensor_create(stats_shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (norm->cache_mean && norm->cache_variance) {
@@ -397,13 +398,12 @@ BOAT_API boat_tensor_t* boat_rmsnorm_forward(boat_rmsnorm_t* norm, const boat_te
 
 #ifdef BOAT_WITH_CUDA
     if (boat_tensor_device(input) == BOAT_DEVICE_CUDA) {
-        const float* gamma = norm->weight ? (const float*)boat_tensor_const_data(norm->weight) : NULL;
+        const float* gamma =
+            norm->weight ? (const float*)boat_tensor_const_data(norm->weight) : NULL;
 
-        boat_cuda_rmsnorm_forward_f32(
-            (const float*)boat_tensor_const_data(input),
-            gamma,
-            (float*)boat_tensor_data(output),
-            (int64_t)outer_elements, (int64_t)hidden_size, norm->config.eps);
+        boat_cuda_rmsnorm_forward_f32((const float*)boat_tensor_const_data(input), gamma,
+                                      (float*)boat_tensor_data(output), (int64_t)outer_elements,
+                                      (int64_t)hidden_size, norm->config.eps);
 
         // Cache input for backward pass
         if (norm->cache_input) boat_tensor_free(norm->cache_input);
@@ -432,7 +432,8 @@ BOAT_API boat_tensor_t* boat_rmsnorm_forward(boat_rmsnorm_t* norm, const boat_te
 
     // Apply RMS normalization
     float eps = norm->config.eps;
-    const float* weight_data = norm->weight ? (const float*)boat_tensor_const_data(norm->weight) : NULL;
+    const float* weight_data =
+        norm->weight ? (const float*)boat_tensor_const_data(norm->weight) : NULL;
 
     for (size_t b = 0; b < batch_size; b++) {
         for (size_t s = 0; s < seq_len; s++) {
@@ -459,7 +460,7 @@ BOAT_API boat_tensor_t* boat_rmsnorm_forward(boat_rmsnorm_t* norm, const boat_te
     if (norm->cache_input) boat_tensor_free(norm->cache_input);
     if (norm->cache_rms) boat_tensor_free(norm->cache_rms);
     norm->cache_input = boat_tensor_clone(input);
-    const int64_t rms_shape[] = { (int64_t)outer_elements };
+    const int64_t rms_shape[] = {(int64_t)outer_elements};
     norm->cache_rms = boat_tensor_create(rms_shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (norm->cache_rms) {
         memcpy(boat_tensor_data(norm->cache_rms), rms, outer_elements * sizeof(float));
@@ -471,7 +472,8 @@ BOAT_API boat_tensor_t* boat_rmsnorm_forward(boat_rmsnorm_t* norm, const boat_te
     return output;
 }
 
-BOAT_API boat_tensor_t* boat_layernorm_backward(boat_layernorm_t* norm, const boat_tensor_t* grad_output) {
+BOAT_API boat_tensor_t* boat_layernorm_backward(boat_layernorm_t* norm,
+                                                const boat_tensor_t* grad_output) {
     if (!norm || !grad_output || !norm->cache_input) {
         return NULL;
     }
@@ -507,13 +509,16 @@ BOAT_API boat_tensor_t* boat_layernorm_backward(boat_layernorm_t* norm, const bo
         dy_host = (float*)boat_malloc(total * sizeof(float), BOAT_DEVICE_CPU);
         dx_host = (float*)boat_malloc(total * sizeof(float), BOAT_DEVICE_CPU);
         if (!x_host || !dy_host || !dx_host) {
-            boat_free(x_host); boat_free(dy_host); boat_free(dx_host);
+            boat_free(x_host);
+            boat_free(dy_host);
+            boat_free(dx_host);
             boat_tensor_free(grad_input);
             return NULL;
         }
 #ifdef BOAT_WITH_CUDA
         if (boat_tensor_device(norm->cache_input) == BOAT_DEVICE_CUDA) {
-            boat_cuda_memcpy_d2h(x_host, boat_tensor_const_data(norm->cache_input), total * sizeof(float));
+            boat_cuda_memcpy_d2h(x_host, boat_tensor_const_data(norm->cache_input),
+                                 total * sizeof(float));
         } else {
             memcpy(x_host, boat_tensor_const_data(norm->cache_input), total * sizeof(float));
         }
@@ -522,7 +527,9 @@ BOAT_API boat_tensor_t* boat_layernorm_backward(boat_layernorm_t* norm, const bo
         memcpy(x_host, boat_tensor_const_data(norm->cache_input), total * sizeof(float));
         memcpy(dy_host, boat_tensor_const_data(grad_output), total * sizeof(float));
 #endif
-        x = x_host; dy = dy_host; dx = dx_host;
+        x = x_host;
+        dy = dy_host;
+        dx = dx_host;
     } else {
         x = (const float*)boat_tensor_const_data(norm->cache_input);
         dy = (const float*)boat_tensor_const_data(grad_output);
@@ -536,8 +543,13 @@ BOAT_API boat_tensor_t* boat_layernorm_backward(boat_layernorm_t* norm, const bo
     float* mean = (float*)boat_malloc(outer * sizeof(float), BOAT_DEVICE_CPU);
     float* variance = (float*)boat_malloc(outer * sizeof(float), BOAT_DEVICE_CPU);
     if (!mean || !variance) {
-        boat_free(mean); boat_free(variance);
-        if (on_cuda) { boat_free(x_host); boat_free(dy_host); boat_free(dx_host); }
+        boat_free(mean);
+        boat_free(variance);
+        if (on_cuda) {
+            boat_free(x_host);
+            boat_free(dy_host);
+            boat_free(dx_host);
+        }
         boat_tensor_free(grad_input);
         return NULL;
     }
@@ -619,7 +631,8 @@ BOAT_API boat_tensor_t* boat_layernorm_backward(boat_layernorm_t* norm, const bo
     return grad_input;
 }
 
-BOAT_API boat_tensor_t* boat_rmsnorm_backward(boat_rmsnorm_t* norm, const boat_tensor_t* grad_output) {
+BOAT_API boat_tensor_t* boat_rmsnorm_backward(boat_rmsnorm_t* norm,
+                                              const boat_tensor_t* grad_output) {
     if (!norm || !grad_output || !norm->cache_input) {
         return NULL;
     }
@@ -654,13 +667,16 @@ BOAT_API boat_tensor_t* boat_rmsnorm_backward(boat_rmsnorm_t* norm, const boat_t
         dy_host = (float*)boat_malloc(total * sizeof(float), BOAT_DEVICE_CPU);
         dx_host = (float*)boat_malloc(total * sizeof(float), BOAT_DEVICE_CPU);
         if (!x_host || !dy_host || !dx_host) {
-            boat_free(x_host); boat_free(dy_host); boat_free(dx_host);
+            boat_free(x_host);
+            boat_free(dy_host);
+            boat_free(dx_host);
             boat_tensor_free(grad_input);
             return NULL;
         }
 #ifdef BOAT_WITH_CUDA
         if (boat_tensor_device(norm->cache_input) == BOAT_DEVICE_CUDA) {
-            boat_cuda_memcpy_d2h(x_host, boat_tensor_const_data(norm->cache_input), total * sizeof(float));
+            boat_cuda_memcpy_d2h(x_host, boat_tensor_const_data(norm->cache_input),
+                                 total * sizeof(float));
         } else {
             memcpy(x_host, boat_tensor_const_data(norm->cache_input), total * sizeof(float));
         }
@@ -669,7 +685,9 @@ BOAT_API boat_tensor_t* boat_rmsnorm_backward(boat_rmsnorm_t* norm, const boat_t
         memcpy(x_host, boat_tensor_const_data(norm->cache_input), total * sizeof(float));
         memcpy(dy_host, boat_tensor_const_data(grad_output), total * sizeof(float));
 #endif
-        x = x_host; dy = dy_host; dx = dx_host;
+        x = x_host;
+        dy = dy_host;
+        dx = dx_host;
     } else {
         x = (const float*)boat_tensor_const_data(norm->cache_input);
         dy = (const float*)boat_tensor_const_data(grad_output);
@@ -682,7 +700,11 @@ BOAT_API boat_tensor_t* boat_rmsnorm_backward(boat_rmsnorm_t* norm, const boat_t
     // Recompute RMS along the last dimension (same definition as forward)
     float* rms = (float*)boat_malloc(outer * sizeof(float), BOAT_DEVICE_CPU);
     if (!rms) {
-        if (on_cuda) { boat_free(x_host); boat_free(dy_host); boat_free(dx_host); }
+        if (on_cuda) {
+            boat_free(x_host);
+            boat_free(dy_host);
+            boat_free(dx_host);
+        }
         boat_tensor_free(grad_input);
         return NULL;
     }
@@ -783,10 +805,8 @@ BOAT_API void boat_rmsnorm_update(boat_rmsnorm_t* norm, float learning_rate) {
 }
 
 // Standalone layer norm function
-BOAT_API boat_tensor_t* boat_layer_norm(const boat_tensor_t* input,
-                                const int64_t* normalized_shape,
-                                size_t normalized_shape_len,
-                                float eps) {
+BOAT_API boat_tensor_t* boat_layer_norm(const boat_tensor_t* input, const int64_t* normalized_shape,
+                                        size_t normalized_shape_len, float eps) {
     if (!input || !normalized_shape || normalized_shape_len == 0) return NULL;
 
     size_t ndim = boat_tensor_ndim(input);
@@ -803,12 +823,11 @@ BOAT_API boat_tensor_t* boat_layer_norm(const boat_tensor_t* input,
     if (!output) return NULL;
 
 #ifdef BOAT_WITH_CUDA
-    if (boat_tensor_device(input) == BOAT_DEVICE_CUDA && boat_tensor_dtype(input) == BOAT_DTYPE_FLOAT32) {
-        boat_cuda_layernorm_forward_f32(
-            (const float*)boat_tensor_const_data(input),
-            NULL, NULL,
-            (float*)boat_tensor_data(output),
-            (int64_t)outer, (int64_t)D, eps);
+    if (boat_tensor_device(input) == BOAT_DEVICE_CUDA &&
+        boat_tensor_dtype(input) == BOAT_DTYPE_FLOAT32) {
+        boat_cuda_layernorm_forward_f32((const float*)boat_tensor_const_data(input), NULL, NULL,
+                                        (float*)boat_tensor_data(output), (int64_t)outer,
+                                        (int64_t)D, eps);
         return output;
     }
 #endif
@@ -827,7 +846,8 @@ BOAT_API boat_tensor_t* boat_layer_norm(const boat_tensor_t* input,
 
         // Mean
         float sum = 0.0f;
-        for (int64_t j = 0; j < D; j++) sum += row[j];
+        for (int64_t j = 0; j < D; j++)
+            sum += row[j];
         float mean = sum / (float)D;
 
         // Variance
@@ -849,10 +869,8 @@ BOAT_API boat_tensor_t* boat_layer_norm(const boat_tensor_t* input,
 }
 
 // Standalone RMS norm function
-BOAT_API boat_tensor_t* boat_rms_norm(const boat_tensor_t* input,
-                              const int64_t* normalized_shape,
-                              size_t normalized_shape_len,
-                              float eps) {
+BOAT_API boat_tensor_t* boat_rms_norm(const boat_tensor_t* input, const int64_t* normalized_shape,
+                                      size_t normalized_shape_len, float eps) {
     if (!input || !normalized_shape || normalized_shape_len == 0) return NULL;
 
     size_t ndim = boat_tensor_ndim(input);
@@ -869,12 +887,11 @@ BOAT_API boat_tensor_t* boat_rms_norm(const boat_tensor_t* input,
     if (!output) return NULL;
 
 #ifdef BOAT_WITH_CUDA
-    if (boat_tensor_device(input) == BOAT_DEVICE_CUDA && boat_tensor_dtype(input) == BOAT_DTYPE_FLOAT32) {
-        boat_cuda_rmsnorm_forward_f32(
-            (const float*)boat_tensor_const_data(input),
-            NULL,
-            (float*)boat_tensor_data(output),
-            (int64_t)outer, (int64_t)D, eps);
+    if (boat_tensor_device(input) == BOAT_DEVICE_CUDA &&
+        boat_tensor_dtype(input) == BOAT_DTYPE_FLOAT32) {
+        boat_cuda_rmsnorm_forward_f32((const float*)boat_tensor_const_data(input), NULL,
+                                      (float*)boat_tensor_data(output), (int64_t)outer, (int64_t)D,
+                                      eps);
         return output;
     }
 #endif
@@ -893,7 +910,8 @@ BOAT_API boat_tensor_t* boat_rms_norm(const boat_tensor_t* input,
 
         // RMS
         float sum_sq = 0.0f;
-        for (int64_t j = 0; j < D; j++) sum_sq += row[j] * row[j];
+        for (int64_t j = 0; j < D; j++)
+            sum_sq += row[j] * row[j];
         float rms = sqrtf(sum_sq / (float)D);
 
         // Normalize
@@ -908,11 +926,10 @@ BOAT_API boat_tensor_t* boat_rms_norm(const boat_tensor_t* input,
 
 // Gradient functions
 BOAT_API boat_tensor_t* boat_layer_norm_grad(const boat_tensor_t* grad_output,
-                                     const boat_tensor_t* input,
-                                     const boat_tensor_t* output,
-                                     const int64_t* normalized_shape,
-                                     size_t normalized_shape_len,
-                                     float eps) {
+                                             const boat_tensor_t* input,
+                                             const boat_tensor_t* output,
+                                             const int64_t* normalized_shape,
+                                             size_t normalized_shape_len, float eps) {
     (void)grad_output;
     (void)input;
     (void)output;
@@ -923,11 +940,9 @@ BOAT_API boat_tensor_t* boat_layer_norm_grad(const boat_tensor_t* grad_output,
 }
 
 BOAT_API boat_tensor_t* boat_rms_norm_grad(const boat_tensor_t* grad_output,
-                                   const boat_tensor_t* input,
-                                   const boat_tensor_t* output,
-                                   const int64_t* normalized_shape,
-                                   size_t normalized_shape_len,
-                                   float eps) {
+                                           const boat_tensor_t* input, const boat_tensor_t* output,
+                                           const int64_t* normalized_shape,
+                                           size_t normalized_shape_len, float eps) {
     (void)grad_output;
     (void)input;
     (void)output;
@@ -962,7 +977,8 @@ BOAT_API void boat_layernorm_set_bias(boat_layernorm_t* norm, boat_tensor_t* bia
         return;
     }
     if (!norm->config.use_bias) {
-        fprintf(stderr, "Warning: Layer normalization was created without bias, ignoring bias tensor\n");
+        fprintf(stderr,
+                "Warning: Layer normalization was created without bias, ignoring bias tensor\n");
         return;
     }
     // Check bias shape matches normalized_shape
@@ -983,12 +999,13 @@ BOAT_API void boat_layernorm_set_bias(boat_layernorm_t* norm, boat_tensor_t* bia
 // Adapter for generic norm layer interface (layers.h)
 typedef boat_layernorm_t boat_norm_layer_t;
 
-BOAT_API boat_norm_layer_t* BOAT_CALL boat_norm_layer_create(size_t normalized_shape, float eps, bool elementwise_affine) {
+BOAT_API boat_norm_layer_t* BOAT_CALL boat_norm_layer_create(size_t normalized_shape, float eps,
+                                                             bool elementwise_affine) {
     boat_layernorm_config_t config = {
         .normalized_shape = normalized_shape,
         .eps = eps,
         .elementwise_affine = elementwise_affine,
-        .use_bias = elementwise_affine  // Use bias if affine is enabled
+        .use_bias = elementwise_affine // Use bias if affine is enabled
     };
     return boat_layernorm_create(&config);
 }
@@ -997,15 +1014,18 @@ BOAT_API void BOAT_CALL boat_norm_layer_free(boat_norm_layer_t* layer) {
     boat_layernorm_free(layer);
 }
 
-BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_norm_layer_forward(boat_norm_layer_t* layer, const boat_tensor_t* input) {
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL
+boat_norm_layer_forward(boat_norm_layer_t* layer, const boat_tensor_t* input) {
     return boat_layernorm_forward(layer, input);
 }
 
-BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_norm_layer_backward(boat_norm_layer_t* layer, const boat_tensor_t* grad_output) {
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL
+boat_norm_layer_backward(boat_norm_layer_t* layer, const boat_tensor_t* grad_output) {
     return boat_layernorm_backward(layer, grad_output);
 }
 
-BOAT_API BOAT_NOINLINE void BOAT_CALL boat_norm_layer_update(boat_norm_layer_t* layer, float learning_rate) {
+BOAT_API BOAT_NOINLINE void BOAT_CALL boat_norm_layer_update(boat_norm_layer_t* layer,
+                                                             float learning_rate) {
     boat_layernorm_update(layer, learning_rate);
 }
 

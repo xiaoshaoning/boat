@@ -17,7 +17,8 @@ static void remove_all_edges_for_node(boat_graph_t* graph, const boat_node_t* no
 
     // Create a list of edges to remove (we can't modify while iterating)
     size_t edges_to_remove_count = 0;
-    struct boat_edge_t** edges_to_remove = boat_malloc(graph->edge_count * sizeof(struct boat_edge_t*), graph->device);
+    struct boat_edge_t** edges_to_remove =
+        boat_malloc(graph->edge_count * sizeof(struct boat_edge_t*), graph->device);
     if (!edges_to_remove) return;
 
     for (size_t i = 0; i < graph->edge_count; i++) {
@@ -49,23 +50,20 @@ bool ensure_node_capacity(boat_graph_t* graph, size_t needed_capacity) {
     }
 
     // Resize nodes array
-    boat_node_t** new_nodes = boat_realloc(graph->nodes,
-                                           new_capacity * sizeof(boat_node_t*),
-                                           graph->device);
+    boat_node_t** new_nodes =
+        boat_realloc(graph->nodes, new_capacity * sizeof(boat_node_t*), graph->device);
     if (!new_nodes) return false;
     graph->nodes = new_nodes;
 
     // Resize outgoing array
-    boat_edge_list_t** new_outgoing = boat_realloc(graph->outgoing,
-                                                   new_capacity * sizeof(boat_edge_list_t*),
-                                                   graph->device);
+    boat_edge_list_t** new_outgoing =
+        boat_realloc(graph->outgoing, new_capacity * sizeof(boat_edge_list_t*), graph->device);
     if (!new_outgoing) return false;
     graph->outgoing = new_outgoing;
 
     // Resize incoming array
-    boat_edge_list_t** new_incoming = boat_realloc(graph->incoming,
-                                                   new_capacity * sizeof(boat_edge_list_t*),
-                                                   graph->device);
+    boat_edge_list_t** new_incoming =
+        boat_realloc(graph->incoming, new_capacity * sizeof(boat_edge_list_t*), graph->device);
     if (!new_incoming) return false;
     graph->incoming = new_incoming;
 
@@ -91,19 +89,17 @@ bool ensure_edge_capacity(boat_graph_t* graph, size_t needed_capacity) {
         new_capacity *= 2;
     }
 
-    struct boat_edge_t** new_edges = boat_realloc(graph->edges,
-                                                  new_capacity * sizeof(struct boat_edge_t*),
-                                                  graph->device);
+    struct boat_edge_t** new_edges =
+        boat_realloc(graph->edges, new_capacity * sizeof(struct boat_edge_t*), graph->device);
     if (!new_edges) return false;
     graph->edges = new_edges;
     graph->edge_capacity = new_capacity;
     return true;
 }
 
-
 // Edge operations
-BOAT_API boat_edge_t* boat_graph_add_edge(boat_graph_t* graph, const boat_node_t* from, const boat_node_t* to,
-                                 boat_edge_direction_t direction) {
+BOAT_API boat_edge_t* boat_graph_add_edge(boat_graph_t* graph, const boat_node_t* from,
+                                          const boat_node_t* to, boat_edge_direction_t direction) {
     if (!graph || !from || !to) {
         return NULL;
     }
@@ -257,8 +253,8 @@ BOAT_API size_t boat_graph_out_degree(const boat_graph_t* graph, const boat_node
 
 // Graph traversal algorithms
 BOAT_API void boat_graph_dfs(const boat_graph_t* graph, const boat_node_t* start,
-                    boat_node_visitor_t pre_visit, boat_node_visitor_t post_visit,
-                    void* user_data) {
+                             boat_node_visitor_t pre_visit, boat_node_visitor_t post_visit,
+                             void* user_data) {
     if (!graph || !start) return;
 
     // Find start index
@@ -304,7 +300,8 @@ BOAT_API void boat_graph_dfs(const boat_graph_t* graph, const boat_node_t* start
         if (graph->outgoing[current_index]) {
             size_t edge_count = boat_edge_list_count(graph->outgoing[current_index]);
             for (size_t i = 0; i < edge_count; i++) {
-                const struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[current_index], i);
+                const struct boat_edge_t* edge =
+                    boat_edge_list_get(graph->outgoing[current_index], i);
                 const boat_node_t* neighbor = boat_edge_target(edge);
                 // Find neighbor index
                 for (size_t j = 0; j < graph->node_count; j++) {
@@ -322,7 +319,7 @@ BOAT_API void boat_graph_dfs(const boat_graph_t* graph, const boat_node_t* start
 }
 
 BOAT_API void boat_graph_bfs(const boat_graph_t* graph, const boat_node_t* start,
-                    boat_node_visitor_t visit, void* user_data) {
+                             boat_node_visitor_t visit, void* user_data) {
     if (!graph || !start || !visit) return;
 
     size_t start_index = SIZE_MAX;
@@ -354,7 +351,8 @@ BOAT_API void boat_graph_bfs(const boat_graph_t* graph, const boat_node_t* start
         if (graph->outgoing[current_index]) {
             size_t edge_count = boat_edge_list_count(graph->outgoing[current_index]);
             for (size_t i = 0; i < edge_count; i++) {
-                const struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[current_index], i);
+                const struct boat_edge_t* edge =
+                    boat_edge_list_get(graph->outgoing[current_index], i);
                 const boat_node_t* neighbor = boat_edge_target(edge);
                 for (size_t j = 0; j < graph->node_count; j++) {
                     if (graph->nodes[j] == neighbor && !visited[j]) {
@@ -372,7 +370,7 @@ BOAT_API void boat_graph_bfs(const boat_graph_t* graph, const boat_node_t* start
 }
 
 BOAT_API void boat_graph_topological_sort(const boat_graph_t* graph, boat_node_t** sorted_nodes,
-                                 size_t* count) {
+                                          size_t* count) {
     if (!graph || !sorted_nodes || !count) return;
 
     // Kahn's algorithm
@@ -431,7 +429,8 @@ BOAT_API void boat_graph_topological_sort(const boat_graph_t* graph, boat_node_t
 }
 
 // Graph properties
-static bool dfs_cycle(const boat_graph_t* graph, bool* visited, bool* rec_stack, size_t n, size_t v) {
+static bool dfs_cycle(const boat_graph_t* graph, bool* visited, bool* rec_stack, size_t n,
+                      size_t v) {
     if (!visited[v]) {
         visited[v] = true;
         rec_stack[v] = true;
@@ -449,7 +448,8 @@ static bool dfs_cycle(const boat_graph_t* graph, bool* visited, bool* rec_stack,
                     }
                 }
                 if (neighbor_idx != SIZE_MAX) {
-                    if (!visited[neighbor_idx] && dfs_cycle(graph, visited, rec_stack, n, neighbor_idx)) {
+                    if (!visited[neighbor_idx] &&
+                        dfs_cycle(graph, visited, rec_stack, n, neighbor_idx)) {
                         return true;
                     } else if (rec_stack[neighbor_idx]) {
                         return true;
@@ -473,7 +473,6 @@ BOAT_API bool boat_graph_is_acyclic(const boat_graph_t* graph) {
         boat_free(rec_stack);
         return true;
     }
-
 
     bool has_cycle = false;
     for (size_t i = 0; i < n; i++) {
@@ -548,7 +547,8 @@ BOAT_API bool boat_graph_is_connected(const boat_graph_t* graph) {
     return connected;
 }
 
-BOAT_API bool boat_graph_has_path(const boat_graph_t* graph, const boat_node_t* from, const boat_node_t* to) {
+BOAT_API bool boat_graph_has_path(const boat_graph_t* graph, const boat_node_t* from,
+                                  const boat_node_t* to) {
     if (!graph || !from || !to) return false;
 
     size_t from_index = SIZE_MAX, to_index = SIZE_MAX;
@@ -643,8 +643,8 @@ BOAT_API boat_graph_t* boat_graph_copy(const boat_graph_t* graph) {
         // Create a new node in the copy graph with the same data
         // This performs a shallow copy of the data (same pointer)
         // Note: We pass NULL as free_fn because the original graph owns the data
-        boat_node_t* copy_node = boat_graph_add_node(copy, boat_node_data(orig_node),
-                                                     boat_node_type(orig_node), NULL);
+        boat_node_t* copy_node =
+            boat_graph_add_node(copy, boat_node_data(orig_node), boat_node_type(orig_node), NULL);
         if (!copy_node) {
             // Cleanup
             for (size_t j = 0; j < i; j++) {
@@ -681,11 +681,8 @@ BOAT_API boat_graph_t* boat_graph_copy(const boat_graph_t* graph) {
         if (!node_map[from_idx] || !node_map[to_idx]) continue;
 
         // Create new edge between copied nodes
-        struct boat_edge_t* copy_edge = boat_edge_create(
-            node_map[from_idx],
-            node_map[to_idx],
-            boat_edge_direction(orig_edge)
-        );
+        struct boat_edge_t* copy_edge =
+            boat_edge_create(node_map[from_idx], node_map[to_idx], boat_edge_direction(orig_edge));
         if (!copy_edge) {
             // Cleanup
             boat_free(node_map);
@@ -751,7 +748,7 @@ BOAT_API boat_graph_t* boat_graph_copy(const boat_graph_t* graph) {
 
 // Subgraph operations
 BOAT_API boat_graph_t* boat_graph_subgraph(const boat_graph_t* graph, boat_node_t** nodes,
-                                  size_t node_count) {
+                                           size_t node_count) {
     if (!graph || !nodes || node_count == 0) return NULL;
 
     // Create new graph for subgraph with same device
@@ -840,11 +837,8 @@ BOAT_API boat_graph_t* boat_graph_subgraph(const boat_graph_t* graph, boat_node_
         if (!node_map[from_idx] || !node_map[to_idx]) continue;
 
         // Create edge in subgraph
-        struct boat_edge_t* copy_edge = boat_edge_create(
-            node_map[from_idx],
-            node_map[to_idx],
-            boat_edge_direction(orig_edge)
-        );
+        struct boat_edge_t* copy_edge =
+            boat_edge_create(node_map[from_idx], node_map[to_idx], boat_edge_direction(orig_edge));
         if (!copy_edge) {
             // Cleanup
             boat_free(node_map);
@@ -958,7 +952,8 @@ BOAT_API void boat_graph_merge(boat_graph_t* dest, const boat_graph_t* src) {
         // Check if a node with same ID already exists in dest
         bool node_exists = false;
         for (size_t j = 0; j < dest->node_count; j++) {
-            if (dest->nodes[j] && boat_graph_node_id(dest->nodes[j]) == boat_graph_node_id(src_node)) {
+            if (dest->nodes[j] &&
+                boat_graph_node_id(dest->nodes[j]) == boat_graph_node_id(src_node)) {
                 node_exists = true;
                 node_index_map[i] = j;
                 break;
@@ -971,8 +966,8 @@ BOAT_API void boat_graph_merge(boat_graph_t* dest, const boat_graph_t* src) {
         }
 
         // Create a copy of the node in dest graph (shallow copy)
-        const boat_node_t* copy_node = boat_graph_add_node(dest, boat_node_data(src_node),
-                                                     boat_node_type(src_node), NULL);
+        const boat_node_t* copy_node =
+            boat_graph_add_node(dest, boat_node_data(src_node), boat_node_type(src_node), NULL);
         if (!copy_node) {
             // Cleanup: nodes added to dest are owned by dest and will be freed with it
             boat_free(node_index_map);
@@ -1025,9 +1020,9 @@ BOAT_API void boat_graph_merge(boat_graph_t* dest, const boat_graph_t* src) {
         if (dest->outgoing[dest_from_idx]) {
             size_t edge_count = boat_edge_list_count(dest->outgoing[dest_from_idx]);
             for (size_t j = 0; j < edge_count; j++) {
-                const struct boat_edge_t* existing_edge = boat_edge_list_get(dest->outgoing[dest_from_idx], j);
-                if (existing_edge &&
-                    boat_edge_source(existing_edge) == dest_from &&
+                const struct boat_edge_t* existing_edge =
+                    boat_edge_list_get(dest->outgoing[dest_from_idx], j);
+                if (existing_edge && boat_edge_source(existing_edge) == dest_from &&
                     boat_edge_target(existing_edge) == dest_to &&
                     boat_edge_direction(existing_edge) == boat_edge_direction(src_edge)) {
                     edge_exists = true;
@@ -1039,7 +1034,8 @@ BOAT_API void boat_graph_merge(boat_graph_t* dest, const boat_graph_t* src) {
         if (edge_exists) continue;
 
         // Create new edge
-        struct boat_edge_t* new_edge = boat_edge_create(dest_from, dest_to, boat_edge_direction(src_edge));
+        struct boat_edge_t* new_edge =
+            boat_edge_create(dest_from, dest_to, boat_edge_direction(src_edge));
         if (!new_edge) {
             // Continue with other edges
             continue;
@@ -1145,10 +1141,14 @@ BOAT_API void boat_graph_validate(const boat_graph_t* graph) {
         }
 
         if (!found_in_outgoing) {
-            fprintf(stderr, "Graph validation error: edge %zu not found in outgoing list of source node\n", i);
+            fprintf(stderr,
+                    "Graph validation error: edge %zu not found in outgoing list of source node\n",
+                    i);
         }
         if (!found_in_incoming) {
-            fprintf(stderr, "Graph validation error: edge %zu not found in incoming list of target node\n", i);
+            fprintf(stderr,
+                    "Graph validation error: edge %zu not found in incoming list of target node\n",
+                    i);
         }
     }
 
@@ -1161,7 +1161,9 @@ BOAT_API void boat_graph_validate(const boat_graph_t* graph) {
                 for (size_t j = 0; j < edge_count; j++) {
                     const struct boat_edge_t* edge = boat_edge_list_get(graph->outgoing[i], j);
                     if (!edge) {
-                        fprintf(stderr, "Graph validation error: NULL edge in outgoing list of node %zu\n", i);
+                        fprintf(stderr,
+                                "Graph validation error: NULL edge in outgoing list of node %zu\n",
+                                i);
                         continue;
                     }
                     // Verify edge is in edges array
@@ -1173,7 +1175,10 @@ BOAT_API void boat_graph_validate(const boat_graph_t* graph) {
                         }
                     }
                     if (!found_in_edges) {
-                        fprintf(stderr, "Graph validation error: edge in outgoing list of node %zu not in edges array\n", i);
+                        fprintf(stderr,
+                                "Graph validation error: edge in outgoing list of node %zu not in "
+                                "edges array\n",
+                                i);
                     }
                 }
             }
@@ -1182,7 +1187,9 @@ BOAT_API void boat_graph_validate(const boat_graph_t* graph) {
                 for (size_t j = 0; j < edge_count; j++) {
                     const struct boat_edge_t* edge = boat_edge_list_get(graph->incoming[i], j);
                     if (!edge) {
-                        fprintf(stderr, "Graph validation error: NULL edge in incoming list of node %zu\n", i);
+                        fprintf(stderr,
+                                "Graph validation error: NULL edge in incoming list of node %zu\n",
+                                i);
                         continue;
                     }
                     // Verify edge is in edges array
@@ -1194,14 +1201,20 @@ BOAT_API void boat_graph_validate(const boat_graph_t* graph) {
                         }
                     }
                     if (!found_in_edges) {
-                        fprintf(stderr, "Graph validation error: edge in incoming list of node %zu not in edges array\n", i);
+                        fprintf(stderr,
+                                "Graph validation error: edge in incoming list of node %zu not in "
+                                "edges array\n",
+                                i);
                     }
                 }
             }
         } else {
             // Beyond node_count, adjacency lists should be NULL
             if (graph->outgoing[i] || graph->incoming[i]) {
-                fprintf(stderr, "Graph validation error: adjacency lists exist for index %zu beyond node_count\n", i);
+                fprintf(stderr,
+                        "Graph validation error: adjacency lists exist for index %zu beyond "
+                        "node_count\n",
+                        i);
             }
         }
     }
@@ -1209,7 +1222,8 @@ BOAT_API void boat_graph_validate(const boat_graph_t* graph) {
     // Check checkpoint nodes array if checkpointing is enabled
     if (graph->checkpointing_enabled) {
         if (!graph->checkpoint_nodes) {
-            fprintf(stderr, "Graph validation error: checkpointing enabled but checkpoint_nodes is NULL\n");
+            fprintf(stderr,
+                    "Graph validation error: checkpointing enabled but checkpoint_nodes is NULL\n");
         } else {
             // Checkpoint nodes array should be at least node_capacity in size
             // (allocated with node_capacity)
@@ -1217,7 +1231,8 @@ BOAT_API void boat_graph_validate(const boat_graph_t* graph) {
     }
 }
 
-BOAT_API bool boat_graph_can_add_edge(const boat_graph_t* graph, const boat_node_t* from, const boat_node_t* to) {
+BOAT_API bool boat_graph_can_add_edge(const boat_graph_t* graph, const boat_node_t* from,
+                                      const boat_node_t* to) {
     if (!graph || !from || !to) return false;
 
     // Check if both nodes are in the graph
@@ -1303,7 +1318,8 @@ BOAT_API void boat_graph_enable_checkpointing(boat_graph_t* graph, bool enabled)
     if (enabled) {
         // Allocate checkpoint nodes array if not already allocated
         if (!graph->checkpoint_nodes) {
-            graph->checkpoint_nodes = boat_calloc(graph->node_capacity * sizeof(bool), graph->device);
+            graph->checkpoint_nodes =
+                boat_calloc(graph->node_capacity * sizeof(bool), graph->device);
         }
     } else {
         // Free checkpoint nodes array if allocated
@@ -1345,8 +1361,7 @@ BOAT_API bool boat_graph_is_checkpoint(const boat_graph_t* graph, const boat_nod
 BOAT_API void boat_graph_print(const boat_graph_t* graph) {
     if (!graph) return;
 
-    printf("Graph with %zu nodes and %zu edges:\n",
-           graph->node_count, graph->edge_count);
+    printf("Graph with %zu nodes and %zu edges:\n", graph->node_count, graph->edge_count);
     for (size_t i = 0; i < graph->node_count; i++) {
         printf("  Node %zu (id=%zu): ", i, boat_graph_node_id(graph->nodes[i]));
         if (graph->outgoing[i]) {
@@ -1388,7 +1403,7 @@ static size_t dot_append(char* buf, size_t buf_size, size_t pos, const char* fmt
     int n = vsnprintf(buf + pos, buf_size - pos, fmt, args);
     va_end(args);
     if (n < 0) return pos;
-    if ((size_t)n >= buf_size - pos) return buf_size;  // truncated
+    if ((size_t)n >= buf_size - pos) return buf_size; // truncated
     return pos + (size_t)n;
 }
 
@@ -1396,7 +1411,7 @@ BOAT_API char* boat_graph_to_dot(const boat_graph_t* graph) {
     if (!graph) return NULL;
 
     // Calculate required buffer size
-    size_t buffer_size = 512; // Base size for graph header/footer
+    size_t buffer_size = 512;               // Base size for graph header/footer
     buffer_size += graph->node_count * 128; // Per node
     buffer_size += graph->edge_count * 128; // Per edge
 
@@ -1405,10 +1420,10 @@ BOAT_API char* boat_graph_to_dot(const boat_graph_t* graph) {
 
     // Start DOT graph
     size_t pos = dot_append(dot, buffer_size, 0,
-        "digraph computation_graph {\n"
-        "  rankdir=TB;\n"
-        "  node [shape=record, fontname=\"Courier\", fontsize=10];\n"
-        "  edge [fontname=\"Courier\", fontsize=8];\n\n");
+                            "digraph computation_graph {\n"
+                            "  rankdir=TB;\n"
+                            "  node [shape=record, fontname=\"Courier\", fontsize=10];\n"
+                            "  edge [fontname=\"Courier\", fontsize=8];\n\n");
 
     // Add nodes
     for (size_t i = 0; i < graph->node_count; i++) {
@@ -1420,9 +1435,8 @@ BOAT_API char* boat_graph_to_dot(const boat_graph_t* graph) {
         const char* type_name = boat_node_type_name(type);
 
         // Create node label
-        pos = dot_append(dot, buffer_size, pos,
-            "  node%zu [label=\"{%s|ID: %zu}\"];\n",
-            node_id, type_name, node_id);
+        pos = dot_append(dot, buffer_size, pos, "  node%zu [label=\"{%s|ID: %zu}\"];\n", node_id,
+                         type_name, node_id);
     }
 
     // Add edges
@@ -1443,8 +1457,8 @@ BOAT_API char* boat_graph_to_dot(const boat_graph_t* graph) {
         const char* dir_color = (direction == BOAT_EDGE_DIRECTION_FORWARD) ? "blue" : "red";
 
         pos = dot_append(dot, buffer_size, pos,
-            "  node%zu -> node%zu [label=\"%s\", color=\"%s\", style=\"solid\"];\n",
-            from_id, to_id, dir_label, dir_color);
+                         "  node%zu -> node%zu [label=\"%s\", color=\"%s\", style=\"solid\"];\n",
+                         from_id, to_id, dir_label, dir_color);
     }
 
     // Close graph
@@ -1454,8 +1468,9 @@ BOAT_API char* boat_graph_to_dot(const boat_graph_t* graph) {
 }
 
 // Real-time graph modification during training
-BOAT_API boat_edge_t* boat_graph_safe_add_edge(boat_graph_t* graph, const boat_node_t* from, const boat_node_t* to,
-                                     boat_edge_direction_t direction) {
+BOAT_API boat_edge_t* boat_graph_safe_add_edge(boat_graph_t* graph, const boat_node_t* from,
+                                               const boat_node_t* to,
+                                               boat_edge_direction_t direction) {
     if (!graph || !from || !to) return NULL;
 
     // Validate the edge addition
@@ -1497,7 +1512,8 @@ BOAT_API bool boat_graph_safe_remove_node(boat_graph_t* graph, const boat_node_t
     return true;
 }
 
-BOAT_API bool boat_graph_safe_replace_node(boat_graph_t* graph, const boat_node_t* old_node, const boat_node_t* new_node) {
+BOAT_API bool boat_graph_safe_replace_node(boat_graph_t* graph, const boat_node_t* old_node,
+                                           const boat_node_t* new_node) {
     if (!graph || !old_node || !new_node) return false;
 
     // Check if old_node is in graph
@@ -1518,8 +1534,8 @@ BOAT_API bool boat_graph_safe_replace_node(boat_graph_t* graph, const boat_node_
     if (!new_in_graph) {
         // Add new_node to graph with same data as old_node
         // This is a shallow copy - actual data ownership needs consideration
-        const boat_node_t* added_node = boat_graph_add_node(graph, boat_node_data(old_node),
-                                                     boat_node_type(old_node), NULL);
+        const boat_node_t* added_node =
+            boat_graph_add_node(graph, boat_node_data(old_node), boat_node_type(old_node), NULL);
         if (!added_node) return false;
         new_node = added_node;
         new_in_graph = true;
@@ -1527,7 +1543,8 @@ BOAT_API bool boat_graph_safe_replace_node(boat_graph_t* graph, const boat_node_
 
     // Collect all edges involving old_node
     size_t edges_count = 0;
-    struct boat_edge_t** old_edges = boat_malloc(graph->edge_count * sizeof(struct boat_edge_t*), graph->device);
+    struct boat_edge_t** old_edges =
+        boat_malloc(graph->edge_count * sizeof(struct boat_edge_t*), graph->device);
     if (!old_edges) return false;
 
     for (size_t i = 0; i < graph->edge_count; i++) {
@@ -1619,7 +1636,7 @@ BOAT_API bool boat_graph_to_device(boat_graph_t* graph, boat_device_t device) {
 BOAT_API size_t boat_graph_device_memory_usage(const boat_graph_t* graph, boat_device_t device) {
     if (!graph) return 0;
 
-    (void)device;  // placeholder: device-specific accounting not yet implemented
+    (void)device; // placeholder: device-specific accounting not yet implemented
     size_t total_memory = 0;
 
     // For Phase 2, we return a placeholder value
@@ -1717,7 +1734,8 @@ BOAT_API void boat_graph_simplify(const boat_graph_t* graph) {
 }
 
 // Node migration between graphs
-BOAT_API bool boat_graph_migrate_node(boat_graph_t* dest_graph, boat_graph_t* src_graph, const boat_node_t* node) {
+BOAT_API bool boat_graph_migrate_node(boat_graph_t* dest_graph, boat_graph_t* src_graph,
+                                      const boat_node_t* node) {
     if (!dest_graph || !src_graph || !node) {
         return false;
     }
@@ -1744,14 +1762,14 @@ BOAT_API bool boat_graph_migrate_node(boat_graph_t* dest_graph, boat_graph_t* sr
         }
     }
 
-
     // Remove node from source graph (but don't free it)
     // We need to remove from nodes array and adjust adjacency lists
     // First, remove all edges connected to this node from source graph
     // This is necessary because edges reference nodes by pointer
     // We'll collect edges to remove
     size_t edges_to_remove_count = 0;
-    struct boat_edge_t** edges_to_remove = boat_malloc(src_graph->edge_count * sizeof(struct boat_edge_t*), src_graph->device);
+    struct boat_edge_t** edges_to_remove =
+        boat_malloc(src_graph->edge_count * sizeof(struct boat_edge_t*), src_graph->device);
     if (!edges_to_remove) {
         return false;
     }

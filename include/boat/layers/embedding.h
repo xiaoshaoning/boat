@@ -18,7 +18,8 @@ typedef struct boat_embedding_t boat_embedding_t;
 // Create an embedding layer
 // num_embeddings: vocabulary size / number of rows in the lookup table
 // embedding_dim:  dimensionality of each embedding vector
-BOAT_API boat_embedding_t* BOAT_CALL boat_embedding_create(size_t num_embeddings, size_t embedding_dim);
+BOAT_API boat_embedding_t* BOAT_CALL boat_embedding_create(size_t num_embeddings,
+                                                           size_t embedding_dim);
 
 // Free embedding layer
 BOAT_API void BOAT_CALL boat_embedding_free(boat_embedding_t* emb);
@@ -26,7 +27,8 @@ BOAT_API void BOAT_CALL boat_embedding_free(boat_embedding_t* emb);
 // Forward pass: lookup embeddings for given indices
 // indices: int32 tensor of shape [N] (token IDs)
 // returns: float32 tensor of shape [N, embedding_dim]
-BOAT_API boat_tensor_t* BOAT_CALL boat_embedding_forward(boat_embedding_t* emb, const boat_tensor_t* indices);
+BOAT_API boat_tensor_t* BOAT_CALL boat_embedding_forward(boat_embedding_t* emb,
+                                                         const boat_tensor_t* indices);
 
 // Set weight tensor (for model loading)
 // weight: float32 tensor of shape [num_embeddings, embedding_dim]

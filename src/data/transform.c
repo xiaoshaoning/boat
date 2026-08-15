@@ -45,16 +45,15 @@ BOAT_API void boat_transform_chain_free(boat_transform_chain_t* chain) {
     boat_free(chain);
 }
 
-BOAT_API void boat_transform_chain_add(boat_transform_chain_t* chain,
-                              boat_transform_func_t fn, void* context) {
+BOAT_API void boat_transform_chain_add(boat_transform_chain_t* chain, boat_transform_func_t fn,
+                                       void* context) {
     if (!chain || !fn) return;
 
     if (chain->count >= chain->capacity) {
         size_t new_cap = chain->capacity * 2;
-        boat_transform_func_t* new_fns = boat_realloc(
-            chain->fns, sizeof(boat_transform_func_t) * new_cap, BOAT_DEVICE_CPU);
-        void** new_ctx = boat_realloc(
-            chain->contexts, sizeof(void*) * new_cap, BOAT_DEVICE_CPU);
+        boat_transform_func_t* new_fns =
+            boat_realloc(chain->fns, sizeof(boat_transform_func_t) * new_cap, BOAT_DEVICE_CPU);
+        void** new_ctx = boat_realloc(chain->contexts, sizeof(void*) * new_cap, BOAT_DEVICE_CPU);
         if (!new_fns || !new_ctx) {
             boat_free(new_fns);
             boat_free(new_ctx);
@@ -71,7 +70,7 @@ BOAT_API void boat_transform_chain_add(boat_transform_chain_t* chain,
 }
 
 BOAT_API boat_tensor_t* boat_transform_chain_apply(boat_transform_chain_t* chain,
-                                          boat_tensor_t* sample) {
+                                                   boat_tensor_t* sample) {
     if (!chain || !sample) return NULL;
 
     boat_tensor_t* current = sample;
@@ -113,8 +112,8 @@ BOAT_API boat_tensor_t* boat_transform_normalize(boat_tensor_t* sample, void* co
     boat_dtype_t dt = boat_tensor_dtype(sample);
     if (dt != BOAT_DTYPE_FLOAT32) {
         boat_set_errorf(BOAT_ERROR_INVALID_OPERATION,
-            "[Transform] Normalize requires FLOAT32, got %s\n", boat_dtype_name(dt));
-        return sample;  // pass through
+                        "[Transform] Normalize requires FLOAT32, got %s\n", boat_dtype_name(dt));
+        return sample; // pass through
     }
 
     float mean = 0.0f;
@@ -144,7 +143,7 @@ BOAT_API boat_tensor_t* boat_transform_random_hflip(boat_tensor_t* sample, void*
     if (!sample) return NULL;
 
     if (boat_tensor_ndim(sample) != 3 || boat_tensor_dtype(sample) != BOAT_DTYPE_FLOAT32) {
-        return sample;  // pass through
+        return sample; // pass through
     }
 
     // Simple counter-based RNG state kept in a static var for simplicity.
@@ -179,7 +178,7 @@ BOAT_API boat_tensor_t* boat_transform_random_crop(boat_tensor_t* sample, void* 
     if (!sample) return NULL;
 
     if (boat_tensor_ndim(sample) != 3 || boat_tensor_dtype(sample) != BOAT_DTYPE_FLOAT32) {
-        return sample;  // pass through
+        return sample; // pass through
     }
 
     const int64_t* shape = boat_tensor_shape(sample);
@@ -194,7 +193,7 @@ BOAT_API boat_tensor_t* boat_transform_random_crop(boat_tensor_t* sample, void* 
     }
 
     if (crop_h > H || crop_w > W || crop_h <= 0 || crop_w <= 0) {
-        return sample;  // invalid crop size, pass through
+        return sample; // invalid crop size, pass through
     }
 
     if (crop_h == H && crop_w == W) return sample;

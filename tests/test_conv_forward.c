@@ -9,17 +9,20 @@
 int main() {
     printf("Testing convolutional layer forward pass...\n");
 
-    // Create a convolutional layer: in_channels=1, out_channels=1, kernel_size=2, stride=1, padding=0
+    // Create a convolutional layer: in_channels=1, out_channels=1, kernel_size=2, stride=1,
+    // padding=0
     boat_conv_layer_t* conv = boat_conv_layer_create(1, 1, 2, 1, 0, 1);
     if (!conv) {
         fprintf(stderr, "Failed to create convolutional layer\n");
         return 1;
     }
-    printf("Created conv layer: in_channels=1, out_channels=1, kernel_size=2, stride=1, padding=0\n");
+    printf(
+        "Created conv layer: in_channels=1, out_channels=1, kernel_size=2, stride=1, padding=0\n");
 
     // Set custom weight (1x1x2x2 tensor)
-    int64_t weight_shape[] = {1, 1, 2, 2};  // [out_channels, in_channels, kernel_h, kernel_w]
-    boat_tensor_t* weight = boat_tensor_create(weight_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    int64_t weight_shape[] = {1, 1, 2, 2}; // [out_channels, in_channels, kernel_h, kernel_w]
+    boat_tensor_t* weight =
+        boat_tensor_create(weight_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!weight) {
         fprintf(stderr, "Failed to create weight tensor\n");
         boat_conv_layer_free(conv);
@@ -27,8 +30,10 @@ int main() {
     }
     float* weight_data = (float*)boat_tensor_data(weight);
     // Simple 2x2 kernel
-    weight_data[0] = 1.0f; weight_data[1] = 0.0f;  // row 0
-    weight_data[2] = 0.0f; weight_data[3] = 1.0f;  // row 1
+    weight_data[0] = 1.0f;
+    weight_data[1] = 0.0f; // row 0
+    weight_data[2] = 0.0f;
+    weight_data[3] = 1.0f; // row 1
     boat_conv_layer_set_weight(conv, weight);
     boat_tensor_unref(weight); // layer now owns weight
 
@@ -46,9 +51,15 @@ int main() {
     }
     float* input_data = (float*)boat_tensor_data(input);
     // Simple 3x3 image
-    input_data[0] = 1.0f; input_data[1] = 2.0f; input_data[2] = 3.0f;
-    input_data[3] = 4.0f; input_data[4] = 5.0f; input_data[5] = 6.0f;
-    input_data[6] = 7.0f; input_data[7] = 8.0f; input_data[8] = 9.0f;
+    input_data[0] = 1.0f;
+    input_data[1] = 2.0f;
+    input_data[2] = 3.0f;
+    input_data[3] = 4.0f;
+    input_data[4] = 5.0f;
+    input_data[5] = 6.0f;
+    input_data[6] = 7.0f;
+    input_data[7] = 8.0f;
+    input_data[8] = 9.0f;
 
     // Forward pass
     boat_tensor_t* output = boat_conv_layer_forward(conv, input);
@@ -104,10 +115,13 @@ int main() {
     }
 
     // Use same weight
-    boat_tensor_t* weight2 = boat_tensor_create(weight_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    boat_tensor_t* weight2 =
+        boat_tensor_create(weight_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* weight2_data = (float*)boat_tensor_data(weight2);
-    weight2_data[0] = 1.0f; weight2_data[1] = 0.0f;
-    weight2_data[2] = 0.0f; weight2_data[3] = 1.0f;
+    weight2_data[0] = 1.0f;
+    weight2_data[1] = 0.0f;
+    weight2_data[2] = 0.0f;
+    weight2_data[3] = 1.0f;
     boat_conv_layer_set_weight(conv_pad, weight2);
     boat_tensor_unref(weight2);
 
@@ -117,8 +131,8 @@ int main() {
         boat_conv_layer_free(conv_pad);
     } else {
         const int64_t* out_shape = boat_tensor_shape(output_pad);
-        printf("Output shape with padding=1: [%lld, %lld, %lld, %lld]\n",
-               out_shape[0], out_shape[1], out_shape[2], out_shape[3]);
+        printf("Output shape with padding=1: [%lld, %lld, %lld, %lld]\n", out_shape[0],
+               out_shape[1], out_shape[2], out_shape[3]);
         // With padding=1, input 3x3 becomes effectively 5x5, output should be 4x4
         if (out_shape[2] == 4 && out_shape[3] == 4) {
             printf("Padding test: Output dimensions correct!\n");
@@ -136,10 +150,13 @@ int main() {
     if (!conv_stride) {
         fprintf(stderr, "Failed to create convolutional layer with stride\n");
     } else {
-        boat_tensor_t* weight3 = boat_tensor_create(weight_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+        boat_tensor_t* weight3 =
+            boat_tensor_create(weight_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
         float* weight3_data = (float*)boat_tensor_data(weight3);
-        weight3_data[0] = 1.0f; weight3_data[1] = 0.0f;
-        weight3_data[2] = 0.0f; weight3_data[3] = 1.0f;
+        weight3_data[0] = 1.0f;
+        weight3_data[1] = 0.0f;
+        weight3_data[2] = 0.0f;
+        weight3_data[3] = 1.0f;
         boat_conv_layer_set_weight(conv_stride, weight3);
         boat_tensor_unref(weight3);
 
@@ -148,8 +165,8 @@ int main() {
             fprintf(stderr, "Forward pass with stride failed\n");
         } else {
             const int64_t* out_shape = boat_tensor_shape(output_stride);
-            printf("Output shape with stride=2: [%lld, %lld, %lld, %lld]\n",
-                   out_shape[0], out_shape[1], out_shape[2], out_shape[3]);
+            printf("Output shape with stride=2: [%lld, %lld, %lld, %lld]\n", out_shape[0],
+                   out_shape[1], out_shape[2], out_shape[3]);
             // With stride=2, input 3x3, output should be 1x1 (ceil((3-2+1)/2) = 1)
             if (out_shape[2] == 1 && out_shape[3] == 1) {
                 printf("Stride test: Output dimensions correct!\n");
@@ -174,17 +191,30 @@ int main() {
         boat_tensor_t* gw = boat_tensor_create(gw_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
         float* gwd = (float*)boat_tensor_data(gw);
         // Group 0 (oc=0,1): identity-like kernels
-        gwd[0] = 1.0f; gwd[1] = 0.0f; gwd[2] = 0.0f; gwd[3] = 1.0f;  // oc=0 kernel
-        gwd[4] = 1.0f; gwd[5] = 0.0f; gwd[6] = 0.0f; gwd[7] = 1.0f;  // oc=1 kernel
+        gwd[0] = 1.0f;
+        gwd[1] = 0.0f;
+        gwd[2] = 0.0f;
+        gwd[3] = 1.0f; // oc=0 kernel
+        gwd[4] = 1.0f;
+        gwd[5] = 0.0f;
+        gwd[6] = 0.0f;
+        gwd[7] = 1.0f; // oc=1 kernel
         // Group 1 (oc=2,3): identity-like kernels
-        gwd[8] = 1.0f; gwd[9] = 0.0f; gwd[10] = 0.0f; gwd[11] = 1.0f; // oc=2 kernel
-        gwd[12] = 1.0f; gwd[13] = 0.0f; gwd[14] = 0.0f; gwd[15] = 1.0f; // oc=3 kernel
+        gwd[8] = 1.0f;
+        gwd[9] = 0.0f;
+        gwd[10] = 0.0f;
+        gwd[11] = 1.0f; // oc=2 kernel
+        gwd[12] = 1.0f;
+        gwd[13] = 0.0f;
+        gwd[14] = 0.0f;
+        gwd[15] = 1.0f; // oc=3 kernel
         boat_conv_layer_set_weight(conv_group, gw);
         boat_tensor_unref(gw);
 
         // Input: batch=1, 4 channels, 3x3
         int64_t g_in_shape[] = {1, 4, 3, 3};
-        boat_tensor_t* g_in = boat_tensor_create(g_in_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+        boat_tensor_t* g_in =
+            boat_tensor_create(g_in_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
         float* g_in_d = (float*)boat_tensor_data(g_in);
         for (int c = 0; c < 4; c++) {
             for (int i = 0; i < 9; i++) {
@@ -198,7 +228,8 @@ int main() {
             errors++;
         } else {
             const int64_t* gs = boat_tensor_shape(g_out);
-            printf("Group conv output shape: [%lld, %lld, %lld, %lld]\n", gs[0], gs[1], gs[2], gs[3]);
+            printf("Group conv output shape: [%lld, %lld, %lld, %lld]\n", gs[0], gs[1], gs[2],
+                   gs[3]);
             if (gs[0] == 1 && gs[1] == 4 && gs[2] == 2 && gs[3] == 2) {
                 printf("Group conv: Output dimensions correct!\n");
             } else {
@@ -211,7 +242,10 @@ int main() {
             float expected_g0[] = {30.0f, 34.0f, 42.0f, 46.0f};
             bool g0_ok = 1;
             for (int i = 0; i < 4; i++) {
-                if (fabsf(g_out_d[i] - expected_g0[i]) > 1e-5f) { g0_ok = 0; break; }
+                if (fabsf(g_out_d[i] - expected_g0[i]) > 1e-5f) {
+                    g0_ok = 0;
+                    break;
+                }
             }
             printf("Group conv oc=0: %s\n", g0_ok ? "PASS" : "FAIL");
             if (!g0_ok) errors++;
@@ -248,7 +282,8 @@ int main() {
 
         // Input: batch=1, 3 channels, 3x3 with known values
         int64_t dw_in_shape[] = {1, 3, 3, 3};
-        boat_tensor_t* dw_in = boat_tensor_create(dw_in_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+        boat_tensor_t* dw_in =
+            boat_tensor_create(dw_in_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
         float* dw_in_d = (float*)boat_tensor_data(dw_in);
         for (int c = 0; c < 3; c++)
             for (int i = 0; i < 9; i++)
@@ -260,7 +295,8 @@ int main() {
             errors++;
         } else {
             const int64_t* ds = boat_tensor_shape(dw_out);
-            printf("Depthwise output shape: [%lld, %lld, %lld, %lld]\n", ds[0], ds[1], ds[2], ds[3]);
+            printf("Depthwise output shape: [%lld, %lld, %lld, %lld]\n", ds[0], ds[1], ds[2],
+                   ds[3]);
             // With padding=1, 3x3 input → 3x3 output
             if (ds[0] == 1 && ds[1] == 3 && ds[2] == 3 && ds[3] == 3) {
                 printf("Depthwise: Output dimensions correct!\n");

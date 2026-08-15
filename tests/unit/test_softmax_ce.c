@@ -8,14 +8,22 @@
 #include <assert.h>
 #include <math.h>
 
-static float fabsdiff(float a, float b) { float d = a - b; return d < 0 ? -d : d; }
+static float fabsdiff(float a, float b) {
+    float d = a - b;
+    return d < 0 ? -d : d;
+}
 
 static void softmax_ref(const float* l, size_t n, float* out) {
     float m = l[0];
-    for (size_t i = 1; i < n; i++) if (l[i] > m) m = l[i];
+    for (size_t i = 1; i < n; i++)
+        if (l[i] > m) m = l[i];
     float s = 0;
-    for (size_t i = 0; i < n; i++) { out[i] = expf(l[i] - m); s += out[i]; }
-    for (size_t i = 0; i < n; i++) out[i] /= s;
+    for (size_t i = 0; i < n; i++) {
+        out[i] = expf(l[i] - m);
+        s += out[i];
+    }
+    for (size_t i = 0; i < n; i++)
+        out[i] /= s;
 }
 
 static void test_forward(void) {

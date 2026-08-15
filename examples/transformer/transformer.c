@@ -27,22 +27,22 @@
 // ============================================================
 // Hyperparameters
 // ============================================================
-#define D_MODEL      64
-#define N_HEADS      4
-#define N_LAYERS     3
-#define D_FF         256
-#define MAX_SEQ_LEN  48
-#define BATCH_SIZE   8
-#define N_EPOCHS     60
-#define LR           0.003f
-#define VOCAB_SIZE   55
+#define D_MODEL 64
+#define N_HEADS 4
+#define N_LAYERS 3
+#define D_FF 256
+#define MAX_SEQ_LEN 48
+#define BATCH_SIZE 8
+#define N_EPOCHS 60
+#define LR 0.003f
+#define VOCAB_SIZE 55
 
 // Special token IDs
 #define TOK_PAD 0
 #define TOK_SOS 1
 #define TOK_EOS 2
 #define TOK_UNK 3
-#define TOK_START 4  // First real character token
+#define TOK_START 4 // First real character token
 
 // ============================================================
 // Character Vocabulary
@@ -60,8 +60,7 @@ static int char_to_id(char c) {
 }
 
 static char id_to_char(int id) {
-    if (id >= TOK_START && id < TOK_START + NUM_VOCAB_CHARS)
-        return VOCAB_CHARS[id - TOK_START];
+    if (id >= TOK_START && id < TOK_START + NUM_VOCAB_CHARS) return VOCAB_CHARS[id - TOK_START];
     return '?';
 }
 
@@ -97,9 +96,8 @@ static int build_corpus(int* corpus, int max_len) {
     return pos + 1;
 }
 
-static void create_training_batch(
-    int* input_buf, int* target_buf,
-    const int* corpus, int corpus_len, int batch_size, int seq_len, int epoch) {
+static void create_training_batch(int* input_buf, int* target_buf, const int* corpus,
+                                  int corpus_len, int batch_size, int seq_len, int epoch) {
     srand(epoch + 42);
     int max_start = corpus_len - seq_len - 1;
     if (max_start < 1) max_start = 1;
@@ -155,9 +153,9 @@ static manual_ln_t* manual_ln_create(int normalized_shape, float eps) {
 
     int64_t shape[] = {normalized_shape};
     ln->gamma = boat_tensor_create(shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
-    ln->beta  = boat_tensor_create(shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    ln->beta = boat_tensor_create(shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     ln->grad_gamma = boat_tensor_create(shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
-    ln->grad_beta  = boat_tensor_create(shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    ln->grad_beta = boat_tensor_create(shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
 
     float* gd = (float*)boat_tensor_data(ln->gamma);
     float* bd = (float*)boat_tensor_data(ln->beta);
@@ -196,7 +194,8 @@ static boat_tensor_t* manual_ln_forward(manual_ln_t* ln, const boat_tensor_t* in
     if (!output) return NULL;
 
     int64_t outer = 1;
-    for (int64_t i = 0; i < ndim - 1; i++) outer *= shape[i];
+    for (int64_t i = 0; i < ndim - 1; i++)
+        outer *= shape[i];
 
     size_t n = (size_t)d_model;
     const float* x = (const float*)boat_tensor_const_data(input);
@@ -210,7 +209,8 @@ static boat_tensor_t* manual_ln_forward(manual_ln_t* ln, const boat_tensor_t* in
 
     for (int64_t i = 0; i < outer; i++) {
         float sum = 0.0f;
-        for (size_t j = 0; j < n; j++) sum += x[i * n + j];
+        for (size_t j = 0; j < n; j++)
+            sum += x[i * n + j];
         float m = sum / (float)n;
 
         float vsum = 0.0f;
@@ -253,7 +253,8 @@ static boat_tensor_t* manual_ln_backward(manual_ln_t* ln, const boat_tensor_t* g
     int64_t d_model = shape[ndim - 1];
 
     int64_t outer = 1;
-    for (int64_t i = 0; i < ndim - 1; i++) outer *= shape[i];
+    for (int64_t i = 0; i < ndim - 1; i++)
+        outer *= shape[i];
     size_t n = (size_t)d_model;
 
     const float* x = (const float*)boat_tensor_const_data(input);
@@ -316,16 +317,13 @@ static void manual_ln_zero_grad(manual_ln_t* ln) {
 //   x1 = x + attention(layernorm(x))
 //   x2 = x1 + ffn(layernorm(x1))
 
-static boat_tensor_t* forward_block(
-    boat_tensor_t* input,
-    manual_ln_t* ln1, manual_ln_t* ln2,
-    boat_attention_layer_t* attn,
-    boat_dense_layer_t* ffn1, boat_dense_layer_t* ffn2,
-    boat_relu_layer_t* relu,
-    int batch_size, int seq_len, int d_model, int d_ff,
-    boat_tensor_t** out_attn, boat_tensor_t** out_ffn,
-    boat_tensor_t** ln1_out, boat_tensor_t** ln2_out,
-    boat_tensor_t** residual1_out, boat_tensor_t** relu_out) {
+static boat_tensor_t* forward_block(boat_tensor_t* input, manual_ln_t* ln1, manual_ln_t* ln2,
+                                    boat_attention_layer_t* attn, boat_dense_layer_t* ffn1,
+                                    boat_dense_layer_t* ffn2, boat_relu_layer_t* relu,
+                                    int batch_size, int seq_len, int d_model, int d_ff,
+                                    boat_tensor_t** out_attn, boat_tensor_t** out_ffn,
+                                    boat_tensor_t** ln1_out, boat_tensor_t** ln2_out,
+                                    boat_tensor_t** residual1_out, boat_tensor_t** relu_out) {
 
     *ln1_out = manual_ln_forward(ln1, input);
     if (!*ln1_out) return NULL;
@@ -373,21 +371,22 @@ static boat_tensor_t* forward_block(
 // ============================================================
 // Backward pass for a single transformer block
 // ============================================================
-static boat_tensor_t* backward_block(
-    boat_tensor_t* grad_output,
-    manual_ln_t* ln1, manual_ln_t* ln2,
-    boat_attention_layer_t* attn,
-    boat_dense_layer_t* ffn1, boat_dense_layer_t* ffn2,
-    boat_relu_layer_t* relu,
-    int batch_size, int seq_len, int d_model, int d_ff,
-    boat_tensor_t* cached_input, boat_tensor_t* cached_attn_out,
-    boat_tensor_t* cached_ffn_out, boat_tensor_t* cached_ln1_out,
-    boat_tensor_t* cached_ln2_out, boat_tensor_t* cached_residual1,
-    boat_tensor_t* cached_relu_out) {
+static boat_tensor_t* backward_block(boat_tensor_t* grad_output, manual_ln_t* ln1, manual_ln_t* ln2,
+                                     boat_attention_layer_t* attn, boat_dense_layer_t* ffn1,
+                                     boat_dense_layer_t* ffn2, boat_relu_layer_t* relu,
+                                     int batch_size, int seq_len, int d_model, int d_ff,
+                                     boat_tensor_t* cached_input, boat_tensor_t* cached_attn_out,
+                                     boat_tensor_t* cached_ffn_out, boat_tensor_t* cached_ln1_out,
+                                     boat_tensor_t* cached_ln2_out, boat_tensor_t* cached_residual1,
+                                     boat_tensor_t* cached_relu_out) {
 
-    (void)cached_input; (void)cached_attn_out; (void)cached_ffn_out;
-    (void)cached_ln1_out; (void)cached_ln2_out;
-    (void)cached_residual1; (void)cached_relu_out;
+    (void)cached_input;
+    (void)cached_attn_out;
+    (void)cached_ffn_out;
+    (void)cached_ln1_out;
+    (void)cached_ln2_out;
+    (void)cached_residual1;
+    (void)cached_relu_out;
 
     // Core backward flow:
     //   output = residual1 + ffn(layernorm2(residual1))
@@ -428,17 +427,26 @@ static boat_tensor_t* backward_block(
 
     // --- Backward through LayerNorm2 ---
     boat_tensor_t* g_attn = manual_ln_backward(ln2, g_res1);
-    if (!g_attn) { boat_tensor_unref(g_res1); return NULL; }
+    if (!g_attn) {
+        boat_tensor_unref(g_res1);
+        return NULL;
+    }
 
     // --- Backward through self-attention ---
     boat_tensor_t* g_ln1 = boat_attention_layer_backward(attn, g_attn);
     boat_tensor_unref(g_attn);
-    if (!g_ln1) { boat_tensor_unref(g_res1); return NULL; }
+    if (!g_ln1) {
+        boat_tensor_unref(g_res1);
+        return NULL;
+    }
 
     // --- Backward through LayerNorm1 ---
     boat_tensor_t* g_attn_path = manual_ln_backward(ln1, g_ln1);
     boat_tensor_unref(g_ln1);
-    if (!g_attn_path) { boat_tensor_unref(g_res1); return NULL; }
+    if (!g_attn_path) {
+        boat_tensor_unref(g_res1);
+        return NULL;
+    }
 
     // First residual merge: input = (input) + attn_path + (input) identity
     // g_res1 = gradient w.r.t. residual1 = gradient through identity path of first residual
@@ -477,8 +485,8 @@ int main(void) {
     printf("=== Transformer Character-Level Language Model ===\n\n");
     printf("Hyperparameters:\n");
     printf("  d_model=%d, n_heads=%d, n_layers=%d, d_ff=%d\n", d_model, n_heads, n_layers, d_ff);
-    printf("  vocab=%d, seq_len=%d, batch=%d, lr=%.4f, epochs=%d\n\n",
-           vocab_size, seq_len, batch_size, lr, n_epochs);
+    printf("  vocab=%d, seq_len=%d, batch=%d, lr=%.4f, epochs=%d\n\n", vocab_size, seq_len,
+           batch_size, lr, n_epochs);
 
     // ---- Build corpus ----
     int corpus[4096];
@@ -489,44 +497,65 @@ int main(void) {
 
     // Positional encoding
     boat_tensor_t* pos_encoding = create_positional_encoding(seq_len, d_model);
-    if (!pos_encoding) { fprintf(stderr, "Failed to create positional encoding\n"); return 1; }
+    if (!pos_encoding) {
+        fprintf(stderr, "Failed to create positional encoding\n");
+        return 1;
+    }
 
     // Embedding weight
     int64_t emb_shape[] = {vocab_size, d_model};
-    boat_tensor_t* embed_weight = boat_tensor_create(emb_shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
-    boat_tensor_t* embed_grad = boat_tensor_create(emb_shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    boat_tensor_t* embed_weight =
+        boat_tensor_create(emb_shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    boat_tensor_t* embed_grad =
+        boat_tensor_create(emb_shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
 
     float* ew = (float*)boat_tensor_data(embed_weight);
-    for (int i = 0; i < vocab_size * d_model; i++) ew[i] = ((float)rand() / RAND_MAX - 0.5f) * 0.1f;
+    for (int i = 0; i < vocab_size * d_model; i++)
+        ew[i] = ((float)rand() / RAND_MAX - 0.5f) * 0.1f;
 
     // Transformer blocks
-    manual_ln_t** ln1 = (manual_ln_t**)boat_malloc(n_layers * sizeof(manual_ln_t*), BOAT_DEVICE_CPU);
-    manual_ln_t** ln2 = (manual_ln_t**)boat_malloc(n_layers * sizeof(manual_ln_t*), BOAT_DEVICE_CPU);
-    boat_attention_layer_t** attn_layers = (boat_attention_layer_t**)boat_malloc(n_layers * sizeof(boat_attention_layer_t*), BOAT_DEVICE_CPU);
-    boat_dense_layer_t** ffn1_layers = (boat_dense_layer_t**)boat_malloc(n_layers * sizeof(boat_dense_layer_t*), BOAT_DEVICE_CPU);
-    boat_dense_layer_t** ffn2_layers = (boat_dense_layer_t**)boat_malloc(n_layers * sizeof(boat_dense_layer_t*), BOAT_DEVICE_CPU);
-    boat_relu_layer_t** relu_layers = (boat_relu_layer_t**)boat_malloc(n_layers * sizeof(boat_relu_layer_t*), BOAT_DEVICE_CPU);
+    manual_ln_t** ln1 =
+        (manual_ln_t**)boat_malloc(n_layers * sizeof(manual_ln_t*), BOAT_DEVICE_CPU);
+    manual_ln_t** ln2 =
+        (manual_ln_t**)boat_malloc(n_layers * sizeof(manual_ln_t*), BOAT_DEVICE_CPU);
+    boat_attention_layer_t** attn_layers = (boat_attention_layer_t**)boat_malloc(
+        n_layers * sizeof(boat_attention_layer_t*), BOAT_DEVICE_CPU);
+    boat_dense_layer_t** ffn1_layers =
+        (boat_dense_layer_t**)boat_malloc(n_layers * sizeof(boat_dense_layer_t*), BOAT_DEVICE_CPU);
+    boat_dense_layer_t** ffn2_layers =
+        (boat_dense_layer_t**)boat_malloc(n_layers * sizeof(boat_dense_layer_t*), BOAT_DEVICE_CPU);
+    boat_relu_layer_t** relu_layers =
+        (boat_relu_layer_t**)boat_malloc(n_layers * sizeof(boat_relu_layer_t*), BOAT_DEVICE_CPU);
 
     for (int i = 0; i < n_layers; i++) {
         ln1[i] = manual_ln_create(d_model, 1e-5f);
         ln2[i] = manual_ln_create(d_model, 1e-5f);
-        attn_layers[i] = boat_attention_layer_create((size_t)d_model, (size_t)n_heads, (size_t)n_heads, 0.0f, true);
+        attn_layers[i] = boat_attention_layer_create((size_t)d_model, (size_t)n_heads,
+                                                     (size_t)n_heads, 0.0f, true);
         ffn1_layers[i] = boat_dense_layer_create((size_t)d_model, (size_t)d_ff, true);
         ffn2_layers[i] = boat_dense_layer_create((size_t)d_ff, (size_t)d_model, true);
         relu_layers[i] = boat_relu_layer_create();
-        if (!ln1[i] || !ln2[i] || !attn_layers[i] || !ffn1_layers[i] || !ffn2_layers[i] || !relu_layers[i]) {
+        if (!ln1[i] || !ln2[i] || !attn_layers[i] || !ffn1_layers[i] || !ffn2_layers[i] ||
+            !relu_layers[i]) {
             fprintf(stderr, "Failed to create layer %d\n", i);
             return 1;
         }
     }
 
     // Output projection
-    boat_dense_layer_t* out_proj = boat_dense_layer_create((size_t)d_model, (size_t)vocab_size, true);
-    if (!out_proj) { fprintf(stderr, "Failed to create output projection\n"); return 1; }
+    boat_dense_layer_t* out_proj =
+        boat_dense_layer_create((size_t)d_model, (size_t)vocab_size, true);
+    if (!out_proj) {
+        fprintf(stderr, "Failed to create output projection\n");
+        return 1;
+    }
 
     // ---- Adam Optimizer ----
     boat_optimizer_t* optimizer = boat_adam_optimizer_create(lr, 0.9f, 0.999f, 1e-8f);
-    if (!optimizer) { fprintf(stderr, "Failed to create optimizer\n"); return 1; }
+    if (!optimizer) {
+        fprintf(stderr, "Failed to create optimizer\n");
+        return 1;
+    }
 
     // Register embedding
     boat_optimizer_add_parameter(optimizer, embed_weight, embed_grad);
@@ -534,7 +563,10 @@ int main(void) {
     // Register attention parameters (8 per layer: 4 weights + 4 biases)
     for (int i = 0; i < n_layers; i++) {
         boat_attention_t* attn = (boat_attention_t*)attn_layers[i];
-        struct { boat_tensor_t* w; boat_tensor_t* g; } ap[] = {
+        struct {
+            boat_tensor_t* w;
+            boat_tensor_t* g;
+        } ap[] = {
             {boat_attention_get_weight_q(attn), boat_attention_get_grad_weight_q(attn)},
             {boat_attention_get_weight_k(attn), boat_attention_get_grad_weight_k(attn)},
             {boat_attention_get_weight_v(attn), boat_attention_get_grad_weight_v(attn)},
@@ -582,20 +614,21 @@ int main(void) {
 
     boat_loss_t* loss_fn = boat_cross_entropy_loss_create();
     int64_t target_shape[] = {BATCH_SIZE, MAX_SEQ_LEN, VOCAB_SIZE};
-    boat_tensor_t* targets_onehot = boat_tensor_create(target_shape, 3, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    boat_tensor_t* targets_onehot =
+        boat_tensor_create(target_shape, 3, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
 
     printf("Starting training...\n\n");
 
     for (int epoch = 0; epoch < n_epochs; epoch++) {
-        create_training_batch(input_buf, target_buf, corpus, corpus_len, batch_size, seq_len, epoch);
+        create_training_batch(input_buf, target_buf, corpus, corpus_len, batch_size, seq_len,
+                              epoch);
 
         float* toh = (float*)boat_tensor_data(targets_onehot);
         memset(toh, 0, boat_tensor_nbytes(targets_onehot));
         for (int b = 0; b < batch_size; b++) {
             for (int t = 0; t < seq_len; t++) {
                 int id = target_buf[b * seq_len + t];
-                if (id >= 0 && id < vocab_size)
-                    toh[(b * seq_len + t) * vocab_size + id] = 1.0f;
+                if (id >= 0 && id < vocab_size) toh[(b * seq_len + t) * vocab_size + id] = 1.0f;
             }
         }
 
@@ -603,7 +636,10 @@ int main(void) {
 
         int64_t eshape[] = {batch_size, seq_len, d_model};
         boat_tensor_t* x = boat_tensor_create(eshape, 3, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
-        if (!x) { fprintf(stderr, "Failed to create embedding output\n"); return 1; }
+        if (!x) {
+            fprintf(stderr, "Failed to create embedding output\n");
+            return 1;
+        }
         float* xd = (float*)boat_tensor_data(x);
         const float* ed = (const float*)boat_tensor_const_data(embed_weight);
 
@@ -611,7 +647,8 @@ int main(void) {
             for (int t = 0; t < seq_len; t++) {
                 int id = input_buf[b * seq_len + t];
                 if (id < 0 || id >= vocab_size) id = TOK_UNK;
-                memcpy(&xd[(b * seq_len + t) * d_model], &ed[id * d_model], (size_t)d_model * sizeof(float));
+                memcpy(&xd[(b * seq_len + t) * d_model], &ed[id * d_model],
+                       (size_t)d_model * sizeof(float));
             }
         }
 
@@ -640,14 +677,14 @@ int main(void) {
             block_inputs[i] = block_out;
 
             boat_tensor_t* out = forward_block(
-                block_out, ln1[i], ln2[i], attn_layers[i],
-                ffn1_layers[i], ffn2_layers[i], relu_layers[i],
-                batch_size, seq_len, d_model, d_ff,
-                &attn_outs[i], &ffn_outs[i],
-                &ln1_outs[i], &ln2_outs[i],
-                &residual1_outs[i], &relu_outs[i]);
+                block_out, ln1[i], ln2[i], attn_layers[i], ffn1_layers[i], ffn2_layers[i],
+                relu_layers[i], batch_size, seq_len, d_model, d_ff, &attn_outs[i], &ffn_outs[i],
+                &ln1_outs[i], &ln2_outs[i], &residual1_outs[i], &relu_outs[i]);
 
-            if (!out) { fprintf(stderr, "Block %d forward failed\n", i); return 1; }
+            if (!out) {
+                fprintf(stderr, "Block %d forward failed\n", i);
+                return 1;
+            }
             block_out = out;
         }
 
@@ -700,14 +737,15 @@ int main(void) {
         // Backward through each block (reverse order)
         for (int i = n_layers - 1; i >= 0; i--) {
             boat_tensor_t* new_grad = backward_block(
-                grad, ln1[i], ln2[i], attn_layers[i],
-                ffn1_layers[i], ffn2_layers[i], relu_layers[i],
-                batch_size, seq_len, d_model, d_ff,
-                block_inputs[i], attn_outs[i], ffn_outs[i],
-                ln1_outs[i], ln2_outs[i], residual1_outs[i], relu_outs[i]);
+                grad, ln1[i], ln2[i], attn_layers[i], ffn1_layers[i], ffn2_layers[i],
+                relu_layers[i], batch_size, seq_len, d_model, d_ff, block_inputs[i], attn_outs[i],
+                ffn_outs[i], ln1_outs[i], ln2_outs[i], residual1_outs[i], relu_outs[i]);
 
             boat_tensor_unref(grad);
-            if (!new_grad) { fprintf(stderr, "Block %d backward failed\n", i); return 1; }
+            if (!new_grad) {
+                fprintf(stderr, "Block %d backward failed\n", i);
+                return 1;
+            }
             grad = new_grad;
         }
 
@@ -719,7 +757,8 @@ int main(void) {
                 int id = input_buf[b * seq_len + t];
                 if (id < 0 || id >= vocab_size) id = TOK_UNK;
                 for (int d = 0; d < d_model; d++) {
-                    gd[id * d_model + d] += ((float*)boat_tensor_data(grad))[(b * seq_len + t) * d_model + d];
+                    gd[id * d_model + d] +=
+                        ((float*)boat_tensor_data(grad))[(b * seq_len + t) * d_model + d];
                 }
             }
         }
@@ -747,8 +786,8 @@ int main(void) {
         boat_tensor_unref(x);
 
         if (epoch % 5 == 0 || epoch == n_epochs - 1) {
-            printf("Epoch %4d/%d  Loss: %.6f  Perplexity: %.2f\n",
-                   epoch + 1, n_epochs, loss, expf(loss));
+            printf("Epoch %4d/%d  Loss: %.6f  Perplexity: %.2f\n", epoch + 1, n_epochs, loss,
+                   expf(loss));
         }
     }
 
@@ -767,9 +806,14 @@ int main(void) {
     for (int step = 0; step < 80; step++) {
         int input_ids[MAX_SEQ_LEN];
         int pad = seq_len - gen_len;
-        if (pad < 0) { pad = 0; gen_len = seq_len; }
-        for (int i = 0; i < pad; i++) input_ids[i] = TOK_PAD;
-        for (int i = 0; i < gen_len; i++) input_ids[pad + i] = gen_seq[i];
+        if (pad < 0) {
+            pad = 0;
+            gen_len = seq_len;
+        }
+        for (int i = 0; i < pad; i++)
+            input_ids[i] = TOK_PAD;
+        for (int i = 0; i < gen_len; i++)
+            input_ids[pad + i] = gen_seq[i];
 
         int64_t ishape[] = {1, seq_len, d_model};
         boat_tensor_t* inf_x = boat_tensor_create(ishape, 3, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
@@ -796,34 +840,55 @@ int main(void) {
             if (!ir1) break;
 
             boat_tensor_t* il2 = manual_ln_forward(ln2[i], ir1);
-            if (!il2) { boat_tensor_unref(ir1); break; }
+            if (!il2) {
+                boat_tensor_unref(ir1);
+                break;
+            }
 
             int64_t i2d[] = {seq_len, d_model};
             boat_tensor_t* il2_2d = boat_tensor_reshape(il2, i2d, 2);
             boat_tensor_unref(il2);
-            if (!il2_2d) { boat_tensor_unref(ir1); break; }
+            if (!il2_2d) {
+                boat_tensor_unref(ir1);
+                break;
+            }
 
             boat_tensor_t* if1 = boat_dense_layer_forward(ffn1_layers[i], il2_2d);
             boat_tensor_unref(il2_2d);
-            if (!if1) { boat_tensor_unref(ir1); break; }
+            if (!if1) {
+                boat_tensor_unref(ir1);
+                break;
+            }
 
             boat_tensor_t* ir = boat_relu_layer_forward(relu_layers[i], if1);
             boat_tensor_unref(if1);
-            if (!ir) { boat_tensor_unref(ir1); break; }
+            if (!ir) {
+                boat_tensor_unref(ir1);
+                break;
+            }
 
             int64_t ird[] = {seq_len, d_ff};
             boat_tensor_t* ir_2d = boat_tensor_reshape(ir, ird, 2);
             boat_tensor_unref(ir);
-            if (!ir_2d) { boat_tensor_unref(ir1); break; }
+            if (!ir_2d) {
+                boat_tensor_unref(ir1);
+                break;
+            }
 
             boat_tensor_t* if2 = boat_dense_layer_forward(ffn2_layers[i], ir_2d);
             boat_tensor_unref(ir_2d);
-            if (!if2) { boat_tensor_unref(ir1); break; }
+            if (!if2) {
+                boat_tensor_unref(ir1);
+                break;
+            }
 
             int64_t i3d[] = {1, seq_len, d_model};
             boat_tensor_t* ivo = boat_tensor_reshape(if2, i3d, 3);
             boat_tensor_unref(if2);
-            if (!ivo) { boat_tensor_unref(ir1); break; }
+            if (!ivo) {
+                boat_tensor_unref(ir1);
+                break;
+            }
 
             boat_tensor_t* io = boat_add(ir1, ivo);
             boat_tensor_unref(ivo);
@@ -878,7 +943,8 @@ int main(void) {
     }
 
     printf("Generated: ");
-    for (int i = 0; i < gen_len; i++) putchar(id_to_char(gen_seq[i]));
+    for (int i = 0; i < gen_len; i++)
+        putchar(id_to_char(gen_seq[i]));
     printf("\n\n");
 
     // ---- Cleanup ----

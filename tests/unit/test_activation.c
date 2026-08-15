@@ -10,14 +10,15 @@
 
 static int g_failures = 0;
 
-#define CHECK(cond, msg) do { \
-    if (!(cond)) { \
-        printf("  FAIL: %s\n", msg); \
-        g_failures++; \
-    } else { \
-        printf("  OK: %s\n", msg); \
-    } \
-} while (0)
+#define CHECK(cond, msg)                                                                           \
+    do {                                                                                           \
+        if (!(cond)) {                                                                             \
+            printf("  FAIL: %s\n", msg);                                                           \
+            g_failures++;                                                                          \
+        } else {                                                                                   \
+            printf("  OK: %s\n", msg);                                                             \
+        }                                                                                          \
+    } while (0)
 
 static int check_vec(const char* name, const float* got, const float* want, size_t n, float tol) {
     int bad = 0;
@@ -35,9 +36,9 @@ static int check_vec(const char* name, const float* got, const float* want, size
 int main(void) {
     printf("=== Activation function tests ===\n");
 
-    const float inputs[] = { -2.0f, -1.0f, -0.5f, 0.0f, 0.5f, 1.0f, 2.0f };
+    const float inputs[] = {-2.0f, -1.0f, -0.5f, 0.0f, 0.5f, 1.0f, 2.0f};
     const size_t n = sizeof(inputs) / sizeof(inputs[0]);
-    const int64_t shape[] = { (int64_t)n };
+    const int64_t shape[] = {(int64_t)n};
     float* want = (float*)malloc(n * sizeof(float));
 
     // sigmoid (FP32)
@@ -45,7 +46,8 @@ int main(void) {
     boat_tensor_t* out = boat_sigmoid(t);
     CHECK(out != NULL, "boat_sigmoid returns output");
     if (out) {
-        for (size_t i = 0; i < n; i++) want[i] = 1.0f / (1.0f + expf(-inputs[i]));
+        for (size_t i = 0; i < n; i++)
+            want[i] = 1.0f / (1.0f + expf(-inputs[i]));
         int bad = check_vec("sigmoid", (const float*)boat_tensor_const_data(out), want, n, 1e-6f);
         CHECK(bad == 0, "sigmoid matches 1/(1+exp(-x))");
         boat_tensor_free(out);
@@ -55,7 +57,8 @@ int main(void) {
     out = boat_tanh(t);
     CHECK(out != NULL, "boat_tanh returns output");
     if (out) {
-        for (size_t i = 0; i < n; i++) want[i] = tanhf(inputs[i]);
+        for (size_t i = 0; i < n; i++)
+            want[i] = tanhf(inputs[i]);
         int bad = check_vec("tanh", (const float*)boat_tensor_const_data(out), want, n, 1e-6f);
         CHECK(bad == 0, "tanh matches tanhf");
         boat_tensor_free(out);
@@ -78,8 +81,8 @@ int main(void) {
     boat_tensor_free(t);
 
     // FP64 path
-    double inputs64[] = { -2.0, -0.5, 0.0, 0.5, 2.0 };
-    const int64_t shape64[] = { 5 };
+    double inputs64[] = {-2.0, -0.5, 0.0, 0.5, 2.0};
+    const int64_t shape64[] = {5};
     boat_tensor_t* t64 = boat_tensor_from_data(shape64, 1, BOAT_DTYPE_FLOAT64, inputs64);
     out = boat_sigmoid(t64);
     CHECK(out != NULL, "boat_sigmoid FP64 returns output");

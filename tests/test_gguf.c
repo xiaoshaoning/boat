@@ -14,17 +14,41 @@
 static int tests_passed = 0;
 static int tests_total = 0;
 
-#define TEST(name) do { printf("  %s ... ", name); fflush(stdout); tests_total++; } while(0)
-#define PASS() do { printf("PASS\n"); fflush(stdout); tests_passed++; } while(0)
-#define FAIL(msg) do { printf("FAIL: %s\n", msg); fflush(stdout); return 1; } while(0)
-#define ASSERT(cond) do { if (!(cond)) { printf("FAIL at %d\n", __LINE__); fflush(stdout); return 1; } } while(0)
-#define ASSERT_NEAR(a, b, eps) do { \
-    float _a = (a), _b = (b); \
-    if (fabsf(_a - _b) > (eps)) { \
-        printf("FAIL at %d: %f != %f (eps=%f)\n", __LINE__, _a, _b, (float)(eps)); \
-        fflush(stdout); return 1; \
-    } \
-} while(0)
+#define TEST(name)                                                                                 \
+    do {                                                                                           \
+        printf("  %s ... ", name);                                                                 \
+        fflush(stdout);                                                                            \
+        tests_total++;                                                                             \
+    } while (0)
+#define PASS()                                                                                     \
+    do {                                                                                           \
+        printf("PASS\n");                                                                          \
+        fflush(stdout);                                                                            \
+        tests_passed++;                                                                            \
+    } while (0)
+#define FAIL(msg)                                                                                  \
+    do {                                                                                           \
+        printf("FAIL: %s\n", msg);                                                                 \
+        fflush(stdout);                                                                            \
+        return 1;                                                                                  \
+    } while (0)
+#define ASSERT(cond)                                                                               \
+    do {                                                                                           \
+        if (!(cond)) {                                                                             \
+            printf("FAIL at %d\n", __LINE__);                                                      \
+            fflush(stdout);                                                                        \
+            return 1;                                                                              \
+        }                                                                                          \
+    } while (0)
+#define ASSERT_NEAR(a, b, eps)                                                                     \
+    do {                                                                                           \
+        float _a = (a), _b = (b);                                                                  \
+        if (fabsf(_a - _b) > (eps)) {                                                              \
+            printf("FAIL at %d: %f != %f (eps=%f)\n", __LINE__, _a, _b, (float)(eps));             \
+            fflush(stdout);                                                                        \
+            return 1;                                                                              \
+        }                                                                                          \
+    } while (0)
 
 // -----------------------------------------------------------------------
 // Helper: write buffer to temp file, return filename
@@ -44,7 +68,9 @@ static const char* write_temp_file(const uint8_t* data, size_t size) {
 // -----------------------------------------------------------------------
 // We build GGUF files as byte arrays with proper little-endian encoding.
 
-static void append_u8(uint8_t** p, uint8_t v) { *(*p)++ = v; }
+static void append_u8(uint8_t** p, uint8_t v) {
+    *(*p)++ = v;
+}
 static void append_u16(uint8_t** p, uint16_t v) {
     *(*p)++ = (uint8_t)(v & 0xFF);
     *(*p)++ = (uint8_t)((v >> 8) & 0xFF);
@@ -62,16 +88,24 @@ static void append_u64(uint8_t** p, uint64_t v) {
     }
 }
 static void append_f32(uint8_t** p, float v) {
-    uint32_t uv; memcpy(&uv, &v, 4);
+    uint32_t uv;
+    memcpy(&uv, &v, 4);
     append_u32(p, uv);
 }
 static void append_f16(uint8_t** p, float v) {
     // Simple F32-to-F16 conversion
-    uint32_t uv; memcpy(&uv, &v, 4);
+    uint32_t uv;
+    memcpy(&uv, &v, 4);
     int exp = (int)((uv >> 23) & 0xFF) - 127 + 15;
     uint32_t mant = (uv >> 13) & 0x3FF;
-    if (exp <= 0) { exp = 0; mant = 0; }
-    if (exp >= 31) { exp = 31; mant = 0; }
+    if (exp <= 0) {
+        exp = 0;
+        mant = 0;
+    }
+    if (exp >= 31) {
+        exp = 31;
+        mant = 0;
+    }
     uint16_t h = (uint16_t)(((uv >> 16) & 0x8000) | (exp << 10) | mant);
     append_u16(p, h);
 }
@@ -82,7 +116,7 @@ static void append_string(uint8_t** p, const char* s) {
     *p += len;
 }
 static void append_align(uint8_t** p, uint64_t alignment) {
-    uint64_t offset = (uint64_t)(*p - (uint8_t*)*p);  // Use ptr diff
+    uint64_t offset = (uint64_t)(*p - (uint8_t*)*p); // Use ptr diff
     // Actually, we need the base of the buffer. The caller handles alignment.
 }
 
@@ -104,13 +138,14 @@ static gguf_test_model_t build_test_gguf_f32(void) {
     // Config
     int64_t hidden = 8, d_ff = 32, n_heads = 2, n_layers = 1, vocab = 16;
     int64_t head_dim = hidden / n_heads; // 4
-    int n_tensors = 12; // norm1, q, k, v, o, norm2, gate, up, down, output_norm, output_weight, tok_embd
+    int n_tensors =
+        12; // norm1, q, k, v, o, norm2, gate, up, down, output_norm, output_weight, tok_embd
 
     // --- Header ---
     append_u32(&p, GGUF_MAGIC);
     append_u32(&p, GGUF_VERSION);
-    append_u64(&p, (uint64_t)n_tensors);       // tensor_count
-    append_u64(&p, 8);                         // metadata_kv_count
+    append_u64(&p, (uint64_t)n_tensors); // tensor_count
+    append_u64(&p, 8);                   // metadata_kv_count
 
     // --- Metadata KV ---
     append_string(&p, "general.architecture");
@@ -202,7 +237,8 @@ static gguf_test_model_t build_test_gguf_f32(void) {
     // 1. token_embd.weight
     append_string(&p, "token_embd.weight");
     append_u32(&p, 2);
-    append_u64(&p, (uint64_t)vocab); append_u64(&p, (uint64_t)hidden);
+    append_u64(&p, (uint64_t)vocab);
+    append_u64(&p, (uint64_t)hidden);
     append_u32(&p, GGML_TYPE_F32);
     append_u64(&p, tok_embd_off);
 
@@ -216,28 +252,32 @@ static gguf_test_model_t build_test_gguf_f32(void) {
     // 3. blk.0.attn_q.weight
     append_string(&p, "blk.0.attn_q.weight");
     append_u32(&p, 2);
-    append_u64(&p, (uint64_t)hidden); append_u64(&p, (uint64_t)hidden);
+    append_u64(&p, (uint64_t)hidden);
+    append_u64(&p, (uint64_t)hidden);
     append_u32(&p, GGML_TYPE_F32);
     append_u64(&p, q_off);
 
     // 4. blk.0.attn_k.weight
     append_string(&p, "blk.0.attn_k.weight");
     append_u32(&p, 2);
-    append_u64(&p, (uint64_t)hidden); append_u64(&p, (uint64_t)hidden);
+    append_u64(&p, (uint64_t)hidden);
+    append_u64(&p, (uint64_t)hidden);
     append_u32(&p, GGML_TYPE_F32);
     append_u64(&p, k_off);
 
     // 5. blk.0.attn_v.weight
     append_string(&p, "blk.0.attn_v.weight");
     append_u32(&p, 2);
-    append_u64(&p, (uint64_t)hidden); append_u64(&p, (uint64_t)hidden);
+    append_u64(&p, (uint64_t)hidden);
+    append_u64(&p, (uint64_t)hidden);
     append_u32(&p, GGML_TYPE_F32);
     append_u64(&p, v_off);
 
     // 6. blk.0.attn_output.weight
     append_string(&p, "blk.0.attn_output.weight");
     append_u32(&p, 2);
-    append_u64(&p, (uint64_t)hidden); append_u64(&p, (uint64_t)hidden);
+    append_u64(&p, (uint64_t)hidden);
+    append_u64(&p, (uint64_t)hidden);
     append_u32(&p, GGML_TYPE_F32);
     append_u64(&p, o_off);
 
@@ -251,21 +291,24 @@ static gguf_test_model_t build_test_gguf_f32(void) {
     // 8. blk.0.ffn_gate.weight
     append_string(&p, "blk.0.ffn_gate.weight");
     append_u32(&p, 2);
-    append_u64(&p, (uint64_t)d_ff); append_u64(&p, (uint64_t)hidden);
+    append_u64(&p, (uint64_t)d_ff);
+    append_u64(&p, (uint64_t)hidden);
     append_u32(&p, GGML_TYPE_F32);
     append_u64(&p, gate_off);
 
     // 9. blk.0.ffn_up.weight
     append_string(&p, "blk.0.ffn_up.weight");
     append_u32(&p, 2);
-    append_u64(&p, (uint64_t)d_ff); append_u64(&p, (uint64_t)hidden);
+    append_u64(&p, (uint64_t)d_ff);
+    append_u64(&p, (uint64_t)hidden);
     append_u32(&p, GGML_TYPE_F32);
     append_u64(&p, up_off);
 
     // 10. blk.0.ffn_down.weight
     append_string(&p, "blk.0.ffn_down.weight");
     append_u32(&p, 2);
-    append_u64(&p, (uint64_t)hidden); append_u64(&p, (uint64_t)d_ff);
+    append_u64(&p, (uint64_t)hidden);
+    append_u64(&p, (uint64_t)d_ff);
     append_u32(&p, GGML_TYPE_F32);
     append_u64(&p, down_off);
 
@@ -279,12 +322,14 @@ static gguf_test_model_t build_test_gguf_f32(void) {
     // 12. output.weight
     append_string(&p, "output.weight");
     append_u32(&p, 2);
-    append_u64(&p, (uint64_t)vocab); append_u64(&p, (uint64_t)hidden);
+    append_u64(&p, (uint64_t)vocab);
+    append_u64(&p, (uint64_t)hidden);
     append_u32(&p, GGML_TYPE_F32);
     append_u64(&p, out_w_off);
 
     // --- Align to 32 for tensor data ---
-    while (((uint64_t)(p - buf) & 31) != 0) append_u8(&p, 0);
+    while (((uint64_t)(p - buf) & 31) != 0)
+        append_u8(&p, 0);
 
     // --- Tensor data ---
     // token_embd.weight: fill with 0.01f * (i+1)
@@ -512,7 +557,8 @@ static int test_f16_conversion(void) {
     append_u64(&p, 0); // offset = 0
 
     // Align to 32
-    while (((uint64_t)(p - buf) & 31) != 0) append_u8(&p, 0);
+    while (((uint64_t)(p - buf) & 31) != 0)
+        append_u8(&p, 0);
 
     // Tensor data: [hidden] FP16 values: 1.0=0x3C00, 2.0=0x4000, 0.5=0x3800, -1.0=0xBC00
     for (int64_t i = 0; i < hidden; i++) {
@@ -541,7 +587,7 @@ static int test_silu(void) {
     TEST("SiLU activation");
     int64_t shape[] = {5};
     boat_tensor_t* t = boat_tensor_from_data(shape, 1, BOAT_DTYPE_FLOAT32,
-        (float[]){0.0f, 1.0f, -1.0f, 2.0f, -2.0f});
+                                             (float[]){0.0f, 1.0f, -1.0f, 2.0f, -2.0f});
     ASSERT(t != NULL);
 
     boat_tensor_t* r = boat_silu(t);
@@ -569,13 +615,13 @@ static int test_silu(void) {
 // -----------------------------------------------------------------------
 static int test_rmsnorm_set_weight(void) {
     TEST("RMSNorm set_weight");
-    boat_rmsnorm_config_t cfg = { .normalized_shape = 8, .eps = 1e-5f, .elementwise_affine = true };
+    boat_rmsnorm_config_t cfg = {.normalized_shape = 8, .eps = 1e-5f, .elementwise_affine = true};
     boat_rmsnorm_t* norm = boat_rmsnorm_create(&cfg);
     ASSERT(norm != NULL);
 
     int64_t shape[] = {8};
-    boat_tensor_t* w = boat_tensor_from_data(shape, 1, BOAT_DTYPE_FLOAT32,
-        (float[]){2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f});
+    boat_tensor_t* w = boat_tensor_from_data(
+        shape, 1, BOAT_DTYPE_FLOAT32, (float[]){2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f});
     ASSERT(w != NULL);
 
     boat_rmsnorm_set_weight(norm, w);
@@ -591,16 +637,19 @@ static int test_rmsnorm_set_weight(void) {
 // -----------------------------------------------------------------------
 static int test_attention_set_weight(void) {
     TEST("Attention set_weight");
-    boat_attention_config_t cfg = {
-        .hidden_size = 8, .num_heads = 2, .head_size = 4,
-        .dropout_prob = 0.0f, .causal_mask = true, .use_bias = false
-    };
+    boat_attention_config_t cfg = {.hidden_size = 8,
+                                   .num_heads = 2,
+                                   .head_size = 4,
+                                   .dropout_prob = 0.0f,
+                                   .causal_mask = true,
+                                   .use_bias = false};
     boat_attention_t* attn = boat_attention_create(&cfg);
     ASSERT(attn != NULL);
 
     int64_t shape[] = {8, 8};
     float data[64];
-    for (int i = 0; i < 64; i++) data[i] = 0.01f * (float)i;
+    for (int i = 0; i < 64; i++)
+        data[i] = 0.01f * (float)i;
 
     boat_tensor_t* wq = boat_tensor_from_data(shape, 2, BOAT_DTYPE_FLOAT32, data);
     ASSERT(wq != NULL);

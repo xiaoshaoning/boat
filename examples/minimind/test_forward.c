@@ -22,11 +22,15 @@ int main(int argc, char** argv) {
     char path[512];
     snprintf(path, sizeof(path), "forward_test/%s_input.bin", argv[2]);
     FILE* f = fopen(path, "rb");
-    if (!f) { fprintf(stderr, "Cannot open %s\n", path); return 1; }
+    if (!f) {
+        fprintf(stderr, "Cannot open %s\n", path);
+        return 1;
+    }
     int n_tokens;
     fread(&n_tokens, sizeof(int), 1, f);
     int* tokens = (int*)malloc((size_t)n_tokens * sizeof(int));
-    for (int i = 0; i < n_tokens; i++) fread(&tokens[i], sizeof(int), 1, f);
+    for (int i = 0; i < n_tokens; i++)
+        fread(&tokens[i], sizeof(int), 1, f);
     fclose(f);
 
     // Run forward pass
@@ -37,7 +41,10 @@ int main(int argc, char** argv) {
     // Read expected logits
     snprintf(path, sizeof(path), "forward_test/%s_logits.bin", argv[2]);
     f = fopen(path, "rb");
-    if (!f) { fprintf(stderr, "Cannot open %s\n", path); return 1; }
+    if (!f) {
+        fprintf(stderr, "Cannot open %s\n", path);
+        return 1;
+    }
     float* expected = (float*)malloc((size_t)VS * sizeof(float));
     fread(expected, sizeof(float), (size_t)VS, f);
     fclose(f);
@@ -59,12 +66,22 @@ int main(int argc, char** argv) {
         float cv = logits[i], pv = expected[i];
         for (int k = 0; k < 5; k++) {
             if (cv > top5_c_val[k]) {
-                for (int j = 4; j > k; j--) { top5_c[j] = top5_c[j-1]; top5_c_val[j] = top5_c_val[j-1]; }
-                top5_c[k] = i; top5_c_val[k] = cv; break;
+                for (int j = 4; j > k; j--) {
+                    top5_c[j] = top5_c[j - 1];
+                    top5_c_val[j] = top5_c_val[j - 1];
+                }
+                top5_c[k] = i;
+                top5_c_val[k] = cv;
+                break;
             }
             if (pv > top5_py_val[k]) {
-                for (int j = 4; j > k; j--) { top5_py[j] = top5_py[j-1]; top5_py_val[j] = top5_py_val[j-1]; }
-                top5_py[k] = i; top5_py_val[k] = pv; break;
+                for (int j = 4; j > k; j--) {
+                    top5_py[j] = top5_py[j - 1];
+                    top5_py_val[j] = top5_py_val[j - 1];
+                }
+                top5_py[k] = i;
+                top5_py_val[k] = pv;
+                break;
             }
         }
     }
@@ -73,9 +90,11 @@ int main(int argc, char** argv) {
     printf("Max abs error: %e\n", max_abs_err);
     printf("Max rel error: %e\n", max_rel_err);
     printf("C   top-5: ");
-    for (int k = 0; k < 5; k++) printf("[id=%d val=%.4f] ", top5_c[k], top5_c_val[k]);
+    for (int k = 0; k < 5; k++)
+        printf("[id=%d val=%.4f] ", top5_c[k], top5_c_val[k]);
     printf("\nPy  top-5: ");
-    for (int k = 0; k < 5; k++) printf("[id=%d val=%.4f] ", top5_py[k], top5_py_val[k]);
+    for (int k = 0; k < 5; k++)
+        printf("[id=%d val=%.4f] ", top5_py[k], top5_py_val[k]);
     printf("\n");
 
     if (max_abs_err < 1e-3f && max_rel_err < 1e-4f) {

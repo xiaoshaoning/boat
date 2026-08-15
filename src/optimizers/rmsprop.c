@@ -12,7 +12,7 @@
 typedef struct boat_rmsprop_state_t {
     boat_optimizer_type_t type;
     float learning_rate;
-    float weight_decay;  // L2 gradient penalty coefficient (0 = off)
+    float weight_decay; // L2 gradient penalty coefficient (0 = off)
     float alpha;
     float epsilon;
 
@@ -32,9 +32,8 @@ static void rmsprop_expand_capacity(boat_rmsprop_state_t* state);
 static void rmsprop_update_parameter(boat_rmsprop_state_t* state, size_t idx);
 
 // Create RMSprop optimizer
-BOAT_API boat_optimizer_t* boat_rmsprop_optimizer_create(float learning_rate,
-                                                float alpha,
-                                                float epsilon) {
+BOAT_API boat_optimizer_t* boat_rmsprop_optimizer_create(float learning_rate, float alpha,
+                                                         float epsilon) {
     // Parameter validation
     if (learning_rate <= 0.0f) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[RMSprop] Learning rate must be positive\n");
@@ -50,7 +49,8 @@ BOAT_API boat_optimizer_t* boat_rmsprop_optimizer_create(float learning_rate,
     }
 
     // Allocate optimizer state
-    boat_rmsprop_state_t* state = (boat_rmsprop_state_t*)boat_malloc(sizeof(boat_rmsprop_state_t), BOAT_DEVICE_CPU);
+    boat_rmsprop_state_t* state =
+        (boat_rmsprop_state_t*)boat_malloc(sizeof(boat_rmsprop_state_t), BOAT_DEVICE_CPU);
     if (!state) {
         boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[RMSprop] Failed to allocate optimizer state\n");
         return NULL;
@@ -63,12 +63,15 @@ BOAT_API boat_optimizer_t* boat_rmsprop_optimizer_create(float learning_rate,
     state->alpha = alpha;
     state->epsilon = epsilon;
     state->num_params = 0;
-    state->capacity = 16;  // Initial capacity
+    state->capacity = 16; // Initial capacity
 
     // Allocate arrays
-    state->params = (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
-    state->grads = (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
-    state->square_avg = (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
+    state->params =
+        (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
+    state->grads =
+        (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
+    state->square_avg =
+        (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
 
     if (!state->params || !state->grads || !state->square_avg) {
         boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[RMSprop] Failed to allocate optimizer state\n");
@@ -90,9 +93,8 @@ BOAT_API boat_optimizer_t* boat_rmsprop_optimizer_create(float learning_rate,
 }
 
 // Add a parameter to the optimizer
-void rmsprop_optimizer_add_parameter(boat_optimizer_t* optimizer,
-                                  boat_tensor_t* param,
-                                  boat_tensor_t* grad) {
+void rmsprop_optimizer_add_parameter(boat_optimizer_t* optimizer, boat_tensor_t* param,
+                                     boat_tensor_t* grad) {
     if (!optimizer || !param || !grad) {
         return;
     }

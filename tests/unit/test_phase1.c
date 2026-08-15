@@ -37,7 +37,8 @@ static bool test_memory_pool() {
     size_t total_memory = boat_memory_pool_total_memory(pool);
 
     if (allocated != 3 || free_blocks != 1) {
-        printf("  FAIL: Incorrect block counts (allocated=%zu, free=%zu)\n", allocated, free_blocks);
+        printf("  FAIL: Incorrect block counts (allocated=%zu, free=%zu)\n", allocated,
+               free_blocks);
         boat_memory_pool_free(pool);
         return false;
     }
@@ -116,7 +117,8 @@ static bool test_memory_arena() {
 static bool test_attention_layer() {
     printf("Testing attention layer...\n");
 
-    // Use generic API: boat_attention_layer_create(hidden_size, num_heads, dropout_prob, causal_mask)
+    // Use generic API: boat_attention_layer_create(hidden_size, num_heads, dropout_prob,
+    // causal_mask)
     boat_attention_layer_t* attention = boat_attention_layer_create(768, 12, 12, 0.1f, false);
     if (!attention) {
         printf("  FAIL: Failed to create attention layer\n");
@@ -124,7 +126,7 @@ static bool test_attention_layer() {
     }
 
     // Create dummy input tensors
-    int64_t shape[] = {2, 16, 768};  // batch=2, seq_len=16, hidden=768
+    int64_t shape[] = {2, 16, 768}; // batch=2, seq_len=16, hidden=768
     boat_tensor_t* query = boat_tensor_create(shape, 3, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     boat_tensor_t* key = boat_tensor_create(shape, 3, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     boat_tensor_t* value = boat_tensor_create(shape, 3, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
@@ -149,12 +151,14 @@ static bool test_attention_layer() {
     memcpy(boat_tensor_data(value), query_data, query_elements * sizeof(float));
 
     // Forward pass using generic API
-    printf("[TEST] Calling boat_attention_layer_forward with attention=%p, query=%p, key=%p, value=%p\n",
+    printf("[TEST] Calling boat_attention_layer_forward with attention=%p, query=%p, key=%p, "
+           "value=%p\n",
            attention, query, key, value);
     boat_tensor_t* output = boat_attention_layer_forward(attention, query, key, value, NULL);
     printf("[TEST] boat_attention_layer_forward returned %p\n", output);
     if (!output) {
-        printf("  SKIP: Attention forward pass not implemented yet (matrix multiplication missing)\n");
+        printf(
+            "  SKIP: Attention forward pass not implemented yet (matrix multiplication missing)\n");
         // Clean up and return true (skip) rather than fail
         boat_tensor_free(query);
         boat_tensor_free(key);
@@ -166,11 +170,11 @@ static bool test_attention_layer() {
     // Check output shape
     printf("[TEST] Checking output shape\n");
     const int64_t* output_shape = boat_tensor_shape(output);
-    printf("[TEST] Output shape: [%lld, %lld, %lld]\n",
-           output_shape[0], output_shape[1], output_shape[2]);
+    printf("[TEST] Output shape: [%lld, %lld, %lld]\n", output_shape[0], output_shape[1],
+           output_shape[2]);
     if (output_shape[0] != 2 || output_shape[1] != 16 || output_shape[2] != 768) {
-        printf("  FAIL: Incorrect output shape [%lld, %lld, %lld]\n",
-               output_shape[0], output_shape[1], output_shape[2]);
+        printf("  FAIL: Incorrect output shape [%lld, %lld, %lld]\n", output_shape[0],
+               output_shape[1], output_shape[2]);
         boat_tensor_free(query);
         boat_tensor_free(key);
         boat_tensor_free(value);
@@ -264,8 +268,11 @@ static bool test_pytorch_loader() {
     FILE* test_file = fopen(test_filename, "rb");
     if (!test_file) {
         printf("  SKIP: Test model file %s not found\n", test_filename);
-        printf("        Create a simple PyTorch model with: python3 -c \"import torch; import torch.nn as nn; m = nn.Sequential(nn.Linear(10, 5), nn.ReLU()); torch.jit.script(m).save('%s')\"\n", test_filename);
-        return true;  // Skip, not a failure
+        printf("        Create a simple PyTorch model with: python3 -c \"import torch; import "
+               "torch.nn as nn; m = nn.Sequential(nn.Linear(10, 5), nn.ReLU()); "
+               "torch.jit.script(m).save('%s')\"\n",
+               test_filename);
+        return true; // Skip, not a failure
     }
     fclose(test_file);
 
@@ -299,14 +306,14 @@ static bool test_pytorch_loader() {
 static bool test_pytorch_loader() {
     printf("Testing PyTorch loader...\n");
     printf("  SKIP: PyTorch support not enabled (BOAT_WITH_PYTORCH=OFF)\n");
-    return true;  // Skip, not a failure
+    return true; // Skip, not a failure
 }
 #endif
 
 int main() {
     printf("=== Phase 1 Functionality Tests ===\n\n");
 
-    srand(42);  // Fixed seed for reproducibility
+    srand(42); // Fixed seed for reproducibility
 
     bool all_passed = true;
 

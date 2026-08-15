@@ -23,16 +23,12 @@ static float* data_f32(const boat_tensor_t* t) {
 }
 
 // LayerNorm + affine on last dim
-static boat_tensor_t* layer_norm_affine(
-    const boat_tensor_t* x,
-    const boat_tensor_t* gamma,
-    const boat_tensor_t* beta,
-    float eps)
-{
+static boat_tensor_t* layer_norm_affine(const boat_tensor_t* x, const boat_tensor_t* gamma,
+                                        const boat_tensor_t* beta, float eps) {
     const int64_t* shape = boat_tensor_shape(x);
     int64_t ndim = boat_tensor_ndim(x);
     int64_t D = shape[ndim - 1];
-    int64_t ns[] = { D };
+    int64_t ns[] = {D};
     boat_tensor_t* y = boat_layer_norm(x, ns, 1, eps);
     if (!y) return NULL;
     if (gamma) {
@@ -52,11 +48,8 @@ static boat_tensor_t* layer_norm_affine(
 
 // Linear: y = x @ W + b
 // x: [..., in_features], W: [in_features, out_features], b: [out_features]
-static boat_tensor_t* linear(
-    const boat_tensor_t* x,
-    const boat_tensor_t* weight,
-    const boat_tensor_t* bias)
-{
+static boat_tensor_t* linear(const boat_tensor_t* x, const boat_tensor_t* weight,
+                             const boat_tensor_t* bias) {
     size_t ndim = boat_tensor_ndim(x);
     int64_t in_features = boat_tensor_shape(x)[ndim - 1];
     boat_tensor_t* y;
@@ -66,8 +59,9 @@ static boat_tensor_t* linear(
     } else {
         // Flatten leading dims for matmul (needs matching batch dims)
         int64_t outer = 1;
-        for (size_t i = 0; i < ndim - 1; i++) outer *= boat_tensor_shape(x)[i];
-        int64_t flat_shape[] = { outer, in_features };
+        for (size_t i = 0; i < ndim - 1; i++)
+            outer *= boat_tensor_shape(x)[i];
+        int64_t flat_shape[] = {outer, in_features};
         boat_tensor_t* x_flat = boat_tensor_reshape(x, flat_shape, 2);
         if (!x_flat) return NULL;
 
@@ -102,14 +96,9 @@ static boat_tensor_t* linear(
 // cache_k, cache_v: [B, num_heads, max_T, head_dim]
 // step: current decoding step
 // Returns: [B, T, D]
-static boat_tensor_t* self_attention(
-    const boat_tensor_t* x,
-    const boat_decoder_config_t* config,
-    const boat_decoder_layer_weights_t* w,
-    boat_decoder_cache_t* cache,
-    int32_t step,
-    bool causal)
-{
+static boat_tensor_t* self_attention(const boat_tensor_t* x, const boat_decoder_config_t* config,
+                                     const boat_decoder_layer_weights_t* w,
+                                     boat_decoder_cache_t* cache, int32_t step, bool causal) {
     int B = (int)boat_tensor_shape(x)[0];
     int T = (int)boat_tensor_shape(x)[1];
     int D = config->d_model;
@@ -120,29 +109,60 @@ static boat_tensor_t* self_attention(
     boat_tensor_t* Q = linear(x, w->self_q_weight, w->self_q_bias);
     if (!Q) return NULL;
     boat_tensor_t* K = linear(x, w->self_k_weight, w->self_k_bias);
-    if (!K) { boat_tensor_unref(Q); return NULL; }
+    if (!K) {
+        boat_tensor_unref(Q);
+        return NULL;
+    }
     boat_tensor_t* V = linear(x, w->self_v_weight, w->self_v_bias);
-    if (!V) { boat_tensor_unref(Q); boat_tensor_unref(K); return NULL; }
+    if (!V) {
+        boat_tensor_unref(Q);
+        boat_tensor_unref(K);
+        return NULL;
+    }
 
     // Reshape to [B, T, H, head_dim] -> [B, H, T, head_dim]
-    int64_t mh_shape[] = { B, T, H, head_dim };
+    int64_t mh_shape[] = {B, T, H, head_dim};
     boat_tensor_t* Q_mh = boat_tensor_reshape(Q, mh_shape, 4);
     boat_tensor_unref(Q);
-    if (!Q_mh) { boat_tensor_unref(K); boat_tensor_unref(V); return NULL; }
+    if (!Q_mh) {
+        boat_tensor_unref(K);
+        boat_tensor_unref(V);
+        return NULL;
+    }
     Q_mh = boat_transpose(Q_mh, 1, 2);
-    if (!Q_mh) { boat_tensor_unref(K); boat_tensor_unref(V); return NULL; }
+    if (!Q_mh) {
+        boat_tensor_unref(K);
+        boat_tensor_unref(V);
+        return NULL;
+    }
 
     boat_tensor_t* K_mh = boat_tensor_reshape(K, mh_shape, 4);
     boat_tensor_unref(K);
-    if (!K_mh) { boat_tensor_unref(Q_mh); boat_tensor_unref(V); return NULL; }
+    if (!K_mh) {
+        boat_tensor_unref(Q_mh);
+        boat_tensor_unref(V);
+        return NULL;
+    }
     K_mh = boat_transpose(K_mh, 1, 2);
-    if (!K_mh) { boat_tensor_unref(Q_mh); boat_tensor_unref(V); return NULL; }
+    if (!K_mh) {
+        boat_tensor_unref(Q_mh);
+        boat_tensor_unref(V);
+        return NULL;
+    }
 
     boat_tensor_t* V_mh = boat_tensor_reshape(V, mh_shape, 4);
     boat_tensor_unref(V);
-    if (!V_mh) { boat_tensor_unref(Q_mh); boat_tensor_unref(K_mh); return NULL; }
+    if (!V_mh) {
+        boat_tensor_unref(Q_mh);
+        boat_tensor_unref(K_mh);
+        return NULL;
+    }
     V_mh = boat_transpose(V_mh, 1, 2);
-    if (!V_mh) { boat_tensor_unref(Q_mh); boat_tensor_unref(K_mh); return NULL; }
+    if (!V_mh) {
+        boat_tensor_unref(Q_mh);
+        boat_tensor_unref(K_mh);
+        return NULL;
+    }
 
     // KV cache: append new K, V
     if (cache && step >= 0) {
@@ -180,9 +200,11 @@ static boat_tensor_t* self_attention(
 
         // Use full cache for attention
         int L = cache->length;
-        int64_t k_full_shape[] = { B, H, L, head_dim };
-        boat_tensor_t* K_full = boat_tensor_create(k_full_shape, 4, BOAT_DTYPE_FLOAT32, boat_tensor_device(x));
-        boat_tensor_t* V_full = boat_tensor_create(k_full_shape, 4, BOAT_DTYPE_FLOAT32, boat_tensor_device(x));
+        int64_t k_full_shape[] = {B, H, L, head_dim};
+        boat_tensor_t* K_full =
+            boat_tensor_create(k_full_shape, 4, BOAT_DTYPE_FLOAT32, boat_tensor_device(x));
+        boat_tensor_t* V_full =
+            boat_tensor_create(k_full_shape, 4, BOAT_DTYPE_FLOAT32, boat_tensor_device(x));
         if (K_full && V_full) {
 #ifdef BOAT_WITH_CUDA
             if (boat_tensor_device(x) == BOAT_DEVICE_CUDA) {
@@ -213,8 +235,10 @@ static boat_tensor_t* self_attention(
                     }
                 }
             }
-            boat_tensor_unref(K_mh); K_mh = K_full;
-            boat_tensor_unref(V_mh); V_mh = V_full;
+            boat_tensor_unref(K_mh);
+            K_mh = K_full;
+            boat_tensor_unref(V_mh);
+            V_mh = V_full;
         } else {
             if (K_full) boat_tensor_unref(K_full);
             if (V_full) boat_tensor_unref(V_full);
@@ -231,22 +255,35 @@ static boat_tensor_t* self_attention(
 
     // scores = Q @ K^T  -> [B*H, T, L]
     boat_tensor_t* K_T = boat_transpose(K_mh, 2, 3);
-    if (!K_T) { boat_tensor_unref(Q_mh); boat_tensor_unref(K_mh); boat_tensor_unref(V_mh); return NULL; }
-    boat_tensor_unref(K_mh); K_mh = NULL;
+    if (!K_T) {
+        boat_tensor_unref(Q_mh);
+        boat_tensor_unref(K_mh);
+        boat_tensor_unref(V_mh);
+        return NULL;
+    }
+    boat_tensor_unref(K_mh);
+    K_mh = NULL;
 
     // Flatten Q: [B, H, T, head_dim] -> [B*H, T, head_dim]
     // Flatten K_T: [B, H, head_dim, L] -> [B*H, head_dim, L]
-    int64_t q2d[] = { B * H, T, head_dim };
-    int64_t kt2d[] = { B * H, head_dim, L };
-    int64_t s2d[] = { B * H, T, L };
+    int64_t q2d[] = {B * H, T, head_dim};
+    int64_t kt2d[] = {B * H, head_dim, L};
+    int64_t s2d[] = {B * H, T, L};
 
     boat_tensor_t* Q_2d = boat_tensor_reshape(Q_mh, q2d, 3);
-    boat_tensor_unref(Q_mh); Q_mh = NULL;
+    boat_tensor_unref(Q_mh);
+    Q_mh = NULL;
     boat_tensor_t* KT_2d = boat_tensor_reshape(K_T, kt2d, 3);
-    boat_tensor_unref(K_T); K_T = NULL;
+    boat_tensor_unref(K_T);
+    K_T = NULL;
 
     boat_tensor_t* scores = boat_tensor_create(s2d, 3, BOAT_DTYPE_FLOAT32, boat_tensor_device(x));
-    if (!scores) { boat_tensor_unref(Q_2d); boat_tensor_unref(KT_2d); boat_tensor_unref(V_mh); return NULL; }
+    if (!scores) {
+        boat_tensor_unref(Q_2d);
+        boat_tensor_unref(KT_2d);
+        boat_tensor_unref(V_mh);
+        return NULL;
+    }
 
     float* qd = data_f32(Q_2d);
     float* ktd = data_f32(KT_2d);
@@ -300,28 +337,43 @@ static boat_tensor_t* self_attention(
 
     // Softmax over L
     // [B*H, T, L] -> reshape to [B*H*T, L] for boat_softmax
-    int64_t sm_shape[] = { B * H * T, L };
+    int64_t sm_shape[] = {B * H * T, L};
     boat_tensor_t* sm_in = boat_tensor_reshape(scores, sm_shape, 2);
     boat_tensor_unref(scores);
-    if (!sm_in) { boat_tensor_unref(V_mh); return NULL; }
+    if (!sm_in) {
+        boat_tensor_unref(V_mh);
+        return NULL;
+    }
 
     boat_tensor_t* sm_out = boat_softmax(sm_in, 1);
     boat_tensor_unref(sm_in);
-    if (!sm_out) { boat_tensor_unref(V_mh); return NULL; }
+    if (!sm_out) {
+        boat_tensor_unref(V_mh);
+        return NULL;
+    }
 
     // Reshape back
-    int64_t sm_orig[] = { B * H, T, L };
+    int64_t sm_orig[] = {B * H, T, L};
     sm_out = boat_tensor_reshape(sm_out, sm_orig, 3);
-    if (!sm_out) { boat_tensor_unref(V_mh); return NULL; }
+    if (!sm_out) {
+        boat_tensor_unref(V_mh);
+        return NULL;
+    }
 
     // attn @ V: [B*H, T, L] @ V: [B*H, L, head_dim] -> [B*H, T, head_dim]
-    int64_t v2d[] = { B * H, L, head_dim };
-    int64_t out2d_shape[] = { B * H, T, head_dim };
+    int64_t v2d[] = {B * H, L, head_dim};
+    int64_t out2d_shape[] = {B * H, T, head_dim};
     boat_tensor_t* V_2d = boat_tensor_reshape(V_mh, v2d, 3);
-    boat_tensor_unref(V_mh); V_mh = NULL;
+    boat_tensor_unref(V_mh);
+    V_mh = NULL;
 
-    boat_tensor_t* out_2d = boat_tensor_create(out2d_shape, 3, BOAT_DTYPE_FLOAT32, boat_tensor_device(x));
-    if (!out_2d) { boat_tensor_unref(sm_out); boat_tensor_unref(V_2d); return NULL; }
+    boat_tensor_t* out_2d =
+        boat_tensor_create(out2d_shape, 3, BOAT_DTYPE_FLOAT32, boat_tensor_device(x));
+    if (!out_2d) {
+        boat_tensor_unref(sm_out);
+        boat_tensor_unref(V_2d);
+        return NULL;
+    }
 
     float* attn_d = data_f32(sm_out);
     float* vd = data_f32(V_2d);
@@ -339,7 +391,8 @@ static boat_tensor_t* self_attention(
                     for (int hd = 0; hd < head_dim; hd++) {
                         float sum = 0.0f;
                         for (int li = 0; li < L; li++) {
-                            sum += attn_d[i * T * L + ti * L + li] * vd[i * L * head_dim + li * head_dim + hd];
+                            sum += attn_d[i * T * L + ti * L + li] *
+                                   vd[i * L * head_dim + li * head_dim + hd];
                         }
                         out_d[i * T * head_dim + ti * head_dim + hd] = sum;
                     }
@@ -352,7 +405,7 @@ static boat_tensor_t* self_attention(
     boat_tensor_unref(V_2d);
 
     // Reshape back to [B, H, T, head_dim] -> [B, T, H, head_dim] -> [B, T, D]
-    int64_t out_mh[] = { B, H, T, head_dim };
+    int64_t out_mh[] = {B, H, T, head_dim};
     boat_tensor_t* out_mh_t = boat_tensor_reshape(out_2d, out_mh, 4);
     boat_tensor_unref(out_2d);
     if (!out_mh_t) return NULL;
@@ -360,7 +413,7 @@ static boat_tensor_t* self_attention(
     out_mh_t = boat_transpose(out_mh_t, 1, 2);
     if (!out_mh_t) return NULL;
 
-    int64_t out_final[] = { B, T, D };
+    int64_t out_final[] = {B, T, D};
     boat_tensor_t* out = boat_tensor_reshape(out_mh_t, out_final, 3);
     boat_tensor_unref(out_mh_t);
     if (!out) return NULL;
@@ -372,13 +425,10 @@ static boat_tensor_t* self_attention(
 
 // Cross-attention: Q from decoder, K,V from encoder output.
 // x: [B, T, D], enc_out: [B, S, D]
-static boat_tensor_t* cross_attention(
-    const boat_tensor_t* x,
-    const boat_tensor_t* enc_out,
-    const boat_decoder_config_t* config,
-    const boat_decoder_layer_weights_t* w,
-    boat_decoder_cache_t* cache)
-{
+static boat_tensor_t* cross_attention(const boat_tensor_t* x, const boat_tensor_t* enc_out,
+                                      const boat_decoder_config_t* config,
+                                      const boat_decoder_layer_weights_t* w,
+                                      boat_decoder_cache_t* cache) {
     int B = (int)boat_tensor_shape(x)[0];
     int T = (int)boat_tensor_shape(x)[1];
     int D = config->d_model;
@@ -409,14 +459,18 @@ static boat_tensor_t* cross_attention(
         // No cache: compute directly
         K = linear(enc_out, w->cross_k_weight, w->cross_k_bias);
         V = linear(enc_out, w->cross_v_weight, w->cross_v_bias);
-        if (!K || !V) { boat_tensor_unref(Q); if (K) boat_tensor_unref(K); return NULL; }
+        if (!K || !V) {
+            boat_tensor_unref(Q);
+            if (K) boat_tensor_unref(K);
+            return NULL;
+        }
     }
 
     int S = (int)boat_tensor_shape(K)[1];
 
     // Reshape for multi-head attention
-    int64_t q_mh_shape[] = { B, T, H, head_dim };
-    int64_t k_mh_shape[] = { B, S, H, head_dim };
+    int64_t q_mh_shape[] = {B, T, H, head_dim};
+    int64_t k_mh_shape[] = {B, S, H, head_dim};
 
     boat_tensor_t* Q_mh = boat_tensor_reshape(Q, q_mh_shape, 4);
     boat_tensor_unref(Q);
@@ -424,20 +478,31 @@ static boat_tensor_t* cross_attention(
     Q_mh = boat_transpose(Q_mh, 1, 2);
 
     boat_tensor_t* K_mh = boat_tensor_reshape(K, k_mh_shape, 4);
-    if (!cache) { boat_tensor_unref(K); }
-    if (!K_mh) { boat_tensor_unref(Q_mh); return NULL; }
+    if (!cache) {
+        boat_tensor_unref(K);
+    }
+    if (!K_mh) {
+        boat_tensor_unref(Q_mh);
+        return NULL;
+    }
     K_mh = boat_transpose(K_mh, 1, 2);
 
     boat_tensor_t* V_mh = boat_tensor_reshape(V, k_mh_shape, 4);
-    if (!cache) { boat_tensor_unref(V); }
-    if (!V_mh) { boat_tensor_unref(Q_mh); boat_tensor_unref(K_mh); return NULL; }
+    if (!cache) {
+        boat_tensor_unref(V);
+    }
+    if (!V_mh) {
+        boat_tensor_unref(Q_mh);
+        boat_tensor_unref(K_mh);
+        return NULL;
+    }
     V_mh = boat_transpose(V_mh, 1, 2);
 
     float scale = 1.0f / sqrtf((float)head_dim);
 
     // Flatten batch: [B*H, T, head_dim] @ [B*H, head_dim, S] -> [B*H, T, S]
-    int64_t q2d[] = { B * H, T, head_dim };
-    int64_t k2d[] = { B * H, head_dim, S };
+    int64_t q2d[] = {B * H, T, head_dim};
+    int64_t k2d[] = {B * H, head_dim, S};
 
     // Note: if cache was used, we DON'T own K,V (they're in the cache struct)
     // So we only do ref/unref for the cache-owned case
@@ -449,9 +514,14 @@ static boat_tensor_t* cross_attention(
     boat_tensor_t* KT_2d = boat_tensor_reshape(K_T, k2d, 3);
     boat_tensor_unref(K_T);
 
-    int64_t s2d[] = { B * H, T, S };
+    int64_t s2d[] = {B * H, T, S};
     boat_tensor_t* scores = boat_tensor_create(s2d, 3, BOAT_DTYPE_FLOAT32, boat_tensor_device(x));
-    if (!scores) { boat_tensor_unref(Q_2d); boat_tensor_unref(KT_2d); boat_tensor_unref(V_mh); return NULL; }
+    if (!scores) {
+        boat_tensor_unref(Q_2d);
+        boat_tensor_unref(KT_2d);
+        boat_tensor_unref(V_mh);
+        return NULL;
+    }
 
     float* qd = data_f32(Q_2d);
     float* ktd = data_f32(KT_2d);
@@ -483,27 +553,41 @@ static boat_tensor_t* cross_attention(
     boat_tensor_unref(KT_2d);
 
     // Softmax over S
-    int64_t sm_shape[] = { B * H * T, S };
+    int64_t sm_shape[] = {B * H * T, S};
     boat_tensor_t* sm_in = boat_tensor_reshape(scores, sm_shape, 2);
     boat_tensor_unref(scores);
-    if (!sm_in) { boat_tensor_unref(V_mh); return NULL; }
+    if (!sm_in) {
+        boat_tensor_unref(V_mh);
+        return NULL;
+    }
 
     boat_tensor_t* sm_out = boat_softmax(sm_in, 1);
     boat_tensor_unref(sm_in);
-    if (!sm_out) { boat_tensor_unref(V_mh); return NULL; }
+    if (!sm_out) {
+        boat_tensor_unref(V_mh);
+        return NULL;
+    }
 
-    int64_t sm_orig[] = { B * H, T, S };
+    int64_t sm_orig[] = {B * H, T, S};
     sm_out = boat_tensor_reshape(sm_out, sm_orig, 3);
-    if (!sm_out) { boat_tensor_unref(V_mh); return NULL; }
+    if (!sm_out) {
+        boat_tensor_unref(V_mh);
+        return NULL;
+    }
 
     // [B*H, T, S] @ [B*H, S, head_dim] -> [B*H, T, head_dim]
-    int64_t v2d[] = { B * H, S, head_dim };
+    int64_t v2d[] = {B * H, S, head_dim};
     boat_tensor_t* V_2d = boat_tensor_reshape(V_mh, v2d, 3);
     boat_tensor_unref(V_mh);
 
-    int64_t out2d_shape[] = { B * H, T, head_dim };
-    boat_tensor_t* out_2d = boat_tensor_create(out2d_shape, 3, BOAT_DTYPE_FLOAT32, boat_tensor_device(x));
-    if (!out_2d) { boat_tensor_unref(sm_out); boat_tensor_unref(V_2d); return NULL; }
+    int64_t out2d_shape[] = {B * H, T, head_dim};
+    boat_tensor_t* out_2d =
+        boat_tensor_create(out2d_shape, 3, BOAT_DTYPE_FLOAT32, boat_tensor_device(x));
+    if (!out_2d) {
+        boat_tensor_unref(sm_out);
+        boat_tensor_unref(V_2d);
+        return NULL;
+    }
 
     float* attn_d = data_f32(sm_out);
     float* vd = data_f32(V_2d);
@@ -521,7 +605,8 @@ static boat_tensor_t* cross_attention(
                     for (int hd = 0; hd < head_dim; hd++) {
                         float sum = 0.0f;
                         for (int si = 0; si < S; si++) {
-                            sum += attn_d[i * T * S + ti * S + si] * vd[i * S * head_dim + si * head_dim + hd];
+                            sum += attn_d[i * T * S + ti * S + si] *
+                                   vd[i * S * head_dim + si * head_dim + hd];
                         }
                         out_d[i * T * head_dim + ti * head_dim + hd] = sum;
                     }
@@ -534,12 +619,12 @@ static boat_tensor_t* cross_attention(
     boat_tensor_unref(V_2d);
 
     // Reshape back to [B, T, D]
-    int64_t out_mh[] = { B, H, T, head_dim };
+    int64_t out_mh[] = {B, H, T, head_dim};
     boat_tensor_t* out_mh_t = boat_tensor_reshape(out_2d, out_mh, 4);
     boat_tensor_unref(out_2d);
     out_mh_t = boat_transpose(out_mh_t, 1, 2);
 
-    int64_t out_final[] = { B, T, D };
+    int64_t out_final[] = {B, T, D};
     boat_tensor_t* out = boat_tensor_reshape(out_mh_t, out_final, 3);
     boat_tensor_unref(out_mh_t);
     if (!out) return NULL;
@@ -552,14 +637,11 @@ static boat_tensor_t* cross_attention(
 // Public API
 // =========================================================================
 
-BOAT_API boat_tensor_t* boat_decoder_layer_forward(
-    const boat_decoder_config_t* config,
-    const boat_decoder_layer_weights_t* weights,
-    const boat_tensor_t* x,
-    const boat_tensor_t* encoder_output,
-    boat_decoder_cache_t* cache,
-    int32_t step)
-{
+BOAT_API boat_tensor_t* boat_decoder_layer_forward(const boat_decoder_config_t* config,
+                                                   const boat_decoder_layer_weights_t* weights,
+                                                   const boat_tensor_t* x,
+                                                   const boat_tensor_t* encoder_output,
+                                                   boat_decoder_cache_t* cache, int32_t step) {
     if (!config || !weights || !x) return NULL;
 
     float eps = config->layer_norm_eps;
@@ -570,12 +652,19 @@ BOAT_API boat_tensor_t* boat_decoder_layer_forward(
         boat_tensor_t* residual = (boat_tensor_t*)x;
         boat_tensor_ref(residual);
 
-        boat_tensor_t* normed = layer_norm_affine(x, weights->self_ln_weight, weights->self_ln_bias, eps);
-        if (!normed) { boat_tensor_unref(residual); return NULL; }
+        boat_tensor_t* normed =
+            layer_norm_affine(x, weights->self_ln_weight, weights->self_ln_bias, eps);
+        if (!normed) {
+            boat_tensor_unref(residual);
+            return NULL;
+        }
 
         boat_tensor_t* attn_out = self_attention(normed, config, weights, cache, step, true);
         boat_tensor_unref(normed);
-        if (!attn_out) { boat_tensor_unref(residual); return NULL; }
+        if (!attn_out) {
+            boat_tensor_unref(residual);
+            return NULL;
+        }
 
         boat_tensor_t* h = boat_add(residual, attn_out);
         boat_tensor_unref(residual);
@@ -589,11 +678,17 @@ BOAT_API boat_tensor_t* boat_decoder_layer_forward(
 
             normed = layer_norm_affine(h, weights->cross_ln_weight, weights->cross_ln_bias, eps);
             boat_tensor_unref(h);
-            if (!normed) { boat_tensor_unref(residual); return NULL; }
+            if (!normed) {
+                boat_tensor_unref(residual);
+                return NULL;
+            }
 
             attn_out = cross_attention(normed, encoder_output, config, weights, cache);
             boat_tensor_unref(normed);
-            if (!attn_out) { boat_tensor_unref(residual); return NULL; }
+            if (!attn_out) {
+                boat_tensor_unref(residual);
+                return NULL;
+            }
 
             h = boat_add(residual, attn_out);
             boat_tensor_unref(residual);
@@ -607,29 +702,44 @@ BOAT_API boat_tensor_t* boat_decoder_layer_forward(
 
         normed = layer_norm_affine(h, weights->ffn_ln_weight, weights->ffn_ln_bias, eps);
         boat_tensor_unref(h);
-        if (!normed) { boat_tensor_unref(residual); return NULL; }
+        if (!normed) {
+            boat_tensor_unref(residual);
+            return NULL;
+        }
 
         // FFN: FC1 -> activation -> FC2
         boat_tensor_t* ffn = linear(normed, weights->fc1_weight, weights->fc1_bias);
         boat_tensor_unref(normed);
-        if (!ffn) { boat_tensor_unref(residual); return NULL; }
+        if (!ffn) {
+            boat_tensor_unref(residual);
+            return NULL;
+        }
 
         if (config->activation && strcmp(config->activation, "gelu") == 0) {
             boat_tensor_t* act = boat_gelu(ffn);
             boat_tensor_unref(ffn);
-            if (!act) { boat_tensor_unref(residual); return NULL; }
+            if (!act) {
+                boat_tensor_unref(residual);
+                return NULL;
+            }
             ffn = act;
         } else {
             // Default: ReLU
             boat_tensor_t* act = boat_relu(ffn);
             boat_tensor_unref(ffn);
-            if (!act) { boat_tensor_unref(residual); return NULL; }
+            if (!act) {
+                boat_tensor_unref(residual);
+                return NULL;
+            }
             ffn = act;
         }
 
         boat_tensor_t* ffn_out = linear(ffn, weights->fc2_weight, weights->fc2_bias);
         boat_tensor_unref(ffn);
-        if (!ffn_out) { boat_tensor_unref(residual); return NULL; }
+        if (!ffn_out) {
+            boat_tensor_unref(residual);
+            return NULL;
+        }
 
         boat_tensor_t* out = boat_add(residual, ffn_out);
         boat_tensor_unref(residual);
@@ -646,34 +756,27 @@ BOAT_API boat_tensor_t* boat_decoder_layer_forward(
 // KV Cache management
 // =========================================================================
 
-BOAT_API boat_decoder_cache_t* boat_decoder_cache_create(
-    int32_t batch_size,
-    int32_t num_heads,
-    int32_t head_dim,
-    int32_t max_t,
-    int32_t encoder_seq_len)
-{
-    return boat_decoder_cache_create_ex(batch_size, num_heads, head_dim, max_t, encoder_seq_len, BOAT_DEVICE_CPU);
+BOAT_API boat_decoder_cache_t* boat_decoder_cache_create(int32_t batch_size, int32_t num_heads,
+                                                         int32_t head_dim, int32_t max_t,
+                                                         int32_t encoder_seq_len) {
+    return boat_decoder_cache_create_ex(batch_size, num_heads, head_dim, max_t, encoder_seq_len,
+                                        BOAT_DEVICE_CPU);
 }
 
-BOAT_API boat_decoder_cache_t* boat_decoder_cache_create_ex(
-    int32_t batch_size,
-    int32_t num_heads,
-    int32_t head_dim,
-    int32_t max_t,
-    int32_t encoder_seq_len,
-    boat_device_t device)
-{
+BOAT_API boat_decoder_cache_t* boat_decoder_cache_create_ex(int32_t batch_size, int32_t num_heads,
+                                                            int32_t head_dim, int32_t max_t,
+                                                            int32_t encoder_seq_len,
+                                                            boat_device_t device) {
     (void)encoder_seq_len;
-    boat_decoder_cache_t* cache = (boat_decoder_cache_t*)boat_malloc(
-        sizeof(boat_decoder_cache_t), BOAT_DEVICE_CPU);
+    boat_decoder_cache_t* cache =
+        (boat_decoder_cache_t*)boat_malloc(sizeof(boat_decoder_cache_t), BOAT_DEVICE_CPU);
     if (!cache) return NULL;
     memset(cache, 0, sizeof(*cache));
 
     cache->max_length = max_t;
     cache->length = 0;
 
-    int64_t kv_shape[] = { batch_size, num_heads, max_t, head_dim };
+    int64_t kv_shape[] = {batch_size, num_heads, max_t, head_dim};
     cache->self_k = boat_tensor_create(kv_shape, 4, BOAT_DTYPE_FLOAT32, device);
     cache->self_v = boat_tensor_create(kv_shape, 4, BOAT_DTYPE_FLOAT32, device);
     // Cross K,V are set lazily when encoder output is available

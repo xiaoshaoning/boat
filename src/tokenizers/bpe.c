@@ -29,7 +29,7 @@ static char* dup_string(const char* s) {
 
 struct boat_bpe_tokenizer_t {
     // Vocab: id -> token string
-    char** vocab;           // [vocab_size]
+    char** vocab; // [vocab_size]
     size_t vocab_size;
 
     // Special token IDs
@@ -43,8 +43,8 @@ struct boat_bpe_tokenizer_t {
 
     // Added tokens decoder (for special tokens like [START_REF], etc.)
     int32_t num_added_tokens;
-    int32_t* added_ids;     // IDs of added tokens
-    char** added_tokens;    // strings of added tokens
+    int32_t* added_ids;  // IDs of added tokens
+    char** added_tokens; // strings of added tokens
 };
 
 // =========================================================================
@@ -109,10 +109,10 @@ static char* json_parse_string(json_reader_t* jr) {
         if (jr->data[i] == '\\' && i + 1 < end) {
             i++;
             switch (jr->data[i]) {
-                case 'n': str[wi++] = '\n'; break;
-                case 't': str[wi++] = '\t'; break;
-                case 'r': str[wi++] = '\r'; break;
-                default:  str[wi++] = jr->data[i]; break;
+            case 'n': str[wi++] = '\n'; break;
+            case 't': str[wi++] = '\t'; break;
+            case 'r': str[wi++] = '\r'; break;
+            default: str[wi++] = jr->data[i]; break;
             }
         } else {
             str[wi++] = jr->data[i];
@@ -126,7 +126,10 @@ static char* json_parse_string(json_reader_t* jr) {
 static int json_parse_int(json_reader_t* jr) {
     json_skip_ws(jr);
     int neg = 0;
-    if (jr->pos < jr->len && jr->data[jr->pos] == '-') { neg = 1; jr->pos++; }
+    if (jr->pos < jr->len && jr->data[jr->pos] == '-') {
+        neg = 1;
+        jr->pos++;
+    }
     int val = 0;
     while (jr->pos < jr->len && jr->data[jr->pos] >= '0' && jr->data[jr->pos] <= '9') {
         val = val * 10 + (jr->data[jr->pos] - '0');
@@ -145,23 +148,29 @@ static void json_skip_value(json_reader_t* jr) {
         int depth = 1;
         while (depth > 0 && jr->pos < jr->len) {
             c = json_next(jr);
-            if (c == '{') depth++;
-            else if (c == '}') depth--;
+            if (c == '{')
+                depth++;
+            else if (c == '}')
+                depth--;
         }
     } else if (c == '[') {
         json_next(jr); // skip '['
         int depth = 1;
         while (depth > 0 && jr->pos < jr->len) {
             c = json_next(jr);
-            if (c == '[') depth++;
-            else if (c == ']') depth--;
+            if (c == '[')
+                depth++;
+            else if (c == ']')
+                depth--;
         }
     } else if (c == 't' || c == 'f') {
         // true/false
-        while (jr->pos < jr->len && jr->data[jr->pos] >= 'a' && jr->data[jr->pos] <= 'z') jr->pos++;
+        while (jr->pos < jr->len && jr->data[jr->pos] >= 'a' && jr->data[jr->pos] <= 'z')
+            jr->pos++;
     } else if (c == 'n') {
         // null
-        while (jr->pos < jr->len && jr->data[jr->pos] >= 'a' && jr->data[jr->pos] <= 'z') jr->pos++;
+        while (jr->pos < jr->len && jr->data[jr->pos] >= 'a' && jr->data[jr->pos] <= 'z')
+            jr->pos++;
     } else {
         // number
         while (jr->pos < jr->len) {
@@ -180,12 +189,21 @@ static int json_skip_to_key(json_reader_t* jr, const char* key) {
     if (json_next(jr) != '{') return 0;
     while (1) {
         int c = json_peek(jr);
-        if (c == '}') { json_next(jr); return 0; }
+        if (c == '}') {
+            json_next(jr);
+            return 0;
+        }
         if (c != '"') return 0;
         char* k = json_parse_string(jr);
         if (!k) return 0;
-        if (!json_expect(jr, ':')) { free(k); return 0; }
-        if (strcmp(k, key) == 0) { free(k); return 1; }
+        if (!json_expect(jr, ':')) {
+            free(k);
+            return 0;
+        }
+        if (strcmp(k, key) == 0) {
+            free(k);
+            return 1;
+        }
         json_skip_value(jr);
         free(k);
         c = json_peek(jr);
@@ -202,12 +220,18 @@ BOAT_API boat_bpe_tokenizer_t* boat_bpe_tokenizer_create(const char* tokenizer_j
 
     // Read file
     FILE* f = fopen(tokenizer_json_path, "rb");
-    if (!f) { fprintf(stderr, "[BPE] Cannot open: %s\n", tokenizer_json_path); return NULL; }
+    if (!f) {
+        fprintf(stderr, "[BPE] Cannot open: %s\n", tokenizer_json_path);
+        return NULL;
+    }
     fseek(f, 0, SEEK_END);
     long fsize = ftell(f);
     rewind(f);
     char* json_str = (char*)malloc(fsize + 1);
-    if (!json_str) { fclose(f); return NULL; }
+    if (!json_str) {
+        fclose(f);
+        return NULL;
+    }
     size_t nread = fread(json_str, 1, fsize, f);
     fclose(f);
     json_str[nread] = '\0';
@@ -217,8 +241,12 @@ BOAT_API boat_bpe_tokenizer_t* boat_bpe_tokenizer_create(const char* tokenizer_j
     jr.len = nread;
     jr.pos = 0;
 
-    boat_bpe_tokenizer_t* tok = (boat_bpe_tokenizer_t*)boat_malloc(sizeof(boat_bpe_tokenizer_t), BOAT_DEVICE_CPU);
-    if (!tok) { free(json_str); return NULL; }
+    boat_bpe_tokenizer_t* tok =
+        (boat_bpe_tokenizer_t*)boat_malloc(sizeof(boat_bpe_tokenizer_t), BOAT_DEVICE_CPU);
+    if (!tok) {
+        free(json_str);
+        return NULL;
+    }
     memset(tok, 0, sizeof(*tok));
     // Default special token IDs (may be overridden by added_tokens_decoder)
     tok->bos_id = 0;
@@ -231,12 +259,23 @@ BOAT_API boat_bpe_tokenizer_t* boat_bpe_tokenizer_create(const char* tokenizer_j
         int depth = 0, in_str = 0;
         for (size_t i = 0; i < jr.len; i++) {
             if (in_str) {
-                if (json_str[i] == '\\') { i++; continue; }
+                if (json_str[i] == '\\') {
+                    i++;
+                    continue;
+                }
                 if (json_str[i] == '"') in_str = 0;
             } else {
-                if (json_str[i] == '"') in_str = 1;
-                else if (json_str[i] == '{') depth++;
-                else if (json_str[i] == '}') { depth--; if (depth == 0) { jr.pos = i + 1; break; } }
+                if (json_str[i] == '"')
+                    in_str = 1;
+                else if (json_str[i] == '{')
+                    depth++;
+                else if (json_str[i] == '}') {
+                    depth--;
+                    if (depth == 0) {
+                        jr.pos = i + 1;
+                        break;
+                    }
+                }
             }
         }
     }
@@ -264,16 +303,20 @@ BOAT_API boat_bpe_tokenizer_t* boat_bpe_tokenizer_create(const char* tokenizer_j
             if (vocab_pos) {
                 // Find the opening { after "vocab":
                 const char* brace = vocab_pos;
-                while (*brace && *brace != '{') brace++;
+                while (*brace && *brace != '{')
+                    brace++;
                 if (*brace == '{') {
                     // Count vocab entries
                     size_t vcount = 0;
                     const char* p = brace + 1;
                     int depth = 1;
                     while (depth > 0 && *p) {
-                        if (*p == '{') depth++;
-                        else if (*p == '}') depth--;
-                        else if (*p == ',' && depth == 1) vcount++;
+                        if (*p == '{')
+                            depth++;
+                        else if (*p == '}')
+                            depth--;
+                        else if (*p == ',' && depth == 1)
+                            vcount++;
                         p++;
                     }
                     vcount++; // last item before }
@@ -285,14 +328,16 @@ BOAT_API boat_bpe_tokenizer_t* boat_bpe_tokenizer_create(const char* tokenizer_j
                             boat_free(tok->vocab);
                         }
                         tok->vocab_size = vcount;
-                        tok->vocab = (char**)boat_malloc(sizeof(char*) * tok->vocab_size, BOAT_DEVICE_CPU);
+                        tok->vocab =
+                            (char**)boat_malloc(sizeof(char*) * tok->vocab_size, BOAT_DEVICE_CPU);
                         if (tok->vocab) {
                             memset(tok->vocab, 0, sizeof(char*) * tok->vocab_size);
 
                             p = brace + 1;
                             // Parse each "token_str": id
                             while (*p) {
-                                while (*p && *p != '"') p++;
+                                while (*p && *p != '"')
+                                    p++;
                                 if (!*p) break;
                                 p++; // skip opening quote
                                 const char* tstart = p;
@@ -304,19 +349,25 @@ BOAT_API boat_bpe_tokenizer_t* boat_bpe_tokenizer_create(const char* tokenizer_j
                                 // token string is from tstart to p
                                 size_t tlen = p - tstart;
                                 p++; // skip closing quote
-                                while (*p && *p != ':') p++;
+                                while (*p && *p != ':')
+                                    p++;
                                 if (!*p) break;
                                 p++; // skip :
-                                while (*p && (*p == ' ' || *p == '\t')) p++;
+                                while (*p && (*p == ' ' || *p == '\t'))
+                                    p++;
                                 int id = 0;
                                 int neg = 0;
-                                if (*p == '-') { neg = 1; p++; }
+                                if (*p == '-') {
+                                    neg = 1;
+                                    p++;
+                                }
                                 while (*p && *p >= '0' && *p <= '9') {
                                     id = id * 10 + (*p - '0');
                                     p++;
                                 }
                                 if (neg) id = -id;
-                                while (*p && *p != ',' && *p != '}') p++;
+                                while (*p && *p != ',' && *p != '}')
+                                    p++;
 
                                 if (id >= 0 && id < (int)tok->vocab_size && !tok->vocab[id]) {
                                     char* token = (char*)malloc(tlen + 1);
@@ -371,9 +422,8 @@ BOAT_API void boat_bpe_tokenizer_free(boat_bpe_tokenizer_t* tok) {
     boat_free(tok);
 }
 
-BOAT_API char* boat_bpe_tokenizer_decode(const boat_bpe_tokenizer_t* tok,
-                                  const int32_t* ids, size_t n_ids)
-{
+BOAT_API char* boat_bpe_tokenizer_decode(const boat_bpe_tokenizer_t* tok, const int32_t* ids,
+                                         size_t n_ids) {
     if (!tok || !ids || n_ids == 0) return NULL;
 
     // First pass: compute total length
@@ -451,9 +501,8 @@ BOAT_API char* boat_bpe_tokenizer_decode(const boat_bpe_tokenizer_t* tok,
     return result;
 }
 
-BOAT_API int32_t* boat_bpe_tokenizer_encode(const boat_bpe_tokenizer_t* tok,
-                                    const char* text, size_t* out_len)
-{
+BOAT_API int32_t* boat_bpe_tokenizer_encode(const boat_bpe_tokenizer_t* tok, const char* text,
+                                            size_t* out_len) {
     // For now: encode each character individually (placeholder)
     // Full BPE merge implementation would require the merge rules from tokenizer.json
     if (!tok || !text || !out_len) return NULL;
@@ -468,18 +517,25 @@ BOAT_API int32_t* boat_bpe_tokenizer_encode(const boat_bpe_tokenizer_t* tok,
     // This won't produce correct BPE merges but allows basic functionality
     // For proper BPE, we need the merge rules from tokenizer.json
     int32_t* ids = (int32_t*)malloc(sizeof(int32_t) * len);
-    if (!ids) { *out_len = 0; return NULL; }
+    if (!ids) {
+        *out_len = 0;
+        return NULL;
+    }
 
     size_t count = 0;
-    for (size_t i = 0; i < len; ) {
+    for (size_t i = 0; i < len;) {
         // Try longest match first (simple greedy)
         // For utf-8 chars
         unsigned char c = (unsigned char)text[i];
         int char_len = 1;
-        if ((c & 0x80) == 0) char_len = 1;
-        else if ((c & 0xE0) == 0xC0) char_len = 2;
-        else if ((c & 0xF0) == 0xE0) char_len = 3;
-        else if ((c & 0xF8) == 0xF0) char_len = 4;
+        if ((c & 0x80) == 0)
+            char_len = 1;
+        else if ((c & 0xE0) == 0xC0)
+            char_len = 2;
+        else if ((c & 0xF0) == 0xE0)
+            char_len = 3;
+        else if ((c & 0xF8) == 0xF0)
+            char_len = 4;
 
         // Try the unk token as fallback
         ids[count++] = tok->unk_id;
@@ -490,8 +546,18 @@ BOAT_API int32_t* boat_bpe_tokenizer_encode(const boat_bpe_tokenizer_t* tok,
     return ids;
 }
 
-BOAT_API int32_t boat_bpe_tokenizer_bos_id(const boat_bpe_tokenizer_t* tok) { return tok ? tok->bos_id : 0; }
-BOAT_API int32_t boat_bpe_tokenizer_eos_id(const boat_bpe_tokenizer_t* tok) { return tok ? tok->eos_id : 2; }
-BOAT_API int32_t boat_bpe_tokenizer_pad_id(const boat_bpe_tokenizer_t* tok) { return tok ? tok->pad_id : 1; }
-BOAT_API int32_t boat_bpe_tokenizer_unk_id(const boat_bpe_tokenizer_t* tok) { return tok ? tok->unk_id : 3; }
-BOAT_API size_t  boat_bpe_tokenizer_vocab_size(const boat_bpe_tokenizer_t* tok) { return tok ? tok->vocab_size : 0; }
+BOAT_API int32_t boat_bpe_tokenizer_bos_id(const boat_bpe_tokenizer_t* tok) {
+    return tok ? tok->bos_id : 0;
+}
+BOAT_API int32_t boat_bpe_tokenizer_eos_id(const boat_bpe_tokenizer_t* tok) {
+    return tok ? tok->eos_id : 2;
+}
+BOAT_API int32_t boat_bpe_tokenizer_pad_id(const boat_bpe_tokenizer_t* tok) {
+    return tok ? tok->pad_id : 1;
+}
+BOAT_API int32_t boat_bpe_tokenizer_unk_id(const boat_bpe_tokenizer_t* tok) {
+    return tok ? tok->unk_id : 3;
+}
+BOAT_API size_t boat_bpe_tokenizer_vocab_size(const boat_bpe_tokenizer_t* tok) {
+    return tok ? tok->vocab_size : 0;
+}

@@ -14,14 +14,30 @@
 static int tests_passed = 0;
 static int tests_total = 0;
 
-#define TEST(name) do { printf("  %s ... ", name); tests_total++; } while(0)
-#define PASS() do { printf("PASS\n"); tests_passed++; } while(0)
-#define FAIL(msg) do { printf("FAIL: %s\n", msg); return 1; } while(0)
+#define TEST(name)                                                                                 \
+    do {                                                                                           \
+        printf("  %s ... ", name);                                                                 \
+        tests_total++;                                                                             \
+    } while (0)
+#define PASS()                                                                                     \
+    do {                                                                                           \
+        printf("PASS\n");                                                                          \
+        tests_passed++;                                                                            \
+    } while (0)
+#define FAIL(msg)                                                                                  \
+    do {                                                                                           \
+        printf("FAIL: %s\n", msg);                                                                 \
+        return 1;                                                                                  \
+    } while (0)
 
 // Helper: wrap layer
 static boat_layer_t* wrap(void* data, boat_layer_type_t type) {
     boat_layer_t* w = malloc(sizeof(boat_layer_t));
-    if (w) { w->data = data; w->type = type; w->ops = NULL; }
+    if (w) {
+        w->data = data;
+        w->type = type;
+        w->ops = NULL;
+    }
     return w;
 }
 
@@ -29,7 +45,8 @@ static boat_layer_t* wrap(void* data, boat_layer_type_t type) {
 static void fill_tensor(boat_tensor_t* t, float base) {
     float* d = (float*)boat_tensor_data(t);
     size_t n = boat_tensor_nelements(t);
-    for (size_t i = 0; i < n; i++) d[i] = base + (float)(i % 7) * 0.1f;
+    for (size_t i = 0; i < n; i++)
+        d[i] = base + (float)(i % 7) * 0.1f;
 }
 
 // --- Test 1: compute pruning threshold ---
@@ -38,7 +55,11 @@ static int test_compute_threshold(void) {
     int64_t shape[] = {5};
     boat_tensor_t* w = boat_tensor_create(shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* d = (float*)boat_tensor_data(w);
-    d[0] = 1.0f; d[1] = 2.0f; d[2] = 3.0f; d[3] = 4.0f; d[4] = 5.0f;
+    d[0] = 1.0f;
+    d[1] = 2.0f;
+    d[2] = 3.0f;
+    d[3] = 4.0f;
+    d[4] = 5.0f;
 
     float thr = boat_compute_prune_threshold(w, 0.5f);
     // Sorted |vals| = [1,2,3,4,5], idx = 0.5*4 = 2, value = 3
@@ -51,7 +72,8 @@ static int test_compute_threshold(void) {
     if (thr != FLT_MAX) FAIL("expected +inf for sparsity=1");
 
     boat_tensor_unref(w);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 2: create magnitude mask ---
@@ -76,7 +98,8 @@ static int test_magnitude_mask(void) {
 
     boat_tensor_unref(w);
     boat_tensor_unref(mask);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 3: apply mask ---
@@ -89,7 +112,8 @@ static int test_apply_mask(void) {
     boat_tensor_t* mask = boat_tensor_create(shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* m = (float*)boat_tensor_data(mask);
     size_t n = boat_tensor_nelements(mask);
-    for (size_t i = 0; i < n; i++) m[i] = (i % 2 == 0) ? 1.0f : 0.0f;
+    for (size_t i = 0; i < n; i++)
+        m[i] = (i % 2 == 0) ? 1.0f : 0.0f;
 
     if (!boat_apply_mask(w, mask)) FAIL("apply_mask failed");
 
@@ -101,7 +125,8 @@ static int test_apply_mask(void) {
 
     boat_tensor_unref(w);
     boat_tensor_unref(mask);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 4: magnitude pruning on Dense layer ---
@@ -112,7 +137,8 @@ static int test_magnitude_pruning_dense(void) {
     // Fill with varied values
     float* d = (float*)boat_tensor_data(w);
     size_t n = boat_tensor_nelements(w);
-    for (size_t i = 0; i < n; i++) d[i] = (float)(i % 10) - 5.0f;
+    for (size_t i = 0; i < n; i++)
+        d[i] = (float)(i % 10) - 5.0f;
 
     boat_model_t* model = boat_model_create();
     boat_model_add_layer(model, wrap(dl, BOAT_LAYER_TYPE_DENSE));
@@ -129,7 +155,8 @@ static int test_magnitude_pruning_dense(void) {
 
     boat_prune_context_free(ctx);
     boat_model_free(model);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 5: magnitude pruning on Conv2D layer ---
@@ -139,7 +166,8 @@ static int test_magnitude_pruning_conv(void) {
     boat_tensor_t* w = boat_conv_layer_get_weight(cl);
     float* d = (float*)boat_tensor_data(w);
     size_t n = boat_tensor_nelements(w);
-    for (size_t i = 0; i < n; i++) d[i] = (float)(i % 10) - 5.0f;
+    for (size_t i = 0; i < n; i++)
+        d[i] = (float)(i % 10) - 5.0f;
 
     boat_model_t* model = boat_model_create();
     boat_model_add_layer(model, wrap(cl, BOAT_LAYER_TYPE_CONV2D));
@@ -156,7 +184,8 @@ static int test_magnitude_pruning_conv(void) {
 
     boat_prune_context_free(ctx);
     boat_model_free(model);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 6: structured pruning Dense (along output_features) ---
@@ -193,7 +222,8 @@ static int test_structured_pruning_dense(void) {
 
     boat_prune_context_free(ctx);
     boat_model_free(model);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 7: structured pruning Conv2D (along out_channels) ---
@@ -230,7 +260,8 @@ static int test_structured_pruning_conv(void) {
 
     boat_prune_context_free(ctx);
     boat_model_free(model);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 8: min_keep_ratio in structured pruning ---
@@ -240,7 +271,8 @@ static int test_structured_min_keep(void) {
     boat_tensor_t* w = boat_dense_layer_get_weight(dl);
     float* d = (float*)boat_tensor_data(w);
     // All weights tiny (everything should be pruned, but min_keep prevents it)
-    for (size_t i = 0; i < boat_tensor_nelements(w); i++) d[i] = 0.01f;
+    for (size_t i = 0; i < boat_tensor_nelements(w); i++)
+        d[i] = 0.01f;
 
     boat_model_t* model = boat_model_create();
     boat_model_add_layer(model, wrap(dl, BOAT_LAYER_TYPE_DENSE));
@@ -261,7 +293,8 @@ static int test_structured_min_keep(void) {
 
     boat_prune_context_free(ctx);
     boat_model_free(model);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 9: mask re-application (simulating optimizer step) ---
@@ -275,7 +308,8 @@ static int test_mask_reapply(void) {
     boat_tensor_t* mask = boat_tensor_create(shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* m = (float*)boat_tensor_data(mask);
     size_t n = boat_tensor_nelements(mask);
-    for (size_t i = 0; i < n; i++) m[i] = (i < n/2) ? 0.0f : 1.0f;
+    for (size_t i = 0; i < n; i++)
+        m[i] = (i < n / 2) ? 0.0f : 1.0f;
 
     // Apply mask
     if (!boat_apply_mask(w, mask)) FAIL("apply_mask failed");
@@ -283,25 +317,28 @@ static int test_mask_reapply(void) {
     // Verify zeros
     const float* wd = (const float*)boat_tensor_const_data(w);
     for (size_t i = 0; i < n; i++) {
-        if (i < n/2 && wd[i] != 0.0f) FAIL("expected zero after mask");
+        if (i < n / 2 && wd[i] != 0.0f) FAIL("expected zero after mask");
     }
 
     // Simulate optimizer step: modify all weights
     float* wd_mut = (float*)boat_tensor_data(w);
-    for (size_t i = 0; i < n; i++) wd_mut[i] += 5.0f;
+    for (size_t i = 0; i < n; i++)
+        wd_mut[i] += 5.0f;
 
     // Re-apply mask
-    for (size_t i = 0; i < n; i++) wd_mut[i] *= m[i];
+    for (size_t i = 0; i < n; i++)
+        wd_mut[i] *= m[i];
 
     // Verify pruned weights are zero again
     for (size_t i = 0; i < n; i++) {
-        if (i < n/2 && wd_mut[i] != 0.0f) FAIL("expected zero after re-apply");
-        if (i >= n/2 && wd_mut[i] == 0.0f) FAIL("unpruned weight should not be zero");
+        if (i < n / 2 && wd_mut[i] != 0.0f) FAIL("expected zero after re-apply");
+        if (i >= n / 2 && wd_mut[i] == 0.0f) FAIL("unpruned weight should not be zero");
     }
 
     boat_tensor_unref(w);
     boat_tensor_unref(mask);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 10: iterative pruning with config ---
@@ -311,7 +348,8 @@ static int test_iterative_pruning(void) {
     boat_tensor_t* w = boat_dense_layer_get_weight(dl);
     float* d = (float*)boat_tensor_data(w);
     size_t n = boat_tensor_nelements(w);
-    for (size_t i = 0; i < n; i++) d[i] = (float)(i % 10) - 5.0f;
+    for (size_t i = 0; i < n; i++)
+        d[i] = (float)(i % 10) - 5.0f;
 
     boat_model_t* model = boat_model_create();
     boat_model_add_layer(model, wrap(dl, BOAT_LAYER_TYPE_DENSE));
@@ -334,7 +372,8 @@ static int test_iterative_pruning(void) {
 
     boat_prune_context_free(ctx);
     boat_model_free(model);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 11: prune context ---
@@ -367,7 +406,8 @@ static int test_prune_context(void) {
 
     boat_prune_context_free(ctx);
     boat_model_free(model);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 12: compute sparsity ---
@@ -378,23 +418,27 @@ static int test_compute_sparsity(void) {
     float* d = (float*)boat_tensor_data(t);
     size_t n = boat_tensor_nelements(t);
     // Set first half to zero
-    for (size_t i = 0; i < n; i++) d[i] = (i < n/2) ? 0.0f : 1.0f;
+    for (size_t i = 0; i < n; i++)
+        d[i] = (i < n / 2) ? 0.0f : 1.0f;
 
     float s = boat_compute_sparsity(t);
     if (fabsf(s - 0.5f) > 0.01f) FAIL("expected sparsity=0.5");
 
     // All zeros
-    for (size_t i = 0; i < n; i++) d[i] = 0.0f;
+    for (size_t i = 0; i < n; i++)
+        d[i] = 0.0f;
     s = boat_compute_sparsity(t);
     if (fabsf(s - 1.0f) > 0.01f) FAIL("expected sparsity=1.0");
 
     // No zeros
-    for (size_t i = 0; i < n; i++) d[i] = 1.0f;
+    for (size_t i = 0; i < n; i++)
+        d[i] = 1.0f;
     s = boat_compute_sparsity(t);
     if (fabsf(s - 0.0f) > 0.01f) FAIL("expected sparsity=0.0");
 
     boat_tensor_unref(t);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 13: compute structured sparsity ---
@@ -406,13 +450,15 @@ static int test_compute_structured_sparsity(void) {
     size_t n = boat_tensor_nelements(t);
     // First 3 channels zero, last 1 non-zero
     size_t channel_size = n / 4;
-    for (size_t i = 0; i < n; i++) d[i] = (i < 3 * channel_size) ? 0.0f : 1.0f;
+    for (size_t i = 0; i < n; i++)
+        d[i] = (i < 3 * channel_size) ? 0.0f : 1.0f;
 
     float s = boat_compute_structured_sparsity(t, 0);
     if (fabsf(s - 0.75f) > 0.01f) FAIL("expected structured sparsity=0.75");
 
     boat_tensor_unref(t);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 14: prune + QAT fake quantize ---
@@ -422,7 +468,8 @@ static int test_prune_fake_quantize(void) {
     boat_tensor_t* w = boat_dense_layer_get_weight(dl);
     float* d = (float*)boat_tensor_data(w);
     size_t n = boat_tensor_nelements(w);
-    for (size_t i = 0; i < n; i++) d[i] = (float)(i % 10) - 5.0f;
+    for (size_t i = 0; i < n; i++)
+        d[i] = (float)(i % 10) - 5.0f;
 
     boat_model_t* model = boat_model_create();
     boat_model_add_layer(model, wrap(dl, BOAT_LAYER_TYPE_DENSE));
@@ -450,7 +497,8 @@ static int test_prune_fake_quantize(void) {
 
     boat_prune_context_free(ctx);
     boat_model_free(model);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 15: prune then forward pass ---
@@ -460,7 +508,8 @@ static int test_prune_forward(void) {
     boat_tensor_t* w = boat_dense_layer_get_weight(dl);
     float* d = (float*)boat_tensor_data(w);
     size_t n = boat_tensor_nelements(w);
-    for (size_t i = 0; i < n; i++) d[i] = (float)(i % 10) - 5.0f;
+    for (size_t i = 0; i < n; i++)
+        d[i] = (float)(i % 10) - 5.0f;
 
     boat_model_t* model = boat_model_create();
     boat_model_add_layer(model, wrap(dl, BOAT_LAYER_TYPE_DENSE));
@@ -487,7 +536,8 @@ static int test_prune_forward(void) {
     boat_tensor_unref(output);
     boat_prune_context_free(ctx);
     boat_model_free(model);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 16: remove mask ---
@@ -508,7 +558,8 @@ static int test_remove_mask(void) {
 
     boat_prune_context_free(ctx);
     boat_model_free(model);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 17: remove all masks ---
@@ -531,7 +582,8 @@ static int test_remove_all_masks(void) {
 
     boat_prune_context_free(ctx);
     boat_model_free(model);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 18: magnitude pruning with custom threshold ---
@@ -541,7 +593,8 @@ static int test_magnitude_threshold(void) {
     boat_tensor_t* w = boat_tensor_create(shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* d = (float*)boat_tensor_data(w);
     size_t n = boat_tensor_nelements(w);
-    for (size_t i = 0; i < n; i++) d[i] = (float)(i % 16) - 8.0f; // values -8..7
+    for (size_t i = 0; i < n; i++)
+        d[i] = (float)(i % 16) - 8.0f; // values -8..7
 
     boat_tensor_t* mask = boat_create_magnitude_mask(w, 3.0f);
     if (!mask) FAIL("mask is NULL");
@@ -552,14 +605,16 @@ static int test_magnitude_threshold(void) {
         int expected = (fabsf(wd[i]) <= 3.0f) ? 0 : 1;
         if ((int)m[i] != expected) {
             char buf[128];
-            snprintf(buf, sizeof(buf), "mask[%zu]=%d expected %d (val=%.1f)", i, (int)m[i], expected, wd[i]);
+            snprintf(buf, sizeof(buf), "mask[%zu]=%d expected %d (val=%.1f)", i, (int)m[i],
+                     expected, wd[i]);
             FAIL(buf);
         }
     }
 
     boat_tensor_unref(w);
     boat_tensor_unref(mask);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 static int run_all_tests(void) {

@@ -24,29 +24,27 @@ typedef struct {
 } boat_memory_stats_t;
 
 // Memory allocation functions
-BOAT_API void* boat_memory_allocate(size_t size, boat_device_t device,
-                                    const char* file, int line);
-BOAT_API void* boat_memory_allocate_zero(size_t size, boat_device_t device,
-                                         const char* file, int line);
+BOAT_API void* boat_memory_allocate(size_t size, boat_device_t device, const char* file, int line);
+BOAT_API void* boat_memory_allocate_zero(size_t size, boat_device_t device, const char* file,
+                                         int line);
 BOAT_API void* boat_memory_reallocate(void* ptr, size_t new_size, boat_device_t device,
                                       const char* file, int line);
 BOAT_API void boat_memory_free(void* ptr);
 BOAT_API void boat_memory_free_safe(void** ptr_ptr);
 
 // Device-specific memory allocation
-BOAT_API void* boat_memory_allocate_device(size_t size, boat_device_t device,
-                                           const char* file, int line);
+BOAT_API void* boat_memory_allocate_device(size_t size, boat_device_t device, const char* file,
+                                           int line);
 BOAT_API void boat_memory_free_device(void* ptr, boat_device_t device);
 
 // Aligned memory allocation
-BOAT_API void* boat_memory_allocate_aligned(size_t size, size_t alignment,
-                                            boat_device_t device,
+BOAT_API void* boat_memory_allocate_aligned(size_t size, size_t alignment, boat_device_t device,
                                             const char* file, int line);
 BOAT_API void boat_memory_free_aligned(const void* aligned_ptr);
 
 // Memory operations
-BOAT_API void boat_memory_copy(void* dest, const void* src, size_t size,
-                               boat_device_t dest_device, boat_device_t src_device);
+BOAT_API void boat_memory_copy(void* dest, const void* src, size_t size, boat_device_t dest_device,
+                               boat_device_t src_device);
 BOAT_API void boat_memory_set(void* dest, int value, size_t size, boat_device_t device);
 
 // Memory statistics
@@ -80,7 +78,8 @@ BOAT_API size_t boat_memory_arena_capacity(const boat_memory_arena_t* arena);
 #ifdef BOAT_MEMORY_DEBUG
 #define boat_malloc(size, device) boat_memory_allocate(size, device, __FILE__, __LINE__)
 #define boat_calloc(size, device) boat_memory_allocate_zero(size, device, __FILE__, __LINE__)
-#define boat_realloc(ptr, size, device) boat_memory_reallocate(ptr, size, device, __FILE__, __LINE__)
+#define boat_realloc(ptr, size, device)                                                            \
+    boat_memory_reallocate(ptr, size, device, __FILE__, __LINE__)
 #define boat_free(ptr) boat_memory_free(ptr)
 #else
 #define boat_malloc(size, device) boat_memory_allocate(size, device, NULL, 0)

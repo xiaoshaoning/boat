@@ -13,12 +13,12 @@ typedef struct {
     int max_token_len; // longest token string in bytes
 
     // Sorted indices for longest-first matching
-    int* sorted;       // indices sorted by token length descending
+    int* sorted; // indices sorted by token length descending
 
     // Special IDs
     int unk_id;
-    int bos_id;  // </s> or BOS
-    int eos_id;  // </s> or EOS
+    int bos_id; // </s> or BOS
+    int eos_id; // </s> or EOS
 } spm_tokenizer_t;
 
 // Load tokenizer from vocab.json file.

@@ -110,25 +110,26 @@ mnist_model_t* create_mnist_model() {
     if (!model) return NULL;
 
     // Create layers
-    model->conv1 = boat_conv_layer_create(1, 32, 3, 1, 1, 1);  // 1->32 channels, 3x3 kernel, stride=1, padding=1
+    model->conv1 = boat_conv_layer_create(1, 32, 3, 1, 1,
+                                          1); // 1->32 channels, 3x3 kernel, stride=1, padding=1
     model->relu1 = boat_relu_layer_create();
-    model->pool1 = boat_pool_layer_create(2, 2, 0);         // 2x2 max pool, stride=2
+    model->pool1 = boat_pool_layer_create(2, 2, 0); // 2x2 max pool, stride=2
 
     model->conv2 = boat_conv_layer_create(32, 64, 3, 1, 1, 1); // 32->64 channels
     model->relu2 = boat_relu_layer_create();
     model->pool2 = boat_pool_layer_create(2, 2, 0);
 
     model->flatten = boat_flatten_layer_create();
-    model->fc1 = boat_dense_layer_create(7*7*64, 128, true); // After 2 poolings: 28->14->7
+    model->fc1 = boat_dense_layer_create(7 * 7 * 64, 128, true); // After 2 poolings: 28->14->7
     model->relu3 = boat_relu_layer_create();
     model->fc2 = boat_dense_layer_create(128, 10, true);
 
-    model->softmax = boat_softmax_layer_create(-1);  // Apply softmax on last dimension
+    model->softmax = boat_softmax_layer_create(-1); // Apply softmax on last dimension
 
     // Check for creation errors
-    if (!model->conv1 || !model->conv2 || !model->pool1 || !model->pool2 ||
-        !model->flatten || !model->fc1 || !model->fc2 ||
-        !model->relu1 || !model->relu2 || !model->relu3 || !model->softmax) {
+    if (!model->conv1 || !model->conv2 || !model->pool1 || !model->pool2 || !model->flatten ||
+        !model->fc1 || !model->fc2 || !model->relu1 || !model->relu2 || !model->relu3 ||
+        !model->softmax) {
         fprintf(stderr, "Error: Failed to create one or more layers\n");
         free(model);
         return NULL;
@@ -168,41 +169,84 @@ boat_tensor_t* forward_pass(mnist_model_t* model, boat_tensor_t* input) {
 
     // Conv1 -> ReLU -> Pool1
     x = boat_conv_layer_forward(model->conv1, x);
-    if (!x) { fprintf(stderr, "conv1 forward failed\n"); return NULL; }
+    if (!x) {
+        fprintf(stderr, "conv1 forward failed\n");
+        return NULL;
+    }
     tmp = boat_relu_layer_forward(model->relu1, x);
-    if (!tmp) { fprintf(stderr, "relu1 forward failed\n"); return NULL; }
-    boat_tensor_unref(x); x = tmp;
+    if (!tmp) {
+        fprintf(stderr, "relu1 forward failed\n");
+        return NULL;
+    }
+    boat_tensor_unref(x);
+    x = tmp;
     tmp = boat_pool_layer_forward(model->pool1, x);
-    if (!tmp) { fprintf(stderr, "pool1 forward failed\n"); return NULL; }
-    boat_tensor_unref(x); x = tmp;
+    if (!tmp) {
+        fprintf(stderr, "pool1 forward failed\n");
+        return NULL;
+    }
+    boat_tensor_unref(x);
+    x = tmp;
 
     // Conv2 -> ReLU -> Pool2
     tmp = boat_conv_layer_forward(model->conv2, x);
-    if (!tmp) { fprintf(stderr, "conv2 forward failed\n"); return NULL; }
-    boat_tensor_unref(x); x = tmp;
+    if (!tmp) {
+        fprintf(stderr, "conv2 forward failed\n");
+        return NULL;
+    }
+    boat_tensor_unref(x);
+    x = tmp;
     tmp = boat_relu_layer_forward(model->relu2, x);
-    if (!tmp) { fprintf(stderr, "relu2 forward failed\n"); return NULL; }
-    boat_tensor_unref(x); x = tmp;
+    if (!tmp) {
+        fprintf(stderr, "relu2 forward failed\n");
+        return NULL;
+    }
+    boat_tensor_unref(x);
+    x = tmp;
     tmp = boat_pool_layer_forward(model->pool2, x);
-    if (!tmp) { fprintf(stderr, "pool2 forward failed\n"); return NULL; }
-    boat_tensor_unref(x); x = tmp;
+    if (!tmp) {
+        fprintf(stderr, "pool2 forward failed\n");
+        return NULL;
+    }
+    boat_tensor_unref(x);
+    x = tmp;
 
     // Flatten -> FC1 -> ReLU -> FC2 -> Softmax
     tmp = boat_flatten_layer_forward(model->flatten, x);
-    if (!tmp) { fprintf(stderr, "flatten forward failed\n"); return NULL; }
-    boat_tensor_unref(x); x = tmp;
+    if (!tmp) {
+        fprintf(stderr, "flatten forward failed\n");
+        return NULL;
+    }
+    boat_tensor_unref(x);
+    x = tmp;
     tmp = boat_dense_layer_forward(model->fc1, x);
-    if (!tmp) { fprintf(stderr, "fc1 forward failed\n"); return NULL; }
-    boat_tensor_unref(x); x = tmp;
+    if (!tmp) {
+        fprintf(stderr, "fc1 forward failed\n");
+        return NULL;
+    }
+    boat_tensor_unref(x);
+    x = tmp;
     tmp = boat_relu_layer_forward(model->relu3, x);
-    if (!tmp) { fprintf(stderr, "relu3 forward failed\n"); return NULL; }
-    boat_tensor_unref(x); x = tmp;
+    if (!tmp) {
+        fprintf(stderr, "relu3 forward failed\n");
+        return NULL;
+    }
+    boat_tensor_unref(x);
+    x = tmp;
     tmp = boat_dense_layer_forward(model->fc2, x);
-    if (!tmp) { fprintf(stderr, "fc2 forward failed\n"); return NULL; }
-    boat_tensor_unref(x); x = tmp;
+    if (!tmp) {
+        fprintf(stderr, "fc2 forward failed\n");
+        return NULL;
+    }
+    boat_tensor_unref(x);
+    x = tmp;
     tmp = boat_softmax_layer_forward(model->softmax, x);
-    if (!tmp) { fprintf(stderr, "softmax forward failed\n"); return NULL; }
-    boat_tensor_unref(x); x = tmp;
+    if (!tmp) {
+        fprintf(stderr, "softmax forward failed\n");
+        return NULL;
+    }
+    boat_tensor_unref(x);
+    x = tmp;
 
     return x;
 }
@@ -224,40 +268,76 @@ void backward_pass(mnist_model_t* model, boat_tensor_t* grad_output) {
     boat_tensor_ref(grad);
 
     out = boat_dense_layer_backward(model->fc2, grad);
-    if (!out) { boat_tensor_unref(grad); return; }
-    boat_tensor_unref(grad); grad = out;
+    if (!out) {
+        boat_tensor_unref(grad);
+        return;
+    }
+    boat_tensor_unref(grad);
+    grad = out;
 
     out = boat_relu_layer_backward(model->relu3, grad);
-    if (!out) { boat_tensor_unref(grad); return; }
-    boat_tensor_unref(grad); grad = out;
+    if (!out) {
+        boat_tensor_unref(grad);
+        return;
+    }
+    boat_tensor_unref(grad);
+    grad = out;
 
     out = boat_dense_layer_backward(model->fc1, grad);
-    if (!out) { boat_tensor_unref(grad); return; }
-    boat_tensor_unref(grad); grad = out;
+    if (!out) {
+        boat_tensor_unref(grad);
+        return;
+    }
+    boat_tensor_unref(grad);
+    grad = out;
 
     out = boat_flatten_layer_backward(model->flatten, grad);
-    if (!out) { boat_tensor_unref(grad); return; }
-    boat_tensor_unref(grad); grad = out;
+    if (!out) {
+        boat_tensor_unref(grad);
+        return;
+    }
+    boat_tensor_unref(grad);
+    grad = out;
 
     out = boat_pool_layer_backward(model->pool2, grad);
-    if (!out) { boat_tensor_unref(grad); return; }
-    boat_tensor_unref(grad); grad = out;
+    if (!out) {
+        boat_tensor_unref(grad);
+        return;
+    }
+    boat_tensor_unref(grad);
+    grad = out;
 
     out = boat_relu_layer_backward(model->relu2, grad);
-    if (!out) { boat_tensor_unref(grad); return; }
-    boat_tensor_unref(grad); grad = out;
+    if (!out) {
+        boat_tensor_unref(grad);
+        return;
+    }
+    boat_tensor_unref(grad);
+    grad = out;
 
     out = boat_conv_layer_backward(model->conv2, grad);
-    if (!out) { boat_tensor_unref(grad); return; }
-    boat_tensor_unref(grad); grad = out;
+    if (!out) {
+        boat_tensor_unref(grad);
+        return;
+    }
+    boat_tensor_unref(grad);
+    grad = out;
 
     out = boat_pool_layer_backward(model->pool1, grad);
-    if (!out) { boat_tensor_unref(grad); return; }
-    boat_tensor_unref(grad); grad = out;
+    if (!out) {
+        boat_tensor_unref(grad);
+        return;
+    }
+    boat_tensor_unref(grad);
+    grad = out;
 
     out = boat_relu_layer_backward(model->relu1, grad);
-    if (!out) { boat_tensor_unref(grad); return; }
-    boat_tensor_unref(grad); grad = out;
+    if (!out) {
+        boat_tensor_unref(grad);
+        return;
+    }
+    boat_tensor_unref(grad);
+    grad = out;
 
     // Final layer: conv1. Unref both input and output gradients.
     out = boat_conv_layer_backward(model->conv1, grad);
@@ -282,14 +362,14 @@ int main(int argc, char* argv[]) {
     }
 
     // Select data files based on test mode
-    const char* train_images_file = use_quick_test
-        ? "data/train_images_small.bin" : "data/train_images.bin";
-    const char* train_labels_file = use_quick_test
-        ? "data/train_labels_small.bin" : "data/train_labels.bin";
-    const char* test_images_file = use_quick_test
-        ? "data/test_images_small.bin" : "data/test_images.bin";
-    const char* test_labels_file = use_quick_test
-        ? "data/test_labels_small.bin" : "data/test_labels.bin";
+    const char* train_images_file =
+        use_quick_test ? "data/train_images_small.bin" : "data/train_images.bin";
+    const char* train_labels_file =
+        use_quick_test ? "data/train_labels_small.bin" : "data/train_labels.bin";
+    const char* test_images_file =
+        use_quick_test ? "data/test_images_small.bin" : "data/test_images.bin";
+    const char* test_labels_file =
+        use_quick_test ? "data/test_labels_small.bin" : "data/test_labels.bin";
 
     printf("Loading training data from %s...\n", train_images_file);
     boat_tensor_t* train_images = load_tensor_binary(train_images_file, BOAT_DTYPE_FLOAT32);
@@ -324,30 +404,22 @@ int main(int argc, char* argv[]) {
     }
 
     // Register all trainable parameters with their gradient tensors
-    boat_optimizer_add_parameter(optimizer,
-        boat_conv_layer_get_weight(model->conv1),
-        boat_conv_layer_get_grad_weight(model->conv1));
-    boat_optimizer_add_parameter(optimizer,
-        boat_conv_layer_get_bias(model->conv1),
-        boat_conv_layer_get_grad_bias(model->conv1));
-    boat_optimizer_add_parameter(optimizer,
-        boat_conv_layer_get_weight(model->conv2),
-        boat_conv_layer_get_grad_weight(model->conv2));
-    boat_optimizer_add_parameter(optimizer,
-        boat_conv_layer_get_bias(model->conv2),
-        boat_conv_layer_get_grad_bias(model->conv2));
-    boat_optimizer_add_parameter(optimizer,
-        boat_dense_layer_get_weight(model->fc1),
-        boat_dense_layer_get_grad_weight(model->fc1));
-    boat_optimizer_add_parameter(optimizer,
-        boat_dense_layer_get_bias(model->fc1),
-        boat_dense_layer_get_grad_bias(model->fc1));
-    boat_optimizer_add_parameter(optimizer,
-        boat_dense_layer_get_weight(model->fc2),
-        boat_dense_layer_get_grad_weight(model->fc2));
-    boat_optimizer_add_parameter(optimizer,
-        boat_dense_layer_get_bias(model->fc2),
-        boat_dense_layer_get_grad_bias(model->fc2));
+    boat_optimizer_add_parameter(optimizer, boat_conv_layer_get_weight(model->conv1),
+                                 boat_conv_layer_get_grad_weight(model->conv1));
+    boat_optimizer_add_parameter(optimizer, boat_conv_layer_get_bias(model->conv1),
+                                 boat_conv_layer_get_grad_bias(model->conv1));
+    boat_optimizer_add_parameter(optimizer, boat_conv_layer_get_weight(model->conv2),
+                                 boat_conv_layer_get_grad_weight(model->conv2));
+    boat_optimizer_add_parameter(optimizer, boat_conv_layer_get_bias(model->conv2),
+                                 boat_conv_layer_get_grad_bias(model->conv2));
+    boat_optimizer_add_parameter(optimizer, boat_dense_layer_get_weight(model->fc1),
+                                 boat_dense_layer_get_grad_weight(model->fc1));
+    boat_optimizer_add_parameter(optimizer, boat_dense_layer_get_bias(model->fc1),
+                                 boat_dense_layer_get_grad_bias(model->fc1));
+    boat_optimizer_add_parameter(optimizer, boat_dense_layer_get_weight(model->fc2),
+                                 boat_dense_layer_get_grad_weight(model->fc2));
+    boat_optimizer_add_parameter(optimizer, boat_dense_layer_get_bias(model->fc2),
+                                 boat_dense_layer_get_grad_bias(model->fc2));
 
     // Data standardization: compute mean and std from training set
     printf("Computing mean and std from training set...\n");
@@ -382,7 +454,8 @@ int main(int argc, char* argv[]) {
 
     // Create reusable batch input tensor
     int64_t batch_shape[] = {(int64_t)batch_size, 1, 28, 28};
-    boat_tensor_t* batch_input = boat_tensor_create(batch_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    boat_tensor_t* batch_input =
+        boat_tensor_create(batch_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!batch_input) {
         fprintf(stderr, "Failed to create batch input tensor\n");
         boat_optimizer_free(optimizer);
@@ -452,7 +525,8 @@ int main(int argc, char* argv[]) {
             // Compute gradient: grad = (pred - one_hot(label)) / batch_size
             // Cross-entropy with softmax output gives this simple gradient form
             int64_t grad_shape[] = {(int64_t)batch_size, 10};
-            boat_tensor_t* grad_output = boat_tensor_create(grad_shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+            boat_tensor_t* grad_output =
+                boat_tensor_create(grad_shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
             if (grad_output) {
                 float* grad_data = (float*)boat_tensor_data(grad_output);
 
@@ -492,8 +566,7 @@ int main(int argc, char* argv[]) {
         double epoch_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
 
         float epoch_accuracy = epoch_total > 0 ? (float)epoch_correct / epoch_total : 0.0f;
-        printf(" time=%.2fs, accuracy=%.2f%%\n",
-               epoch_time, epoch_accuracy * 100.0f);
+        printf(" time=%.2fs, accuracy=%.2f%%\n", epoch_time, epoch_accuracy * 100.0f);
     }
 
     // Evaluate on test set in batches
@@ -510,7 +583,8 @@ int main(int argc, char* argv[]) {
 
         // Create input tensor for this batch
         int64_t eval_shape[] = {(int64_t)current_batch, 1, 28, 28};
-        boat_tensor_t* eval_input = boat_tensor_create(eval_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+        boat_tensor_t* eval_input =
+            boat_tensor_create(eval_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
         if (!eval_input) continue;
 
         // Copy batch data
@@ -554,17 +628,61 @@ int main(int argc, char* argv[]) {
         boat_model_t* save_model = boat_model_create();
         if (save_model) {
             boat_layer_t* w;
-            w = malloc(sizeof(boat_layer_t)); w->data = model->conv1; w->type = BOAT_LAYER_TYPE_CONV2D; w->ops = NULL;    boat_model_add_layer(save_model, w);
-            w = malloc(sizeof(boat_layer_t)); w->data = model->relu1; w->type = BOAT_LAYER_TYPE_RELU; w->ops = NULL;      boat_model_add_layer(save_model, w);
-            w = malloc(sizeof(boat_layer_t)); w->data = model->pool1; w->type = BOAT_LAYER_TYPE_MAXPOOL2D; w->ops = NULL; boat_model_add_layer(save_model, w);
-            w = malloc(sizeof(boat_layer_t)); w->data = model->conv2; w->type = BOAT_LAYER_TYPE_CONV2D; w->ops = NULL;    boat_model_add_layer(save_model, w);
-            w = malloc(sizeof(boat_layer_t)); w->data = model->relu2; w->type = BOAT_LAYER_TYPE_RELU; w->ops = NULL;      boat_model_add_layer(save_model, w);
-            w = malloc(sizeof(boat_layer_t)); w->data = model->pool2; w->type = BOAT_LAYER_TYPE_MAXPOOL2D; w->ops = NULL; boat_model_add_layer(save_model, w);
-            w = malloc(sizeof(boat_layer_t)); w->data = model->flatten; w->type = BOAT_LAYER_TYPE_FLATTEN; w->ops = NULL; boat_model_add_layer(save_model, w);
-            w = malloc(sizeof(boat_layer_t)); w->data = model->fc1; w->type = BOAT_LAYER_TYPE_DENSE; w->ops = NULL;       boat_model_add_layer(save_model, w);
-            w = malloc(sizeof(boat_layer_t)); w->data = model->relu3; w->type = BOAT_LAYER_TYPE_RELU; w->ops = NULL;      boat_model_add_layer(save_model, w);
-            w = malloc(sizeof(boat_layer_t)); w->data = model->fc2; w->type = BOAT_LAYER_TYPE_DENSE; w->ops = NULL;       boat_model_add_layer(save_model, w);
-            w = malloc(sizeof(boat_layer_t)); w->data = model->softmax; w->type = BOAT_LAYER_TYPE_SOFTMAX; w->ops = NULL; boat_model_add_layer(save_model, w);
+            w = malloc(sizeof(boat_layer_t));
+            w->data = model->conv1;
+            w->type = BOAT_LAYER_TYPE_CONV2D;
+            w->ops = NULL;
+            boat_model_add_layer(save_model, w);
+            w = malloc(sizeof(boat_layer_t));
+            w->data = model->relu1;
+            w->type = BOAT_LAYER_TYPE_RELU;
+            w->ops = NULL;
+            boat_model_add_layer(save_model, w);
+            w = malloc(sizeof(boat_layer_t));
+            w->data = model->pool1;
+            w->type = BOAT_LAYER_TYPE_MAXPOOL2D;
+            w->ops = NULL;
+            boat_model_add_layer(save_model, w);
+            w = malloc(sizeof(boat_layer_t));
+            w->data = model->conv2;
+            w->type = BOAT_LAYER_TYPE_CONV2D;
+            w->ops = NULL;
+            boat_model_add_layer(save_model, w);
+            w = malloc(sizeof(boat_layer_t));
+            w->data = model->relu2;
+            w->type = BOAT_LAYER_TYPE_RELU;
+            w->ops = NULL;
+            boat_model_add_layer(save_model, w);
+            w = malloc(sizeof(boat_layer_t));
+            w->data = model->pool2;
+            w->type = BOAT_LAYER_TYPE_MAXPOOL2D;
+            w->ops = NULL;
+            boat_model_add_layer(save_model, w);
+            w = malloc(sizeof(boat_layer_t));
+            w->data = model->flatten;
+            w->type = BOAT_LAYER_TYPE_FLATTEN;
+            w->ops = NULL;
+            boat_model_add_layer(save_model, w);
+            w = malloc(sizeof(boat_layer_t));
+            w->data = model->fc1;
+            w->type = BOAT_LAYER_TYPE_DENSE;
+            w->ops = NULL;
+            boat_model_add_layer(save_model, w);
+            w = malloc(sizeof(boat_layer_t));
+            w->data = model->relu3;
+            w->type = BOAT_LAYER_TYPE_RELU;
+            w->ops = NULL;
+            boat_model_add_layer(save_model, w);
+            w = malloc(sizeof(boat_layer_t));
+            w->data = model->fc2;
+            w->type = BOAT_LAYER_TYPE_DENSE;
+            w->ops = NULL;
+            boat_model_add_layer(save_model, w);
+            w = malloc(sizeof(boat_layer_t));
+            w->data = model->softmax;
+            w->type = BOAT_LAYER_TYPE_SOFTMAX;
+            w->ops = NULL;
+            boat_model_add_layer(save_model, w);
 
             if (boat_model_save(save_model, "mnist_model.boat")) {
                 printf("Model saved to mnist_model.boat\n");

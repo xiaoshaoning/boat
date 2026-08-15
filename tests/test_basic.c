@@ -50,8 +50,8 @@ int main() {
         for (int i = 0; i < 4; i++) {
             assert(tensor_data[i] == data[i]);
         }
-        printf("  Data verified: [%.1f, %.1f, %.1f, %.1f]\n",
-               tensor_data[0], tensor_data[1], tensor_data[2], tensor_data[3]);
+        printf("  Data verified: [%.1f, %.1f, %.1f, %.1f]\n", tensor_data[0], tensor_data[1],
+               tensor_data[2], tensor_data[3]);
 
         boat_tensor_unref(tensor);
         printf("  Test 2 passed!\n");
@@ -87,10 +87,9 @@ int main() {
         assert(float32_name != NULL);
         assert(int32_name != NULL);
 
-        printf("  FLOAT32 size: %zu, name: %s\n",
-               boat_dtype_size(BOAT_DTYPE_FLOAT32), float32_name);
-        printf("  INT32 size: %zu, name: %s\n",
-               boat_dtype_size(BOAT_DTYPE_INT32), int32_name);
+        printf("  FLOAT32 size: %zu, name: %s\n", boat_dtype_size(BOAT_DTYPE_FLOAT32),
+               float32_name);
+        printf("  INT32 size: %zu, name: %s\n", boat_dtype_size(BOAT_DTYPE_INT32), int32_name);
         printf("  Test 4 passed!\n");
     }
 
@@ -111,7 +110,8 @@ int main() {
         printf("  INT32 tensor: [%d, %d]\n", 42, 100);
 
         // Test INT64
-        boat_tensor_t* int64_tensor = boat_tensor_create(shape, 1, BOAT_DTYPE_INT64, BOAT_DEVICE_CPU);
+        boat_tensor_t* int64_tensor =
+            boat_tensor_create(shape, 1, BOAT_DTYPE_INT64, BOAT_DEVICE_CPU);
         assert(int64_tensor != NULL);
         boat_tensor_unref(int64_tensor);
         printf("  INT64 tensor created successfully\n");
@@ -132,8 +132,8 @@ int main() {
         printf("\n✓ No memory leaks detected!\n");
     } else {
         printf("\n⚠ Potential memory leak detected!\n");
-        printf("  Allocated blocks: %zu, Freed blocks: %zu\n",
-               stats.allocated_blocks, stats.freed_blocks);
+        printf("  Allocated blocks: %zu, Freed blocks: %zu\n", stats.allocated_blocks,
+               stats.freed_blocks);
     }
 
     printf("\n=== All tests passed! ===\n");

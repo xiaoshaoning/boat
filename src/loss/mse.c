@@ -18,7 +18,7 @@ float mse_loss_compute(boat_loss_t* loss_ptr, const void* predictions_ptr, const
 
 // MSE loss structure
 typedef struct {
-    boat_loss_type_t type;  // Always BOAT_LOSS_MSE
+    boat_loss_type_t type; // Always BOAT_LOSS_MSE
 } mse_loss_t;
 
 // Create MSE loss function
@@ -34,7 +34,8 @@ BOAT_API boat_loss_t* boat_mse_loss_create() {
 }
 
 // Compute MSE loss between predictions and targets
-float mse_loss_compute(boat_loss_t* loss_ptr, const void* predictions_ptr, const void* targets_ptr) {
+float mse_loss_compute(boat_loss_t* loss_ptr, const void* predictions_ptr,
+                       const void* targets_ptr) {
     if (!loss_ptr || !predictions_ptr || !targets_ptr) {
         return 0.0f;
     }
@@ -84,7 +85,8 @@ float mse_loss_compute(boat_loss_t* loss_ptr, const void* predictions_ptr, const
 }
 
 // Compute MSE backward gradient
-boat_tensor_t* mse_loss_backward(boat_loss_t* loss_ptr, const void* predictions_ptr, const void* targets_ptr) {
+boat_tensor_t* mse_loss_backward(boat_loss_t* loss_ptr, const void* predictions_ptr,
+                                 const void* targets_ptr) {
     if (!loss_ptr || !predictions_ptr || !targets_ptr) {
         return NULL;
     }
@@ -140,4 +142,3 @@ boat_tensor_t* mse_loss_backward(boat_loss_t* loss_ptr, const void* predictions_
 
     return grad;
 }
-

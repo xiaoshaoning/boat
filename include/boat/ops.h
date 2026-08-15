@@ -55,13 +55,20 @@ BOAT_API boat_tensor_t* boat_gelu(const boat_tensor_t* a);
 BOAT_API boat_tensor_t* boat_selu(const boat_tensor_t* a);
 
 // Reduction operations
-BOAT_API boat_tensor_t* boat_sum(const boat_tensor_t* a, const int64_t* dims, size_t n_dims, bool keepdim);
-BOAT_API boat_tensor_t* boat_mean(const boat_tensor_t* a, const int64_t* dims, size_t n_dims, bool keepdim);
-BOAT_API boat_tensor_t* boat_max(const boat_tensor_t* a, const int64_t* dims, size_t n_dims, bool keepdim);
-BOAT_API boat_tensor_t* boat_min(const boat_tensor_t* a, const int64_t* dims, size_t n_dims, bool keepdim);
-BOAT_API boat_tensor_t* boat_prod(const boat_tensor_t* a, const int64_t* dims, size_t n_dims, bool keepdim);
-BOAT_API boat_tensor_t* boat_std(const boat_tensor_t* a, const int64_t* dims, size_t n_dims, bool keepdim, bool unbiased);
-BOAT_API boat_tensor_t* boat_var(const boat_tensor_t* a, const int64_t* dims, size_t n_dims, bool keepdim, bool unbiased);
+BOAT_API boat_tensor_t* boat_sum(const boat_tensor_t* a, const int64_t* dims, size_t n_dims,
+                                 bool keepdim);
+BOAT_API boat_tensor_t* boat_mean(const boat_tensor_t* a, const int64_t* dims, size_t n_dims,
+                                  bool keepdim);
+BOAT_API boat_tensor_t* boat_max(const boat_tensor_t* a, const int64_t* dims, size_t n_dims,
+                                 bool keepdim);
+BOAT_API boat_tensor_t* boat_min(const boat_tensor_t* a, const int64_t* dims, size_t n_dims,
+                                 bool keepdim);
+BOAT_API boat_tensor_t* boat_prod(const boat_tensor_t* a, const int64_t* dims, size_t n_dims,
+                                  bool keepdim);
+BOAT_API boat_tensor_t* boat_std(const boat_tensor_t* a, const int64_t* dims, size_t n_dims,
+                                 bool keepdim, bool unbiased);
+BOAT_API boat_tensor_t* boat_var(const boat_tensor_t* a, const int64_t* dims, size_t n_dims,
+                                 bool keepdim, bool unbiased);
 
 // Comparison operations
 BOAT_API boat_tensor_t* boat_eq(const boat_tensor_t* a, const boat_tensor_t* b);
@@ -79,7 +86,8 @@ BOAT_API boat_tensor_t* boat_logical_xor(const boat_tensor_t* a, const boat_tens
 
 // Sinusoidal positional encoding (used by transformer encoders)
 // Returns a 2D tensor [seq_len, embedding_dim] of float32
-BOAT_API boat_tensor_t* BOAT_CALL boat_sinusoidal_embedding(size_t seq_len, size_t embedding_dim, float theta);
+BOAT_API boat_tensor_t* BOAT_CALL boat_sinusoidal_embedding(size_t seq_len, size_t embedding_dim,
+                                                            float theta);
 
 // Element-wise mathematical functions
 BOAT_API boat_tensor_t* boat_exp(const boat_tensor_t* a);
@@ -110,7 +118,8 @@ BOAT_API boat_tensor_t* boat_clamp_max(const boat_tensor_t* a, double max);
 
 // Broadcasting utility
 BOAT_API bool boat_can_broadcast(const boat_tensor_t* a, const boat_tensor_t* b);
-BOAT_API boat_tensor_t* boat_broadcast_to(const boat_tensor_t* a, const int64_t* shape, size_t ndim);
+BOAT_API boat_tensor_t* boat_broadcast_to(const boat_tensor_t* a, const int64_t* shape,
+                                          size_t ndim);
 
 #ifdef __cplusplus
 }

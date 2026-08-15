@@ -11,13 +11,16 @@
 float mse_loss_compute(boat_loss_t* loss, const void* predictions, const void* targets);
 float cross_entropy_loss_compute(boat_loss_t* loss, const void* predictions, const void* targets);
 float huber_loss_compute(boat_loss_t* loss, const void* predictions, const void* targets);
-float softmax_cross_entropy_loss_compute(boat_loss_t* loss, const void* predictions, const void* targets);
+float softmax_cross_entropy_loss_compute(boat_loss_t* loss, const void* predictions,
+                                         const void* targets);
 
 // Forward declarations for loss-specific backward functions
 boat_tensor_t* mse_loss_backward(boat_loss_t* loss, const void* predictions, const void* targets);
-boat_tensor_t* cross_entropy_loss_backward(boat_loss_t* loss, const void* predictions, const void* targets);
+boat_tensor_t* cross_entropy_loss_backward(boat_loss_t* loss, const void* predictions,
+                                           const void* targets);
 boat_tensor_t* huber_loss_backward(boat_loss_t* loss, const void* predictions, const void* targets);
-boat_tensor_t* softmax_cross_entropy_loss_backward(boat_loss_t* loss, const void* predictions, const void* targets);
+boat_tensor_t* softmax_cross_entropy_loss_backward(boat_loss_t* loss, const void* predictions,
+                                                   const void* targets);
 
 // Generic loss structure with type
 typedef struct {
@@ -34,16 +37,12 @@ BOAT_API float boat_loss_compute(boat_loss_t* loss, const void* predictions, con
     const boat_loss_common_t* common_loss = (const boat_loss_common_t*)loss;
 
     switch (common_loss->type) {
-        case BOAT_LOSS_MSE:
-            return mse_loss_compute(loss, predictions, targets);
-        case BOAT_LOSS_CROSS_ENTROPY:
-            return cross_entropy_loss_compute(loss, predictions, targets);
-        case BOAT_LOSS_HUBER:
-            return huber_loss_compute(loss, predictions, targets);
-        case BOAT_LOSS_SOFTMAX_CROSS_ENTROPY:
-            return softmax_cross_entropy_loss_compute(loss, predictions, targets);
-        default:
-            return 0.0f;
+    case BOAT_LOSS_MSE: return mse_loss_compute(loss, predictions, targets);
+    case BOAT_LOSS_CROSS_ENTROPY: return cross_entropy_loss_compute(loss, predictions, targets);
+    case BOAT_LOSS_HUBER: return huber_loss_compute(loss, predictions, targets);
+    case BOAT_LOSS_SOFTMAX_CROSS_ENTROPY:
+        return softmax_cross_entropy_loss_compute(loss, predictions, targets);
+    default: return 0.0f;
     }
 }
 
@@ -57,7 +56,8 @@ BOAT_API void boat_loss_free(boat_loss_t* loss) {
 }
 
 // Dispatch backward based on loss type
-BOAT_API boat_tensor_t* boat_loss_backward(boat_loss_t* loss, const void* predictions, const void* targets) {
+BOAT_API boat_tensor_t* boat_loss_backward(boat_loss_t* loss, const void* predictions,
+                                           const void* targets) {
     if (!loss) {
         return NULL;
     }
@@ -65,15 +65,11 @@ BOAT_API boat_tensor_t* boat_loss_backward(boat_loss_t* loss, const void* predic
     const boat_loss_common_t* common_loss = (const boat_loss_common_t*)loss;
 
     switch (common_loss->type) {
-        case BOAT_LOSS_MSE:
-            return mse_loss_backward(loss, predictions, targets);
-        case BOAT_LOSS_CROSS_ENTROPY:
-            return cross_entropy_loss_backward(loss, predictions, targets);
-        case BOAT_LOSS_HUBER:
-            return huber_loss_backward(loss, predictions, targets);
-        case BOAT_LOSS_SOFTMAX_CROSS_ENTROPY:
-            return softmax_cross_entropy_loss_backward(loss, predictions, targets);
-        default:
-            return NULL;
+    case BOAT_LOSS_MSE: return mse_loss_backward(loss, predictions, targets);
+    case BOAT_LOSS_CROSS_ENTROPY: return cross_entropy_loss_backward(loss, predictions, targets);
+    case BOAT_LOSS_HUBER: return huber_loss_backward(loss, predictions, targets);
+    case BOAT_LOSS_SOFTMAX_CROSS_ENTROPY:
+        return softmax_cross_entropy_loss_backward(loss, predictions, targets);
+    default: return NULL;
     }
 }

@@ -10,14 +10,15 @@
 #include <string.h>
 #include <cuda_runtime.h>
 
-#define CUDA_CHECK(call) do {                                           \
-    cudaError_t err = call;                                             \
-    if (err != cudaSuccess) {                                           \
-        fprintf(stderr, "[CUDA] %s:%d: error %s\n",                    \
-                __FILE__, __LINE__, cudaGetErrorString(err));          \
-        exit(1);                                                        \
-    }                                                                   \
-} while(0)
+#define CUDA_CHECK(call)                                                                           \
+    do {                                                                                           \
+        cudaError_t err = call;                                                                    \
+        if (err != cudaSuccess) {                                                                  \
+            fprintf(stderr, "[CUDA] %s:%d: error %s\n", __FILE__, __LINE__,                        \
+                    cudaGetErrorString(err));                                                      \
+            exit(1);                                                                               \
+        }                                                                                          \
+    } while (0)
 
 // ---------------------------------------------------------------------------
 // Create inference engine
@@ -32,7 +33,9 @@ nanochat_engine_t* nanochat_engine_create(const char* model_dir) {
     char* tok_path = (char*)malloc(dir_len + 32);
     char* weights_path = (char*)malloc(dir_len + 32);
     if (!tok_path || !weights_path) {
-        free(tok_path); free(weights_path); free(eng);
+        free(tok_path);
+        free(weights_path);
+        free(eng);
         return NULL;
     }
     snprintf(tok_path, dir_len + 32, "%s/tokenizer.json", model_dir);
@@ -42,8 +45,11 @@ nanochat_engine_t* nanochat_engine_create(const char* model_dir) {
     eng->tokenizer = (nanochat_tokenizer_t*)malloc(sizeof(nanochat_tokenizer_t));
     if (!eng->tokenizer || !nanochat_tokenizer_init(eng->tokenizer, tok_path)) {
         fprintf(stderr, "[NanoChat] Failed to load tokenizer from %s\n", tok_path);
-        free(tok_path); free(weights_path);
-        nanochat_tokenizer_free(eng->tokenizer); free(eng->tokenizer); free(eng);
+        free(tok_path);
+        free(weights_path);
+        nanochat_tokenizer_free(eng->tokenizer);
+        free(eng->tokenizer);
+        free(eng);
         return NULL;
     }
     fprintf(stderr, "[NanoChat] Tokenizer loaded from %s\n", tok_path);
@@ -52,20 +58,27 @@ nanochat_engine_t* nanochat_engine_create(const char* model_dir) {
     nanochat_weights_t* weights = nanochat_weights_load(model_dir);
     if (!weights) {
         fprintf(stderr, "[NanoChat] Failed to load weights from %s\n", weights_path);
-        free(tok_path); free(weights_path);
-        nanochat_tokenizer_free(eng->tokenizer); free(eng->tokenizer); free(eng);
+        free(tok_path);
+        free(weights_path);
+        nanochat_tokenizer_free(eng->tokenizer);
+        free(eng->tokenizer);
+        free(eng);
         return NULL;
     }
     fprintf(stderr, "[NanoChat] Weights loaded from %s\n", weights_path);
-    free(tok_path); free(weights_path);
+    free(tok_path);
+    free(weights_path);
 
     // 3. Upload to GPU
     eng->model = (nanochat_cuda_model_t*)calloc(1, sizeof(nanochat_cuda_model_t));
     if (!eng->model || !nanochat_cuda_model_init(eng->model, weights)) {
         fprintf(stderr, "[NanoChat] Failed to upload weights to GPU\n");
         nanochat_weights_free(weights);
-        nanochat_cuda_model_free(eng->model); free(eng->model);
-        nanochat_tokenizer_free(eng->tokenizer); free(eng->tokenizer); free(eng);
+        nanochat_cuda_model_free(eng->model);
+        free(eng->model);
+        nanochat_tokenizer_free(eng->tokenizer);
+        free(eng->tokenizer);
+        free(eng);
         return NULL;
     }
 
@@ -96,28 +109,31 @@ void nanochat_engine_free(nanochat_engine_t* eng) {
 // ---------------------------------------------------------------------------
 // Generate text from a prompt
 // ---------------------------------------------------------------------------
-char* nanochat_generate(nanochat_engine_t* eng,
-                         const char* prompt,
-                         int max_tokens,
-                         float temperature,
-                         int top_k) {
+char* nanochat_generate(nanochat_engine_t* eng, const char* prompt, int max_tokens,
+                        float temperature, int top_k) {
     if (!eng || !eng->model || !eng->tokenizer) return NULL;
 
     // 1. Tokenize prompt (no BOS — model was trained without it)
     size_t text_len = strlen(prompt);
     int prompt_len;
     int* tokens = nanochat_tokenizer_encode(eng->tokenizer, prompt, text_len, &prompt_len);
-    if (!tokens || prompt_len == 0) { free(tokens); return NULL; }
+    if (!tokens || prompt_len == 0) {
+        free(tokens);
+        return NULL;
+    }
 
     tokens = (int*)realloc(tokens, (size_t)(prompt_len + max_tokens) * sizeof(int));
     int total_tokens = prompt_len;
 
     // 2. Embed all prompt tokens on GPU (FP16)
-    int* d_tokens; __half* d_embed;
+    int* d_tokens;
+    __half* d_embed;
     CUDA_CHECK(cudaMalloc(&d_tokens, (size_t)prompt_len * sizeof(int)));
     CUDA_CHECK(cudaMalloc(&d_embed, (size_t)prompt_len * eng->model->hidden_size * sizeof(__half)));
-    CUDA_CHECK(cudaMemcpy(d_tokens, tokens, (size_t)prompt_len * sizeof(int), cudaMemcpyHostToDevice));
-    embed_gather_fp16_cuda(eng->model->d_embed_tokens, d_tokens, d_embed, prompt_len, eng->model->hidden_size, 0);
+    CUDA_CHECK(
+        cudaMemcpy(d_tokens, tokens, (size_t)prompt_len * sizeof(int), cudaMemcpyHostToDevice));
+    embed_gather_fp16_cuda(eng->model->d_embed_tokens, d_tokens, d_embed, prompt_len,
+                           eng->model->hidden_size, 0);
     CUDA_CHECK(cudaFree(d_tokens));
 
     // 3. Run prefill (populates KV cache, returns logits for last position)
@@ -126,7 +142,8 @@ char* nanochat_generate(nanochat_engine_t* eng,
 
     // 4. Sample first generated token
     float* h_logits = (float*)malloc((size_t)eng->model->vocab_size * sizeof(float));
-    CUDA_CHECK(cudaMemcpy(h_logits, d_logits, (size_t)eng->model->vocab_size * sizeof(float), cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(h_logits, d_logits, (size_t)eng->model->vocab_size * sizeof(float),
+                          cudaMemcpyDeviceToHost));
     CUDA_CHECK(cudaFree(d_logits));
     int next = nanochat_sample_token(h_logits, eng->model->vocab_size, top_k, temperature);
     tokens[total_tokens++] = next;
@@ -135,11 +152,14 @@ char* nanochat_generate(nanochat_engine_t* eng,
     int hidden_size = eng->model->hidden_size;
     __half* d_single_embed = NULL;
     while (total_tokens < prompt_len + max_tokens) {
-        if (!d_single_embed) CUDA_CHECK(cudaMalloc(&d_single_embed, (size_t)hidden_size * sizeof(__half)));
-        CUDA_CHECK(cudaMemcpy(d_single_embed, eng->model->d_embed_tokens + (size_t)next * hidden_size,
-                               (size_t)hidden_size * sizeof(__half), cudaMemcpyDeviceToDevice));
+        if (!d_single_embed)
+            CUDA_CHECK(cudaMalloc(&d_single_embed, (size_t)hidden_size * sizeof(__half)));
+        CUDA_CHECK(cudaMemcpy(d_single_embed,
+                              eng->model->d_embed_tokens + (size_t)next * hidden_size,
+                              (size_t)hidden_size * sizeof(__half), cudaMemcpyDeviceToDevice));
         d_logits = nanochat_cuda_model_decode(eng->model, d_single_embed, total_tokens - 1);
-        CUDA_CHECK(cudaMemcpy(h_logits, d_logits, (size_t)eng->model->vocab_size * sizeof(float), cudaMemcpyDeviceToHost));
+        CUDA_CHECK(cudaMemcpy(h_logits, d_logits, (size_t)eng->model->vocab_size * sizeof(float),
+                              cudaMemcpyDeviceToHost));
         CUDA_CHECK(cudaFree(d_logits));
         next = nanochat_sample_token(h_logits, eng->model->vocab_size, top_k, temperature);
         tokens[total_tokens++] = next;

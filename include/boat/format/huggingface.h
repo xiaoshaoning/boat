@@ -12,14 +12,17 @@ extern "C" {
 #endif
 
 // Load Hugging Face model from directory
-// The directory should contain config.json and model weights (pytorch_model.bin or model.safetensors)
+// The directory should contain config.json and model weights (pytorch_model.bin or
+// model.safetensors)
 BOAT_API boat_model_t* boat_huggingface_load(const char* model_dir);
 
 // Load Hugging Face model from memory buffers
 // config_json: JSON configuration string
 // weights_data: binary weights data (safetensors format)
 // weights_size: size of weights data in bytes
-BOAT_API boat_model_t* boat_huggingface_load_from_memory(const char* config_json, const void* weights_data, size_t weights_size);
+BOAT_API boat_model_t* boat_huggingface_load_from_memory(const char* config_json,
+                                                         const void* weights_data,
+                                                         size_t weights_size);
 
 // Check if directory contains a valid Hugging Face model
 BOAT_API bool boat_huggingface_check(const char* model_dir);

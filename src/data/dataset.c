@@ -8,19 +8,19 @@
 #include <string.h>
 
 struct boat_dataset_t {
-    boat_tensor_t* data;    // [N, ...] samples
-    boat_tensor_t* labels;  // [N] or [N, 1] labels
+    boat_tensor_t* data;   // [N, ...] samples
+    boat_tensor_t* labels; // [N] or [N, 1] labels
 };
 
 BOAT_API boat_dataset_t* boat_tensor_dataset_create(boat_tensor_t* data, boat_tensor_t* labels) {
     if (!data || !labels) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
-            "[Dataset] NULL data or labels\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Dataset] NULL data or labels\n");
         return NULL;
     }
 
     size_t n_data = boat_tensor_nelements(data);
-    if (boat_tensor_ndim(data) == 0) n_data = 0;
+    if (boat_tensor_ndim(data) == 0)
+        n_data = 0;
     else {
         const int64_t* sh = boat_tensor_shape(data);
         n_data = (size_t)sh[0];
@@ -29,7 +29,7 @@ BOAT_API boat_dataset_t* boat_tensor_dataset_create(boat_tensor_t* data, boat_te
     size_t n_labels = boat_tensor_nelements(labels);
     if (n_labels != n_data) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
-            "[Dataset] data size (%zu) != labels size (%zu)\n", n_data, n_labels);
+                        "[Dataset] data size (%zu) != labels size (%zu)\n", n_data, n_labels);
         return NULL;
     }
 
@@ -66,7 +66,7 @@ BOAT_API boat_tensor_t* boat_dataset_get_data(const boat_dataset_t* dataset, siz
     size_t n = (size_t)boat_tensor_shape(dataset->data)[0];
     if (index >= n) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
-            "[Dataset] index %zu out of bounds (size %zu)\n", index, n);
+                        "[Dataset] index %zu out of bounds (size %zu)\n", index, n);
         return NULL;
     }
 
@@ -75,8 +75,8 @@ BOAT_API boat_tensor_t* boat_dataset_get_data(const boat_dataset_t* dataset, siz
     if (sample_ndim == 0) {
         // 1-D dataset: each sample is a scalar
         int64_t scalar_shape[] = {1};
-        boat_tensor_t* out = boat_tensor_create(scalar_shape, 1,
-            boat_tensor_dtype(dataset->data), boat_tensor_device(dataset->data));
+        boat_tensor_t* out = boat_tensor_create(scalar_shape, 1, boat_tensor_dtype(dataset->data),
+                                                boat_tensor_device(dataset->data));
         if (!out) return NULL;
 
         size_t elem_size = boat_dtype_size(boat_tensor_dtype(dataset->data));
@@ -143,7 +143,8 @@ BOAT_API boat_tensor_t* boat_dataset_get_label(const boat_dataset_t* dataset, si
     if (label_ndim > 1) {
         // For multi-dim labels, compute offset
         size_t stride = 1;
-        for (size_t i = label_ndim - 1; i > 0; i--) stride *= (size_t)lshape[i];
+        for (size_t i = label_ndim - 1; i > 0; i--)
+            stride *= (size_t)lshape[i];
         label_offset = index * stride;
     }
 
@@ -151,20 +152,20 @@ BOAT_API boat_tensor_t* boat_dataset_get_label(const boat_dataset_t* dataset, si
     const char* src = (const char*)label_data + label_offset * elem_size;
 
     switch (label_dtype) {
-        case BOAT_DTYPE_FLOAT32: scalar_val = (int64_t)(*(const float*)src); break;
-        case BOAT_DTYPE_FLOAT64: scalar_val = (int64_t)(*(const double*)src); break;
-        case BOAT_DTYPE_INT64:   scalar_val = *(const int64_t*)src; break;
-        case BOAT_DTYPE_INT32:   scalar_val = *(const int32_t*)src; break;
-        case BOAT_DTYPE_INT8:    scalar_val = *(const int8_t*)src; break;
-        case BOAT_DTYPE_UINT8:   scalar_val = *(const uint8_t*)src; break;
-        default:
-            // Fallback: read as INT64
-            memcpy(&scalar_val, src, elem_size < sizeof(int64_t) ? elem_size : sizeof(int64_t));
-            break;
+    case BOAT_DTYPE_FLOAT32: scalar_val = (int64_t)(*(const float*)src); break;
+    case BOAT_DTYPE_FLOAT64: scalar_val = (int64_t)(*(const double*)src); break;
+    case BOAT_DTYPE_INT64: scalar_val = *(const int64_t*)src; break;
+    case BOAT_DTYPE_INT32: scalar_val = *(const int32_t*)src; break;
+    case BOAT_DTYPE_INT8: scalar_val = *(const int8_t*)src; break;
+    case BOAT_DTYPE_UINT8: scalar_val = *(const uint8_t*)src; break;
+    default:
+        // Fallback: read as INT64
+        memcpy(&scalar_val, src, elem_size < sizeof(int64_t) ? elem_size : sizeof(int64_t));
+        break;
     }
 
     int64_t label_shape[] = {1};
-    boat_tensor_t* label_tensor = boat_tensor_from_data(label_shape, 1,
-        BOAT_DTYPE_INT64, &scalar_val);
+    boat_tensor_t* label_tensor =
+        boat_tensor_from_data(label_shape, 1, BOAT_DTYPE_INT64, &scalar_val);
     return label_tensor;
 }

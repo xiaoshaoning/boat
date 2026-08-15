@@ -18,7 +18,7 @@ int main() {
         boat_tensor_t* tensor = boat_tensor_create(shape, 3, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
         assert(tensor != NULL);
         assert(boat_tensor_ndim(tensor) == 3);
-        assert(boat_tensor_nelements(tensor) == 2*3*4);
+        assert(boat_tensor_nelements(tensor) == 2 * 3 * 4);
         assert(boat_tensor_dtype(tensor) == BOAT_DTYPE_FLOAT32);
         assert(boat_tensor_device(tensor) == BOAT_DEVICE_CPU);
 
@@ -51,7 +51,7 @@ int main() {
         boat_tensor_t* tensor = boat_tensor_create(shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
         assert(tensor != NULL);
 
-        boat_tensor_ref(tensor);  // Increase ref count
+        boat_tensor_ref(tensor);   // Increase ref count
         boat_tensor_unref(tensor); // Decrease ref count (should not free)
         boat_tensor_unref(tensor); // Should free now
         // Note: after this, tensor is dangling pointer, but test continues
@@ -97,12 +97,14 @@ int main() {
         boat_tensor_unref(int_tensor);
 
         // Test INT64
-        boat_tensor_t* int64_tensor = boat_tensor_create(shape, 1, BOAT_DTYPE_INT64, BOAT_DEVICE_CPU);
+        boat_tensor_t* int64_tensor =
+            boat_tensor_create(shape, 1, BOAT_DTYPE_INT64, BOAT_DEVICE_CPU);
         assert(int64_tensor != NULL);
         boat_tensor_unref(int64_tensor);
 
         // Test UINT8
-        boat_tensor_t* uint8_tensor = boat_tensor_create(shape, 1, BOAT_DTYPE_UINT8, BOAT_DEVICE_CPU);
+        boat_tensor_t* uint8_tensor =
+            boat_tensor_create(shape, 1, BOAT_DTYPE_UINT8, BOAT_DEVICE_CPU);
         assert(uint8_tensor != NULL);
         boat_tensor_unref(uint8_tensor);
 
@@ -116,7 +118,8 @@ int main() {
 
         // Test BFLOAT16
         {
-            boat_tensor_t* bf16_tensor = boat_tensor_create(shape, 1, BOAT_DTYPE_BFLOAT16, BOAT_DEVICE_CPU);
+            boat_tensor_t* bf16_tensor =
+                boat_tensor_create(shape, 1, BOAT_DTYPE_BFLOAT16, BOAT_DEVICE_CPU);
             assert(bf16_tensor != NULL);
             assert(boat_tensor_nbytes(bf16_tensor) == 3 * 2);
             uint16_t* bf16_data = (uint16_t*)boat_tensor_data(bf16_tensor);
@@ -159,8 +162,11 @@ int main() {
         assert(boat_tensor_shape(c)[1] == 4);
         float* cd = (float*)boat_tensor_data(c);
         float expected[] = {1, 2, 5, 6, 3, 4, 7, 8};
-        for (int i = 0; i < 8; i++) assert(cd[i] == expected[i]);
-        boat_tensor_unref(a); boat_tensor_unref(b); boat_tensor_unref(c);
+        for (int i = 0; i < 8; i++)
+            assert(cd[i] == expected[i]);
+        boat_tensor_unref(a);
+        boat_tensor_unref(b);
+        boat_tensor_unref(c);
     }
 
     // Regression: stack along a non-zero axis interleaves correctly
@@ -171,7 +177,7 @@ int main() {
         boat_tensor_t* a = boat_tensor_from_data(shape, 2, BOAT_DTYPE_FLOAT32, d1);
         boat_tensor_t* b = boat_tensor_from_data(shape, 2, BOAT_DTYPE_FLOAT32, d2);
         const boat_tensor_t* tensors[2] = {a, b};
-        boat_tensor_t* s = boat_tensor_stack(tensors, 2, 1);  // -> [2, 2, 2]
+        boat_tensor_t* s = boat_tensor_stack(tensors, 2, 1); // -> [2, 2, 2]
         assert(s != NULL);
         assert(boat_tensor_ndim(s) == 3);
         assert(boat_tensor_shape(s)[0] == 2);
@@ -179,8 +185,11 @@ int main() {
         assert(boat_tensor_shape(s)[2] == 2);
         float* sd = (float*)boat_tensor_data(s);
         float expected[] = {1, 2, 5, 6, 3, 4, 7, 8};
-        for (int i = 0; i < 8; i++) assert(sd[i] == expected[i]);
-        boat_tensor_unref(a); boat_tensor_unref(b); boat_tensor_unref(s);
+        for (int i = 0; i < 8; i++)
+            assert(sd[i] == expected[i]);
+        boat_tensor_unref(a);
+        boat_tensor_unref(b);
+        boat_tensor_unref(s);
     }
 
     // Regression: contiguous() materializes a non-full-row slice correctly
@@ -198,8 +207,11 @@ int main() {
         assert(boat_tensor_is_contiguous(contig));
         float* cd = (float*)boat_tensor_data(contig);
         float expected[] = {0, 1, 3, 4};
-        for (int i = 0; i < 4; i++) assert(cd[i] == expected[i]);
-        boat_tensor_unref(t); boat_tensor_unref(sl); boat_tensor_unref(contig);
+        for (int i = 0; i < 4; i++)
+            assert(cd[i] == expected[i]);
+        boat_tensor_unref(t);
+        boat_tensor_unref(sl);
+        boat_tensor_unref(contig);
     }
 
     // Regression: non-unit-step slicing materializes correctly.
@@ -215,8 +227,11 @@ int main() {
         boat_tensor_t* contig = boat_tensor_contiguous(sl);
         float* cd = (float*)boat_tensor_data(contig);
         float expected[] = {0, 2, 4};
-        for (int i = 0; i < 3; i++) assert(cd[i] == expected[i]);
-        boat_tensor_unref(t); boat_tensor_unref(sl); boat_tensor_unref(contig);
+        for (int i = 0; i < 3; i++)
+            assert(cd[i] == expected[i]);
+        boat_tensor_unref(t);
+        boat_tensor_unref(sl);
+        boat_tensor_unref(contig);
     }
 
     // Regression: 2D step-2 slice on the last dim materializes correctly.
@@ -231,8 +246,11 @@ int main() {
         boat_tensor_t* contig = boat_tensor_contiguous(sl);
         float* cd = (float*)boat_tensor_data(contig);
         float expected[] = {0, 2, 4, 6};
-        for (int i = 0; i < 4; i++) assert(cd[i] == expected[i]);
-        boat_tensor_unref(t); boat_tensor_unref(sl); boat_tensor_unref(contig);
+        for (int i = 0; i < 4; i++)
+            assert(cd[i] == expected[i]);
+        boat_tensor_unref(t);
+        boat_tensor_unref(sl);
+        boat_tensor_unref(contig);
     }
 
     // Regression: zero step is rejected.

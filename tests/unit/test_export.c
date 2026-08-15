@@ -10,21 +10,13 @@ int main() {
     }
 
     // Try to get addresses of some key functions
-    void* funcs[] = {
-        GetProcAddress(hDll, "boat_tensor_create"),
-        GetProcAddress(hDll, "boat_tensor_unref"),
-        GetProcAddress(hDll, "boat_variable_create"),
-        GetProcAddress(hDll, "boat_variable_free"),
-        NULL
-    };
+    void* funcs[] = {GetProcAddress(hDll, "boat_tensor_create"),
+                     GetProcAddress(hDll, "boat_tensor_unref"),
+                     GetProcAddress(hDll, "boat_variable_create"),
+                     GetProcAddress(hDll, "boat_variable_free"), NULL};
 
-    const char* names[] = {
-        "boat_tensor_create",
-        "boat_tensor_unref",
-        "boat_variable_create",
-        "boat_variable_free",
-        NULL
-    };
+    const char* names[] = {"boat_tensor_create", "boat_tensor_unref", "boat_variable_create",
+                           "boat_variable_free", NULL};
 
     printf("Checking exported functions from boat.dll:\n");
     for (int i = 0; names[i] != NULL; i++) {

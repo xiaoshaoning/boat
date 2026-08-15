@@ -25,11 +25,10 @@ static void heap_free(void* ptr) {
     HeapFree(GetProcessHeap(), 0, ptr);
 }
 #else
-#define heap_malloc(sz)       malloc(sz)
+#define heap_malloc(sz) malloc(sz)
 #define heap_realloc(ptr, sz) realloc(ptr, sz)
-#define heap_free(ptr)        free(ptr)
+#define heap_free(ptr) free(ptr)
 #endif
-
 
 // Global memory statistics
 static boat_memory_stats_t g_memory_stats = {0};
@@ -64,8 +63,7 @@ static void update_free_stats(size_t size) {
 }
 
 // Public API implementation
-BOAT_API void* boat_memory_allocate(size_t size, boat_device_t device,
-                           const char* file, int line) {
+BOAT_API void* boat_memory_allocate(size_t size, boat_device_t device, const char* file, int line) {
     if (size == 0) {
         return NULL;
     }
@@ -76,8 +74,8 @@ BOAT_API void* boat_memory_allocate(size_t size, boat_device_t device,
     // Allocate memory
     boat_memory_header_t* header = (boat_memory_header_t*)heap_malloc(total_size);
     if (!header) {
-        boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[Memory] Allocation of %zu bytes failed at %s:%d\n",
-                size, file, line);
+        boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY,
+                        "[Memory] Allocation of %zu bytes failed at %s:%d\n", size, file, line);
         return NULL;
     }
 
@@ -94,8 +92,8 @@ BOAT_API void* boat_memory_allocate(size_t size, boat_device_t device,
     return (void*)(header + 1);
 }
 
-BOAT_API void* boat_memory_allocate_zero(size_t size, boat_device_t device,
-                                const char* file, int line) {
+BOAT_API void* boat_memory_allocate_zero(size_t size, boat_device_t device, const char* file,
+                                         int line) {
     void* ptr = boat_memory_allocate(size, device, file, line);
     if (ptr) {
         memset(ptr, 0, size);
@@ -104,7 +102,7 @@ BOAT_API void* boat_memory_allocate_zero(size_t size, boat_device_t device,
 }
 
 BOAT_API void* boat_memory_reallocate(void* ptr, size_t new_size, boat_device_t device,
-                             const char* file, int line) {
+                                      const char* file, int line) {
     if (!ptr) {
         return boat_memory_allocate(new_size, device, file, line);
     }
@@ -122,8 +120,9 @@ BOAT_API void* boat_memory_reallocate(void* ptr, size_t new_size, boat_device_t 
     size_t total_size = sizeof(boat_memory_header_t) + new_size;
     boat_memory_header_t* new_header = (boat_memory_header_t*)heap_realloc(old_header, total_size);
     if (!new_header) {
-        boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[Memory] Reallocation of %zu bytes failed at %s:%d\n",
-                new_size, file, line);
+        boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY,
+                        "[Memory] Reallocation of %zu bytes failed at %s:%d\n", new_size, file,
+                        line);
         return NULL;
     }
 
@@ -179,11 +178,11 @@ BOAT_API void boat_memory_print_stats(FILE* stream) {
     boat_memory_stats_t stats = boat_memory_get_stats();
 
     fprintf(stream, "=== Memory Statistics ===\n");
-    fprintf(stream, "Currently allocated: %zu bytes in %zu blocks\n",
-            stats.allocated_bytes, stats.allocated_blocks);
+    fprintf(stream, "Currently allocated: %zu bytes in %zu blocks\n", stats.allocated_bytes,
+            stats.allocated_blocks);
     fprintf(stream, "Peak allocation: %zu bytes\n", stats.peak_allocated_bytes);
-    fprintf(stream, "Total freed: %zu bytes in %zu blocks\n",
-            stats.freed_bytes, stats.freed_blocks);
+    fprintf(stream, "Total freed: %zu bytes in %zu blocks\n", stats.freed_bytes,
+            stats.freed_blocks);
 
     if (stats.allocated_blocks > 0) {
         fprintf(stream, "Average block size: %.2f bytes\n",
@@ -192,15 +191,16 @@ BOAT_API void boat_memory_print_stats(FILE* stream) {
 }
 
 // Device-specific memory allocation
-BOAT_API void* boat_memory_allocate_device(size_t size, boat_device_t device,
-                                  const char* file, int line) {
+BOAT_API void* boat_memory_allocate_device(size_t size, boat_device_t device, const char* file,
+                                           int line) {
     if (size == 0) return NULL;
 #ifdef BOAT_WITH_CUDA
     if (device == BOAT_DEVICE_CUDA) {
         void* ptr = boat_cuda_malloc(size);
         if (!ptr) {
-            boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[Memory] CUDA allocation of %zu bytes failed at %s:%d\n",
-                    size, file, line);
+            boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY,
+                            "[Memory] CUDA allocation of %zu bytes failed at %s:%d\n", size, file,
+                            line);
             return NULL;
         }
         return ptr;
@@ -223,9 +223,8 @@ BOAT_API void boat_memory_free_device(void* ptr, boat_device_t device) {
 }
 
 // Alignment functions
-BOAT_API void* boat_memory_allocate_aligned(size_t size, size_t alignment,
-                                   boat_device_t device,
-                                   const char* file, int line) {
+BOAT_API void* boat_memory_allocate_aligned(size_t size, size_t alignment, boat_device_t device,
+                                            const char* file, int line) {
     // Normalize alignment to a power of two >= sizeof(void*) so the two
     // bookkeeping slots stored just before the aligned address always fit
     // inside the allocation.
@@ -234,7 +233,8 @@ BOAT_API void* boat_memory_allocate_aligned(size_t size, size_t alignment,
     }
     if ((alignment & (alignment - 1)) != 0) {
         size_t power = 1;
-        while (power < alignment) power <<= 1;
+        while (power < alignment)
+            power <<= 1;
         alignment = power;
     }
 
@@ -245,8 +245,8 @@ BOAT_API void* boat_memory_allocate_aligned(size_t size, size_t alignment,
     }
 
     uintptr_t addr = (uintptr_t)ptr;
-    uintptr_t aligned_addr = (addr + 2 * sizeof(void*) + (alignment - 1))
-                             & ~((uintptr_t)alignment - 1);
+    uintptr_t aligned_addr =
+        (addr + 2 * sizeof(void*) + (alignment - 1)) & ~((uintptr_t)alignment - 1);
 
     // Store the original pointer (and the size, for introspection) immediately
     // before the aligned address.
@@ -270,8 +270,8 @@ BOAT_API void boat_memory_free_aligned(const void* aligned_ptr) {
 }
 
 // Memory copy functions
-BOAT_API void boat_memory_copy(void* dest, const void* src, size_t size,
-                      boat_device_t dest_device, boat_device_t src_device) {
+BOAT_API void boat_memory_copy(void* dest, const void* src, size_t size, boat_device_t dest_device,
+                               boat_device_t src_device) {
     if (dest_device == BOAT_DEVICE_CPU && src_device == BOAT_DEVICE_CPU) {
         memcpy(dest, src, size);
 #ifdef BOAT_WITH_CUDA
@@ -283,7 +283,8 @@ BOAT_API void boat_memory_copy(void* dest, const void* src, size_t size,
         boat_cuda_memcpy_d2d(dest, src, size);
 #endif
     } else {
-        boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Memory] Cross-device memory copy not implemented yet\n");
+        boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED,
+                        "[Memory] Cross-device memory copy not implemented yet\n");
     }
 }
 
@@ -295,7 +296,8 @@ BOAT_API void boat_memory_set(void* dest, int value, size_t size, boat_device_t 
         boat_cuda_memset(dest, value, size);
 #endif
     } else {
-        boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED, "[Memory] Device-specific memset not implemented yet\n");
+        boat_set_errorf(BOAT_ERROR_NOT_IMPLEMENTED,
+                        "[Memory] Device-specific memset not implemented yet\n");
     }
 }
 
@@ -303,7 +305,8 @@ BOAT_API void boat_memory_set(void* dest, int value, size_t size, boat_device_t 
 #ifdef BOAT_MEMORY_DEBUG
 #define boat_malloc(size, device) boat_memory_allocate(size, device, __FILE__, __LINE__)
 #define boat_calloc(size, device) boat_memory_allocate_zero(size, device, __FILE__, __LINE__)
-#define boat_realloc(ptr, size, device) boat_memory_reallocate(ptr, size, device, __FILE__, __LINE__)
+#define boat_realloc(ptr, size, device)                                                            \
+    boat_memory_reallocate(ptr, size, device, __FILE__, __LINE__)
 #define boat_free(ptr) boat_memory_free(ptr)
 #else
 #define boat_malloc(size, device) boat_memory_allocate(size, device, NULL, 0)
@@ -321,7 +324,7 @@ typedef struct boat_memory_block_t {
     struct boat_memory_block_t* next;
     bool in_use;
     size_t size;
-    uint8_t data[];  // Flexible array member for actual data
+    uint8_t data[]; // Flexible array member for actual data
 } boat_memory_block_t;
 
 // Memory pool structure
@@ -420,10 +423,11 @@ BOAT_API void boat_memory_pool_free_block(boat_memory_pool_t* pool, void* block_
     }
 
     // Get block header from data pointer
-    boat_memory_block_t* block = (boat_memory_block_t*)((uint8_t*)block_ptr - sizeof(boat_memory_block_t));
+    boat_memory_block_t* block =
+        (boat_memory_block_t*)((uint8_t*)block_ptr - sizeof(boat_memory_block_t));
 
     if (!block->in_use) {
-        return;  // Already free
+        return; // Already free
     }
 
     // Remove from used list
@@ -482,7 +486,7 @@ BOAT_API size_t boat_memory_pool_total_memory(const boat_memory_pool_t* pool) {
 
 BOAT_API boat_memory_arena_t* boat_memory_arena_create(size_t initial_size) {
     if (initial_size == 0) {
-        initial_size = 1024 * 1024;  // Default 1MB
+        initial_size = 1024 * 1024; // Default 1MB
     }
 
     boat_memory_arena_t* arena = (boat_memory_arena_t*)heap_malloc(sizeof(boat_memory_arena_t));

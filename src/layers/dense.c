@@ -24,12 +24,16 @@ struct boat_dense_layer_t {
     boat_tensor_t* grad_bias;
 
     // Cache for backward pass
-    boat_tensor_t* cache_input;  // Input tensor from forward pass
+    boat_tensor_t* cache_input; // Input tensor from forward pass
 };
 
-BOAT_API boat_dense_layer_t* BOAT_CALL boat_dense_layer_create(size_t input_features, size_t output_features, bool use_bias) {
-    BOAT_DEBUG_PRINT("DEBUG dense_create called: in=%zu, out=%zu, bias=%d\n", input_features, output_features, use_bias);
-    boat_dense_layer_t* layer = (boat_dense_layer_t*)boat_malloc(sizeof(boat_dense_layer_t), BOAT_DEVICE_CPU);
+BOAT_API boat_dense_layer_t* BOAT_CALL boat_dense_layer_create(size_t input_features,
+                                                               size_t output_features,
+                                                               bool use_bias) {
+    BOAT_DEBUG_PRINT("DEBUG dense_create called: in=%zu, out=%zu, bias=%d\n", input_features,
+                     output_features, use_bias);
+    boat_dense_layer_t* layer =
+        (boat_dense_layer_t*)boat_malloc(sizeof(boat_dense_layer_t), BOAT_DEVICE_CPU);
     if (!layer) {
         BOAT_DEBUG_PRINT("DEBUG dense_create: malloc failed\n");
         return NULL;
@@ -43,7 +47,7 @@ BOAT_API boat_dense_layer_t* BOAT_CALL boat_dense_layer_create(size_t input_feat
     layer->grad_bias = NULL;
 
     // Create weight tensor
-    const int64_t weight_shape[] = { (int64_t)input_features, (int64_t)output_features };
+    const int64_t weight_shape[] = {(int64_t)input_features, (int64_t)output_features};
     layer->weight = boat_tensor_create(weight_shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!layer->weight) {
         boat_free(layer);
@@ -61,7 +65,7 @@ BOAT_API boat_dense_layer_t* BOAT_CALL boat_dense_layer_create(size_t input_feat
     }
 
     // Create bias tensor if requested
-    const int64_t bias_shape[] = { (int64_t)output_features };
+    const int64_t bias_shape[] = {(int64_t)output_features};
     if (use_bias) {
         layer->bias = boat_tensor_create(bias_shape, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
         if (!layer->bias) {
@@ -118,15 +122,26 @@ BOAT_API void BOAT_CALL boat_dense_layer_free(boat_dense_layer_t* layer) {
         return;
     }
 
-    if (layer->weight) { boat_tensor_free(layer->weight); }
-    if (layer->bias) { boat_tensor_free(layer->bias); }
-    if (layer->grad_weight) { boat_tensor_free(layer->grad_weight); }
-    if (layer->grad_bias) { boat_tensor_free(layer->grad_bias); }
-    if (layer->cache_input) { boat_tensor_unref(layer->cache_input); }
+    if (layer->weight) {
+        boat_tensor_free(layer->weight);
+    }
+    if (layer->bias) {
+        boat_tensor_free(layer->bias);
+    }
+    if (layer->grad_weight) {
+        boat_tensor_free(layer->grad_weight);
+    }
+    if (layer->grad_bias) {
+        boat_tensor_free(layer->grad_bias);
+    }
+    if (layer->cache_input) {
+        boat_tensor_unref(layer->cache_input);
+    }
     boat_free(layer);
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_forward(boat_dense_layer_t* layer, const boat_tensor_t* input) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_forward(boat_dense_layer_t* layer,
+                                                           const boat_tensor_t* input) {
     if (!layer || !input) {
         return NULL;
     }
@@ -144,10 +159,11 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_forward(boat_dense_layer_t* l
     boat_tensor_t* dequantized_weight = NULL;
     const boat_tensor_t* effective_weight = layer->weight;
     boat_dtype_t wdt = boat_tensor_dtype(layer->weight);
-    bool is_quantized = (wdt == BOAT_DTYPE_UINT8 || wdt == BOAT_DTYPE_INT8 ||
-                         wdt == BOAT_DTYPE_BITS2 || wdt == BOAT_DTYPE_BITS1 ||
-                         wdt == BOAT_DTYPE_FLOAT4);
-    if (is_quantized && (wdt == BOAT_DTYPE_FLOAT4 || boat_tensor_get_scale(layer->weight) != 0.0f)) {
+    bool is_quantized =
+        (wdt == BOAT_DTYPE_UINT8 || wdt == BOAT_DTYPE_INT8 || wdt == BOAT_DTYPE_BITS2 ||
+         wdt == BOAT_DTYPE_BITS1 || wdt == BOAT_DTYPE_FLOAT4);
+    if (is_quantized &&
+        (wdt == BOAT_DTYPE_FLOAT4 || boat_tensor_get_scale(layer->weight) != 0.0f)) {
         if (boat_tensor_is_per_channel(layer->weight)) {
             dequantized_weight = boat_dequantize_tensor_per_channel(layer->weight);
         } else {
@@ -209,7 +225,8 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_forward(boat_dense_layer_t* l
     return output;
 }
 
-BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_dense_layer_backward(boat_dense_layer_t* layer, const boat_tensor_t* grad_output) {
+BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL
+boat_dense_layer_backward(boat_dense_layer_t* layer, const boat_tensor_t* grad_output) {
     if (!layer || !grad_output || !layer->cache_input) {
         return NULL;
     }
@@ -232,8 +249,7 @@ BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_dense_layer_backward(boat_d
     int64_t output_features = grad_output_shape[1];
 
     if (input_features != (int64_t)layer->input_features ||
-        output_features != (int64_t)layer->output_features ||
-        grad_output_shape[0] != batch) {
+        output_features != (int64_t)layer->output_features || grad_output_shape[0] != batch) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[DenseLayer] Backward shape mismatch\n");
         return NULL;
     }
@@ -315,7 +331,8 @@ BOAT_API BOAT_NOINLINE boat_tensor_t* BOAT_CALL boat_dense_layer_backward(boat_d
     return grad_input;
 }
 
-BOAT_API BOAT_NOINLINE void BOAT_CALL boat_dense_layer_update(boat_dense_layer_t* layer, float learning_rate) {
+BOAT_API BOAT_NOINLINE void BOAT_CALL boat_dense_layer_update(boat_dense_layer_t* layer,
+                                                              float learning_rate) {
     if (!layer) return;
 
     // Update weight: weight = weight - learning_rate * grad_weight
@@ -349,7 +366,8 @@ BOAT_API BOAT_NOINLINE void BOAT_CALL boat_dense_layer_update(boat_dense_layer_t
     }
 }
 
-BOAT_API void BOAT_CALL boat_dense_layer_set_weight(boat_dense_layer_t* layer, boat_tensor_t* weight) {
+BOAT_API void BOAT_CALL boat_dense_layer_set_weight(boat_dense_layer_t* layer,
+                                                    boat_tensor_t* weight) {
     if (!layer || !weight) {
         return;
     }
@@ -357,8 +375,10 @@ BOAT_API void BOAT_CALL boat_dense_layer_set_weight(boat_dense_layer_t* layer, b
     const int64_t* weight_shape = boat_tensor_shape(weight);
     if (weight_shape[0] != (int64_t)layer->input_features ||
         weight_shape[1] != (int64_t)layer->output_features) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[DenseLayer] Weight shape [%lld, %lld] does not match layer dimensions [%zu, %zu]\n",
-                weight_shape[0], weight_shape[1], layer->input_features, layer->output_features);
+        boat_set_errorf(
+            BOAT_ERROR_INVALID_ARGUMENT,
+            "[DenseLayer] Weight shape [%lld, %lld] does not match layer dimensions [%zu, %zu]\n",
+            weight_shape[0], weight_shape[1], layer->input_features, layer->output_features);
         return;
     }
     // Replace weight tensor
@@ -374,14 +394,16 @@ BOAT_API void BOAT_CALL boat_dense_layer_set_bias(boat_dense_layer_t* layer, boa
         return;
     }
     if (!layer->use_bias) {
-        BOAT_DEBUG_PRINT("[DenseLayer] Warning: Layer was created without bias, ignoring bias tensor\n");
+        BOAT_DEBUG_PRINT(
+            "[DenseLayer] Warning: Layer was created without bias, ignoring bias tensor\n");
         return;
     }
     // Check bias shape matches output features
     const int64_t* bias_shape = boat_tensor_shape(bias);
     if (bias_shape[0] != (int64_t)layer->output_features) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[DenseLayer] Bias shape [%lld] does not match output features %zu\n",
-                bias_shape[0], layer->output_features);
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                        "[DenseLayer] Bias shape [%lld] does not match output features %zu\n",
+                        bias_shape[0], layer->output_features);
         return;
     }
     // Replace bias tensor
@@ -405,14 +427,14 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_get_bias(const boat_dense_lay
 }
 
 // Get weight gradient tensor (lazily created, zero-filled)
-BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_get_grad_weight(const boat_dense_layer_t* layer) {
+BOAT_API boat_tensor_t* BOAT_CALL
+boat_dense_layer_get_grad_weight(const boat_dense_layer_t* layer) {
     if (!layer) return NULL;
     boat_dense_layer_t* l = (boat_dense_layer_t*)layer;
     if (!l->grad_weight) {
         l->grad_weight = boat_tensor_create_like(l->weight);
         if (l->grad_weight) {
-            boat_memory_set(boat_tensor_data(l->grad_weight), 0,
-                            boat_tensor_nbytes(l->grad_weight),
+            boat_memory_set(boat_tensor_data(l->grad_weight), 0, boat_tensor_nbytes(l->grad_weight),
                             boat_tensor_device(l->grad_weight));
         }
     }
@@ -426,8 +448,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_dense_layer_get_grad_bias(const boat_dens
     if (!l->grad_bias) {
         l->grad_bias = boat_tensor_create_like(l->bias);
         if (l->grad_bias) {
-            boat_memory_set(boat_tensor_data(l->grad_bias), 0,
-                            boat_tensor_nbytes(l->grad_bias),
+            boat_memory_set(boat_tensor_data(l->grad_bias), 0, boat_tensor_nbytes(l->grad_bias),
                             boat_tensor_device(l->grad_bias));
         }
     }

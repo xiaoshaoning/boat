@@ -19,10 +19,10 @@ struct boat_lstm_layer_t {
     float dropout;
 
     // Parameters (weights and biases)
-    boat_tensor_t* weight_ih;   // Input-hidden weights [input_size, 4*hidden]
-    boat_tensor_t* weight_hh;   // Hidden-hidden weights [hidden_size, 4*hidden]
-    boat_tensor_t* bias_ih;     // Input-hidden biases [4*hidden]
-    boat_tensor_t* bias_hh;     // Hidden-hidden biases [4*hidden]
+    boat_tensor_t* weight_ih; // Input-hidden weights [input_size, 4*hidden]
+    boat_tensor_t* weight_hh; // Hidden-hidden weights [hidden_size, 4*hidden]
+    boat_tensor_t* bias_ih;   // Input-hidden biases [4*hidden]
+    boat_tensor_t* bias_hh;   // Hidden-hidden biases [4*hidden]
 
     // Gradient accumulators for training
     boat_tensor_t* grad_weight_ih;
@@ -35,12 +35,12 @@ struct boat_lstm_layer_t {
     boat_tensor_t* cell_state;
 
     // Cached states for backward pass
-    boat_tensor_t* cache_input;   // Input tensor [batch, seq_len, input_size]
+    boat_tensor_t* cache_input; // Input tensor [batch, seq_len, input_size]
     size_t cache_seq_len;
     size_t cache_batch;
-    float** cache_gates;          // Raw gate pre-activations per timestep
-    float** cache_h;              // Hidden state per timestep [batch, hidden]
-    float** cache_c;              // Cell state per timestep [batch, hidden]
+    float** cache_gates; // Raw gate pre-activations per timestep
+    float** cache_h;     // Hidden state per timestep [batch, hidden]
+    float** cache_c;     // Cell state per timestep [batch, hidden]
 };
 
 // LSTM gate layout: 4 * hidden_size, ordered as [input, forget, cell, output].
@@ -52,8 +52,8 @@ static float lstm_sigmoid_f32(float x) {
 }
 
 // c[m, n] = a[m, k] @ b[k, n]
-static void lstm_matmul_f32(const float* a, const float* b, float* c,
-                            size_t m, size_t k, size_t n) {
+static void lstm_matmul_f32(const float* a, const float* b, float* c, size_t m, size_t k,
+                            size_t n) {
     for (size_t i = 0; i < m; i++) {
         for (size_t j = 0; j < n; j++) {
             float sum = 0.0f;
@@ -66,8 +66,7 @@ static void lstm_matmul_f32(const float* a, const float* b, float* c,
 }
 
 // c[m, n] = a[m, k] @ b[n, k]^T  (b stored as [n, k])
-static void lstm_matmul_bt(const float* a, const float* b, float* c,
-                           size_t m, size_t k, size_t n) {
+static void lstm_matmul_bt(const float* a, const float* b, float* c, size_t m, size_t k, size_t n) {
     for (size_t i = 0; i < m; i++) {
         for (size_t j = 0; j < n; j++) {
             float sum = 0.0f;
@@ -80,8 +79,7 @@ static void lstm_matmul_bt(const float* a, const float* b, float* c,
 }
 
 // c[m, n] = a[k, m]^T @ b[k, n]  (a stored as [k, m])
-static void lstm_matmul_at(const float* a, const float* b, float* c,
-                           size_t k, size_t m, size_t n) {
+static void lstm_matmul_at(const float* a, const float* b, float* c, size_t k, size_t m, size_t n) {
     for (size_t i = 0; i < m; i++) {
         for (size_t j = 0; j < n; j++) {
             float sum = 0.0f;
@@ -143,12 +141,12 @@ static void lstm_update_tensor(boat_tensor_t* w, boat_tensor_t* gw, float learni
     memset(gd, 0, n * sizeof(float));
 }
 
-
 // Create LSTM layer
 BOAT_API boat_lstm_layer_t* BOAT_CALL boat_lstm_layer_create(size_t input_size, size_t hidden_size,
-                                          size_t num_layers, bool bidirectional,
-                                          float dropout) {
-    boat_lstm_layer_t* layer = (boat_lstm_layer_t*)boat_malloc(sizeof(boat_lstm_layer_t), BOAT_DEVICE_CPU);
+                                                             size_t num_layers, bool bidirectional,
+                                                             float dropout) {
+    boat_lstm_layer_t* layer =
+        (boat_lstm_layer_t*)boat_malloc(sizeof(boat_lstm_layer_t), BOAT_DEVICE_CPU);
     if (!layer) {
         return NULL;
     }
@@ -205,7 +203,8 @@ BOAT_API void BOAT_CALL boat_lstm_layer_free(boat_lstm_layer_t* layer) {
 }
 
 // Forward pass
-BOAT_API boat_tensor_t* BOAT_CALL boat_lstm_layer_forward(boat_lstm_layer_t* layer, const boat_tensor_t* input) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_lstm_layer_forward(boat_lstm_layer_t* layer,
+                                                          const boat_tensor_t* input) {
     if (!layer || !input) {
         return NULL;
     }
@@ -263,7 +262,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_lstm_layer_forward(boat_lstm_layer_t* lay
     }
 
     // Output tensor [batch, seq_len, hidden]
-    const int64_t out_shape[] = { (int64_t)batch, (int64_t)seq_len, (int64_t)hidden };
+    const int64_t out_shape[] = {(int64_t)batch, (int64_t)seq_len, (int64_t)hidden};
     boat_tensor_t* output = boat_tensor_create(out_shape, 3, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!output) {
         lstm_clear_cache(layer);
@@ -331,7 +330,8 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_lstm_layer_forward(boat_lstm_layer_t* lay
         }
 
         // Cache raw gates, hidden and cell states for the backward pass
-        layer->cache_gates[t] = (float*)boat_malloc(batch * gate_dim * sizeof(float), BOAT_DEVICE_CPU);
+        layer->cache_gates[t] =
+            (float*)boat_malloc(batch * gate_dim * sizeof(float), BOAT_DEVICE_CPU);
         layer->cache_h[t] = (float*)boat_malloc(batch * hidden * sizeof(float), BOAT_DEVICE_CPU);
         layer->cache_c[t] = (float*)boat_malloc(batch * hidden * sizeof(float), BOAT_DEVICE_CPU);
         if (!layer->cache_gates[t] || !layer->cache_h[t] || !layer->cache_c[t]) {
@@ -374,7 +374,8 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_lstm_layer_forward(boat_lstm_layer_t* lay
 }
 
 // Backward pass
-BOAT_API boat_tensor_t* BOAT_CALL boat_lstm_layer_backward(boat_lstm_layer_t* layer, const boat_tensor_t* grad_output) {
+BOAT_API boat_tensor_t* BOAT_CALL boat_lstm_layer_backward(boat_lstm_layer_t* layer,
+                                                           const boat_tensor_t* grad_output) {
     if (!layer || !grad_output) {
         return NULL;
     }
@@ -393,16 +394,15 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_lstm_layer_backward(boat_lstm_layer_t* la
 
     // Validate grad_output shape [batch, seq_len, hidden]
     const int64_t* go_shape = boat_tensor_shape(grad_output);
-    if (boat_tensor_ndim(grad_output) != 3 ||
-        (size_t)go_shape[0] != batch ||
-        (size_t)go_shape[1] != seq_len ||
-        (size_t)go_shape[2] != hidden) {
+    if (boat_tensor_ndim(grad_output) != 3 || (size_t)go_shape[0] != batch ||
+        (size_t)go_shape[1] != seq_len || (size_t)go_shape[2] != hidden) {
         return NULL;
     }
 
     // Gradient w.r.t. input [batch, seq_len, input_size]
-    const int64_t in_shape[] = { (int64_t)batch, (int64_t)seq_len, (int64_t)input_size };
-    boat_tensor_t* grad_input = boat_tensor_create(in_shape, 3, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    const int64_t in_shape[] = {(int64_t)batch, (int64_t)seq_len, (int64_t)input_size};
+    boat_tensor_t* grad_input =
+        boat_tensor_create(in_shape, 3, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!grad_input) {
         return NULL;
     }
@@ -417,28 +417,33 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_lstm_layer_backward(boat_lstm_layer_t* la
     if (!layer->grad_weight_ih) {
         layer->grad_weight_ih = boat_tensor_create_like(layer->weight_ih);
         if (layer->grad_weight_ih) {
-            memset(boat_tensor_data(layer->grad_weight_ih), 0, boat_tensor_nbytes(layer->grad_weight_ih));
+            memset(boat_tensor_data(layer->grad_weight_ih), 0,
+                   boat_tensor_nbytes(layer->grad_weight_ih));
         }
     }
     if (!layer->grad_weight_hh) {
         layer->grad_weight_hh = boat_tensor_create_like(layer->weight_hh);
         if (layer->grad_weight_hh) {
-            memset(boat_tensor_data(layer->grad_weight_hh), 0, boat_tensor_nbytes(layer->grad_weight_hh));
+            memset(boat_tensor_data(layer->grad_weight_hh), 0,
+                   boat_tensor_nbytes(layer->grad_weight_hh));
         }
     }
     if (!layer->grad_bias_ih) {
         layer->grad_bias_ih = boat_tensor_create_like(layer->bias_ih);
         if (layer->grad_bias_ih) {
-            memset(boat_tensor_data(layer->grad_bias_ih), 0, boat_tensor_nbytes(layer->grad_bias_ih));
+            memset(boat_tensor_data(layer->grad_bias_ih), 0,
+                   boat_tensor_nbytes(layer->grad_bias_ih));
         }
     }
     if (!layer->grad_bias_hh) {
         layer->grad_bias_hh = boat_tensor_create_like(layer->bias_hh);
         if (layer->grad_bias_hh) {
-            memset(boat_tensor_data(layer->grad_bias_hh), 0, boat_tensor_nbytes(layer->grad_bias_hh));
+            memset(boat_tensor_data(layer->grad_bias_hh), 0,
+                   boat_tensor_nbytes(layer->grad_bias_hh));
         }
     }
-    if (!layer->grad_weight_ih || !layer->grad_weight_hh || !layer->grad_bias_ih || !layer->grad_bias_hh) {
+    if (!layer->grad_weight_ih || !layer->grad_weight_hh || !layer->grad_bias_ih ||
+        !layer->grad_bias_hh) {
         boat_tensor_free(grad_input);
         return NULL;
     }
@@ -456,7 +461,8 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_lstm_layer_backward(boat_lstm_layer_t* la
     float* d_h_next = (float*)boat_malloc(batch * hidden * sizeof(float), BOAT_DEVICE_CPU);
     float* d_c_next = (float*)boat_malloc(batch * hidden * sizeof(float), BOAT_DEVICE_CPU);
     // Scratch for grad_W = x^T @ d_gates: needs max(input_size, hidden) * gate_dim
-    float* acc = (float*)boat_malloc(((input_size > hidden ? input_size : hidden) * gate_dim) * sizeof(float), BOAT_DEVICE_CPU);
+    float* acc = (float*)boat_malloc(
+        ((input_size > hidden ? input_size : hidden) * gate_dim) * sizeof(float), BOAT_DEVICE_CPU);
     float* acc_bias = (float*)boat_malloc(gate_dim * sizeof(float), BOAT_DEVICE_CPU);
     if (!d_gates || !d_x_t || !d_h || !d_c || !d_h_next || !d_c_next || !acc || !acc_bias) {
         boat_free(d_gates);
@@ -580,13 +586,15 @@ BOAT_API void BOAT_CALL boat_lstm_layer_update(boat_lstm_layer_t* layer, float l
 }
 
 // Parameter setters for model loading
-BOAT_API void BOAT_CALL boat_lstm_layer_set_weight_ih(boat_lstm_layer_t* layer, boat_tensor_t* weight) {
+BOAT_API void BOAT_CALL boat_lstm_layer_set_weight_ih(boat_lstm_layer_t* layer,
+                                                      boat_tensor_t* weight) {
     if (layer->weight_ih) boat_tensor_unref(layer->weight_ih);
     layer->weight_ih = weight;
     if (weight) boat_tensor_ref(weight);
 }
 
-BOAT_API void BOAT_CALL boat_lstm_layer_set_weight_hh(boat_lstm_layer_t* layer, boat_tensor_t* weight) {
+BOAT_API void BOAT_CALL boat_lstm_layer_set_weight_hh(boat_lstm_layer_t* layer,
+                                                      boat_tensor_t* weight) {
     if (layer->weight_hh) boat_tensor_unref(layer->weight_hh);
     layer->weight_hh = weight;
     if (weight) boat_tensor_ref(weight);
@@ -605,12 +613,14 @@ BOAT_API void BOAT_CALL boat_lstm_layer_set_bias_hh(boat_lstm_layer_t* layer, bo
 }
 
 // Gradient tensor getters
-BOAT_API boat_tensor_t* BOAT_CALL boat_lstm_layer_get_grad_weight_ih(const boat_lstm_layer_t* layer) {
+BOAT_API boat_tensor_t* BOAT_CALL
+boat_lstm_layer_get_grad_weight_ih(const boat_lstm_layer_t* layer) {
     if (!layer) return NULL;
     return layer->grad_weight_ih;
 }
 
-BOAT_API boat_tensor_t* BOAT_CALL boat_lstm_layer_get_grad_weight_hh(const boat_lstm_layer_t* layer) {
+BOAT_API boat_tensor_t* BOAT_CALL
+boat_lstm_layer_get_grad_weight_hh(const boat_lstm_layer_t* layer) {
     if (!layer) return NULL;
     return layer->grad_weight_hh;
 }

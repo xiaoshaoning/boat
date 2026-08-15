@@ -14,16 +14,18 @@
 #endif
 
 // Forward declaration for dispatch
-float cross_entropy_loss_compute(boat_loss_t* loss_ptr, const void* predictions_ptr, const void* targets_ptr);
+float cross_entropy_loss_compute(boat_loss_t* loss_ptr, const void* predictions_ptr,
+                                 const void* targets_ptr);
 
 // Cross entropy loss structure
 typedef struct {
-    boat_loss_type_t type;  // Always BOAT_LOSS_CROSS_ENTROPY
+    boat_loss_type_t type; // Always BOAT_LOSS_CROSS_ENTROPY
 } cross_entropy_loss_t;
 
 // Create cross entropy loss function
 BOAT_API boat_loss_t* boat_cross_entropy_loss_create() {
-    cross_entropy_loss_t* loss = (cross_entropy_loss_t*)boat_malloc(sizeof(cross_entropy_loss_t), BOAT_DEVICE_CPU);
+    cross_entropy_loss_t* loss =
+        (cross_entropy_loss_t*)boat_malloc(sizeof(cross_entropy_loss_t), BOAT_DEVICE_CPU);
     if (!loss) {
         return NULL;
     }
@@ -45,7 +47,8 @@ static float clip_for_log(float value, float epsilon) {
 }
 
 // Compute cross entropy loss between predictions and targets
-float cross_entropy_loss_compute(boat_loss_t* loss_ptr, const void* predictions_ptr, const void* targets_ptr) {
+float cross_entropy_loss_compute(boat_loss_t* loss_ptr, const void* predictions_ptr,
+                                 const void* targets_ptr) {
     if (!loss_ptr || !predictions_ptr || !targets_ptr) {
         return 0.0f;
     }
@@ -100,7 +103,8 @@ float cross_entropy_loss_compute(boat_loss_t* loss_ptr, const void* predictions_
 }
 
 // Compute cross entropy backward gradient
-boat_tensor_t* cross_entropy_loss_backward(boat_loss_t* loss_ptr, const void* predictions_ptr, const void* targets_ptr) {
+boat_tensor_t* cross_entropy_loss_backward(boat_loss_t* loss_ptr, const void* predictions_ptr,
+                                           const void* targets_ptr) {
     if (!loss_ptr || !predictions_ptr || !targets_ptr) {
         return NULL;
     }
@@ -156,4 +160,3 @@ boat_tensor_t* cross_entropy_loss_backward(boat_loss_t* loss_ptr, const void* pr
 // We need to implement a dispatch mechanism. For now, we'll create a wrapper.
 // Actually, we need to modify the loss.h API or create a unified dispatch.
 // Let's create a simple dispatch in a separate common file later.
-

@@ -34,20 +34,20 @@ struct needle_model {
     float* embedding;
 
     // Per-layer tensors (rows = layer).
-    float* norm_in;    // [L, d]
-    float* q_proj;     // [L, d, d]
-    float* k_proj;     // [L, d, kv]
-    float* v_proj;     // [L, d, kv]
-    float* q_norm;     // [L, hd]
-    float* k_norm;     // [L, hd]
-    float* gate_proj;  // [L, d, d]
-    float* out_proj;   // [L, d, d]
-    float* post_norm;  // [L, d]
-    float* attn_gate;  // [L]
-    float* pre_hada;   // [L, d]
-    float* d1;         // [L, d]
-    float* d2;         // [L, d]
-    float* d3;         // [L, d]
+    float* norm_in;   // [L, d]
+    float* q_proj;    // [L, d, d]
+    float* k_proj;    // [L, d, kv]
+    float* v_proj;    // [L, d, kv]
+    float* q_norm;    // [L, hd]
+    float* k_norm;    // [L, hd]
+    float* gate_proj; // [L, d, d]
+    float* out_proj;  // [L, d, d]
+    float* post_norm; // [L, d]
+    float* attn_gate; // [L]
+    float* pre_hada;  // [L, d]
+    float* d1;        // [L, d]
+    float* d2;        // [L, d]
+    float* d3;        // [L, d]
 
     // MHC routing.
     float* mhc_a_pre;    // [L]
@@ -61,15 +61,17 @@ struct needle_model {
     float* mhc_phi_res;  // [L*n, n*d]
 
     // Engram sites.
-    float* eg_tables[2];  // [n_tables*slots, sub]
-    float* eg_key[2];     // [d, d]
-    float* eg_value[2];   // [d, d]
-    float* eg_taps[2];    // [taps, d]
+    float* eg_tables[2]; // [n_tables*slots, sub]
+    float* eg_key[2];    // [d, d]
+    float* eg_value[2];  // [d, d]
+    float* eg_taps[2];   // [taps, d]
 
-    float* final_norm;  // [d]
+    float* final_norm; // [d]
 };
 
-const char* needle_model_engine_version(void) { return "needle2-san 0.1 (boat)"; }
+const char* needle_model_engine_version(void) {
+    return "needle2-san 0.1 (boat)";
+}
 
 static void* xcalloc(size_t n, size_t sz) {
     if (n && sz && n > (size_t)-1 / sz) return NULL;
@@ -77,8 +79,8 @@ static void* xcalloc(size_t n, size_t sz) {
 }
 
 // Load one cact tensor into `dst` (already sized by the caller).
-static int load_tensor(needle_model_t* m, const needle_cact_t* c, uint32_t idx,
-                       float* dst, size_t n) {
+static int load_tensor(needle_model_t* m, const needle_cact_t* c, uint32_t idx, float* dst,
+                       size_t n) {
     (void)m;
     int got = needle_cact_tensor_f32(c, idx, dst, n);
     return got == (int)n ? 0 : -1;
@@ -105,9 +107,11 @@ needle_model_t* needle_model_load(const needle_cact_t* cact) {
     m->engram_conv_taps = h->engram_conv_taps;
     m->engram_conv_dilation = h->engram_conv_dilation;
     m->num_engram_orders = h->num_engram_orders;
-    for (uint32_t i = 0; i < 4; i++) m->engram_orders[i] = h->engram_orders[i];
+    for (uint32_t i = 0; i < 4; i++)
+        m->engram_orders[i] = h->engram_orders[i];
     m->num_engram_sites = h->num_engram_sites;
-    for (uint32_t i = 0; i < 4; i++) m->engram_sites[i] = h->engram_sites[i];
+    for (uint32_t i = 0; i < 4; i++)
+        m->engram_sites[i] = h->engram_sites[i];
     m->rope_theta = h->rope_theta;
 
     const uint32_t L = m->num_layers;
@@ -142,12 +146,11 @@ needle_model_t* needle_model_load(const needle_cact_t* cact) {
     m->mhc_phi_post = xcalloc((size_t)L * n * nC, sizeof(float));
     m->mhc_phi_res = xcalloc((size_t)L * n * n * nC, sizeof(float));
     m->final_norm = xcalloc(d, sizeof(float));
-    if (!m->embedding || !m->norm_in || !m->q_proj || !m->k_proj || !m->v_proj ||
-        !m->q_norm || !m->k_norm || !m->gate_proj || !m->out_proj || !m->post_norm ||
-        !m->attn_gate || !m->pre_hada || !m->d1 || !m->d2 || !m->d3 || !m->mhc_a_pre ||
-        !m->mhc_a_post || !m->mhc_a_res || !m->mhc_b_pre || !m->mhc_b_post ||
-        !m->mhc_b_res || !m->mhc_phi_pre || !m->mhc_phi_post || !m->mhc_phi_res ||
-        !m->final_norm) {
+    if (!m->embedding || !m->norm_in || !m->q_proj || !m->k_proj || !m->v_proj || !m->q_norm ||
+        !m->k_norm || !m->gate_proj || !m->out_proj || !m->post_norm || !m->attn_gate ||
+        !m->pre_hada || !m->d1 || !m->d2 || !m->d3 || !m->mhc_a_pre || !m->mhc_a_post ||
+        !m->mhc_a_res || !m->mhc_b_pre || !m->mhc_b_post || !m->mhc_b_res || !m->mhc_phi_pre ||
+        !m->mhc_phi_post || !m->mhc_phi_res || !m->final_norm) {
         needle_model_free(m);
         return NULL;
     }
@@ -261,8 +264,12 @@ void needle_model_free(needle_model_t* m) {
 
 // --- small math helpers ---------------------------------------------------
 
-static inline float sigmoidf(float x) { return 1.0f / (1.0f + expf(-x)); }
-static inline float siluf(float x) { return x * sigmoidf(x); }
+static inline float sigmoidf(float x) {
+    return 1.0f / (1.0f + expf(-x));
+}
+static inline float siluf(float x) {
+    return x * sigmoidf(x);
+}
 
 static float logsumexp4(const float* v) {
     float m = v[0];
@@ -270,7 +277,8 @@ static float logsumexp4(const float* v) {
         if (v[i] > m) m = v[i];
     }
     float s = 0.0f;
-    for (int i = 0; i < 4; i++) s += expf(v[i] - m);
+    for (int i = 0; i < 4; i++)
+        s += expf(v[i] - m);
     return m + logf(s);
 }
 
@@ -296,7 +304,8 @@ static void gemm_xwt(const float* x, const float* W, int S, int D, int O, float*
         for (int o = 0; o < O; o++) {
             const float* wr = W + (size_t)o * D;
             float acc = 0.0f;
-            for (int d = 0; d < D; d++) acc += xr[d] * wr[d];
+            for (int d = 0; d < D; d++)
+                acc += xr[d] * wr[d];
             yr[o] = acc;
         }
     }
@@ -308,9 +317,11 @@ static void zcrms(float* x, const float* scale, int S, int D) {
     for (int s = 0; s < S; s++) {
         float* xr = x + (size_t)s * D;
         float ss = 0.0f;
-        for (int d = 0; d < D; d++) ss += xr[d] * xr[d];
+        for (int d = 0; d < D; d++)
+            ss += xr[d] * xr[d];
         float rms = sqrtf(ss / (float)D + SAN_EPS);
-        for (int d = 0; d < D; d++) xr[d] = (1.0f + scale[d]) * xr[d] / rms;
+        for (int d = 0; d < D; d++)
+            xr[d] = (1.0f + scale[d]) * xr[d] / rms;
     }
 }
 
@@ -321,9 +332,11 @@ static void zcrms_heads(float* x, const float* scale, int S, int H, int hd) {
         for (int h = 0; h < H; h++) {
             float* hr = xr + (size_t)h * hd;
             float ss = 0.0f;
-            for (int i = 0; i < hd; i++) ss += hr[i] * hr[i];
+            for (int i = 0; i < hd; i++)
+                ss += hr[i] * hr[i];
             float rms = sqrtf(ss / (float)hd + SAN_EPS);
-            for (int i = 0; i < hd; i++) hr[i] = (1.0f + scale[i]) * hr[i] / rms;
+            for (int i = 0; i < hd; i++)
+                hr[i] = (1.0f + scale[i]) * hr[i] / rms;
         }
     }
 }
@@ -361,20 +374,25 @@ static void apply_rope(float* q, int H, float* k, int KV, int S, int hd, int pos
 // Sinkhorn (20 iters) on a [4,4] matrix (log-space, row then col normalize).
 static void sinkhorn44(const float* in, float* out) {
     float logk[16];
-    for (int i = 0; i < 16; i++) logk[i] = in[i];
+    for (int i = 0; i < 16; i++)
+        logk[i] = in[i];
     for (int it = 0; it < SAN_SINKHORN_ITERS; it++) {
         for (int r = 0; r < 4; r++) {
             float m = logsumexp4(logk + 4 * r);
-            for (int c = 0; c < 4; c++) logk[4 * r + c] -= m;
+            for (int c = 0; c < 4; c++)
+                logk[4 * r + c] -= m;
         }
         for (int c = 0; c < 4; c++) {
             float col[4];
-            for (int r = 0; r < 4; r++) col[r] = logk[4 * r + c];
+            for (int r = 0; r < 4; r++)
+                col[r] = logk[4 * r + c];
             float m = logsumexp4(col);
-            for (int r = 0; r < 4; r++) logk[4 * r + c] -= m;
+            for (int r = 0; r < 4; r++)
+                logk[4 * r + c] -= m;
         }
     }
-    for (int i = 0; i < 16; i++) out[i] = expf(logk[i]);
+    for (int i = 0; i < 16; i++)
+        out[i] = expf(logk[i]);
 }
 
 // --- engram ---------------------------------------------------------------
@@ -382,8 +400,8 @@ static void sinkhorn44(const float* in, float* out) {
 // Compute engram keys/values for S output positions starting at `pos`.
 // `hist` holds the full token history (zeros beyond the current length).
 static void engram_kv(const needle_model_t* m, const float* tables, const float* key_proj,
-                      const float* value_proj, const float* taps, const int32_t* hist,
-                      uint32_t pos, uint32_t S, float* ek, float* ev) {
+                      const float* value_proj, const float* taps, const int32_t* hist, uint32_t pos,
+                      uint32_t S, float* ek, float* ev) {
     const uint32_t sub = m->engram_sub_dim;
     const uint32_t slots = m->engram_slots;
     const uint32_t n_tables = m->num_engram_tables;
@@ -445,7 +463,8 @@ static void engram_kv(const needle_model_t* m, const float* tables, const float*
         float* vout = ev + (size_t)t * d;
         const float* krow = k + (size_t)t * d;
         memcpy(ek + (size_t)t * d, krow, d * sizeof(float));
-        for (uint32_t c = 0; c < d; c++) vout[c] = 0.0f;
+        for (uint32_t c = 0; c < d; c++)
+            vout[c] = 0.0f;
         for (uint32_t j = 0; j < taps_n; j++) {
             uint32_t back = j * dil;
             if (t < back) continue;
@@ -465,10 +484,9 @@ static void engram_kv(const needle_model_t* m, const float* tables, const float*
 // Forward over S tokens at absolute positions pos..pos+S-1. Writes logits
 // [S, vocab] to `logits`. The KV cache is [L, KV, max_len, hd]; hist is the
 // full token history used by the engram.
-static int forward(const needle_model_t* m, const int32_t* tokens, uint32_t S,
-                   uint32_t pos, float* kv_cache, uint32_t cache_len,
-                   const int32_t* hist, const float* cos_t, const float* sin_t,
-                   float* logits) {
+static int forward(const needle_model_t* m, const int32_t* tokens, uint32_t S, uint32_t pos,
+                   float* kv_cache, uint32_t cache_len, const int32_t* hist, const float* cos_t,
+                   const float* sin_t, float* logits) {
     const uint32_t L = m->num_layers;
     const uint32_t d = m->d_model;
     const uint32_t H = m->num_heads;
@@ -502,8 +520,8 @@ static int forward(const needle_model_t* m, const int32_t* tokens, uint32_t S,
 
     // Score scratch (bounded by the sliding window).
     float* scbuf = (float*)xcalloc((size_t)m->kv_window, sizeof(float));
-    if (!x || !u || !nx || !hpre || !hpost || !res || !hres || !h || !q || !k ||
-        !v || !attn || !gate || !z || !y || !scbuf) {
+    if (!x || !u || !nx || !hpre || !hpost || !res || !hres || !h || !q || !k || !v || !attn ||
+        !gate || !z || !y || !scbuf) {
         goto oom;
     }
 
@@ -526,8 +544,8 @@ static int forward(const needle_model_t* m, const int32_t* tokens, uint32_t S,
         ekv_k[si] = (float*)xcalloc((size_t)S * d, sizeof(float));
         ekv_v[si] = (float*)xcalloc((size_t)S * d, sizeof(float));
         if (!ekv_k[si] || !ekv_v[si]) goto oom;
-        engram_kv(m, m->eg_tables[si], m->eg_key[si], m->eg_value[si], m->eg_taps[si],
-                  hist, pos, S, ekv_k[si], ekv_v[si]);
+        engram_kv(m, m->eg_tables[si], m->eg_key[si], m->eg_value[si], m->eg_taps[si], hist, pos, S,
+                  ekv_k[si], ekv_v[si]);
     }
 
     for (uint32_t li = 0; li < L; li++) {
@@ -536,9 +554,11 @@ static int forward(const needle_model_t* m, const int32_t* tokens, uint32_t S,
             float* xr = x + (size_t)s * n * d;
             float* nr = nx + (size_t)s * nC;
             float ss = 0.0f;
-            for (uint32_t k2 = 0; k2 < nC; k2++) ss += xr[k2] * xr[k2];
+            for (uint32_t k2 = 0; k2 < nC; k2++)
+                ss += xr[k2] * xr[k2];
             float rms = sqrtf(ss / (float)nC + SAN_EPS);
-            for (uint32_t k2 = 0; k2 < nC; k2++) nr[k2] = xr[k2] / rms;
+            for (uint32_t k2 = 0; k2 < nC; k2++)
+                nr[k2] = xr[k2] / rms;
         }
         // hpre, then u = mix lanes.
         // Lane offsets are per-layer: layer i activates lane i % n, so
@@ -552,13 +572,15 @@ static int forward(const needle_model_t* m, const int32_t* tokens, uint32_t S,
             for (uint32_t l = 0; l < n; l++) {
                 const float* phi = m->mhc_phi_pre + ((size_t)li * n + l) * nC;
                 float dot = 0.0f;
-                for (uint32_t k2 = 0; k2 < nC; k2++) dot += nr[k2] * phi[k2];
+                for (uint32_t k2 = 0; k2 < nC; k2++)
+                    dot += nr[k2] * phi[k2];
                 float poff = (l == active) ? 4.0f : -4.0f;
-                float hp = sigmoidf(m->mhc_a_pre[li] * dot + m->mhc_b_pre[(size_t)li * n + l] +
-                                    poff);
+                float hp =
+                    sigmoidf(m->mhc_a_pre[li] * dot + m->mhc_b_pre[(size_t)li * n + l] + poff);
                 hpre[(size_t)s * n + l] = hp;
                 const float* xl = x + ((size_t)s * n + l) * d;
-                for (uint32_t c = 0; c < d; c++) up[c] += hp * xl[c];
+                for (uint32_t c = 0; c < d; c++)
+                    up[c] += hp * xl[c];
             }
         }
 
@@ -581,7 +603,8 @@ static int forward(const needle_model_t* m, const int32_t* tokens, uint32_t S,
                         float rmse = sqrtf(ne / (float)d + SAN_EPS);
                         float alpha = sigmoidf((dot / (rmsu * rmse)) / sqrtf((float)d));
                         float* yr = y + (size_t)s * d;
-                        for (uint32_t c = 0; c < d; c++) yr[c] += alpha * evv[c];
+                        for (uint32_t c = 0; c < d; c++)
+                            yr[c] += alpha * evv[c];
                     }
                     break;
                 }
@@ -633,7 +656,8 @@ static int forward(const needle_model_t* m, const int32_t* tokens, uint32_t S,
                 for (int kp = kmin; kp <= qpos; kp++) {
                     const float* kr = kc + ((size_t)kvh * cache_len + kp) * hd;
                     float acc = 0.0f;
-                    for (uint32_t c = 0; c < hd; c++) acc += qr[c] * kr[c];
+                    for (uint32_t c = 0; c < hd; c++)
+                        acc += qr[c] * kr[c];
                     sc[kp - kmin] = acc / sqrtf((float)hd);
                     if (sc[kp - kmin] > mx) mx = sc[kp - kmin];
                 }
@@ -660,7 +684,8 @@ static int forward(const needle_model_t* m, const int32_t* tokens, uint32_t S,
         for (int s = 0; s < NS; s++) {
             float* gr = z + (size_t)s * d;
             float* ar = attn + (size_t)s * d;
-            for (uint32_t c = 0; c < d; c++) ar[c] *= sigmoidf(gr[c]);
+            for (uint32_t c = 0; c < d; c++)
+                ar[c] *= sigmoidf(gr[c]);
         }
         gemm_xwt(attn, m->out_proj + (size_t)li * d * d, S, (int)d, (int)d, z);
         memcpy(attn, z, (size_t)S * d * sizeof(float));
@@ -671,7 +696,8 @@ static int forward(const needle_model_t* m, const int32_t* tokens, uint32_t S,
         for (int s = 0; s < NS; s++) {
             float* yr = y + (size_t)s * d;
             const float* ar = attn + (size_t)s * d;
-            for (uint32_t c = 0; c < d; c++) yr[c] += ag * ar[c];
+            for (uint32_t c = 0; c < d; c++)
+                yr[c] += ag * ar[c];
         }
         memcpy(h, y, (size_t)S * d * sizeof(float));
         zcrms(h, m->pre_hada + (size_t)li * d, NS, (int)d);
@@ -686,19 +712,25 @@ static int forward(const needle_model_t* m, const int32_t* tokens, uint32_t S,
                 float* hr = h + (size_t)s * d;
                 float* zr = z + (size_t)s * d;
                 // Hadamard MLP on `hr`, output into zr (d == hada_n here).
-                for (uint32_t c = 0; c < d; c++) zr[c] = d1w[c] * hr[c];
+                for (uint32_t c = 0; c < d; c++)
+                    zr[c] = d1w[c] * hr[c];
                 fwht(zr, hn);
-                for (uint32_t c = 0; c < d; c++) zr[c] *= inv;
-                for (uint32_t c = 0; c < d; c++) zr[c] = siluf(d2w[c] * zr[c]);
+                for (uint32_t c = 0; c < d; c++)
+                    zr[c] *= inv;
+                for (uint32_t c = 0; c < d; c++)
+                    zr[c] = siluf(d2w[c] * zr[c]);
                 fwht(zr, hn);
-                for (uint32_t c = 0; c < d; c++) zr[c] *= inv;
-                for (uint32_t c = 0; c < d; c++) zr[c] *= d3w[c];
+                for (uint32_t c = 0; c < d; c++)
+                    zr[c] *= inv;
+                for (uint32_t c = 0; c < d; c++)
+                    zr[c] *= d3w[c];
             }
         }
         for (int s = 0; s < NS; s++) {
             float* yr = y + (size_t)s * d;
             const float* zr = z + (size_t)s * d;
-            for (uint32_t c = 0; c < d; c++) yr[c] += zr[c];
+            for (uint32_t c = 0; c < d; c++)
+                yr[c] += zr[c];
         }
 
         // MHC update: hpost, hres (Sinkhorn), new lanes.
@@ -708,7 +740,8 @@ static int forward(const needle_model_t* m, const int32_t* tokens, uint32_t S,
             for (uint32_t l = 0; l < n; l++) {
                 const float* phi = m->mhc_phi_post + ((size_t)li * n + l) * nC;
                 float dot = 0.0f;
-                for (uint32_t k2 = 0; k2 < nC; k2++) dot += nr[k2] * phi[k2];
+                for (uint32_t k2 = 0; k2 < nC; k2++)
+                    dot += nr[k2] * phi[k2];
                 float soff = (l == active) ? 0.0f : -4.0f;
                 hpr[l] = 2.0f * sigmoidf(m->mhc_a_post[li] * dot +
                                          m->mhc_b_post[(size_t)li * n + l] + soff);
@@ -716,15 +749,15 @@ static int forward(const needle_model_t* m, const int32_t* tokens, uint32_t S,
             for (uint32_t r = 0; r < n * n; r++) {
                 const float* phi = m->mhc_phi_res + ((size_t)li * n * n + r) * nC;
                 float dot = 0.0f;
-                for (uint32_t k2 = 0; k2 < nC; k2++) dot += nr[k2] * phi[k2];
+                for (uint32_t k2 = 0; k2 < nC; k2++)
+                    dot += nr[k2] * phi[k2];
                 res[(size_t)s * n * n + r] = dot;
             }
             float hres_in[16];
             for (uint32_t l1 = 0; l1 < n; l1++) {
                 for (uint32_t l2 = 0; l2 < n; l2++) {
-                    hres_in[l1 * n + l2] =
-                        m->mhc_a_res[li] * res[(size_t)s * n * n + l1 * n + l2] +
-                        m->mhc_b_res[(size_t)li * n * n + l1 * n + l2];
+                    hres_in[l1 * n + l2] = m->mhc_a_res[li] * res[(size_t)s * n * n + l1 * n + l2] +
+                                           m->mhc_b_res[(size_t)li * n * n + l1 * n + l2];
                 }
             }
             sinkhorn44(hres_in, hres + (size_t)s * n * n);
@@ -760,7 +793,8 @@ static int forward(const needle_model_t* m, const int32_t* tokens, uint32_t S,
         float* hr = h + (size_t)s * d;
         for (uint32_t c = 0; c < d; c++) {
             float acc = 0.0f;
-            for (uint32_t l = 0; l < n; l++) acc += xr[(size_t)l * d + c];
+            for (uint32_t l = 0; l < n; l++)
+                acc += xr[(size_t)l * d + c];
             hr[c] = acc / (float)n;
         }
     }
@@ -838,7 +872,9 @@ static int rope_tables(const needle_model_t* m, uint32_t max_len, float** cos_ou
     return 0;
 }
 
-uint32_t needle_model_vocab(const needle_model_t* m) { return m->vocab; }
+uint32_t needle_model_vocab(const needle_model_t* m) {
+    return m->vocab;
+}
 
 int needle_model_prompt_logits(const needle_model_t* m, const needle_tokenizer_t* tok,
                                const char* prompt, float* logits, size_t logits_cap) {
@@ -869,8 +905,10 @@ int needle_model_prompt_logits(const needle_model_t* m, const needle_tokenizer_t
         return -1;
     }
     ptoks[0] = (int32_t)tok->bos_id;
-    for (int i = 0; i < n_prompt; i++) ptoks[1 + i] = prompt_ids[i];
-    for (size_t i = 0; i < plen; i++) hist[i] = ptoks[i];
+    for (int i = 0; i < n_prompt; i++)
+        ptoks[1 + i] = prompt_ids[i];
+    for (size_t i = 0; i < plen; i++)
+        hist[i] = ptoks[i];
 
     int rc = forward(m, ptoks, (uint32_t)plen, 0, kv_cache, max_len, hist, cos_t, sin_t, full);
     if (rc == 0) {
@@ -909,8 +947,8 @@ static int32_t* run_generate(const needle_model_t* m, const needle_tokenizer_t* 
     size_t kv_n = (size_t)m->num_layers * m->num_kv_heads * max_len * m->head_dim;
     float* kv_cache = (float*)xcalloc(kv_n ? 2 * kv_n : 1, sizeof(float));
     int32_t* hist = (int32_t*)xcalloc(max_len, sizeof(int32_t));
-    int32_t* gen_ids = (int32_t*)xcalloc((size_t)(max_new_tokens > 0 ? max_new_tokens : 1),
-                                         sizeof(int32_t));
+    int32_t* gen_ids =
+        (int32_t*)xcalloc((size_t)(max_new_tokens > 0 ? max_new_tokens : 1), sizeof(int32_t));
     float* logits = (float*)xcalloc((size_t)m->vocab, sizeof(float));
     // Prompt logits need [plen * vocab]; read the last row into `logits`.
     float* full = (float*)xcalloc((size_t)max_len * m->vocab, sizeof(float));
@@ -938,8 +976,10 @@ static int32_t* run_generate(const needle_model_t* m, const needle_tokenizer_t* 
         return NULL;
     }
     ptoks[0] = bos;
-    for (int i = 0; i < n_prompt; i++) ptoks[1 + i] = prompt_ids[i];
-    for (size_t i = 0; i < plen; i++) hist[i] = ptoks[i];
+    for (int i = 0; i < n_prompt; i++)
+        ptoks[1 + i] = prompt_ids[i];
+    for (size_t i = 0; i < plen; i++)
+        hist[i] = ptoks[i];
 
     if (forward(m, ptoks, (uint32_t)plen, 0, kv_cache, max_len, hist, cos_t, sin_t, full) != 0) {
         free(cos_t);

@@ -13,60 +13,63 @@
 #include <stdarg.h>
 
 #ifdef _WIN32
-    #define strncasecmp _strnicmp
+#define strncasecmp _strnicmp
 #endif
 
 // ---------------------------------------------------------------------------
 // Platform socket and threading abstraction
 // ---------------------------------------------------------------------------
 #ifdef _WIN32
-    #define WIN32_LEAN_AND_MEAN
-    #include <windows.h>
-    #include <winsock2.h>
-    #include <ws2tcpip.h>
-    #pragma comment(lib, "ws2_32.lib")
-    typedef SOCKET socket_t;
-    typedef SRWLOCK mutex_t;
-    #define INVALID_SOCKET_VAL INVALID_SOCKET
-    #define SOCKET_ERR(e)      ((e) == SOCKET_ERROR)
-    #define SOCKET_CLOSE(s)    closesocket(s)
-    #define SOCKET_LAST_ERR()  WSAGetLastError()
-    #define MUTEX_INIT(m)      InitializeSRWLock(m)
-    #define MUTEX_LOCK(m)      AcquireSRWLockExclusive(m)
-    #define MUTEX_UNLOCK(m)    ReleaseSRWLockExclusive(m)
-    #define MUTEX_DESTROY(m)   ((void)0)
-    static int platform_init(void) {
-        WSADATA wsa;
-        return WSAStartup(MAKEWORD(2, 2), &wsa) == 0 ? 0 : -1;
-    }
-    static void platform_cleanup(void) { WSACleanup(); }
-    #define SHUT_RDWR SD_BOTH
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#pragma comment(lib, "ws2_32.lib")
+typedef SOCKET socket_t;
+typedef SRWLOCK mutex_t;
+#define INVALID_SOCKET_VAL INVALID_SOCKET
+#define SOCKET_ERR(e) ((e) == SOCKET_ERROR)
+#define SOCKET_CLOSE(s) closesocket(s)
+#define SOCKET_LAST_ERR() WSAGetLastError()
+#define MUTEX_INIT(m) InitializeSRWLock(m)
+#define MUTEX_LOCK(m) AcquireSRWLockExclusive(m)
+#define MUTEX_UNLOCK(m) ReleaseSRWLockExclusive(m)
+#define MUTEX_DESTROY(m) ((void)0)
+static int platform_init(void) {
+    WSADATA wsa;
+    return WSAStartup(MAKEWORD(2, 2), &wsa) == 0 ? 0 : -1;
+}
+static void platform_cleanup(void) {
+    WSACleanup();
+}
+#define SHUT_RDWR SD_BOTH
 #else
-    #include <sys/types.h>
-    #include <sys/socket.h>
-    #include <netinet/in.h>
-    #include <netinet/tcp.h>
-    #include <arpa/inet.h>
-    #include <netdb.h>
-    #include <unistd.h>
-    #include <pthread.h>
-    #include <errno.h>
-    #include <signal.h>
-    typedef int socket_t;
-    typedef pthread_mutex_t mutex_t;
-    #define INVALID_SOCKET_VAL (-1)
-    #define SOCKET_ERR(e)      ((e) < 0)
-    #define SOCKET_CLOSE(s)    close(s)
-    #define SOCKET_LAST_ERR()  errno
-    #define MUTEX_INIT(m)      pthread_mutex_init(m, NULL)
-    #define MUTEX_LOCK(m)      pthread_mutex_lock(m)
-    #define MUTEX_UNLOCK(m)    pthread_mutex_unlock(m)
-    #define MUTEX_DESTROY(m)   pthread_mutex_destroy(m)
-    static int platform_init(void) {
-        signal(SIGPIPE, SIG_IGN);
-        return 0;
-    }
-    static void platform_cleanup(void) {}
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <errno.h>
+#include <signal.h>
+typedef int socket_t;
+typedef pthread_mutex_t mutex_t;
+#define INVALID_SOCKET_VAL (-1)
+#define SOCKET_ERR(e) ((e) < 0)
+#define SOCKET_CLOSE(s) close(s)
+#define SOCKET_LAST_ERR() errno
+#define MUTEX_INIT(m) pthread_mutex_init(m, NULL)
+#define MUTEX_LOCK(m) pthread_mutex_lock(m)
+#define MUTEX_UNLOCK(m) pthread_mutex_unlock(m)
+#define MUTEX_DESTROY(m) pthread_mutex_destroy(m)
+static int platform_init(void) {
+    signal(SIGPIPE, SIG_IGN);
+    return 0;
+}
+static void platform_cleanup(void) {
+}
 #endif
 
 // ---------------------------------------------------------------------------
@@ -76,9 +79,15 @@ static int g_max_tokens = 512;
 static float g_default_temp = 0.7f;
 static int g_default_top_k = 40;
 
-void nanochat_server_set_max_tokens(int max_tokens) { g_max_tokens = max_tokens; }
-void nanochat_server_set_default_temperature(float temp) { g_default_temp = temp; }
-void nanochat_server_set_default_top_k(int top_k) { g_default_top_k = top_k; }
+void nanochat_server_set_max_tokens(int max_tokens) {
+    g_max_tokens = max_tokens;
+}
+void nanochat_server_set_default_temperature(float temp) {
+    g_default_temp = temp;
+}
+void nanochat_server_set_default_top_k(int top_k) {
+    g_default_top_k = top_k;
+}
 
 // ---------------------------------------------------------------------------
 // HTTP I/O helpers
@@ -156,11 +165,15 @@ static void sb_init(string_buf_t* sb) {
     if (sb->data) sb->data[0] = '\0';
 }
 
-static void sb_free(string_buf_t* sb) { free(sb->data); sb->data = NULL; }
+static void sb_free(string_buf_t* sb) {
+    free(sb->data);
+    sb->data = NULL;
+}
 
 static void sb_grow(string_buf_t* sb, size_t need) {
     if (sb->len + need < sb->cap) return;
-    while (sb->len + need >= sb->cap) sb->cap *= 2;
+    while (sb->len + need >= sb->cap)
+        sb->cap *= 2;
     sb->data = (char*)realloc(sb->data, sb->cap);
 }
 
@@ -191,19 +204,34 @@ static void sb_put_json_str(string_buf_t* sb, const char* s) {
     for (const char* p = s; *p; p++) {
         unsigned char c = (unsigned char)*p;
         switch (c) {
-            case '"':  sb->data[sb->len++] = '\\'; sb->data[sb->len++] = '"';  break;
-            case '\\': sb->data[sb->len++] = '\\'; sb->data[sb->len++] = '\\'; break;
-            case '\n': sb->data[sb->len++] = '\\'; sb->data[sb->len++] = 'n';  break;
-            case '\r': sb->data[sb->len++] = '\\'; sb->data[sb->len++] = 'r';  break;
-            case '\t': sb->data[sb->len++] = '\\'; sb->data[sb->len++] = 't';  break;
-            default:
-                if (c < 0x20) {
-                    sb_grow(sb, 7);
-                    sb->len += (size_t)snprintf(sb->data + sb->len, 7, "\\u%04x", c);
-                } else {
-                    sb->data[sb->len++] = c;
-                }
-                break;
+        case '"':
+            sb->data[sb->len++] = '\\';
+            sb->data[sb->len++] = '"';
+            break;
+        case '\\':
+            sb->data[sb->len++] = '\\';
+            sb->data[sb->len++] = '\\';
+            break;
+        case '\n':
+            sb->data[sb->len++] = '\\';
+            sb->data[sb->len++] = 'n';
+            break;
+        case '\r':
+            sb->data[sb->len++] = '\\';
+            sb->data[sb->len++] = 'r';
+            break;
+        case '\t':
+            sb->data[sb->len++] = '\\';
+            sb->data[sb->len++] = 't';
+            break;
+        default:
+            if (c < 0x20) {
+                sb_grow(sb, 7);
+                sb->len += (size_t)snprintf(sb->data + sb->len, 7, "\\u%04x", c);
+            } else {
+                sb->data[sb->len++] = c;
+            }
+            break;
         }
     }
     sb->data[sb->len++] = '"';
@@ -276,11 +304,8 @@ static token_array_t tokenize_text(nanochat_tokenizer_t* tok, const char* text) 
 //   messages_layout[n][0] = role ('u' for user, 'a' for assistant)
 //   messages_layout[n][1] = content string
 // The final block appends ASSISTANT_START (model will fill).
-static int* build_prompt_tokens(nanochat_tokenizer_t* tok,
-                                  const char** roles,
-                                  const char** contents,
-                                  int num_messages,
-                                  int* out_len) {
+static int* build_prompt_tokens(nanochat_tokenizer_t* tok, const char** roles,
+                                const char** contents, int num_messages, int* out_len) {
     // First pass: count tokens
     int total = 0;
     for (int i = 0; i < num_messages; i++) {
@@ -299,7 +324,10 @@ static int* build_prompt_tokens(nanochat_tokenizer_t* tok,
         }
     }
     total += 1; // ASSISTANT_START for model response
-    if (total <= 0) { *out_len = 0; return NULL; }
+    if (total <= 0) {
+        *out_len = 0;
+        return NULL;
+    }
 
     int* tokens = (int*)malloc((size_t)total * sizeof(int));
     int pos = 0;
@@ -347,35 +375,48 @@ static void stream_callback(const char* text, void* user_data) {
     // Build SSE data frame: {"id":"...","object":"chat.completion.chunk",...}
     char buf[8192];
     int n = snprintf(buf, sizeof(buf),
-        "data: {\"id\":\"chatcmpl-%d\",\"object\":\"chat.completion.chunk\","
-        "\"created\":%ld,\"model\":\"nanochat\","
-        "\"choices\":[{\"index\":0,\"delta\":{\"content\":",
-        ctx->conn_id, (long)time(NULL));
+                     "data: {\"id\":\"chatcmpl-%d\",\"object\":\"chat.completion.chunk\","
+                     "\"created\":%ld,\"model\":\"nanochat\","
+                     "\"choices\":[{\"index\":0,\"delta\":{\"content\":",
+                     ctx->conn_id, (long)time(NULL));
 
     // Append JSON-escaped text
-    n += snprintf(buf + n, (n < (int)sizeof(buf)) ? (size_t)((int)sizeof(buf) - n) : 0,
-        "\"");
+    n += snprintf(buf + n, (n < (int)sizeof(buf)) ? (size_t)((int)sizeof(buf) - n) : 0, "\"");
     for (const char* p = text; *p && n < (int)sizeof(buf) - 20; p++) {
         unsigned char c = (unsigned char)*p;
         switch (c) {
-            case '"':  buf[n++] = '\\'; buf[n++] = '"';  break;
-            case '\\': buf[n++] = '\\'; buf[n++] = '\\'; break;
-            case '\n': buf[n++] = '\\'; buf[n++] = 'n';  break;
-            case '\r': buf[n++] = '\\'; buf[n++] = 'r';  break;
-            case '\t': buf[n++] = '\\'; buf[n++] = 't';  break;
-            default:
-                if (c < 0x20) {
-                    n += snprintf(buf + n, (size_t)((int)sizeof(buf) - n), "\\u%04x", c);
-                } else {
-                    buf[n++] = c;
-                }
-                break;
+        case '"':
+            buf[n++] = '\\';
+            buf[n++] = '"';
+            break;
+        case '\\':
+            buf[n++] = '\\';
+            buf[n++] = '\\';
+            break;
+        case '\n':
+            buf[n++] = '\\';
+            buf[n++] = 'n';
+            break;
+        case '\r':
+            buf[n++] = '\\';
+            buf[n++] = 'r';
+            break;
+        case '\t':
+            buf[n++] = '\\';
+            buf[n++] = 't';
+            break;
+        default:
+            if (c < 0x20) {
+                n += snprintf(buf + n, (size_t)((int)sizeof(buf) - n), "\\u%04x", c);
+            } else {
+                buf[n++] = c;
+            }
+            break;
         }
     }
     int remaining = (int)sizeof(buf) - n;
     if (remaining > 5) {
-        n += snprintf(buf + n, (size_t)remaining,
-            "},\"finish_reason\":null}],\"usage\":null}\n\n");
+        n += snprintf(buf + n, (size_t)remaining, "},\"finish_reason\":null}],\"usage\":null}\n\n");
     }
 
     if (send_all(ctx->fd, buf, (size_t)n) < 0) {
@@ -386,8 +427,8 @@ static void stream_callback(const char* text, void* user_data) {
 // ---------------------------------------------------------------------------
 // Handler for /v1/chat/completions
 // ---------------------------------------------------------------------------
-static void handle_chat_completions(socket_t fd, const http_request_t* req,
-                                     nanochat_engine_t* eng, int conn_id) {
+static void handle_chat_completions(socket_t fd, const http_request_t* req, nanochat_engine_t* eng,
+                                    int conn_id) {
     int max_tokens = g_max_tokens;
     float temperature = g_default_temp;
     int top_k = g_default_top_k;
@@ -403,7 +444,9 @@ static void handle_chat_completions(socket_t fd, const http_request_t* req,
     // Expect object
     json_skip_ws(&jctx);
     if (json_next(&jctx) != '{') {
-        send_str(fd, "HTTP/1.1 400 Bad Request\r\nContent-Length: 27\r\n\r\n{\"error\":\"invalid JSON\"}");
+        send_str(
+            fd,
+            "HTTP/1.1 400 Bad Request\r\nContent-Length: 27\r\n\r\n{\"error\":\"invalid JSON\"}");
         return;
     }
 
@@ -424,8 +467,14 @@ static void handle_chat_completions(socket_t fd, const http_request_t* req,
                 while (1) {
                     json_skip_ws(&jctx);
                     if (jctx.pos >= jctx.len) break;
-                    if (jctx.data[jctx.pos] == ']') { jctx.pos++; break; }
-                    if (jctx.data[jctx.pos] == ',') { jctx.pos++; continue; }
+                    if (jctx.data[jctx.pos] == ']') {
+                        jctx.pos++;
+                        break;
+                    }
+                    if (jctx.data[jctx.pos] == ',') {
+                        jctx.pos++;
+                        continue;
+                    }
 
                     if (jctx.data[jctx.pos] == '{') {
                         json_next(&jctx); // skip {
@@ -435,7 +484,10 @@ static void handle_chat_completions(socket_t fd, const http_request_t* req,
                         while (1) {
                             json_skip_ws(&jctx);
                             if (jctx.pos >= jctx.len) break;
-                            if (jctx.data[jctx.pos] == '}') { jctx.pos++; break; }
+                            if (jctx.data[jctx.pos] == '}') {
+                                jctx.pos++;
+                                break;
+                            }
 
                             char* mk = json_parse_string(&jctx);
                             if (!mk) break;
@@ -462,7 +514,8 @@ static void handle_chat_completions(socket_t fd, const http_request_t* req,
                             free(role);
                             free(content);
                         }
-                    } else break;
+                    } else
+                        break;
                 }
             }
         } else if (strcmp(key, "max_tokens") == 0) {
@@ -477,8 +530,7 @@ static void handle_chat_completions(socket_t fd, const http_request_t* req,
             if (top_k <= 0) top_k = 1;
         } else if (strcmp(key, "stream") == 0) {
             json_skip_ws(&jctx);
-            if (jctx.pos + 4 <= jctx.len &&
-                (strncmp(jctx.data + jctx.pos, "true", 4) == 0)) {
+            if (jctx.pos + 4 <= jctx.len && (strncmp(jctx.data + jctx.pos, "true", 4) == 0)) {
                 streaming = 1;
                 jctx.pos += 4;
             } else {
@@ -496,13 +548,15 @@ static void handle_chat_completions(socket_t fd, const http_request_t* req,
 
     // Validate messages
     if (num_messages == 0) {
-        send_str(fd, "HTTP/1.1 400 Bad Request\r\nContent-Length: 32\r\n\r\n{\"error\":\"no messages provided\"}");
+        send_str(fd, "HTTP/1.1 400 Bad Request\r\nContent-Length: 32\r\n\r\n{\"error\":\"no "
+                     "messages provided\"}");
         return;
     }
 
     // Build prompt tokens from messages
     int prompt_len;
-    int* prompt_tokens = build_prompt_tokens(eng->tokenizer, roles, contents, num_messages, &prompt_len);
+    int* prompt_tokens =
+        build_prompt_tokens(eng->tokenizer, roles, contents, num_messages, &prompt_len);
 
     // Clean up parsed message strings
     for (int i = 0; i < num_messages; i++) {
@@ -511,7 +565,9 @@ static void handle_chat_completions(socket_t fd, const http_request_t* req,
     }
 
     if (!prompt_tokens || prompt_len == 0) {
-        send_str(fd, "HTTP/1.1 400 Bad Request\r\nContent-Length: 27\r\n\r\n{\"error\":\"empty prompt\"}");
+        send_str(
+            fd,
+            "HTTP/1.1 400 Bad Request\r\nContent-Length: 27\r\n\r\n{\"error\":\"empty prompt\"}");
         return;
     }
 
@@ -522,13 +578,12 @@ static void handle_chat_completions(socket_t fd, const http_request_t* req,
 
     if (streaming) {
         // ---- SSE streaming ----
-        const char* sse_headers =
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Type: text/event-stream\r\n"
-            "Cache-Control: no-cache\r\n"
-            "Connection: keep-alive\r\n"
-            "Access-Control-Allow-Origin: *\r\n"
-            "\r\n";
+        const char* sse_headers = "HTTP/1.1 200 OK\r\n"
+                                  "Content-Type: text/event-stream\r\n"
+                                  "Cache-Control: no-cache\r\n"
+                                  "Connection: keep-alive\r\n"
+                                  "Access-Control-Allow-Origin: *\r\n"
+                                  "\r\n";
         if (send_str(fd, sse_headers) < 0) {
             free(prompt_tokens);
             return;
@@ -537,11 +592,15 @@ static void handle_chat_completions(socket_t fd, const http_request_t* req,
         // Send role chunk
         char role_chunk[1024];
         snprintf(role_chunk, sizeof(role_chunk),
-            "data: {\"id\":\"%s\",\"object\":\"chat.completion.chunk\","
-            "\"created\":%ld,\"model\":\"nanochat\","
-            "\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n",
-            id_str, created);
-        if (send_str(fd, role_chunk) < 0) { free(prompt_tokens); return; }
+                 "data: {\"id\":\"%s\",\"object\":\"chat.completion.chunk\","
+                 "\"created\":%ld,\"model\":\"nanochat\","
+                 "\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":"
+                 "null}]}\n\n",
+                 id_str, created);
+        if (send_str(fd, role_chunk) < 0) {
+            free(prompt_tokens);
+            return;
+        }
 
         // Generate with streaming callback
         stream_ctx_t sctx;
@@ -549,31 +608,30 @@ static void handle_chat_completions(socket_t fd, const http_request_t* req,
         sctx.conn_id = conn_id;
         sctx.cancelled = 0;
 
-        char* full = nanochat_generate_from_tokens(eng, prompt_tokens, prompt_len,
-                                                      max_tokens, temperature, top_k,
-                                                      stream_callback, &sctx);
+        char* full = nanochat_generate_from_tokens(eng, prompt_tokens, prompt_len, max_tokens,
+                                                   temperature, top_k, stream_callback, &sctx);
         free(full);
 
         // Send finish chunk with token usage if we have it
         // (We don't track token counts at this level, so usage is partial)
         char finish_chunk[1024];
         snprintf(finish_chunk, sizeof(finish_chunk),
-            "data: {\"id\":\"%s\",\"object\":\"chat.completion.chunk\","
-            "\"created\":%ld,\"model\":\"nanochat\","
-            "\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n",
-            id_str, created);
+                 "data: {\"id\":\"%s\",\"object\":\"chat.completion.chunk\","
+                 "\"created\":%ld,\"model\":\"nanochat\","
+                 "\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n",
+                 id_str, created);
         send_str(fd, finish_chunk);
 
         send_str(fd, "data: [DONE]\n\n");
     } else {
         // ---- Non-streaming: generate with token API directly ----
-        char* output = nanochat_generate_from_tokens(eng, prompt_tokens, prompt_len,
-                                                       max_tokens, temperature, top_k,
-                                                       NULL, NULL);
+        char* output = nanochat_generate_from_tokens(eng, prompt_tokens, prompt_len, max_tokens,
+                                                     temperature, top_k, NULL, NULL);
         prompt_tokens = NULL; // consumed by generate_from_tokens
 
         if (!output) {
-            send_str(fd, "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 29\r\n\r\n{\"error\":\"generation failed\"}");
+            send_str(fd, "HTTP/1.1 500 Internal Server Error\r\nContent-Length: "
+                         "29\r\n\r\n{\"error\":\"generation failed\"}");
             return;
         }
 
@@ -581,21 +639,22 @@ static void handle_chat_completions(socket_t fd, const http_request_t* req,
         string_buf_t sb;
         sb_init(&sb);
         sb_putf(&sb,
-            "{\"id\":\"%s\",\"object\":\"chat.completion\",\"created\":%ld,"
-            "\"model\":\"nanochat\",\"choices\":[{"
-            "\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":",
-            id_str, created);
+                "{\"id\":\"%s\",\"object\":\"chat.completion\",\"created\":%ld,"
+                "\"model\":\"nanochat\",\"choices\":[{"
+                "\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":",
+                id_str, created);
         sb_put_json_str(&sb, output);
         sb_puts(&sb, "},\"finish_reason\":\"stop\"}],");
         sb_puts(&sb, "\"usage\":{\"prompt_tokens\":0,\"completion_tokens\":0,\"total_tokens\":0}}");
 
         char header[256];
         int hlen = snprintf(header, sizeof(header),
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Type: application/json\r\n"
-            "Content-Length: %zu\r\n"
-            "Access-Control-Allow-Origin: *\r\n"
-            "\r\n", sb.len);
+                            "HTTP/1.1 200 OK\r\n"
+                            "Content-Type: application/json\r\n"
+                            "Content-Length: %zu\r\n"
+                            "Access-Control-Allow-Origin: *\r\n"
+                            "\r\n",
+                            sb.len);
         send_all(fd, header, (size_t)hlen);
         send_str(fd, sb.data);
 
@@ -608,19 +667,19 @@ static void handle_chat_completions(socket_t fd, const http_request_t* req,
 // Handler for /v1/models
 // ---------------------------------------------------------------------------
 static void handle_list_models(socket_t fd) {
-    const char* body =
-        "{\"object\":\"list\",\"data\":["
-        "{\"id\":\"nanochat\",\"object\":\"model\","
-        "\"created\":0,\"owned_by\":\"boat\"}"
-        "]}";
+    const char* body = "{\"object\":\"list\",\"data\":["
+                       "{\"id\":\"nanochat\",\"object\":\"model\","
+                       "\"created\":0,\"owned_by\":\"boat\"}"
+                       "]}";
     size_t blen = strlen(body);
     char header[256];
     int hlen = snprintf(header, sizeof(header),
-        "HTTP/1.1 200 OK\r\n"
-        "Content-Type: application/json\r\n"
-        "Content-Length: %zu\r\n"
-        "Access-Control-Allow-Origin: *\r\n"
-        "\r\n", blen);
+                        "HTTP/1.1 200 OK\r\n"
+                        "Content-Type: application/json\r\n"
+                        "Content-Length: %zu\r\n"
+                        "Access-Control-Allow-Origin: *\r\n"
+                        "\r\n",
+                        blen);
     send_all(fd, header, (size_t)hlen);
     send_str(fd, body);
 }
@@ -634,13 +693,12 @@ static void handle_connection(socket_t fd, nanochat_engine_t* eng, int conn_id) 
 
     // CORS preflight
     if (strcmp(req.method, "OPTIONS") == 0) {
-        send_str(fd,
-            "HTTP/1.1 204 No Content\r\n"
-            "Access-Control-Allow-Origin: *\r\n"
-            "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
-            "Access-Control-Allow-Headers: Content-Type, Authorization\r\n"
-            "Access-Control-Max-Age: 86400\r\n"
-            "\r\n");
+        send_str(fd, "HTTP/1.1 204 No Content\r\n"
+                     "Access-Control-Allow-Origin: *\r\n"
+                     "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
+                     "Access-Control-Allow-Headers: Content-Type, Authorization\r\n"
+                     "Access-Control-Max-Age: 86400\r\n"
+                     "\r\n");
         return;
     }
 
@@ -649,19 +707,17 @@ static void handle_connection(socket_t fd, nanochat_engine_t* eng, int conn_id) 
     } else if (strcmp(req.path, "/v1/models") == 0 && strcmp(req.method, "GET") == 0) {
         handle_list_models(fd);
     } else if (strcmp(req.path, "/health") == 0 || strcmp(req.path, "/") == 0) {
-        send_str(fd,
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Type: application/json\r\n"
-            "Content-Length: 31\r\n"
-            "\r\n"
-            "{\"status\":\"ok\",\"model\":\"nanochat\"}");
+        send_str(fd, "HTTP/1.1 200 OK\r\n"
+                     "Content-Type: application/json\r\n"
+                     "Content-Length: 31\r\n"
+                     "\r\n"
+                     "{\"status\":\"ok\",\"model\":\"nanochat\"}");
     } else {
-        send_str(fd,
-            "HTTP/1.1 404 Not Found\r\n"
-            "Content-Type: application/json\r\n"
-            "Content-Length: 22\r\n"
-            "\r\n"
-            "{\"error\":\"not found\"}");
+        send_str(fd, "HTTP/1.1 404 Not Found\r\n"
+                     "Content-Type: application/json\r\n"
+                     "Content-Length: 22\r\n"
+                     "\r\n"
+                     "{\"error\":\"not found\"}");
     }
 }
 
@@ -737,8 +793,7 @@ int nanochat_start_server(const char* model_dir, const char* host, int port) {
         return -1;
     }
 
-    fprintf(stderr, "[Server] Listening on http://%s:%d\n",
-            host ? host : "0.0.0.0", port);
+    fprintf(stderr, "[Server] Listening on http://%s:%d\n", host ? host : "0.0.0.0", port);
     fprintf(stderr, "[Server] OpenAI-compatible API:\n");
     fprintf(stderr, "[Server]   POST /v1/chat/completions\n");
     fprintf(stderr, "[Server]   GET  /v1/models\n");

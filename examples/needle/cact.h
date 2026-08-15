@@ -69,8 +69,8 @@ typedef struct {
 typedef struct {
     needle_cact_header_t hdr;
     needle_cact_rec_t* recs;
-    float* codebook;   // codebook_len floats: cb2[4] | cb3[8] | cb4[16]
-    uint8_t* owned;    // owning buffer (whole file contents)
+    float* codebook; // codebook_len floats: cb2[4] | cb3[8] | cb4[16]
+    uint8_t* owned;  // owning buffer (whole file contents)
 } needle_cact_t;
 
 // Load the blob at `path`. Returns 0 on success, -1 on failure.
@@ -80,12 +80,11 @@ void needle_cact_close(needle_cact_t* cact);
 // Dequantize tensor `idx` into `out` (fp32, row-major, logical shape).
 // `out` must hold shape[0]*...*shape[ndim-1] floats. Returns element count
 // on success, -1 on error. RAW tensors are not dequantizable.
-int needle_cact_tensor_f32(const needle_cact_t* cact, uint32_t idx,
-                           float* out, size_t out_cap);
+int needle_cact_tensor_f32(const needle_cact_t* cact, uint32_t idx, float* out, size_t out_cap);
 
 // Pointer to a RAW tensor blob (e.g. the tokenizer). Returns 0 on success.
-int needle_cact_tensor_raw(const needle_cact_t* cact, uint32_t idx,
-                           const uint8_t** data, size_t* nbytes);
+int needle_cact_tensor_raw(const needle_cact_t* cact, uint32_t idx, const uint8_t** data,
+                           size_t* nbytes);
 
 // Fixed-position tensor index helpers derived from the header geometry.
 // Each layer occupies 14 consecutive tensors starting at index_layer(layer).

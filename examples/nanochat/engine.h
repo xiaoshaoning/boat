@@ -23,38 +23,25 @@ nanochat_engine_t* nanochat_engine_create(const char* model_dir);
 void nanochat_engine_free(nanochat_engine_t* eng);
 
 // Generate text from a prompt. Returns malloc'd string (caller must free).
-char* nanochat_generate(nanochat_engine_t* eng,
-                         const char* prompt,
-                         int max_tokens,
-                         float temperature,
-                         int top_k);
+char* nanochat_generate(nanochat_engine_t* eng, const char* prompt, int max_tokens,
+                        float temperature, int top_k);
 
 // Streaming generate — calls on_text(new_text, user_data) for each fragment.
 // Returns full generated text (caller must free). on_text can be NULL.
 typedef void (*nanochat_stream_fn)(const char* text, void* user_data);
-char* nanochat_generate_stream(nanochat_engine_t* eng,
-                                const char* prompt,
-                                int max_tokens,
-                                float temperature,
-                                int top_k,
-                                nanochat_stream_fn on_text,
-                                void* user_data);
+char* nanochat_generate_stream(nanochat_engine_t* eng, const char* prompt, int max_tokens,
+                               float temperature, int top_k, nanochat_stream_fn on_text,
+                               void* user_data);
 
 // Generate from pre-tokenized input (streaming variant).
 // Takes ownership of tokens (will realloc/free internally).
 // Returns full generated text (caller must free).
-char* nanochat_generate_from_tokens(nanochat_engine_t* eng,
-                                      int* tokens, int prompt_len,
-                                      int max_new_tokens,
-                                      float temperature, int top_k,
-                                      nanochat_stream_fn on_text,
-                                      void* user_data);
+char* nanochat_generate_from_tokens(nanochat_engine_t* eng, int* tokens, int prompt_len,
+                                    int max_new_tokens, float temperature, int top_k,
+                                    nanochat_stream_fn on_text, void* user_data);
 
 // Interactive chat REPL — runs until user types exit/quit.
-void nanochat_chat(nanochat_engine_t* eng,
-                    int max_new_tokens,
-                    float temperature,
-                    int top_k);
+void nanochat_chat(nanochat_engine_t* eng, int max_new_tokens, float temperature, int top_k);
 
 #ifdef __cplusplus
 }

@@ -10,8 +10,8 @@
 
 // Internal edge structure (already defined in node.c, but we need access)
 struct boat_edge_t {
-    boat_node_t* from;            // Source node
-    boat_node_t* to;              // Target node
+    boat_node_t* from;               // Source node
+    boat_node_t* to;                 // Target node
     boat_edge_direction_t direction; // Edge direction
 };
 
@@ -69,7 +69,6 @@ BOAT_API bool boat_edge_equal(const boat_edge_t* a, const boat_edge_t* b) {
     return a->from == b->from && a->to == b->to && a->direction == b->direction;
 }
 
-
 BOAT_API boat_edge_list_t* boat_edge_list_create() {
     boat_edge_list_t* list = boat_malloc(sizeof(boat_edge_list_t), BOAT_DEVICE_CPU);
     if (!list) return NULL;
@@ -92,9 +91,8 @@ BOAT_API bool boat_edge_list_add(boat_edge_list_t* list, const boat_edge_t* edge
 
     if (list->count >= list->capacity) {
         size_t new_capacity = list->capacity == 0 ? 8 : list->capacity * 2;
-        boat_edge_t** new_edges = boat_realloc(list->edges,
-                                               new_capacity * sizeof(boat_edge_t*),
-                                               BOAT_DEVICE_CPU);
+        boat_edge_t** new_edges =
+            boat_realloc(list->edges, new_capacity * sizeof(boat_edge_t*), BOAT_DEVICE_CPU);
         if (!new_edges) return false;
 
         list->edges = new_edges;

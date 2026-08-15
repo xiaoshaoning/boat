@@ -12,14 +12,30 @@
 static int tests_passed = 0;
 static int tests_total = 0;
 
-#define TEST(name) do { printf("  %s ... ", name); tests_total++; } while(0)
-#define PASS() do { printf("PASS\n"); tests_passed++; } while(0)
-#define FAIL(msg) do { printf("FAIL: %s\n", msg); return 1; } while(0)
+#define TEST(name)                                                                                 \
+    do {                                                                                           \
+        printf("  %s ... ", name);                                                                 \
+        tests_total++;                                                                             \
+    } while (0)
+#define PASS()                                                                                     \
+    do {                                                                                           \
+        printf("PASS\n");                                                                          \
+        tests_passed++;                                                                            \
+    } while (0)
+#define FAIL(msg)                                                                                  \
+    do {                                                                                           \
+        printf("FAIL: %s\n", msg);                                                                 \
+        return 1;                                                                                  \
+    } while (0)
 
 // Helper: create a boat_layer_t wrapper
 static boat_layer_t* wrap(void* data, boat_layer_type_t type) {
     boat_layer_t* w = malloc(sizeof(boat_layer_t));
-    if (w) { w->data = data; w->type = type; w->ops = NULL; }
+    if (w) {
+        w->data = data;
+        w->type = type;
+        w->ops = NULL;
+    }
     return w;
 }
 
@@ -27,7 +43,8 @@ static boat_layer_t* wrap(void* data, boat_layer_type_t type) {
 static void fill_tensor(boat_tensor_t* t, float base) {
     float* d = (float*)boat_tensor_data(t);
     size_t n = boat_tensor_nelements(t);
-    for (size_t i = 0; i < n; i++) d[i] = base + (float)(i % 7) * 0.1f;
+    for (size_t i = 0; i < n; i++)
+        d[i] = base + (float)(i % 7) * 0.1f;
 }
 
 // Helper: compare two float tensors byte-exact
@@ -43,26 +60,44 @@ static int tensors_equal(const boat_tensor_t* a, const boat_tensor_t* b) {
 }
 
 // Forward pass through multi-layer model (manual, like MNIST)
-static boat_tensor_t* manual_forward(
-    boat_conv_layer_t* conv1, boat_relu_layer_t* r1, boat_pool_layer_t* p1,
-    boat_conv_layer_t* conv2, boat_relu_layer_t* r2, boat_pool_layer_t* p2,
-    boat_flatten_layer_t* flat,
-    boat_dense_layer_t* fc1, boat_relu_layer_t* r3, boat_dense_layer_t* fc2,
-    boat_softmax_layer_t* sm,
-    const boat_tensor_t* input)
-{
+static boat_tensor_t* manual_forward(boat_conv_layer_t* conv1, boat_relu_layer_t* r1,
+                                     boat_pool_layer_t* p1, boat_conv_layer_t* conv2,
+                                     boat_relu_layer_t* r2, boat_pool_layer_t* p2,
+                                     boat_flatten_layer_t* flat, boat_dense_layer_t* fc1,
+                                     boat_relu_layer_t* r3, boat_dense_layer_t* fc2,
+                                     boat_softmax_layer_t* sm, const boat_tensor_t* input) {
     boat_tensor_t* x;
     x = boat_conv_layer_forward(conv1, input);
-    boat_tensor_t* t = boat_relu_layer_forward(r1, x);     boat_tensor_unref(x); x = t;
-    t = boat_pool_layer_forward(p1, x);                     boat_tensor_unref(x); x = t;
-    t = boat_conv_layer_forward(conv2, x);                  boat_tensor_unref(x); x = t;
-    t = boat_relu_layer_forward(r2, x);                     boat_tensor_unref(x); x = t;
-    t = boat_pool_layer_forward(p2, x);                     boat_tensor_unref(x); x = t;
-    t = boat_flatten_layer_forward(flat, x);                boat_tensor_unref(x); x = t;
-    t = boat_dense_layer_forward(fc1, x);                   boat_tensor_unref(x); x = t;
-    t = boat_relu_layer_forward(r3, x);                     boat_tensor_unref(x); x = t;
-    t = boat_dense_layer_forward(fc2, x);                   boat_tensor_unref(x); x = t;
-    t = boat_softmax_layer_forward(sm, x);                  boat_tensor_unref(x); x = t;
+    boat_tensor_t* t = boat_relu_layer_forward(r1, x);
+    boat_tensor_unref(x);
+    x = t;
+    t = boat_pool_layer_forward(p1, x);
+    boat_tensor_unref(x);
+    x = t;
+    t = boat_conv_layer_forward(conv2, x);
+    boat_tensor_unref(x);
+    x = t;
+    t = boat_relu_layer_forward(r2, x);
+    boat_tensor_unref(x);
+    x = t;
+    t = boat_pool_layer_forward(p2, x);
+    boat_tensor_unref(x);
+    x = t;
+    t = boat_flatten_layer_forward(flat, x);
+    boat_tensor_unref(x);
+    x = t;
+    t = boat_dense_layer_forward(fc1, x);
+    boat_tensor_unref(x);
+    x = t;
+    t = boat_relu_layer_forward(r3, x);
+    boat_tensor_unref(x);
+    x = t;
+    t = boat_dense_layer_forward(fc2, x);
+    boat_tensor_unref(x);
+    x = t;
+    t = boat_softmax_layer_forward(sm, x);
+    boat_tensor_unref(x);
+    x = t;
     return x;
 }
 
@@ -79,8 +114,10 @@ static int test_dense_roundtrip(void) {
     // Save original data
     size_t w_bytes = boat_tensor_nbytes(boat_dense_layer_get_weight(d));
     size_t b_bytes = boat_tensor_nbytes(boat_dense_layer_get_bias(d));
-    float* w_orig = malloc(w_bytes); memcpy(w_orig, boat_tensor_const_data(boat_dense_layer_get_weight(d)), w_bytes);
-    float* b_orig = malloc(b_bytes); memcpy(b_orig, boat_tensor_const_data(boat_dense_layer_get_bias(d)), b_bytes);
+    float* w_orig = malloc(w_bytes);
+    memcpy(w_orig, boat_tensor_const_data(boat_dense_layer_get_weight(d)), w_bytes);
+    float* b_orig = malloc(b_bytes);
+    memcpy(b_orig, boat_tensor_const_data(boat_dense_layer_get_bias(d)), b_bytes);
     boat_model_free(m);
 
     boat_model_t* loaded = boat_model_load("test_dense.boat");
@@ -95,8 +132,11 @@ static int test_dense_roundtrip(void) {
     if (memcmp(b_orig, boat_tensor_const_data(boat_dense_layer_get_bias(ld)), b_bytes) != 0)
         FAIL("bias mismatch");
     if (!l0->ops) FAIL("ops not set");
-    boat_model_free(loaded); free(w_orig); free(b_orig);
-    PASS(); return 0;
+    boat_model_free(loaded);
+    free(w_orig);
+    free(b_orig);
+    PASS();
+    return 0;
 }
 
 // --- Test 2: Dense without bias ---
@@ -120,8 +160,10 @@ static int test_dense_no_bias(void) {
     if (boat_dense_layer_get_bias(ld) != NULL) FAIL("bias should be NULL");
     if (memcmp(w_orig, boat_tensor_const_data(boat_dense_layer_get_weight(ld)), w_bytes) != 0)
         FAIL("weight mismatch");
-    boat_model_free(loaded); free(w_orig);
-    PASS(); return 0;
+    boat_model_free(loaded);
+    free(w_orig);
+    PASS();
+    return 0;
 }
 
 // --- Test 3: Conv2D round-trip ---
@@ -136,8 +178,10 @@ static int test_conv_roundtrip(void) {
 
     size_t w_bytes = boat_tensor_nbytes(boat_conv_layer_get_weight(c));
     size_t b_bytes = boat_tensor_nbytes(boat_conv_layer_get_bias(c));
-    float* w_orig = malloc(w_bytes); memcpy(w_orig, boat_tensor_const_data(boat_conv_layer_get_weight(c)), w_bytes);
-    float* b_orig = malloc(b_bytes); memcpy(b_orig, boat_tensor_const_data(boat_conv_layer_get_bias(c)), b_bytes);
+    float* w_orig = malloc(w_bytes);
+    memcpy(w_orig, boat_tensor_const_data(boat_conv_layer_get_weight(c)), w_bytes);
+    float* b_orig = malloc(b_bytes);
+    memcpy(b_orig, boat_tensor_const_data(boat_conv_layer_get_bias(c)), b_bytes);
     boat_model_free(m);
 
     boat_model_t* loaded = boat_model_load("test_conv.boat");
@@ -152,8 +196,11 @@ static int test_conv_roundtrip(void) {
     if (boat_conv_layer_get_stride(lc) != 1 || boat_conv_layer_get_padding(lc) != 1)
         FAIL("hyperparams mismatch");
     if (!l0->ops) FAIL("ops not set");
-    boat_model_free(loaded); free(w_orig); free(b_orig);
-    PASS(); return 0;
+    boat_model_free(loaded);
+    free(w_orig);
+    free(b_orig);
+    PASS();
+    return 0;
 }
 
 // --- Test 4: MaxPool2D + Softmax round-trip ---
@@ -175,7 +222,8 @@ static int test_paramless_roundtrip(void) {
     if (lp->type != BOAT_LAYER_TYPE_MAXPOOL2D) FAIL("layer 0 wrong type");
     boat_pool_layer_t* pl = (boat_pool_layer_t*)lp->data;
     if (boat_pool_layer_get_pool_size(pl) != 2 || boat_pool_layer_get_stride(pl) != 2 ||
-        boat_pool_layer_get_padding(pl) != 0) FAIL("pool HP mismatch");
+        boat_pool_layer_get_padding(pl) != 0)
+        FAIL("pool HP mismatch");
     if (!lp->ops) FAIL("pool ops not set");
 
     boat_layer_t* ls = boat_model_get_layer(loaded, 1);
@@ -185,7 +233,8 @@ static int test_paramless_roundtrip(void) {
     if (!ls->ops) FAIL("softmax ops not set");
 
     boat_model_free(loaded);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 5: Multi-layer model (MNIST architecture) ---
@@ -240,11 +289,10 @@ static int test_mnist_model_roundtrip(void) {
 
     boat_layer_t* types[11];
     boat_layer_type_t expected[] = {
-        BOAT_LAYER_TYPE_CONV2D, BOAT_LAYER_TYPE_RELU, BOAT_LAYER_TYPE_MAXPOOL2D,
-        BOAT_LAYER_TYPE_CONV2D, BOAT_LAYER_TYPE_RELU, BOAT_LAYER_TYPE_MAXPOOL2D,
-        BOAT_LAYER_TYPE_FLATTEN, BOAT_LAYER_TYPE_DENSE, BOAT_LAYER_TYPE_RELU,
-        BOAT_LAYER_TYPE_DENSE, BOAT_LAYER_TYPE_SOFTMAX
-    };
+        BOAT_LAYER_TYPE_CONV2D,  BOAT_LAYER_TYPE_RELU,   BOAT_LAYER_TYPE_MAXPOOL2D,
+        BOAT_LAYER_TYPE_CONV2D,  BOAT_LAYER_TYPE_RELU,   BOAT_LAYER_TYPE_MAXPOOL2D,
+        BOAT_LAYER_TYPE_FLATTEN, BOAT_LAYER_TYPE_DENSE,  BOAT_LAYER_TYPE_RELU,
+        BOAT_LAYER_TYPE_DENSE,   BOAT_LAYER_TYPE_SOFTMAX};
     for (int i = 0; i < 11; i++) {
         types[i] = boat_model_get_layer(loaded, i);
         if (!types[i]) FAIL("layer NULL");
@@ -260,7 +308,8 @@ static int test_mnist_model_roundtrip(void) {
     boat_tensor_unref(loaded_out);
     boat_tensor_unref(input);
     boat_model_free(loaded);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 6: Train -> save -> load -> inference ---
@@ -296,14 +345,11 @@ static int test_train_save_load_infer(void) {
     train_wrappers[3] = wrap(sm, BOAT_LAYER_TYPE_SOFTMAX);
     // Set ops for training
     static const boat_layer_ops_t dense_ops = {
-        .forward = NULL, .backward = NULL, .update = NULL, .free = NULL
-    };
+        .forward = NULL, .backward = NULL, .update = NULL, .free = NULL};
     static const boat_layer_ops_t relu_ops = {
-        .forward = NULL, .backward = NULL, .update = NULL, .free = NULL
-    };
+        .forward = NULL, .backward = NULL, .update = NULL, .free = NULL};
     static const boat_layer_ops_t sm_ops = {
-        .forward = NULL, .backward = NULL, .update = NULL, .free = NULL
-    };
+        .forward = NULL, .backward = NULL, .update = NULL, .free = NULL};
     // Use NULL ops -- we train manually, ops aren't needed for raw layer API
     // The ops are only needed for save/load
 
@@ -312,9 +358,12 @@ static int test_train_save_load_infer(void) {
     for (int epoch = 0; epoch < n_epochs; epoch++) {
         // Forward
         boat_tensor_t* a1 = boat_dense_layer_forward(fc1, x);
-        boat_tensor_t* a2 = boat_relu_layer_forward(relu, a1); boat_tensor_unref(a1);
-        boat_tensor_t* a3 = boat_dense_layer_forward(fc2, a2); boat_tensor_unref(a2);
-        boat_tensor_t* out = boat_softmax_layer_forward(sm, a3); boat_tensor_unref(a3);
+        boat_tensor_t* a2 = boat_relu_layer_forward(relu, a1);
+        boat_tensor_unref(a1);
+        boat_tensor_t* a3 = boat_dense_layer_forward(fc2, a2);
+        boat_tensor_unref(a2);
+        boat_tensor_t* out = boat_softmax_layer_forward(sm, a3);
+        boat_tensor_unref(a3);
 
         // Gradient: out - one_hot(y) / batch_size
         float* out_data = (float*)boat_tensor_data(out);
@@ -328,14 +377,30 @@ static int test_train_save_load_infer(void) {
             grad_data[i * 2 + y_data[i]] -= 1.0f;
         }
         // Scale by 1/batch_size
-        for (int i = 0; i < batch_size * n_classes; i++) grad_data[i] /= (float)batch_size;
+        for (int i = 0; i < batch_size * n_classes; i++)
+            grad_data[i] /= (float)batch_size;
 
         // Backward
         boat_tensor_t* g = grad;
         boat_tensor_t* t;
-        t = boat_dense_layer_backward(fc2, g);                 if (t) { boat_tensor_unref(g); g = t; } else break;
-        t = boat_relu_layer_backward(relu, g);                 if (t) { boat_tensor_unref(g); g = t; } else break;
-        t = boat_dense_layer_backward(fc1, g);                 if (t) { boat_tensor_unref(g); g = t; } else break;
+        t = boat_dense_layer_backward(fc2, g);
+        if (t) {
+            boat_tensor_unref(g);
+            g = t;
+        } else
+            break;
+        t = boat_relu_layer_backward(relu, g);
+        if (t) {
+            boat_tensor_unref(g);
+            g = t;
+        } else
+            break;
+        t = boat_dense_layer_backward(fc1, g);
+        if (t) {
+            boat_tensor_unref(g);
+            g = t;
+        } else
+            break;
         boat_tensor_unref(g);
 
         // Update
@@ -348,9 +413,12 @@ static int test_train_save_load_infer(void) {
     boat_tensor_t* orig_infer_out;
     {
         boat_tensor_t* a1 = boat_dense_layer_forward(fc1, x);
-        boat_tensor_t* a2 = boat_relu_layer_forward(relu, a1); boat_tensor_unref(a1);
-        boat_tensor_t* a3 = boat_dense_layer_forward(fc2, a2); boat_tensor_unref(a2);
-        orig_infer_out = boat_softmax_layer_forward(sm, a3); boat_tensor_unref(a3);
+        boat_tensor_t* a2 = boat_relu_layer_forward(relu, a1);
+        boat_tensor_unref(a1);
+        boat_tensor_t* a3 = boat_dense_layer_forward(fc2, a2);
+        boat_tensor_unref(a2);
+        orig_infer_out = boat_softmax_layer_forward(sm, a3);
+        boat_tensor_unref(a3);
     }
 
     // Save trained model
@@ -382,11 +450,11 @@ static int test_train_save_load_infer(void) {
         boat_layer_t* layer = boat_model_get_layer(loaded, i);
         if (layer->type == BOAT_LAYER_TYPE_DENSE) {
             boat_dense_layer_t* dl = (boat_dense_layer_t*)layer->data;
-            boat_optimizer_add_parameter(opt, boat_dense_layer_get_weight(dl), boat_dense_layer_get_grad_weight(dl));
+            boat_optimizer_add_parameter(opt, boat_dense_layer_get_weight(dl),
+                                         boat_dense_layer_get_grad_weight(dl));
             boat_tensor_t* bias = boat_dense_layer_get_bias(dl);
             boat_tensor_t* grad_bias = boat_dense_layer_get_grad_bias(dl);
-            if (bias && grad_bias)
-                boat_optimizer_add_parameter(opt, bias, grad_bias);
+            if (bias && grad_bias) boat_optimizer_add_parameter(opt, bias, grad_bias);
         }
     }
 
@@ -412,12 +480,16 @@ static int test_train_save_load_infer(void) {
         for (int i = (int)n_layers - 1; i >= 0; i--) {
             boat_layer_t* layer = boat_model_get_layer(loaded, (size_t)i);
             if (!layer->ops || !layer->ops->backward) {
-                boat_tensor_unref(grad); grad = NULL;
+                boat_tensor_unref(grad);
+                grad = NULL;
                 break;
             }
             boat_tensor_t* next_grad = layer->ops->backward(layer, grad);
-            if (next_grad) { boat_tensor_unref(grad); grad = next_grad; }
-            else break;
+            if (next_grad) {
+                boat_tensor_unref(grad);
+                grad = next_grad;
+            } else
+                break;
         }
         if (grad) boat_tensor_unref(grad);
 
@@ -427,9 +499,11 @@ static int test_train_save_load_infer(void) {
     }
     boat_optimizer_free(opt);
 
-    boat_tensor_unref(x); boat_tensor_unref(y);
+    boat_tensor_unref(x);
+    boat_tensor_unref(y);
     boat_model_free(loaded);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 7: Edge cases ---
@@ -438,23 +512,58 @@ static int test_edge_cases(void) {
 
     // Edge cases: use manual printf/PASS instead of TEST macro since we track inline
     printf("  save(NULL, file) returns false ... ");
-    if (boat_model_save(NULL, "test.boat") != false) { printf("FAIL\n"); ok = 0; } else { printf("PASS\n"); } tests_passed++; tests_total++;
+    if (boat_model_save(NULL, "test.boat") != false) {
+        printf("FAIL\n");
+        ok = 0;
+    } else {
+        printf("PASS\n");
+    }
+    tests_passed++;
+    tests_total++;
 
     printf("  save(model, NULL) returns false ... ");
     boat_model_t* m = boat_model_create();
-    if (boat_model_save(m, NULL) != false) { printf("FAIL\n"); ok = 0; } else { printf("PASS\n"); } tests_passed++; tests_total++;
+    if (boat_model_save(m, NULL) != false) {
+        printf("FAIL\n");
+        ok = 0;
+    } else {
+        printf("PASS\n");
+    }
+    tests_passed++;
+    tests_total++;
     boat_model_free(m);
 
     printf("  save(empty_model) returns false ... ");
     m = boat_model_create();
-    if (boat_model_save(m, "test_empty.boat") != false) { printf("FAIL\n"); ok = 0; } else { printf("PASS\n"); } tests_passed++; tests_total++;
+    if (boat_model_save(m, "test_empty.boat") != false) {
+        printf("FAIL\n");
+        ok = 0;
+    } else {
+        printf("PASS\n");
+    }
+    tests_passed++;
+    tests_total++;
     boat_model_free(m);
 
     printf("  load(NULL) returns NULL ... ");
-    if (boat_model_load(NULL) != NULL) { printf("FAIL\n"); ok = 0; } else { printf("PASS\n"); } tests_passed++; tests_total++;
+    if (boat_model_load(NULL) != NULL) {
+        printf("FAIL\n");
+        ok = 0;
+    } else {
+        printf("PASS\n");
+    }
+    tests_passed++;
+    tests_total++;
 
     printf("  load(nonexistent) returns NULL ... ");
-    if (boat_model_load("nonexistent_file.boat") != NULL) { printf("FAIL\n"); ok = 0; } else { printf("PASS\n"); } tests_passed++; tests_total++;
+    if (boat_model_load("nonexistent_file.boat") != NULL) {
+        printf("FAIL\n");
+        ok = 0;
+    } else {
+        printf("PASS\n");
+    }
+    tests_passed++;
+    tests_total++;
 
     printf("  load(corrupted magic) returns NULL ... ");
     FILE* f = fopen("bad_magic.boat", "wb");
@@ -463,7 +572,14 @@ static int test_edge_cases(void) {
     fwrite(&ver, 4, 1, f);
     fwrite(&cnt, 4, 1, f);
     fclose(f);
-    if (boat_model_load("bad_magic.boat") != NULL) { printf("FAIL\n"); ok = 0; } else { printf("PASS\n"); } tests_passed++; tests_total++;
+    if (boat_model_load("bad_magic.boat") != NULL) {
+        printf("FAIL\n");
+        ok = 0;
+    } else {
+        printf("PASS\n");
+    }
+    tests_passed++;
+    tests_total++;
 
     return ok ? 0 : 1;
 }

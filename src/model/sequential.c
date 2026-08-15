@@ -13,9 +13,9 @@
 
 // Sequential model private structure
 typedef struct {
-    boat_layer_t** layers;       // Array of layers
-    size_t layer_count;          // Number of layers
-    size_t layer_capacity;       // Capacity of layers array
+    boat_layer_t** layers; // Array of layers
+    size_t layer_count;    // Number of layers
+    size_t layer_capacity; // Capacity of layers array
 } boat_sequential_model_private_t;
 
 // Frees the sequential private state. The layer pointers themselves are owned
@@ -38,7 +38,8 @@ BOAT_API boat_sequential_model_t* boat_sequential_create() {
     }
 
     // Allocate private data
-    boat_sequential_model_private_t* private = boat_malloc(sizeof(boat_sequential_model_private_t), BOAT_DEVICE_CPU);
+    boat_sequential_model_private_t* private =
+        boat_malloc(sizeof(boat_sequential_model_private_t), BOAT_DEVICE_CPU);
     if (!private) {
         boat_model_free(model);
         return NULL;
@@ -59,13 +60,15 @@ BOAT_API void boat_sequential_add(boat_sequential_model_t* model, boat_layer_t* 
     BOAT_CHECK_NULL_VOID(model);
     BOAT_CHECK_NULL_VOID(layer);
 
-    boat_sequential_model_private_t* private = (boat_sequential_model_private_t*)boat_model_get_user_data((boat_model_t*)model);
+    boat_sequential_model_private_t* private =
+        (boat_sequential_model_private_t*)boat_model_get_user_data((boat_model_t*)model);
     BOAT_CHECK_NULL_VOID(private);
 
     // Resize layers array if needed
     if (private->layer_count >= private->layer_capacity) {
         size_t new_capacity = private->layer_capacity == 0 ? 4 : private->layer_capacity * 2;
-        boat_layer_t** new_layers = boat_realloc(private->layers, new_capacity * sizeof(boat_layer_t*), BOAT_DEVICE_CPU);
+        boat_layer_t** new_layers =
+            boat_realloc(private->layers, new_capacity * sizeof(boat_layer_t*), BOAT_DEVICE_CPU);
         if (!new_layers) {
             return;
         }

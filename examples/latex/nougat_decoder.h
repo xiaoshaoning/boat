@@ -23,14 +23,9 @@ extern "C" {
 // out_len: number of generated tokens
 //
 // Returns 0 on success, -1 on failure.
-int nougat_decoder_generate(
-    const nougat_model_t* model,
-    const boat_tensor_t* encoder_output,
-    const boat_bpe_tokenizer_t* tokenizer,
-    int max_steps,
-    boat_device_t device,
-    int32_t** out_ids,
-    int* out_len);
+int nougat_decoder_generate(const nougat_model_t* model, const boat_tensor_t* encoder_output,
+                            const boat_bpe_tokenizer_t* tokenizer, int max_steps,
+                            boat_device_t device, int32_t** out_ids, int* out_len);
 
 #ifdef __cplusplus
 }

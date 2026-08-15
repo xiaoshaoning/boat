@@ -43,34 +43,35 @@ typedef struct hf_layer_builder_t hf_layer_builder_t;
 
 // Internal structure for Hugging Face model configuration
 typedef struct {
-    char* model_type;               // e.g., "bert", "gpt2", "roberta"
-    int hidden_size;                // hidden size
-    int num_hidden_layers;          // number of layers
-    int num_attention_heads;        // attention heads
-    int intermediate_size;          // feed-forward intermediate size
-    int max_position_embeddings;    // max sequence length
-    int vocab_size;                 // vocabulary size
-    float layer_norm_eps;           // LayerNorm epsilon
+    char* model_type;            // e.g., "bert", "gpt2", "roberta"
+    int hidden_size;             // hidden size
+    int num_hidden_layers;       // number of layers
+    int num_attention_heads;     // attention heads
+    int intermediate_size;       // feed-forward intermediate size
+    int max_position_embeddings; // max sequence length
+    int vocab_size;              // vocabulary size
+    float layer_norm_eps;        // LayerNorm epsilon
 
     // Layer builder tracking for associating weights and biases
-    hf_layer_builder_t* builders;    // Array of layer builders
-    size_t builder_count;           // Number of builders
-    size_t builder_capacity;        // Capacity of builders array
+    hf_layer_builder_t* builders; // Array of layer builders
+    size_t builder_count;         // Number of builders
+    size_t builder_capacity;      // Capacity of builders array
 } hf_config_t;
 
 // Simple layer wrapper for Hugging Face model loading
 typedef struct {
-    boat_tensor_t* weight;          // Weight tensor (owned by layer)
-    boat_tensor_t* bias;            // Bias tensor (optional, owned by layer)
-    char* layer_type;               // Layer type identifier
-    void* layer_data;               // Pointer to actual layer implementation (future)
+    boat_tensor_t* weight; // Weight tensor (owned by layer)
+    boat_tensor_t* bias;   // Bias tensor (optional, owned by layer)
+    char* layer_type;      // Layer type identifier
+    void* layer_data;      // Pointer to actual layer implementation (future)
 } hf_layer_wrapper_t;
 
 // Forward declarations for static functions
 static void free_config(hf_config_t* config);
 static void init_builders(hf_config_t* config);
 #ifdef BOAT_USE_CJSON
-static boat_layer_t* create_layer_from_config(const hf_config_t* config, const char* layer_name, boat_tensor_t* weight);
+static boat_layer_t* create_layer_from_config(const hf_config_t* config, const char* layer_name,
+                                              boat_tensor_t* weight);
 static hf_layer_wrapper_t* create_layer_wrapper(const char* layer_type, boat_tensor_t* weight);
 static void free_layer_wrapper(hf_layer_wrapper_t* wrapper);
 static char* get_base_layer_name(const char* tensor_name);
@@ -85,7 +86,8 @@ static boat_tensor_t* dense_layer_forward(const boat_layer_t* layer, const boat_
     return boat_dense_layer_forward(dense_layer, input);
 }
 
-static boat_tensor_t* dense_layer_backward(const boat_layer_t* layer, const boat_tensor_t* grad_output) {
+static boat_tensor_t* dense_layer_backward(const boat_layer_t* layer,
+                                           const boat_tensor_t* grad_output) {
     if (!layer || !layer->data || !grad_output) return NULL;
     boat_dense_layer_t* dense_layer = (boat_dense_layer_t*)layer->data;
     return boat_dense_layer_backward(dense_layer, grad_output);
@@ -107,21 +109,21 @@ static void dense_layer_free(const boat_layer_t* layer) {
     free((void*)layer);
 }
 
-static const boat_layer_ops_t dense_layer_ops = {
-    .forward = dense_layer_forward,
-    .backward = dense_layer_backward,
-    .update = dense_layer_update,
-    .free = dense_layer_free
-};
+static const boat_layer_ops_t dense_layer_ops = {.forward = dense_layer_forward,
+                                                 .backward = dense_layer_backward,
+                                                 .update = dense_layer_update,
+                                                 .free = dense_layer_free};
 
 // Layer operations for layer normalization
-static boat_tensor_t* layernorm_layer_forward(const boat_layer_t* layer, const boat_tensor_t* input) {
+static boat_tensor_t* layernorm_layer_forward(const boat_layer_t* layer,
+                                              const boat_tensor_t* input) {
     if (!layer || !layer->data || !input) return NULL;
     boat_layernorm_t* layernorm = (boat_layernorm_t*)layer->data;
     return boat_layernorm_forward(layernorm, input);
 }
 
-static boat_tensor_t* layernorm_layer_backward(const boat_layer_t* layer, const boat_tensor_t* grad_output) {
+static boat_tensor_t* layernorm_layer_backward(const boat_layer_t* layer,
+                                               const boat_tensor_t* grad_output) {
     if (!layer || !layer->data || !grad_output) return NULL;
     boat_layernorm_t* layernorm = (boat_layernorm_t*)layer->data;
     return boat_layernorm_backward(layernorm, grad_output);
@@ -143,12 +145,10 @@ static void layernorm_layer_free(const boat_layer_t* layer) {
     free((void*)layer);
 }
 
-static const boat_layer_ops_t layernorm_layer_ops = {
-    .forward = layernorm_layer_forward,
-    .backward = layernorm_layer_backward,
-    .update = layernorm_layer_update,
-    .free = layernorm_layer_free
-};
+static const boat_layer_ops_t layernorm_layer_ops = {.forward = layernorm_layer_forward,
+                                                     .backward = layernorm_layer_backward,
+                                                     .update = layernorm_layer_update,
+                                                     .free = layernorm_layer_free};
 #endif
 
 #ifdef BOAT_USE_CJSON
@@ -160,7 +160,8 @@ static boat_tensor_t* wrapper_layer_forward(const boat_layer_t* layer, const boa
     return NULL;
 }
 
-static boat_tensor_t* wrapper_layer_backward(const boat_layer_t* layer, const boat_tensor_t* grad_output) {
+static boat_tensor_t* wrapper_layer_backward(const boat_layer_t* layer,
+                                             const boat_tensor_t* grad_output) {
     (void)layer;
     (void)grad_output;
     // TODO: Implement backward pass for wrapper layers
@@ -183,27 +184,25 @@ static void wrapper_layer_free(const boat_layer_t* layer) {
     free((void*)layer);
 }
 
-static const boat_layer_ops_t wrapper_layer_ops = {
-    .forward = wrapper_layer_forward,
-    .backward = wrapper_layer_backward,
-    .update = wrapper_layer_update,
-    .free = wrapper_layer_free
-};
+static const boat_layer_ops_t wrapper_layer_ops = {.forward = wrapper_layer_forward,
+                                                   .backward = wrapper_layer_backward,
+                                                   .update = wrapper_layer_update,
+                                                   .free = wrapper_layer_free};
 #endif
 
 // Structure to track layer creation during loading
 typedef struct hf_layer_builder_t {
-    char* base_name;                // Base name without suffix (e.g., "lin" for "lin.weight")
-    void* layer;                    // Pointer to actual Boat layer (boat_dense_layer_t, etc.)
-    char* layer_type;               // Layer type ("dense", "layer_norm", etc.)
-    bool has_weight;                // Whether weight tensor has been set
-    bool has_bias;                  // Whether bias tensor has been set
-    boat_tensor_t* weight_tensor;   // Temporary storage for weight tensor
-    boat_tensor_t* bias_tensor;     // Temporary storage for bias tensor
+    char* base_name;              // Base name without suffix (e.g., "lin" for "lin.weight")
+    void* layer;                  // Pointer to actual Boat layer (boat_dense_layer_t, etc.)
+    char* layer_type;             // Layer type ("dense", "layer_norm", etc.)
+    bool has_weight;              // Whether weight tensor has been set
+    bool has_bias;                // Whether bias tensor has been set
+    boat_tensor_t* weight_tensor; // Temporary storage for weight tensor
+    boat_tensor_t* bias_tensor;   // Temporary storage for bias tensor
 } hf_layer_builder_t;
 
 // Safetensors format constants
-#define SAFETENSORS_MAGIC 0x7473  // "st" in little endian
+#define SAFETENSORS_MAGIC 0x7473 // "st" in little endian
 #define SAFETENSORS_VERSION 1
 
 // Safetensors data type mapping
@@ -223,7 +222,6 @@ typedef enum {
     SAFETENSORS_DTYPE_BOOL,
     SAFETENSORS_DTYPE_UNKNOWN
 } safetensors_dtype_t;
-
 
 // Parse JSON configuration into hf_config_t
 static hf_config_t* parse_config(const char* config_json) {
@@ -368,7 +366,8 @@ static void free_builders(hf_config_t* config) {
 
 #ifdef BOAT_USE_CJSON
 // Find or create a layer builder by base name
-static hf_layer_builder_t* find_or_create_builder(hf_config_t* config, const char* base_name, const char* layer_type) {
+static hf_layer_builder_t* find_or_create_builder(hf_config_t* config, const char* base_name,
+                                                  const char* layer_type) {
     if (!config || !base_name || !layer_type) return NULL;
 
     // First, try to find existing builder
@@ -384,7 +383,8 @@ static hf_layer_builder_t* find_or_create_builder(hf_config_t* config, const cha
         // Expand array
         size_t new_capacity = config->builder_capacity * 2;
         if (new_capacity < 16) new_capacity = 16;
-        hf_layer_builder_t* new_builders = realloc(config->builders, new_capacity * sizeof(hf_layer_builder_t));
+        hf_layer_builder_t* new_builders =
+            realloc(config->builders, new_capacity * sizeof(hf_layer_builder_t));
         if (!new_builders) return NULL;
         config->builders = new_builders;
         config->builder_capacity = new_capacity;
@@ -474,7 +474,8 @@ static boat_layer_t* complete_builder(hf_layer_builder_t* builder, const hf_conf
         size_t output_features = shape[1];
 
         // Create dense layer with bias flag based on whether we have bias tensor
-        boat_dense_layer_t* dense_layer = boat_dense_layer_create(input_features, output_features, builder->has_bias);
+        boat_dense_layer_t* dense_layer =
+            boat_dense_layer_create(input_features, output_features, builder->has_bias);
         if (!dense_layer) {
             return NULL;
         }
@@ -510,8 +511,8 @@ static boat_layer_t* complete_builder(hf_layer_builder_t* builder, const hf_conf
             builder->bias_tensor = NULL;
         }
 
-        printf("    Created dense layer with dimensions %zu -> %zu (bias: %s)\n",
-               input_features, output_features, builder->has_bias ? "yes" : "no");
+        printf("    Created dense layer with dimensions %zu -> %zu (bias: %s)\n", input_features,
+               output_features, builder->has_bias ? "yes" : "no");
 
         return layer;
     } else if (strcmp(builder->layer_type, "layer_norm") == 0) {
@@ -527,12 +528,10 @@ static boat_layer_t* complete_builder(hf_layer_builder_t* builder, const hf_conf
         size_t normalized_shape = shape[0];
 
         // Create layer normalization configuration
-        boat_layernorm_config_t ln_config = {
-            .normalized_shape = normalized_shape,
-            .eps = config ? config->layer_norm_eps : 1e-5f,
-            .elementwise_affine = true,
-            .use_bias = builder->has_bias
-        };
+        boat_layernorm_config_t ln_config = {.normalized_shape = normalized_shape,
+                                             .eps = config ? config->layer_norm_eps : 1e-5f,
+                                             .elementwise_affine = true,
+                                             .use_bias = builder->has_bias};
 
         boat_layernorm_t* layernorm = boat_layernorm_create(&ln_config);
         if (!layernorm) {
@@ -614,20 +613,20 @@ static safetensors_dtype_t safetensors_dtype_from_string(const char* dtype_str) 
 // Convert safetensors dtype to boat dtype
 static boat_dtype_t boat_dtype_from_safetensors(safetensors_dtype_t sdtype) {
     switch (sdtype) {
-        case SAFETENSORS_DTYPE_F64: return BOAT_DTYPE_FLOAT64;
-        case SAFETENSORS_DTYPE_F32: return BOAT_DTYPE_FLOAT32;
-        case SAFETENSORS_DTYPE_F16: return BOAT_DTYPE_FLOAT16;
-        case SAFETENSORS_DTYPE_BF16: return BOAT_DTYPE_BFLOAT16;
-        case SAFETENSORS_DTYPE_I64: return BOAT_DTYPE_INT64;
-        case SAFETENSORS_DTYPE_I32: return BOAT_DTYPE_INT32;
-        case SAFETENSORS_DTYPE_I16: return BOAT_DTYPE_INT32; // Map to INT32
-        case SAFETENSORS_DTYPE_I8: return BOAT_DTYPE_INT8;
-        case SAFETENSORS_DTYPE_U64: return BOAT_DTYPE_INT64; // Map to INT64
-        case SAFETENSORS_DTYPE_U32: return BOAT_DTYPE_INT32; // Map to INT32
-        case SAFETENSORS_DTYPE_U16: return BOAT_DTYPE_INT32; // Map to INT32
-        case SAFETENSORS_DTYPE_U8: return BOAT_DTYPE_UINT8;
-        case SAFETENSORS_DTYPE_BOOL: return BOAT_DTYPE_BOOL;
-        default: return BOAT_DTYPE_FLOAT32; // Default fallback
+    case SAFETENSORS_DTYPE_F64: return BOAT_DTYPE_FLOAT64;
+    case SAFETENSORS_DTYPE_F32: return BOAT_DTYPE_FLOAT32;
+    case SAFETENSORS_DTYPE_F16: return BOAT_DTYPE_FLOAT16;
+    case SAFETENSORS_DTYPE_BF16: return BOAT_DTYPE_BFLOAT16;
+    case SAFETENSORS_DTYPE_I64: return BOAT_DTYPE_INT64;
+    case SAFETENSORS_DTYPE_I32: return BOAT_DTYPE_INT32;
+    case SAFETENSORS_DTYPE_I16: return BOAT_DTYPE_INT32; // Map to INT32
+    case SAFETENSORS_DTYPE_I8: return BOAT_DTYPE_INT8;
+    case SAFETENSORS_DTYPE_U64: return BOAT_DTYPE_INT64; // Map to INT64
+    case SAFETENSORS_DTYPE_U32: return BOAT_DTYPE_INT32; // Map to INT32
+    case SAFETENSORS_DTYPE_U16: return BOAT_DTYPE_INT32; // Map to INT32
+    case SAFETENSORS_DTYPE_U8: return BOAT_DTYPE_UINT8;
+    case SAFETENSORS_DTYPE_BOOL: return BOAT_DTYPE_BOOL;
+    default: return BOAT_DTYPE_FLOAT32; // Default fallback
     }
 }
 #endif
@@ -686,7 +685,8 @@ static bool is_safetensors_format(const uint8_t* data, size_t size) {
         pos--;
     }
     if (data[pos] != '}') {
-        BOAT_DEBUG_PRINT("[HuggingFace] JSON does not end with '}' (found 0x%02x at pos %zu)\n", data[pos], pos);
+        BOAT_DEBUG_PRINT("[HuggingFace] JSON does not end with '}' (found 0x%02x at pos %zu)\n",
+                         data[pos], pos);
         return false;
     }
 
@@ -694,7 +694,8 @@ static bool is_safetensors_format(const uint8_t* data, size_t size) {
 }
 
 // Load safetensors format weights
-static bool load_safetensors(const void* data, size_t size, const hf_config_t* config, const boat_model_t* model) {
+static bool load_safetensors(const void* data, size_t size, const hf_config_t* config,
+                             const boat_model_t* model) {
     (void)config;
     if (!data || size == 0 || !model) return false;
 
@@ -719,7 +720,8 @@ static bool load_safetensors(const void* data, size_t size, const hf_config_t* c
     // Parse JSON using cJSON
     cJSON* root = cJSON_Parse(json_header);
     if (!root) {
-        boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Failed to parse safetensors JSON header\n");
+        boat_set_errorf(BOAT_ERROR_FORMAT,
+                        "[HuggingFace] Failed to parse safetensors JSON header\n");
         free(json_header);
         return false;
     }
@@ -761,7 +763,8 @@ static bool load_safetensors(const void* data, size_t size, const hf_config_t* c
 
         int shape_len = cJSON_GetArraySize(shape_item);
         if (shape_len < 0 || shape_len > BOAT_MAX_DIMS) {
-            BOAT_DEBUG_PRINT("[HuggingFace] Warning: tensor '%s' invalid shape length %d\n", key, shape_len);
+            BOAT_DEBUG_PRINT("[HuggingFace] Warning: tensor '%s' invalid shape length %d\n", key,
+                             shape_len);
             continue;
         }
 
@@ -771,7 +774,8 @@ static bool load_safetensors(const void* data, size_t size, const hf_config_t* c
         if (shape_len > 0) {
             shape = malloc(shape_len * sizeof(int64_t));
             if (!shape) {
-                boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[HuggingFace] Memory allocation failed for shape\n");
+                boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY,
+                                "[HuggingFace] Memory allocation failed for shape\n");
                 continue;
             }
             for (int i = 0; i < shape_len; i++) {
@@ -860,7 +864,8 @@ static bool load_safetensors(const void* data, size_t size, const hf_config_t* c
         ptr += 7; // Move past found string
     }
 
-    printf("Found %d tensors in safetensors file (cJSON not available, cannot load)\n", tensor_count);
+    printf("Found %d tensors in safetensors file (cJSON not available, cannot load)\n",
+           tensor_count);
     success = false; // Can't actually load without JSON parsing
 #endif
 
@@ -869,7 +874,8 @@ static bool load_safetensors(const void* data, size_t size, const hf_config_t* c
 }
 
 // Load PyTorch .bin format weights (state_dict)
-static bool load_pytorch_bin(const void* data, size_t size, const hf_config_t* config, const boat_model_t* model) {
+static bool load_pytorch_bin(const void* data, size_t size, const hf_config_t* config,
+                             const boat_model_t* model) {
     // TODO: Implement PyTorch .bin parsing
     // This is more complex due to Pickle format
     // Consider requiring safetensors instead
@@ -912,7 +918,8 @@ static void free_layer_wrapper(hf_layer_wrapper_t* wrapper) {
 
 #ifdef BOAT_USE_CJSON
 // Create layers based on configuration
-static boat_layer_t* create_layer_from_config(const hf_config_t* config, const char* layer_name, boat_tensor_t* weight) {
+static boat_layer_t* create_layer_from_config(const hf_config_t* config, const char* layer_name,
+                                              boat_tensor_t* weight) {
     if (!config || !layer_name || !weight) return NULL;
 
     // Get tensor properties for logging
@@ -957,8 +964,7 @@ static boat_layer_t* create_layer_from_config(const hf_config_t* config, const c
     }
 
     // Check for dense/linear layers
-    if (strstr(layer_name, "dense") != NULL ||
-        strstr(layer_name, "linear") != NULL ||
+    if (strstr(layer_name, "dense") != NULL || strstr(layer_name, "linear") != NULL ||
         (strstr(layer_name, "weight") != NULL && ndim == 2) ||
         (strstr(layer_name, "bias") != NULL && ndim == 1)) {
 
@@ -971,11 +977,14 @@ static boat_layer_t* create_layer_from_config(const hf_config_t* config, const c
         }
 
         // Create or find builder for this layer
-        hf_layer_builder_t* builder = find_or_create_builder((hf_config_t*)config, base_name, "dense");
+        hf_layer_builder_t* builder =
+            find_or_create_builder((hf_config_t*)config, base_name, "dense");
         free(base_name);
 
         if (!builder) {
-            boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Failed to create/find builder for layer: %s\n", layer_name);
+            boat_set_errorf(BOAT_ERROR_FORMAT,
+                            "[HuggingFace] Failed to create/find builder for layer: %s\n",
+                            layer_name);
             return NULL;
         }
 
@@ -983,13 +992,15 @@ static boat_layer_t* create_layer_from_config(const hf_config_t* config, const c
         if (strstr(layer_name, "weight") != NULL && ndim == 2) {
             printf("    Weight matrix: %" PRId64 "x%" PRId64 "\n", shape[0], shape[1]);
             if (!set_builder_weight(builder, weight)) {
-                boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Failed to set weight for builder: %s\n", layer_name);
+                boat_set_errorf(BOAT_ERROR_FORMAT,
+                                "[HuggingFace] Failed to set weight for builder: %s\n", layer_name);
                 return NULL;
             }
         } else if (strstr(layer_name, "bias") != NULL && ndim == 1) {
             printf("    Bias vector: length %" PRId64 "\n", shape[0]);
             if (!set_builder_bias(builder, weight)) {
-                boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Failed to set bias for builder: %s\n", layer_name);
+                boat_set_errorf(BOAT_ERROR_FORMAT,
+                                "[HuggingFace] Failed to set bias for builder: %s\n", layer_name);
                 return NULL;
             }
         } else {
@@ -1010,7 +1021,9 @@ static boat_layer_t* create_layer_from_config(const hf_config_t* config, const c
                 if (layer) {
                     return layer;
                 } else {
-                    boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Failed to complete builder for layer: %s\n", layer_name);
+                    boat_set_errorf(BOAT_ERROR_FORMAT,
+                                    "[HuggingFace] Failed to complete builder for layer: %s\n",
+                                    layer_name);
                     return NULL;
                 }
             }
@@ -1031,11 +1044,14 @@ static boat_layer_t* create_layer_from_config(const hf_config_t* config, const c
         }
 
         // Create or find builder for this layer
-        hf_layer_builder_t* builder = find_or_create_builder((hf_config_t*)config, base_name, "layer_norm");
+        hf_layer_builder_t* builder =
+            find_or_create_builder((hf_config_t*)config, base_name, "layer_norm");
         free(base_name);
 
         if (!builder) {
-            boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Failed to create/find builder for layer: %s\n", layer_name);
+            boat_set_errorf(BOAT_ERROR_FORMAT,
+                            "[HuggingFace] Failed to create/find builder for layer: %s\n",
+                            layer_name);
             return NULL;
         }
 
@@ -1043,13 +1059,15 @@ static boat_layer_t* create_layer_from_config(const hf_config_t* config, const c
         if (strstr(layer_name, "weight") != NULL && ndim == 1) {
             printf("    Scale (gamma) parameter: length %" PRId64 "\n", shape[0]);
             if (!set_builder_weight(builder, weight)) {
-                boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Failed to set weight for builder: %s\n", layer_name);
+                boat_set_errorf(BOAT_ERROR_FORMAT,
+                                "[HuggingFace] Failed to set weight for builder: %s\n", layer_name);
                 return NULL;
             }
         } else if (strstr(layer_name, "bias") != NULL && ndim == 1) {
             printf("    Shift (beta) parameter: length %" PRId64 "\n", shape[0]);
             if (!set_builder_bias(builder, weight)) {
-                boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Failed to set bias for builder: %s\n", layer_name);
+                boat_set_errorf(BOAT_ERROR_FORMAT,
+                                "[HuggingFace] Failed to set bias for builder: %s\n", layer_name);
                 return NULL;
             }
         } else {
@@ -1070,7 +1088,9 @@ static boat_layer_t* create_layer_from_config(const hf_config_t* config, const c
                 if (layer) {
                     return layer;
                 } else {
-                    boat_set_errorf(BOAT_ERROR_FORMAT, "[HuggingFace] Failed to complete builder for layer: %s\n", layer_name);
+                    boat_set_errorf(BOAT_ERROR_FORMAT,
+                                    "[HuggingFace] Failed to complete builder for layer: %s\n",
+                                    layer_name);
                     return NULL;
                 }
             }
@@ -1124,7 +1144,8 @@ BOAT_API boat_model_t* boat_huggingface_load(const char* model_dir) {
         snprintf(weights_path, sizeof(weights_path), "%s/pytorch_model.bin", model_dir);
         weights_file = fopen(weights_path, "rb");
         if (!weights_file) {
-            boat_set_errorf(BOAT_ERROR_FILE_IO, "[HuggingFace] No weight file found (tried model.safetensors and pytorch_model.bin)\n");
+            boat_set_errorf(BOAT_ERROR_FILE_IO, "[HuggingFace] No weight file found (tried "
+                                                "model.safetensors and pytorch_model.bin)\n");
             return NULL;
         }
     }
@@ -1145,7 +1166,8 @@ BOAT_API boat_model_t* boat_huggingface_load(const char* model_dir) {
     FILE* fp = fopen(weights_path, "rb");
     if (!fp) {
         free(config_json);
-        boat_set_errorf(BOAT_ERROR_FILE_IO, "[HuggingFace] Failed to open weights file: %s\n", weights_path);
+        boat_set_errorf(BOAT_ERROR_FILE_IO, "[HuggingFace] Failed to open weights file: %s\n",
+                        weights_path);
         return NULL;
     }
 
@@ -1156,7 +1178,9 @@ BOAT_API boat_model_t* boat_huggingface_load(const char* model_dir) {
     if (weights_size <= 0) {
         fclose(fp);
         free(config_json);
-        boat_set_errorf(BOAT_ERROR_FILE_IO, "[HuggingFace] Weights file is empty or error getting size: %s\n", weights_path);
+        boat_set_errorf(BOAT_ERROR_FILE_IO,
+                        "[HuggingFace] Weights file is empty or error getting size: %s\n",
+                        weights_path);
         return NULL;
     }
 
@@ -1164,7 +1188,9 @@ BOAT_API boat_model_t* boat_huggingface_load(const char* model_dir) {
     if (!weights_data) {
         fclose(fp);
         free(config_json);
-        boat_set_errorf(BOAT_ERROR_FILE_IO, "[HuggingFace] Failed to allocate memory for weights data: %zu bytes\n", (size_t)weights_size);
+        boat_set_errorf(BOAT_ERROR_FILE_IO,
+                        "[HuggingFace] Failed to allocate memory for weights data: %zu bytes\n",
+                        (size_t)weights_size);
         return NULL;
     }
 
@@ -1174,13 +1200,16 @@ BOAT_API boat_model_t* boat_huggingface_load(const char* model_dir) {
     if (bytes_read != (size_t)weights_size) {
         free(weights_data);
         free(config_json);
-        boat_set_errorf(BOAT_ERROR_FILE_IO, "[HuggingFace] Failed to read entire weights file: %s (read %zu of %ld bytes)\n",
-                weights_path, bytes_read, weights_size);
+        boat_set_errorf(
+            BOAT_ERROR_FILE_IO,
+            "[HuggingFace] Failed to read entire weights file: %s (read %zu of %ld bytes)\n",
+            weights_path, bytes_read, weights_size);
         return NULL;
     }
 
     // 3. Call boat_huggingface_load_from_memory with the data
-    boat_model_t* model = boat_huggingface_load_from_memory(config_json, weights_data, weights_size);
+    boat_model_t* model =
+        boat_huggingface_load_from_memory(config_json, weights_data, weights_size);
 
     // Clean up
     free(weights_data);
@@ -1196,7 +1225,9 @@ BOAT_API boat_model_t* boat_huggingface_load(const char* model_dir) {
 }
 
 // Load Hugging Face model from memory buffers
-BOAT_API boat_model_t* boat_huggingface_load_from_memory(const char* config_json, const void* weights_data, size_t weights_size) {
+BOAT_API boat_model_t* boat_huggingface_load_from_memory(const char* config_json,
+                                                         const void* weights_data,
+                                                         size_t weights_size) {
     if (!config_json || !weights_data || weights_size == 0) {
         return NULL;
     }
@@ -1312,8 +1343,14 @@ static char* get_base_layer_name(const char* tensor_name) {
     if (!base) return NULL;
 
     // Remove common suffixes
-    char* suffixes[] = {".weight", ".bias", ".gamma", ".beta", ".running_mean", ".running_var", ".num_batches_tracked"};
-    for (size_t i = 0; i < sizeof(suffixes)/sizeof(suffixes[0]); i++) {
+    char* suffixes[] = {".weight",
+                        ".bias",
+                        ".gamma",
+                        ".beta",
+                        ".running_mean",
+                        ".running_var",
+                        ".num_batches_tracked"};
+    for (size_t i = 0; i < sizeof(suffixes) / sizeof(suffixes[0]); i++) {
         const char* suffix = suffixes[i];
         size_t suffix_len = strlen(suffix);
         size_t base_len = strlen(base);
@@ -1326,7 +1363,6 @@ static char* get_base_layer_name(const char* tensor_name) {
     return base;
 }
 #endif
-
 
 // Read file contents into a string (caller must free)
 static char* read_file_to_string(const char* filename) {
@@ -1345,7 +1381,8 @@ static char* read_file_to_string(const char* filename) {
 
     if (file_size <= 0) {
         fclose(fp);
-        boat_set_errorf(BOAT_ERROR_FILE_IO, "[HuggingFace] File is empty or error getting size: %s\n", filename);
+        boat_set_errorf(BOAT_ERROR_FILE_IO,
+                        "[HuggingFace] File is empty or error getting size: %s\n", filename);
         return NULL;
     }
 
@@ -1353,7 +1390,8 @@ static char* read_file_to_string(const char* filename) {
     char* buffer = (char*)malloc(file_size + 1);
     if (!buffer) {
         fclose(fp);
-        boat_set_errorf(BOAT_ERROR_FILE_IO, "[HuggingFace] Failed to allocate memory for file: %s\n", filename);
+        boat_set_errorf(BOAT_ERROR_FILE_IO,
+                        "[HuggingFace] Failed to allocate memory for file: %s\n", filename);
         return NULL;
     }
 
@@ -1363,8 +1401,9 @@ static char* read_file_to_string(const char* filename) {
 
     if (bytes_read != (size_t)file_size) {
         free(buffer);
-        boat_set_errorf(BOAT_ERROR_FILE_IO, "[HuggingFace] Failed to read entire file: %s (read %zu of %ld bytes)\n",
-                filename, bytes_read, file_size);
+        boat_set_errorf(BOAT_ERROR_FILE_IO,
+                        "[HuggingFace] Failed to read entire file: %s (read %zu of %ld bytes)\n",
+                        filename, bytes_read, file_size);
         return NULL;
     }
 

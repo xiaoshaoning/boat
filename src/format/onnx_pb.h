@@ -69,31 +69,31 @@ void pb_write_raw(pb_builder_t* b, const void* data, size_t len);
 
 // ONNX AttributeProto types
 #define ONNX_ATTR_FLOAT 1
-#define ONNX_ATTR_INT   2
-#define ONNX_ATTR_INTS  7
+#define ONNX_ATTR_INT 2
+#define ONNX_ATTR_INTS 7
 
 typedef struct {
-    char** names;       // input names (string field 1, repeated)
+    char** names; // input names (string field 1, repeated)
     int num_inputs;
-    char** outputs;     // output names (string field 2, repeated)
+    char** outputs; // output names (string field 2, repeated)
     int num_outputs;
-    char* name;         // node name (field 3)
-    char* op_type;      // op_type (field 4)
+    char* name;    // node name (field 3)
+    char* op_type; // op_type (field 4)
     // Simple attribute dict (name->int64 mapping)
     char** attr_names;
     int64_t* attr_ints;
     float* attr_floats;
-    int* attr_types;    // ONNX_ATTR_* values, parallel to attr_names
+    int* attr_types; // ONNX_ATTR_* values, parallel to attr_names
     int num_attrs;
     int attrs_cap;
 } onnx_node_t;
 
 typedef struct {
-    int64_t* dims;      // dims (field 1, packed varint)
+    int64_t* dims; // dims (field 1, packed varint)
     int num_dims;
-    int32_t data_type;  // data_type (field 5)
-    char* name;         // name (field 7)
-    uint8_t* raw_data;  // raw_data (field 10)
+    int32_t data_type; // data_type (field 5)
+    char* name;        // name (field 7)
+    uint8_t* raw_data; // raw_data (field 10)
     size_t raw_data_size;
 } onnx_tensor_t;
 
@@ -110,7 +110,7 @@ typedef struct {
 typedef struct {
     int64_t ir_version;
     onnx_graph_t graph;
-    int64_t opset_version;  // from first opset_import
+    int64_t opset_version; // from first opset_import
 } onnx_model_t;
 
 // Parse an ONNX model from a byte buffer

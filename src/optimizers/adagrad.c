@@ -12,7 +12,7 @@
 typedef struct boat_adagrad_state_t {
     boat_optimizer_type_t type;
     float learning_rate;
-    float weight_decay;  // L2 gradient penalty coefficient (0 = off)
+    float weight_decay; // L2 gradient penalty coefficient (0 = off)
     float epsilon;
 
     // Parameter and gradient arrays
@@ -31,8 +31,7 @@ static void adagrad_expand_capacity(boat_adagrad_state_t* state);
 static void adagrad_update_parameter(boat_adagrad_state_t* state, size_t idx);
 
 // Create Adagrad optimizer
-BOAT_API boat_optimizer_t* boat_adagrad_optimizer_create(float learning_rate,
-                                                float epsilon) {
+BOAT_API boat_optimizer_t* boat_adagrad_optimizer_create(float learning_rate, float epsilon) {
     // Parameter validation
     if (learning_rate <= 0.0f) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Adagrad] Learning rate must be positive\n");
@@ -44,7 +43,8 @@ BOAT_API boat_optimizer_t* boat_adagrad_optimizer_create(float learning_rate,
     }
 
     // Allocate optimizer state
-    boat_adagrad_state_t* state = (boat_adagrad_state_t*)boat_malloc(sizeof(boat_adagrad_state_t), BOAT_DEVICE_CPU);
+    boat_adagrad_state_t* state =
+        (boat_adagrad_state_t*)boat_malloc(sizeof(boat_adagrad_state_t), BOAT_DEVICE_CPU);
     if (!state) {
         boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[Adagrad] Failed to allocate optimizer state\n");
         return NULL;
@@ -56,12 +56,15 @@ BOAT_API boat_optimizer_t* boat_adagrad_optimizer_create(float learning_rate,
     state->weight_decay = 0.0f;
     state->epsilon = epsilon;
     state->num_params = 0;
-    state->capacity = 16;  // Initial capacity
+    state->capacity = 16; // Initial capacity
 
     // Allocate arrays
-    state->params = (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
-    state->grads = (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
-    state->sum_square_grad = (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
+    state->params =
+        (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
+    state->grads =
+        (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
+    state->sum_square_grad =
+        (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
 
     if (!state->params || !state->grads || !state->sum_square_grad) {
         boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[Adagrad] Failed to allocate optimizer state\n");
@@ -83,9 +86,8 @@ BOAT_API boat_optimizer_t* boat_adagrad_optimizer_create(float learning_rate,
 }
 
 // Add a parameter to the optimizer
-void adagrad_optimizer_add_parameter(boat_optimizer_t* optimizer,
-                                  boat_tensor_t* param,
-                                  boat_tensor_t* grad) {
+void adagrad_optimizer_add_parameter(boat_optimizer_t* optimizer, boat_tensor_t* param,
+                                     boat_tensor_t* grad) {
     if (!optimizer || !param || !grad) {
         return;
     }
@@ -191,7 +193,8 @@ static void adagrad_update_parameter(boat_adagrad_state_t* state, size_t idx) {
         sum_square_grad_data[i] += g * g;
 
         // Update parameter: param -= learning_rate * g / sqrt(sum_square_grad + epsilon)
-        param_data[i] -= state->learning_rate * g / (sqrtf(sum_square_grad_data[i]) + state->epsilon);
+        param_data[i] -=
+            state->learning_rate * g / (sqrtf(sum_square_grad_data[i]) + state->epsilon);
     }
 }
 

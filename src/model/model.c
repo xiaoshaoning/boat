@@ -16,17 +16,17 @@
 
 // Model structure
 struct boat_model_t {
-    boat_graph_t* graph;          // Computational graph representing the model
-    char* name;                   // Model name (optional)
-    boat_device_t device;         // Device where model is stored
-    bool trainable;               // Whether model is in training mode
-    void* user_data;              // User-defined data (optional)
+    boat_graph_t* graph;           // Computational graph representing the model
+    char* name;                    // Model name (optional)
+    boat_device_t device;          // Device where model is stored
+    bool trainable;                // Whether model is in training mode
+    void* user_data;               // User-defined data (optional)
     void (*free_user_data)(void*); // Function to free user_data
     // Layers storage (temporary until integrated with graph)
-    boat_layer_t** layers;        // Array of layer pointers
-    boat_node_t** nodes;          // Array of graph node pointers (parallel to layers)
-    size_t layer_count;           // Number of layers
-    size_t layer_capacity;        // Capacity of layers array
+    boat_layer_t** layers; // Array of layer pointers
+    boat_node_t** nodes;   // Array of graph node pointers (parallel to layers)
+    size_t layer_count;    // Number of layers
+    size_t layer_capacity; // Capacity of layers array
 };
 
 // Layer structure is now defined in model.h
@@ -194,7 +194,8 @@ BOAT_API boat_tensor_t* boat_model_forward(const boat_model_t* model, const boat
     boat_graph_topological_sort(graph, sorted_nodes, &sorted_count);
 
     // Map from node to output tensor
-    boat_tensor_t** node_outputs = boat_calloc(node_count * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
+    boat_tensor_t** node_outputs =
+        boat_calloc(node_count * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
     if (!node_outputs) {
         boat_free(sorted_nodes);
         return NULL;
@@ -253,7 +254,7 @@ BOAT_API boat_tensor_t* boat_model_forward(const boat_model_t* model, const boat
 
         if (num_inputs == 0) {
             // First layer in graph - use external input
-            layer_input = (boat_tensor_t*)input;  // Cast away const for API compatibility
+            layer_input = (boat_tensor_t*)input; // Cast away const for API compatibility
         } else if (num_inputs == 1) {
             // Single input - typical for sequential models
             for (size_t j = 0; j < boat_graph_edge_count(graph); j++) {
@@ -358,7 +359,8 @@ BOAT_API boat_tensor_t* boat_model_forward(const boat_model_t* model, const boat
     return final_output;
 }
 
-BOAT_API boat_tensor_t* boat_model_backward(const boat_model_t* model, const boat_tensor_t* grad_output) {
+BOAT_API boat_tensor_t* boat_model_backward(const boat_model_t* model,
+                                            const boat_tensor_t* grad_output) {
     (void)model;
     (void)grad_output;
     // TODO: Implement backward pass through computational graph
@@ -396,7 +398,8 @@ static bool save_tensor_to_file(FILE* f, const boat_tensor_t* tensor, uint32_t v
 
     if (version >= 2) {
         boat_dtype_t dt = boat_tensor_dtype(tensor);
-        bool quantized = ((dt == BOAT_DTYPE_UINT8 || dt == BOAT_DTYPE_INT8 || dt == BOAT_DTYPE_BITS2 || dt == BOAT_DTYPE_BITS1) &&
+        bool quantized = ((dt == BOAT_DTYPE_UINT8 || dt == BOAT_DTYPE_INT8 ||
+                           dt == BOAT_DTYPE_BITS2 || dt == BOAT_DTYPE_BITS1) &&
                           boat_tensor_get_scale(tensor) != 0.0f) ||
                          dt == BOAT_DTYPE_FLOAT4;
         uint32_t quant_flag = quantized ? 1 : 0;
@@ -438,27 +441,41 @@ static boat_tensor_t* load_tensor_from_file(FILE* f, uint32_t version) {
     if (!shape) return NULL;
     for (uint32_t i = 0; i < ndim; i++) {
         uint32_t dim;
-        if (fread(&dim, sizeof(uint32_t), 1, f) != 1) { free(shape); return NULL; }
+        if (fread(&dim, sizeof(uint32_t), 1, f) != 1) {
+            free(shape);
+            return NULL;
+        }
         shape[i] = (int64_t)dim;
     }
 
     uint32_t dtype_u32;
-    if (fread(&dtype_u32, sizeof(uint32_t), 1, f) != 1) { free(shape); return NULL; }
+    if (fread(&dtype_u32, sizeof(uint32_t), 1, f) != 1) {
+        free(shape);
+        return NULL;
+    }
     boat_dtype_t dtype = (boat_dtype_t)dtype_u32;
 
     size_t total_elems = 1;
-    for (uint32_t i = 0; i < ndim; i++) total_elems *= (size_t)shape[i];
+    for (uint32_t i = 0; i < ndim; i++)
+        total_elems *= (size_t)shape[i];
     size_t nbytes;
     switch (dtype) {
-        case BOAT_DTYPE_FLOAT4: nbytes = (total_elems + 1) / 2; break;
-        case BOAT_DTYPE_BITS2:  nbytes = (total_elems + 3) / 4; break;
-        case BOAT_DTYPE_BITS1:  nbytes = (total_elems + 7) / 8; break;
-        default:                nbytes = total_elems * boat_dtype_size(dtype); break;
+    case BOAT_DTYPE_FLOAT4: nbytes = (total_elems + 1) / 2; break;
+    case BOAT_DTYPE_BITS2: nbytes = (total_elems + 3) / 4; break;
+    case BOAT_DTYPE_BITS1: nbytes = (total_elems + 7) / 8; break;
+    default: nbytes = total_elems * boat_dtype_size(dtype); break;
     }
 
     void* data = malloc(nbytes);
-    if (!data) { free(shape); return NULL; }
-    if (fread(data, 1, nbytes, f) != nbytes) { free(data); free(shape); return NULL; }
+    if (!data) {
+        free(shape);
+        return NULL;
+    }
+    if (fread(data, 1, nbytes, f) != nbytes) {
+        free(data);
+        free(shape);
+        return NULL;
+    }
 
     boat_tensor_t* tensor = boat_tensor_from_data(shape, (size_t)ndim, dtype, data);
     free(data);
@@ -467,7 +484,10 @@ static boat_tensor_t* load_tensor_from_file(FILE* f, uint32_t version) {
 
     if (version >= 2) {
         uint32_t quant_flag;
-        if (fread(&quant_flag, sizeof(uint32_t), 1, f) != 1) { boat_tensor_unref(tensor); return NULL; }
+        if (fread(&quant_flag, sizeof(uint32_t), 1, f) != 1) {
+            boat_tensor_unref(tensor);
+            return NULL;
+        }
         if (quant_flag) {
             float scale;
             int32_t zero_point;
@@ -481,10 +501,16 @@ static boat_tensor_t* load_tensor_from_file(FILE* f, uint32_t version) {
     }
     if (version >= 3) {
         uint32_t pc_flag;
-        if (fread(&pc_flag, sizeof(uint32_t), 1, f) != 1) { boat_tensor_unref(tensor); return NULL; }
+        if (fread(&pc_flag, sizeof(uint32_t), 1, f) != 1) {
+            boat_tensor_unref(tensor);
+            return NULL;
+        }
         if (pc_flag) {
             uint32_t n_channels;
-            if (fread(&n_channels, sizeof(uint32_t), 1, f) != 1) { boat_tensor_unref(tensor); return NULL; }
+            if (fread(&n_channels, sizeof(uint32_t), 1, f) != 1) {
+                boat_tensor_unref(tensor);
+                return NULL;
+            }
             float* scales = (float*)malloc(sizeof(float) * n_channels);
             int32_t* zero_points = (int32_t*)malloc(sizeof(int32_t) * n_channels);
             if (!scales || !zero_points) {
@@ -502,7 +528,8 @@ static boat_tensor_t* load_tensor_from_file(FILE* f, uint32_t version) {
                     return NULL;
                 }
             }
-            boat_tensor_set_per_channel_quant_params(tensor, scales, zero_points, (size_t)n_channels);
+            boat_tensor_set_per_channel_quant_params(tensor, scales, zero_points,
+                                                     (size_t)n_channels);
             free(scales);
             free(zero_points);
         }
@@ -522,7 +549,10 @@ static void dense_update_op(const boat_layer_t* layer, float lr) {
     boat_dense_layer_update((boat_dense_layer_t*)layer->data, lr);
 }
 static void dense_free_op(const boat_layer_t* layer) {
-    if (layer && layer->data) { boat_dense_layer_free((boat_dense_layer_t*)layer->data); free((void*)layer); }
+    if (layer && layer->data) {
+        boat_dense_layer_free((boat_dense_layer_t*)layer->data);
+        free((void*)layer);
+    }
 }
 
 static boat_tensor_t* conv_forward_op(const boat_layer_t* layer, const boat_tensor_t* input) {
@@ -535,7 +565,10 @@ static void conv_update_op(const boat_layer_t* layer, float lr) {
     boat_conv_layer_update((boat_conv_layer_t*)layer->data, lr);
 }
 static void conv_free_op(const boat_layer_t* layer) {
-    if (layer && layer->data) { boat_conv_layer_free((boat_conv_layer_t*)layer->data); free((void*)layer); }
+    if (layer && layer->data) {
+        boat_conv_layer_free((boat_conv_layer_t*)layer->data);
+        free((void*)layer);
+    }
 }
 
 static boat_tensor_t* pool_forward_op(const boat_layer_t* layer, const boat_tensor_t* input) {
@@ -548,7 +581,10 @@ static void pool_update_op(const boat_layer_t* layer, float lr) {
     boat_pool_layer_update((boat_pool_layer_t*)layer->data, lr);
 }
 static void pool_free_op(const boat_layer_t* layer) {
-    if (layer && layer->data) { boat_pool_layer_free((boat_pool_layer_t*)layer->data); free((void*)layer); }
+    if (layer && layer->data) {
+        boat_pool_layer_free((boat_pool_layer_t*)layer->data);
+        free((void*)layer);
+    }
 }
 
 static boat_tensor_t* relu_forward_op(const boat_layer_t* layer, const boat_tensor_t* input) {
@@ -561,7 +597,10 @@ static void relu_update_op(const boat_layer_t* layer, float lr) {
     boat_relu_layer_update((boat_relu_layer_t*)layer->data, lr);
 }
 static void relu_free_op(const boat_layer_t* layer) {
-    if (layer && layer->data) { boat_relu_layer_free((boat_relu_layer_t*)layer->data); free((void*)layer); }
+    if (layer && layer->data) {
+        boat_relu_layer_free((boat_relu_layer_t*)layer->data);
+        free((void*)layer);
+    }
 }
 
 static boat_tensor_t* softmax_forward_op(const boat_layer_t* layer, const boat_tensor_t* input) {
@@ -574,7 +613,10 @@ static void softmax_update_op(const boat_layer_t* layer, float lr) {
     boat_softmax_layer_update((boat_softmax_layer_t*)layer->data, lr);
 }
 static void softmax_free_op(const boat_layer_t* layer) {
-    if (layer && layer->data) { boat_softmax_layer_free((boat_softmax_layer_t*)layer->data); free((void*)layer); }
+    if (layer && layer->data) {
+        boat_softmax_layer_free((boat_softmax_layer_t*)layer->data);
+        free((void*)layer);
+    }
 }
 
 static boat_tensor_t* flatten_forward_op(const boat_layer_t* layer, const boat_tensor_t* input) {
@@ -587,7 +629,10 @@ static void flatten_update_op(const boat_layer_t* layer, float lr) {
     boat_flatten_layer_update((boat_flatten_layer_t*)layer->data, lr);
 }
 static void flatten_free_op(const boat_layer_t* layer) {
-    if (layer && layer->data) { boat_flatten_layer_free((boat_flatten_layer_t*)layer->data); free((void*)layer); }
+    if (layer && layer->data) {
+        boat_flatten_layer_free((boat_flatten_layer_t*)layer->data);
+        free((void*)layer);
+    }
 }
 
 static boat_tensor_t* bn_forward_op(const boat_layer_t* layer, const boat_tensor_t* input) {
@@ -600,37 +645,40 @@ static void bn_update_op(const boat_layer_t* layer, float lr) {
     boat_batchnorm2d_layer_update((boat_batchnorm2d_layer_t*)layer->data, lr);
 }
 static void bn_free_op(const boat_layer_t* layer) {
-    if (layer && layer->data) { boat_batchnorm2d_layer_free((boat_batchnorm2d_layer_t*)layer->data); free((void*)layer); }
+    if (layer && layer->data) {
+        boat_batchnorm2d_layer_free((boat_batchnorm2d_layer_t*)layer->data);
+        free((void*)layer);
+    }
 }
 
-static const boat_layer_ops_t dense_ops = {
-    .forward = dense_forward_op, .backward = dense_backward_op,
-    .update = dense_update_op, .free = dense_free_op
-};
-static const boat_layer_ops_t conv_ops = {
-    .forward = conv_forward_op, .backward = conv_backward_op,
-    .update = conv_update_op, .free = conv_free_op
-};
-static const boat_layer_ops_t pool_ops = {
-    .forward = pool_forward_op, .backward = pool_backward_op,
-    .update = pool_update_op, .free = pool_free_op
-};
-static const boat_layer_ops_t relu_ops = {
-    .forward = relu_forward_op, .backward = relu_backward_op,
-    .update = relu_update_op, .free = relu_free_op
-};
-static const boat_layer_ops_t softmax_ops = {
-    .forward = softmax_forward_op, .backward = softmax_backward_op,
-    .update = softmax_update_op, .free = softmax_free_op
-};
-static const boat_layer_ops_t flatten_ops = {
-    .forward = flatten_forward_op, .backward = flatten_backward_op,
-    .update = flatten_update_op, .free = flatten_free_op
-};
-static const boat_layer_ops_t bn_ops = {
-    .forward = bn_forward_op, .backward = bn_backward_op,
-    .update = bn_update_op, .free = bn_free_op
-};
+static const boat_layer_ops_t dense_ops = {.forward = dense_forward_op,
+                                           .backward = dense_backward_op,
+                                           .update = dense_update_op,
+                                           .free = dense_free_op};
+static const boat_layer_ops_t conv_ops = {.forward = conv_forward_op,
+                                          .backward = conv_backward_op,
+                                          .update = conv_update_op,
+                                          .free = conv_free_op};
+static const boat_layer_ops_t pool_ops = {.forward = pool_forward_op,
+                                          .backward = pool_backward_op,
+                                          .update = pool_update_op,
+                                          .free = pool_free_op};
+static const boat_layer_ops_t relu_ops = {.forward = relu_forward_op,
+                                          .backward = relu_backward_op,
+                                          .update = relu_update_op,
+                                          .free = relu_free_op};
+static const boat_layer_ops_t softmax_ops = {.forward = softmax_forward_op,
+                                             .backward = softmax_backward_op,
+                                             .update = softmax_update_op,
+                                             .free = softmax_free_op};
+static const boat_layer_ops_t flatten_ops = {.forward = flatten_forward_op,
+                                             .backward = flatten_backward_op,
+                                             .update = flatten_update_op,
+                                             .free = flatten_free_op};
+static const boat_layer_ops_t bn_ops = {.forward = bn_forward_op,
+                                        .backward = bn_backward_op,
+                                        .update = bn_update_op,
+                                        .free = bn_free_op};
 
 // --- Attention ops ---
 static boat_tensor_t* attn_forward_op(const boat_layer_t* layer, const boat_tensor_t* input) {
@@ -645,12 +693,15 @@ static void attn_update_op(const boat_layer_t* layer, float lr) {
     boat_attention_update((boat_attention_t*)layer->data, lr);
 }
 static void attn_free_op(const boat_layer_t* layer) {
-    if (layer && layer->data) { boat_attention_free((boat_attention_t*)layer->data); free((void*)layer); }
+    if (layer && layer->data) {
+        boat_attention_free((boat_attention_t*)layer->data);
+        free((void*)layer);
+    }
 }
-static const boat_layer_ops_t attn_ops = {
-    .forward = attn_forward_op, .backward = attn_backward_op,
-    .update = attn_update_op, .free = attn_free_op
-};
+static const boat_layer_ops_t attn_ops = {.forward = attn_forward_op,
+                                          .backward = attn_backward_op,
+                                          .update = attn_update_op,
+                                          .free = attn_free_op};
 
 // --- RMSNorm ops ---
 static boat_tensor_t* rms_forward_op(const boat_layer_t* layer, const boat_tensor_t* input) {
@@ -663,25 +714,28 @@ static void rms_update_op(const boat_layer_t* layer, float lr) {
     boat_rmsnorm_update((boat_rmsnorm_t*)layer->data, lr);
 }
 static void rms_free_op(const boat_layer_t* layer) {
-    if (layer && layer->data) { boat_rmsnorm_free((boat_rmsnorm_t*)layer->data); free((void*)layer); }
+    if (layer && layer->data) {
+        boat_rmsnorm_free((boat_rmsnorm_t*)layer->data);
+        free((void*)layer);
+    }
 }
-static const boat_layer_ops_t rms_ops = {
-    .forward = rms_forward_op, .backward = rms_backward_op,
-    .update = rms_update_op, .free = rms_free_op
-};
+static const boat_layer_ops_t rms_ops = {.forward = rms_forward_op,
+                                         .backward = rms_backward_op,
+                                         .update = rms_update_op,
+                                         .free = rms_free_op};
 
 static void set_layer_ops(boat_layer_t* wrapper) {
     switch (wrapper->type) {
-        case BOAT_LAYER_TYPE_DENSE:       wrapper->ops = &dense_ops; break;
-        case BOAT_LAYER_TYPE_CONV2D:      wrapper->ops = &conv_ops; break;
-        case BOAT_LAYER_TYPE_MAXPOOL2D:   wrapper->ops = &pool_ops; break;
-        case BOAT_LAYER_TYPE_RELU:        wrapper->ops = &relu_ops; break;
-        case BOAT_LAYER_TYPE_SOFTMAX:     wrapper->ops = &softmax_ops; break;
-        case BOAT_LAYER_TYPE_FLATTEN:     wrapper->ops = &flatten_ops; break;
-        case BOAT_LAYER_TYPE_BATCHNORM2D: wrapper->ops = &bn_ops; break;
-        case BOAT_LAYER_TYPE_ATTENTION:   wrapper->ops = &attn_ops; break;
-        case BOAT_LAYER_TYPE_RMSNORM:     wrapper->ops = &rms_ops; break;
-        default:                          wrapper->ops = NULL; break;
+    case BOAT_LAYER_TYPE_DENSE: wrapper->ops = &dense_ops; break;
+    case BOAT_LAYER_TYPE_CONV2D: wrapper->ops = &conv_ops; break;
+    case BOAT_LAYER_TYPE_MAXPOOL2D: wrapper->ops = &pool_ops; break;
+    case BOAT_LAYER_TYPE_RELU: wrapper->ops = &relu_ops; break;
+    case BOAT_LAYER_TYPE_SOFTMAX: wrapper->ops = &softmax_ops; break;
+    case BOAT_LAYER_TYPE_FLATTEN: wrapper->ops = &flatten_ops; break;
+    case BOAT_LAYER_TYPE_BATCHNORM2D: wrapper->ops = &bn_ops; break;
+    case BOAT_LAYER_TYPE_ATTENTION: wrapper->ops = &attn_ops; break;
+    case BOAT_LAYER_TYPE_RMSNORM: wrapper->ops = &rms_ops; break;
+    default: wrapper->ops = NULL; break;
     }
 }
 
@@ -700,14 +754,13 @@ BOAT_API bool boat_model_save(const boat_model_t* model, const char* filename) {
         if (!wrapper) continue;
         boat_tensor_t* w = NULL;
         switch (wrapper->type) {
-            case BOAT_LAYER_TYPE_DENSE:
-                w = boat_dense_layer_get_weight((const boat_dense_layer_t*)wrapper->data);
-                break;
-            case BOAT_LAYER_TYPE_CONV2D:
-                w = boat_conv_layer_get_weight((const boat_conv_layer_t*)wrapper->data);
-                break;
-            default:
-                break;
+        case BOAT_LAYER_TYPE_DENSE:
+            w = boat_dense_layer_get_weight((const boat_dense_layer_t*)wrapper->data);
+            break;
+        case BOAT_LAYER_TYPE_CONV2D:
+            w = boat_conv_layer_get_weight((const boat_conv_layer_t*)wrapper->data);
+            break;
+        default: break;
         }
         if (!w) continue;
         // Check per-channel first (version 3)
@@ -717,7 +770,8 @@ BOAT_API bool boat_model_save(const boat_model_t* model, const char* filename) {
         }
         // Check per-tensor quantized (version 2)
         boat_dtype_t wdt = boat_tensor_dtype(w);
-        if ((wdt == BOAT_DTYPE_UINT8 || wdt == BOAT_DTYPE_INT8 || wdt == BOAT_DTYPE_BITS2 || wdt == BOAT_DTYPE_BITS1) &&
+        if ((wdt == BOAT_DTYPE_UINT8 || wdt == BOAT_DTYPE_INT8 || wdt == BOAT_DTYPE_BITS2 ||
+             wdt == BOAT_DTYPE_BITS1) &&
             boat_tensor_get_scale(w) != 0.0f) {
             version = 2;
         } else if (wdt == BOAT_DTYPE_FLOAT4) {
@@ -725,7 +779,7 @@ BOAT_API bool boat_model_save(const boat_model_t* model, const char* filename) {
         }
     }
 
-    uint32_t magic = 0x424F4154;  // "BOAT"
+    uint32_t magic = 0x424F4154; // "BOAT"
     uint32_t layer_count = (uint32_t)model->layer_count;
 
     if (fwrite(&magic, sizeof(uint32_t), 1, f) != 1 ||
@@ -737,125 +791,160 @@ BOAT_API bool boat_model_save(const boat_model_t* model, const char* filename) {
 
     for (size_t i = 0; i < model->layer_count; i++) {
         const boat_layer_t* wrapper = model->layers[i];
-        if (!wrapper) { fclose(f); return false; }
+        if (!wrapper) {
+            fclose(f);
+            return false;
+        }
 
         uint32_t type_u32 = (uint32_t)wrapper->type;
-        if (fwrite(&type_u32, sizeof(uint32_t), 1, f) != 1) { fclose(f); return false; }
+        if (fwrite(&type_u32, sizeof(uint32_t), 1, f) != 1) {
+            fclose(f);
+            return false;
+        }
 
         switch (wrapper->type) {
-            case BOAT_LAYER_TYPE_DENSE: {
-                boat_dense_layer_t* d = (boat_dense_layer_t*)wrapper->data;
-                boat_tensor_t* w = boat_dense_layer_get_weight(d);
-                boat_tensor_t* b = boat_dense_layer_get_bias(d);
+        case BOAT_LAYER_TYPE_DENSE: {
+            boat_dense_layer_t* d = (boat_dense_layer_t*)wrapper->data;
+            boat_tensor_t* w = boat_dense_layer_get_weight(d);
+            boat_tensor_t* b = boat_dense_layer_get_bias(d);
 
-                uint32_t hp_size = sizeof(uint64_t) * 3;
-                const int64_t* ws = boat_tensor_shape(w);
-                uint64_t hp_in = (uint64_t)ws[0];
-                uint64_t hp_out = (uint64_t)ws[1];
-                uint64_t hp_bias = (b != NULL) ? 1 : 0;
+            uint32_t hp_size = sizeof(uint64_t) * 3;
+            const int64_t* ws = boat_tensor_shape(w);
+            uint64_t hp_in = (uint64_t)ws[0];
+            uint64_t hp_out = (uint64_t)ws[1];
+            uint64_t hp_bias = (b != NULL) ? 1 : 0;
 
-                if (fwrite(&hp_size, sizeof(uint32_t), 1, f) != 1) { fclose(f); return false; }
-                fwrite(&hp_in, sizeof(uint64_t), 1, f);
-                fwrite(&hp_out, sizeof(uint64_t), 1, f);
-                fwrite(&hp_bias, sizeof(uint64_t), 1, f);
-
-                uint32_t tc = 2;
-                fwrite(&tc, sizeof(uint32_t), 1, f);
-                if (!save_tensor_to_file(f, w, version) || !save_tensor_to_file(f, b, version)) { fclose(f); return false; }
-                break;
-            }
-            case BOAT_LAYER_TYPE_CONV2D: {
-                boat_conv_layer_t* c = (boat_conv_layer_t*)wrapper->data;
-                boat_tensor_t* w = boat_conv_layer_get_weight(c);
-                boat_tensor_t* b = boat_conv_layer_get_bias(c);
-                const int64_t* ws = boat_tensor_shape(w);
-
-                uint32_t hp_size = sizeof(uint64_t) * 6;
-                uint64_t hp_in = (uint64_t)ws[1], hp_out = (uint64_t)ws[0];
-                uint64_t hp_k = (uint64_t)ws[2];
-                uint64_t hp_s = (uint64_t)boat_conv_layer_get_stride(c);
-                uint64_t hp_p = (uint64_t)boat_conv_layer_get_padding(c);
-                uint64_t hp_g = (uint64_t)boat_conv_layer_get_groups(c);
-
-                if (fwrite(&hp_size, sizeof(uint32_t), 1, f) != 1) { fclose(f); return false; }
-                fwrite(&hp_in, sizeof(uint64_t), 1, f);
-                fwrite(&hp_out, sizeof(uint64_t), 1, f);
-                fwrite(&hp_k, sizeof(uint64_t), 1, f);
-                fwrite(&hp_s, sizeof(uint64_t), 1, f);
-                fwrite(&hp_p, sizeof(uint64_t), 1, f);
-                fwrite(&hp_g, sizeof(uint64_t), 1, f);
-
-                uint32_t tc = 2;
-                fwrite(&tc, sizeof(uint32_t), 1, f);
-                if (!save_tensor_to_file(f, w, version) || !save_tensor_to_file(f, b, version)) { fclose(f); return false; }
-                break;
-            }
-            case BOAT_LAYER_TYPE_BATCHNORM2D: {
-                boat_batchnorm2d_layer_t* bn = (boat_batchnorm2d_layer_t*)wrapper->data;
-                boat_tensor_t* w = boat_batchnorm2d_layer_get_weight(bn);
-                boat_tensor_t* b = boat_batchnorm2d_layer_get_bias(bn);
-                boat_tensor_t* rm = boat_batchnorm2d_layer_get_running_mean(bn);
-                boat_tensor_t* rv = boat_batchnorm2d_layer_get_running_var(bn);
-
-                uint32_t hp_size = sizeof(uint64_t) + sizeof(float) * 2 + sizeof(uint64_t);
-                uint64_t hp_nf = (uint64_t)boat_batchnorm2d_layer_get_affine(bn) ?
-                    (uint64_t)boat_tensor_shape(w)[0] : (uint64_t)boat_tensor_shape(rm)[0];
-                float hp_eps = boat_batchnorm2d_layer_get_eps(bn);
-                float hp_mom = boat_batchnorm2d_layer_get_momentum(bn);
-                uint64_t hp_aff = boat_batchnorm2d_layer_get_affine(bn) ? 1 : 0;
-
-                if (fwrite(&hp_size, sizeof(uint32_t), 1, f) != 1) { fclose(f); return false; }
-                fwrite(&hp_nf, sizeof(uint64_t), 1, f);
-                fwrite(&hp_eps, sizeof(float), 1, f);
-                fwrite(&hp_mom, sizeof(float), 1, f);
-                fwrite(&hp_aff, sizeof(uint64_t), 1, f);
-
-                uint32_t tc = 4;
-                fwrite(&tc, sizeof(uint32_t), 1, f);
-                if (!save_tensor_to_file(f, w, version) || !save_tensor_to_file(f, b, version) ||
-                    !save_tensor_to_file(f, rm, version) || !save_tensor_to_file(f, rv, version)) { fclose(f); return false; }
-                break;
-            }
-            case BOAT_LAYER_TYPE_MAXPOOL2D: {
-                boat_pool_layer_t* p = (boat_pool_layer_t*)wrapper->data;
-                uint32_t hp_size = sizeof(uint64_t) * 3;
-                uint64_t hp_ps = (uint64_t)boat_pool_layer_get_pool_size(p);
-                uint64_t hp_s = (uint64_t)boat_pool_layer_get_stride(p);
-                uint64_t hp_pad = (uint64_t)boat_pool_layer_get_padding(p);
-
-                if (fwrite(&hp_size, sizeof(uint32_t), 1, f) != 1) { fclose(f); return false; }
-                fwrite(&hp_ps, sizeof(uint64_t), 1, f);
-                fwrite(&hp_s, sizeof(uint64_t), 1, f);
-                fwrite(&hp_pad, sizeof(uint64_t), 1, f);
-
-                uint32_t tc = 0;
-                fwrite(&tc, sizeof(uint32_t), 1, f);
-                break;
-            }
-            case BOAT_LAYER_TYPE_RELU:
-            case BOAT_LAYER_TYPE_FLATTEN: {
-                uint32_t hp_size = 0;
-                if (fwrite(&hp_size, sizeof(uint32_t), 1, f) != 1) { fclose(f); return false; }
-                uint32_t tc = 0;
-                fwrite(&tc, sizeof(uint32_t), 1, f);
-                break;
-            }
-            case BOAT_LAYER_TYPE_SOFTMAX: {
-                boat_softmax_layer_t* sm = (boat_softmax_layer_t*)wrapper->data;
-                uint32_t hp_size = sizeof(int32_t);
-                int32_t hp_axis = boat_softmax_layer_get_axis(sm);
-
-                if (fwrite(&hp_size, sizeof(uint32_t), 1, f) != 1) { fclose(f); return false; }
-                fwrite(&hp_axis, sizeof(int32_t), 1, f);
-
-                uint32_t tc = 0;
-                fwrite(&tc, sizeof(uint32_t), 1, f);
-                break;
-            }
-            default:
-                boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Model] Save: unsupported layer type %u\n", type_u32);
+            if (fwrite(&hp_size, sizeof(uint32_t), 1, f) != 1) {
                 fclose(f);
                 return false;
+            }
+            fwrite(&hp_in, sizeof(uint64_t), 1, f);
+            fwrite(&hp_out, sizeof(uint64_t), 1, f);
+            fwrite(&hp_bias, sizeof(uint64_t), 1, f);
+
+            uint32_t tc = 2;
+            fwrite(&tc, sizeof(uint32_t), 1, f);
+            if (!save_tensor_to_file(f, w, version) || !save_tensor_to_file(f, b, version)) {
+                fclose(f);
+                return false;
+            }
+            break;
+        }
+        case BOAT_LAYER_TYPE_CONV2D: {
+            boat_conv_layer_t* c = (boat_conv_layer_t*)wrapper->data;
+            boat_tensor_t* w = boat_conv_layer_get_weight(c);
+            boat_tensor_t* b = boat_conv_layer_get_bias(c);
+            const int64_t* ws = boat_tensor_shape(w);
+
+            uint32_t hp_size = sizeof(uint64_t) * 6;
+            uint64_t hp_in = (uint64_t)ws[1], hp_out = (uint64_t)ws[0];
+            uint64_t hp_k = (uint64_t)ws[2];
+            uint64_t hp_s = (uint64_t)boat_conv_layer_get_stride(c);
+            uint64_t hp_p = (uint64_t)boat_conv_layer_get_padding(c);
+            uint64_t hp_g = (uint64_t)boat_conv_layer_get_groups(c);
+
+            if (fwrite(&hp_size, sizeof(uint32_t), 1, f) != 1) {
+                fclose(f);
+                return false;
+            }
+            fwrite(&hp_in, sizeof(uint64_t), 1, f);
+            fwrite(&hp_out, sizeof(uint64_t), 1, f);
+            fwrite(&hp_k, sizeof(uint64_t), 1, f);
+            fwrite(&hp_s, sizeof(uint64_t), 1, f);
+            fwrite(&hp_p, sizeof(uint64_t), 1, f);
+            fwrite(&hp_g, sizeof(uint64_t), 1, f);
+
+            uint32_t tc = 2;
+            fwrite(&tc, sizeof(uint32_t), 1, f);
+            if (!save_tensor_to_file(f, w, version) || !save_tensor_to_file(f, b, version)) {
+                fclose(f);
+                return false;
+            }
+            break;
+        }
+        case BOAT_LAYER_TYPE_BATCHNORM2D: {
+            boat_batchnorm2d_layer_t* bn = (boat_batchnorm2d_layer_t*)wrapper->data;
+            boat_tensor_t* w = boat_batchnorm2d_layer_get_weight(bn);
+            boat_tensor_t* b = boat_batchnorm2d_layer_get_bias(bn);
+            boat_tensor_t* rm = boat_batchnorm2d_layer_get_running_mean(bn);
+            boat_tensor_t* rv = boat_batchnorm2d_layer_get_running_var(bn);
+
+            uint32_t hp_size = sizeof(uint64_t) + sizeof(float) * 2 + sizeof(uint64_t);
+            uint64_t hp_nf = (uint64_t)boat_batchnorm2d_layer_get_affine(bn)
+                                 ? (uint64_t)boat_tensor_shape(w)[0]
+                                 : (uint64_t)boat_tensor_shape(rm)[0];
+            float hp_eps = boat_batchnorm2d_layer_get_eps(bn);
+            float hp_mom = boat_batchnorm2d_layer_get_momentum(bn);
+            uint64_t hp_aff = boat_batchnorm2d_layer_get_affine(bn) ? 1 : 0;
+
+            if (fwrite(&hp_size, sizeof(uint32_t), 1, f) != 1) {
+                fclose(f);
+                return false;
+            }
+            fwrite(&hp_nf, sizeof(uint64_t), 1, f);
+            fwrite(&hp_eps, sizeof(float), 1, f);
+            fwrite(&hp_mom, sizeof(float), 1, f);
+            fwrite(&hp_aff, sizeof(uint64_t), 1, f);
+
+            uint32_t tc = 4;
+            fwrite(&tc, sizeof(uint32_t), 1, f);
+            if (!save_tensor_to_file(f, w, version) || !save_tensor_to_file(f, b, version) ||
+                !save_tensor_to_file(f, rm, version) || !save_tensor_to_file(f, rv, version)) {
+                fclose(f);
+                return false;
+            }
+            break;
+        }
+        case BOAT_LAYER_TYPE_MAXPOOL2D: {
+            boat_pool_layer_t* p = (boat_pool_layer_t*)wrapper->data;
+            uint32_t hp_size = sizeof(uint64_t) * 3;
+            uint64_t hp_ps = (uint64_t)boat_pool_layer_get_pool_size(p);
+            uint64_t hp_s = (uint64_t)boat_pool_layer_get_stride(p);
+            uint64_t hp_pad = (uint64_t)boat_pool_layer_get_padding(p);
+
+            if (fwrite(&hp_size, sizeof(uint32_t), 1, f) != 1) {
+                fclose(f);
+                return false;
+            }
+            fwrite(&hp_ps, sizeof(uint64_t), 1, f);
+            fwrite(&hp_s, sizeof(uint64_t), 1, f);
+            fwrite(&hp_pad, sizeof(uint64_t), 1, f);
+
+            uint32_t tc = 0;
+            fwrite(&tc, sizeof(uint32_t), 1, f);
+            break;
+        }
+        case BOAT_LAYER_TYPE_RELU:
+        case BOAT_LAYER_TYPE_FLATTEN: {
+            uint32_t hp_size = 0;
+            if (fwrite(&hp_size, sizeof(uint32_t), 1, f) != 1) {
+                fclose(f);
+                return false;
+            }
+            uint32_t tc = 0;
+            fwrite(&tc, sizeof(uint32_t), 1, f);
+            break;
+        }
+        case BOAT_LAYER_TYPE_SOFTMAX: {
+            boat_softmax_layer_t* sm = (boat_softmax_layer_t*)wrapper->data;
+            uint32_t hp_size = sizeof(int32_t);
+            int32_t hp_axis = boat_softmax_layer_get_axis(sm);
+
+            if (fwrite(&hp_size, sizeof(uint32_t), 1, f) != 1) {
+                fclose(f);
+                return false;
+            }
+            fwrite(&hp_axis, sizeof(int32_t), 1, f);
+
+            uint32_t tc = 0;
+            fwrite(&tc, sizeof(uint32_t), 1, f);
+            break;
+        }
+        default:
+            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                            "[Model] Save: unsupported layer type %u\n", type_u32);
+            fclose(f);
+            return false;
         }
     }
 
@@ -873,170 +962,272 @@ BOAT_API boat_model_t* boat_model_load(const char* filename) {
 
     uint32_t magic, version;
     if (fread(&magic, sizeof(uint32_t), 1, f) != 1 ||
-        fread(&version, sizeof(uint32_t), 1, f) != 1) { fclose(f); return NULL; }
-    if (magic != 0x424F4154) { fclose(f); return NULL; }
-    if (version < 1 || version > 3) { fclose(f); return NULL; }
+        fread(&version, sizeof(uint32_t), 1, f) != 1) {
+        fclose(f);
+        return NULL;
+    }
+    if (magic != 0x424F4154) {
+        fclose(f);
+        return NULL;
+    }
+    if (version < 1 || version > 3) {
+        fclose(f);
+        return NULL;
+    }
 
     uint32_t layer_count_u32;
-    if (fread(&layer_count_u32, sizeof(uint32_t), 1, f) != 1) { fclose(f); return NULL; }
+    if (fread(&layer_count_u32, sizeof(uint32_t), 1, f) != 1) {
+        fclose(f);
+        return NULL;
+    }
 
     boat_model_t* model = boat_model_create();
-    if (!model) { fclose(f); return NULL; }
+    if (!model) {
+        fclose(f);
+        return NULL;
+    }
 
     for (uint32_t i = 0; i < layer_count_u32; i++) {
         uint32_t type_u32;
-        if (fread(&type_u32, sizeof(uint32_t), 1, f) != 1) { boat_model_free(model); fclose(f); return NULL; }
+        if (fread(&type_u32, sizeof(uint32_t), 1, f) != 1) {
+            boat_model_free(model);
+            fclose(f);
+            return NULL;
+        }
         boat_layer_type_t type = (boat_layer_type_t)type_u32;
 
         boat_layer_t* wrapper = malloc(sizeof(boat_layer_t));
-        if (!wrapper) { boat_model_free(model); fclose(f); return NULL; }
+        if (!wrapper) {
+            boat_model_free(model);
+            fclose(f);
+            return NULL;
+        }
         wrapper->type = type;
         wrapper->ops = NULL;
         wrapper->data = NULL;
 
         switch (type) {
-            case BOAT_LAYER_TYPE_DENSE: {
-                uint32_t hp_size;
-                if (fread(&hp_size, sizeof(uint32_t), 1, f) != 1 || hp_size != sizeof(uint64_t) * 3) {
-                    free(wrapper); boat_model_free(model); fclose(f); return NULL;
-                }
-                uint64_t hp_in, hp_out, hp_bias;
-                fread(&hp_in, sizeof(uint64_t), 1, f);
-                fread(&hp_out, sizeof(uint64_t), 1, f);
-                fread(&hp_bias, sizeof(uint64_t), 1, f);
-
-                boat_dense_layer_t* dense = boat_dense_layer_create(
-                    (size_t)hp_in, (size_t)hp_out, hp_bias != 0);
-                if (!dense) { free(wrapper); boat_model_free(model); fclose(f); return NULL; }
-                wrapper->data = dense;
-
-                uint32_t tc;
-                fread(&tc, sizeof(uint32_t), 1, f);
-                boat_tensor_t* wt = load_tensor_from_file(f, version);
-                boat_tensor_t* bt = load_tensor_from_file(f, version);
-                if (wt) { boat_dense_layer_set_weight(dense, wt); boat_tensor_unref(wt); }
-                if (bt) { boat_dense_layer_set_bias(dense, bt); boat_tensor_unref(bt); }
-                break;
-            }
-            case BOAT_LAYER_TYPE_CONV2D: {
-                uint32_t hp_size;
-                if (fread(&hp_size, sizeof(uint32_t), 1, f) != 1 ||
-                    (hp_size != sizeof(uint64_t) * 5 && hp_size != sizeof(uint64_t) * 6)) {
-                    free(wrapper); boat_model_free(model); fclose(f); return NULL;
-                }
-                uint64_t hp_in, hp_out, hp_k, hp_s, hp_p, hp_g;
-                fread(&hp_in, sizeof(uint64_t), 1, f);
-                fread(&hp_out, sizeof(uint64_t), 1, f);
-                fread(&hp_k, sizeof(uint64_t), 1, f);
-                fread(&hp_s, sizeof(uint64_t), 1, f);
-                fread(&hp_p, sizeof(uint64_t), 1, f);
-                hp_g = 1;
-                if (hp_size == sizeof(uint64_t) * 6) {
-                    fread(&hp_g, sizeof(uint64_t), 1, f);
-                }
-
-                boat_conv_layer_t* conv = boat_conv_layer_create(
-                    (size_t)(hp_in * hp_g), (size_t)hp_out, (size_t)hp_k, (size_t)hp_s, (size_t)hp_p, (size_t)hp_g);
-                if (!conv) { free(wrapper); boat_model_free(model); fclose(f); return NULL; }
-                wrapper->data = conv;
-
-                uint32_t tc;
-                fread(&tc, sizeof(uint32_t), 1, f);
-                boat_tensor_t* wt = load_tensor_from_file(f, version);
-                boat_tensor_t* bt = load_tensor_from_file(f, version);
-                if (wt) { boat_conv_layer_set_weight(conv, wt); boat_tensor_unref(wt); }
-                if (bt) { boat_conv_layer_set_bias(conv, bt); boat_tensor_unref(bt); }
-                break;
-            }
-            case BOAT_LAYER_TYPE_BATCHNORM2D: {
-                uint32_t hp_size;
-                if (fread(&hp_size, sizeof(uint32_t), 1, f) != 1 || hp_size != sizeof(uint64_t) + sizeof(float) * 2 + sizeof(uint64_t)) {
-                    free(wrapper); boat_model_free(model); fclose(f); return NULL;
-                }
-                uint64_t hp_nf; float hp_eps, hp_mom; uint64_t hp_aff;
-                fread(&hp_nf, sizeof(uint64_t), 1, f);
-                fread(&hp_eps, sizeof(float), 1, f);
-                fread(&hp_mom, sizeof(float), 1, f);
-                fread(&hp_aff, sizeof(uint64_t), 1, f);
-
-                boat_batchnorm2d_layer_t* bn = boat_batchnorm2d_layer_create(
-                    (size_t)hp_nf, hp_eps, hp_mom, hp_aff != 0);
-                if (!bn) { free(wrapper); boat_model_free(model); fclose(f); return NULL; }
-                wrapper->data = bn;
-
-                uint32_t tc;
-                fread(&tc, sizeof(uint32_t), 1, f);
-                boat_tensor_t* wt = load_tensor_from_file(f, version);
-                boat_tensor_t* bt = load_tensor_from_file(f, version);
-                boat_tensor_t* rmt = load_tensor_from_file(f, version);
-                boat_tensor_t* rvt = load_tensor_from_file(f, version);
-                if (wt) { boat_batchnorm2d_layer_set_weight(bn, wt); boat_tensor_unref(wt); }
-                if (bt) { boat_batchnorm2d_layer_set_bias(bn, bt); boat_tensor_unref(bt); }
-                if (rmt) { boat_batchnorm2d_layer_set_running_mean(bn, rmt); boat_tensor_unref(rmt); }
-                if (rvt) { boat_batchnorm2d_layer_set_running_var(bn, rvt); boat_tensor_unref(rvt); }
-                break;
-            }
-            case BOAT_LAYER_TYPE_MAXPOOL2D: {
-                uint32_t hp_size;
-                if (fread(&hp_size, sizeof(uint32_t), 1, f) != 1 || hp_size != sizeof(uint64_t) * 3) {
-                    free(wrapper); boat_model_free(model); fclose(f); return NULL;
-                }
-                uint64_t hp_ps, hp_s, hp_pad;
-                fread(&hp_ps, sizeof(uint64_t), 1, f);
-                fread(&hp_s, sizeof(uint64_t), 1, f);
-                fread(&hp_pad, sizeof(uint64_t), 1, f);
-
-                boat_pool_layer_t* pool = boat_pool_layer_create(
-                    (size_t)hp_ps, (size_t)hp_s, (size_t)hp_pad);
-                if (!pool) { free(wrapper); boat_model_free(model); fclose(f); return NULL; }
-                wrapper->data = pool;
-
-                uint32_t tc;
-                fread(&tc, sizeof(uint32_t), 1, f);
-                break;
-            }
-            case BOAT_LAYER_TYPE_RELU: {
-                uint32_t hp_size;
-                fread(&hp_size, sizeof(uint32_t), 1, f);
-                boat_relu_layer_t* relu = boat_relu_layer_create();
-                if (!relu) { free(wrapper); boat_model_free(model); fclose(f); return NULL; }
-                wrapper->data = relu;
-                uint32_t tc;
-                fread(&tc, sizeof(uint32_t), 1, f);
-                break;
-            }
-            case BOAT_LAYER_TYPE_SOFTMAX: {
-                uint32_t hp_size;
-                if (fread(&hp_size, sizeof(uint32_t), 1, f) != 1 || hp_size != sizeof(int32_t)) {
-                    free(wrapper); boat_model_free(model); fclose(f); return NULL;
-                }
-                int32_t hp_axis;
-                fread(&hp_axis, sizeof(int32_t), 1, f);
-
-                boat_softmax_layer_t* sm = boat_softmax_layer_create(hp_axis);
-                if (!sm) { free(wrapper); boat_model_free(model); fclose(f); return NULL; }
-                wrapper->data = sm;
-
-                uint32_t tc;
-                fread(&tc, sizeof(uint32_t), 1, f);
-                break;
-            }
-            case BOAT_LAYER_TYPE_FLATTEN: {
-                uint32_t hp_size;
-                fread(&hp_size, sizeof(uint32_t), 1, f);
-                boat_flatten_layer_t* flat = boat_flatten_layer_create();
-                if (!flat) { free(wrapper); boat_model_free(model); fclose(f); return NULL; }
-                wrapper->data = flat;
-                uint32_t tc;
-                fread(&tc, sizeof(uint32_t), 1, f);
-                break;
-            }
-            default:
-                boat_set_errorf(BOAT_ERROR_FORMAT, "[Model] Load: unsupported layer type %u\n", type_u32);
+        case BOAT_LAYER_TYPE_DENSE: {
+            uint32_t hp_size;
+            if (fread(&hp_size, sizeof(uint32_t), 1, f) != 1 || hp_size != sizeof(uint64_t) * 3) {
                 free(wrapper);
                 boat_model_free(model);
                 fclose(f);
                 return NULL;
+            }
+            uint64_t hp_in, hp_out, hp_bias;
+            fread(&hp_in, sizeof(uint64_t), 1, f);
+            fread(&hp_out, sizeof(uint64_t), 1, f);
+            fread(&hp_bias, sizeof(uint64_t), 1, f);
+
+            boat_dense_layer_t* dense =
+                boat_dense_layer_create((size_t)hp_in, (size_t)hp_out, hp_bias != 0);
+            if (!dense) {
+                free(wrapper);
+                boat_model_free(model);
+                fclose(f);
+                return NULL;
+            }
+            wrapper->data = dense;
+
+            uint32_t tc;
+            fread(&tc, sizeof(uint32_t), 1, f);
+            boat_tensor_t* wt = load_tensor_from_file(f, version);
+            boat_tensor_t* bt = load_tensor_from_file(f, version);
+            if (wt) {
+                boat_dense_layer_set_weight(dense, wt);
+                boat_tensor_unref(wt);
+            }
+            if (bt) {
+                boat_dense_layer_set_bias(dense, bt);
+                boat_tensor_unref(bt);
+            }
+            break;
+        }
+        case BOAT_LAYER_TYPE_CONV2D: {
+            uint32_t hp_size;
+            if (fread(&hp_size, sizeof(uint32_t), 1, f) != 1 ||
+                (hp_size != sizeof(uint64_t) * 5 && hp_size != sizeof(uint64_t) * 6)) {
+                free(wrapper);
+                boat_model_free(model);
+                fclose(f);
+                return NULL;
+            }
+            uint64_t hp_in, hp_out, hp_k, hp_s, hp_p, hp_g;
+            fread(&hp_in, sizeof(uint64_t), 1, f);
+            fread(&hp_out, sizeof(uint64_t), 1, f);
+            fread(&hp_k, sizeof(uint64_t), 1, f);
+            fread(&hp_s, sizeof(uint64_t), 1, f);
+            fread(&hp_p, sizeof(uint64_t), 1, f);
+            hp_g = 1;
+            if (hp_size == sizeof(uint64_t) * 6) {
+                fread(&hp_g, sizeof(uint64_t), 1, f);
+            }
+
+            boat_conv_layer_t* conv =
+                boat_conv_layer_create((size_t)(hp_in * hp_g), (size_t)hp_out, (size_t)hp_k,
+                                       (size_t)hp_s, (size_t)hp_p, (size_t)hp_g);
+            if (!conv) {
+                free(wrapper);
+                boat_model_free(model);
+                fclose(f);
+                return NULL;
+            }
+            wrapper->data = conv;
+
+            uint32_t tc;
+            fread(&tc, sizeof(uint32_t), 1, f);
+            boat_tensor_t* wt = load_tensor_from_file(f, version);
+            boat_tensor_t* bt = load_tensor_from_file(f, version);
+            if (wt) {
+                boat_conv_layer_set_weight(conv, wt);
+                boat_tensor_unref(wt);
+            }
+            if (bt) {
+                boat_conv_layer_set_bias(conv, bt);
+                boat_tensor_unref(bt);
+            }
+            break;
+        }
+        case BOAT_LAYER_TYPE_BATCHNORM2D: {
+            uint32_t hp_size;
+            if (fread(&hp_size, sizeof(uint32_t), 1, f) != 1 ||
+                hp_size != sizeof(uint64_t) + sizeof(float) * 2 + sizeof(uint64_t)) {
+                free(wrapper);
+                boat_model_free(model);
+                fclose(f);
+                return NULL;
+            }
+            uint64_t hp_nf;
+            float hp_eps, hp_mom;
+            uint64_t hp_aff;
+            fread(&hp_nf, sizeof(uint64_t), 1, f);
+            fread(&hp_eps, sizeof(float), 1, f);
+            fread(&hp_mom, sizeof(float), 1, f);
+            fread(&hp_aff, sizeof(uint64_t), 1, f);
+
+            boat_batchnorm2d_layer_t* bn =
+                boat_batchnorm2d_layer_create((size_t)hp_nf, hp_eps, hp_mom, hp_aff != 0);
+            if (!bn) {
+                free(wrapper);
+                boat_model_free(model);
+                fclose(f);
+                return NULL;
+            }
+            wrapper->data = bn;
+
+            uint32_t tc;
+            fread(&tc, sizeof(uint32_t), 1, f);
+            boat_tensor_t* wt = load_tensor_from_file(f, version);
+            boat_tensor_t* bt = load_tensor_from_file(f, version);
+            boat_tensor_t* rmt = load_tensor_from_file(f, version);
+            boat_tensor_t* rvt = load_tensor_from_file(f, version);
+            if (wt) {
+                boat_batchnorm2d_layer_set_weight(bn, wt);
+                boat_tensor_unref(wt);
+            }
+            if (bt) {
+                boat_batchnorm2d_layer_set_bias(bn, bt);
+                boat_tensor_unref(bt);
+            }
+            if (rmt) {
+                boat_batchnorm2d_layer_set_running_mean(bn, rmt);
+                boat_tensor_unref(rmt);
+            }
+            if (rvt) {
+                boat_batchnorm2d_layer_set_running_var(bn, rvt);
+                boat_tensor_unref(rvt);
+            }
+            break;
+        }
+        case BOAT_LAYER_TYPE_MAXPOOL2D: {
+            uint32_t hp_size;
+            if (fread(&hp_size, sizeof(uint32_t), 1, f) != 1 || hp_size != sizeof(uint64_t) * 3) {
+                free(wrapper);
+                boat_model_free(model);
+                fclose(f);
+                return NULL;
+            }
+            uint64_t hp_ps, hp_s, hp_pad;
+            fread(&hp_ps, sizeof(uint64_t), 1, f);
+            fread(&hp_s, sizeof(uint64_t), 1, f);
+            fread(&hp_pad, sizeof(uint64_t), 1, f);
+
+            boat_pool_layer_t* pool =
+                boat_pool_layer_create((size_t)hp_ps, (size_t)hp_s, (size_t)hp_pad);
+            if (!pool) {
+                free(wrapper);
+                boat_model_free(model);
+                fclose(f);
+                return NULL;
+            }
+            wrapper->data = pool;
+
+            uint32_t tc;
+            fread(&tc, sizeof(uint32_t), 1, f);
+            break;
+        }
+        case BOAT_LAYER_TYPE_RELU: {
+            uint32_t hp_size;
+            fread(&hp_size, sizeof(uint32_t), 1, f);
+            boat_relu_layer_t* relu = boat_relu_layer_create();
+            if (!relu) {
+                free(wrapper);
+                boat_model_free(model);
+                fclose(f);
+                return NULL;
+            }
+            wrapper->data = relu;
+            uint32_t tc;
+            fread(&tc, sizeof(uint32_t), 1, f);
+            break;
+        }
+        case BOAT_LAYER_TYPE_SOFTMAX: {
+            uint32_t hp_size;
+            if (fread(&hp_size, sizeof(uint32_t), 1, f) != 1 || hp_size != sizeof(int32_t)) {
+                free(wrapper);
+                boat_model_free(model);
+                fclose(f);
+                return NULL;
+            }
+            int32_t hp_axis;
+            fread(&hp_axis, sizeof(int32_t), 1, f);
+
+            boat_softmax_layer_t* sm = boat_softmax_layer_create(hp_axis);
+            if (!sm) {
+                free(wrapper);
+                boat_model_free(model);
+                fclose(f);
+                return NULL;
+            }
+            wrapper->data = sm;
+
+            uint32_t tc;
+            fread(&tc, sizeof(uint32_t), 1, f);
+            break;
+        }
+        case BOAT_LAYER_TYPE_FLATTEN: {
+            uint32_t hp_size;
+            fread(&hp_size, sizeof(uint32_t), 1, f);
+            boat_flatten_layer_t* flat = boat_flatten_layer_create();
+            if (!flat) {
+                free(wrapper);
+                boat_model_free(model);
+                fclose(f);
+                return NULL;
+            }
+            wrapper->data = flat;
+            uint32_t tc;
+            fread(&tc, sizeof(uint32_t), 1, f);
+            break;
+        }
+        default:
+            boat_set_errorf(BOAT_ERROR_FORMAT, "[Model] Load: unsupported layer type %u\n",
+                            type_u32);
+            free(wrapper);
+            boat_model_free(model);
+            fclose(f);
+            return NULL;
         }
 
         set_layer_ops(wrapper);
@@ -1058,7 +1249,8 @@ BOAT_API void* boat_model_get_user_data(const boat_model_t* model) {
     return model ? model->user_data : NULL;
 }
 
-BOAT_API void boat_model_set_user_data(boat_model_t* model, void* user_data, void (*free_fn)(void*)) {
+BOAT_API void boat_model_set_user_data(boat_model_t* model, void* user_data,
+                                       void (*free_fn)(void*)) {
     if (!model) {
         return;
     }
@@ -1093,7 +1285,8 @@ BOAT_API void boat_model_add_layer(boat_model_t* model, boat_layer_t* layer) {
         size_t new_capacity = model->layer_capacity == 0 ? 4 : model->layer_capacity * 2;
 
         // Reallocate layers array
-        boat_layer_t** new_layers = boat_realloc(model->layers, new_capacity * sizeof(boat_layer_t*), BOAT_DEVICE_CPU);
+        boat_layer_t** new_layers =
+            boat_realloc(model->layers, new_capacity * sizeof(boat_layer_t*), BOAT_DEVICE_CPU);
         if (!new_layers) {
             boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[Model] Failed to expand layers array\n");
             return;
@@ -1101,7 +1294,8 @@ BOAT_API void boat_model_add_layer(boat_model_t* model, boat_layer_t* layer) {
         model->layers = new_layers;
 
         // Reallocate nodes array
-        boat_node_t** new_nodes = boat_realloc(model->nodes, new_capacity * sizeof(boat_node_t*), BOAT_DEVICE_CPU);
+        boat_node_t** new_nodes =
+            boat_realloc(model->nodes, new_capacity * sizeof(boat_node_t*), BOAT_DEVICE_CPU);
         if (!new_nodes) {
             boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[Model] Failed to expand nodes array\n");
             // Note: layers array already reallocated, but this is an error state
@@ -1114,7 +1308,8 @@ BOAT_API void boat_model_add_layer(boat_model_t* model, boat_layer_t* layer) {
     // Create graph node for this layer
     boat_node_t* node = boat_graph_add_node(model->graph, layer, BOAT_NODE_TYPE_OPERATION, NULL);
     if (!node) {
-        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION, "[Model] Failed to create graph node for layer\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_OPERATION,
+                        "[Model] Failed to create graph node for layer\n");
         return;
     }
 
@@ -1122,7 +1317,8 @@ BOAT_API void boat_model_add_layer(boat_model_t* model, boat_layer_t* layer) {
     if (model->layer_count > 0) {
         const boat_node_t* prev_node = model->nodes[model->layer_count - 1];
         if (prev_node) {
-            const boat_edge_t* edge = boat_graph_add_edge(model->graph, prev_node, node, BOAT_EDGE_DIRECTION_FORWARD);
+            const boat_edge_t* edge =
+                boat_graph_add_edge(model->graph, prev_node, node, BOAT_EDGE_DIRECTION_FORWARD);
             if (!edge) {
                 BOAT_DEBUG_PRINT("[Model] Warning: Failed to add edge between layer nodes\n");
             }

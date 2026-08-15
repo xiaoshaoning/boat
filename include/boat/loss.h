@@ -35,7 +35,8 @@ BOAT_API boat_loss_t* boat_softmax_cross_entropy_loss_create();
 
 // Loss operations
 BOAT_API float boat_loss_compute(boat_loss_t* loss, const void* predictions, const void* targets);
-BOAT_API boat_tensor_t* boat_loss_backward(boat_loss_t* loss, const void* predictions, const void* targets);
+BOAT_API boat_tensor_t* boat_loss_backward(boat_loss_t* loss, const void* predictions,
+                                           const void* targets);
 BOAT_API void boat_loss_free(boat_loss_t* loss);
 
 #ifdef __cplusplus

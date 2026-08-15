@@ -28,8 +28,7 @@ static uint16_t rd_u16(const uint8_t* p) {
     return (uint16_t)(p[0] | ((uint16_t)p[1] << 8));
 }
 static uint32_t rd_u32(const uint8_t* p) {
-    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) |
-           ((uint32_t)p[3] << 24);
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
 static float rd_f32(const uint8_t* p) {
     uint32_t v = rd_u32(p);
@@ -64,12 +63,13 @@ int needle_tokenizer_init(needle_tokenizer_t* tok, const uint8_t* blob, size_t n
     tok->order = (uint32_t*)malloc(tok->n_pieces * sizeof(uint32_t));
     tok->byte_ids = (int*)malloc(256 * sizeof(int));
     tok->markers = (uint32_t*)malloc(tok->n_pieces * sizeof(uint32_t));
-    if (!tok->pieces || !tok->scores || !tok->types || !tok->order ||
-        !tok->byte_ids || !tok->markers) {
+    if (!tok->pieces || !tok->scores || !tok->types || !tok->order || !tok->byte_ids ||
+        !tok->markers) {
         needle_tokenizer_free(tok);
         return -1;
     }
-    for (int i = 0; i < 256; i++) tok->byte_ids[i] = -1;
+    for (int i = 0; i < 256; i++)
+        tok->byte_ids[i] = -1;
 
     const uint8_t* p = blob + 24;
     uint32_t n_markers = 0;
@@ -136,7 +136,8 @@ int needle_tokenizer_init(needle_tokenizer_t* tok, const uint8_t* blob, size_t n
             entries[i].id = i;
         }
         qsort(entries, tok->n_pieces, sizeof(entry_t), entry_cmp);
-        for (uint32_t i = 0; i < tok->n_pieces; i++) tok->order[i] = entries[i].id;
+        for (uint32_t i = 0; i < tok->n_pieces; i++)
+            tok->order[i] = entries[i].id;
         free(entries);
     }
     return 0;
@@ -144,7 +145,8 @@ int needle_tokenizer_init(needle_tokenizer_t* tok, const uint8_t* blob, size_t n
 
 void needle_tokenizer_free(needle_tokenizer_t* tok) {
     if (tok->pieces) {
-        for (uint32_t i = 0; i < tok->n_pieces; i++) free(tok->pieces[i]);
+        for (uint32_t i = 0; i < tok->n_pieces; i++)
+            free(tok->pieces[i]);
     }
     free(tok->pieces);
     free(tok->scores);
@@ -183,8 +185,7 @@ typedef struct {
 
 // Run BPE merges over `n` symbols, mutating the array in place. Returns the
 // final symbol count (<= n).
-static size_t bpe_merge(const needle_tokenizer_t* t, const char* esc,
-                        sym_t* syms, size_t n) {
+static size_t bpe_merge(const needle_tokenizer_t* t, const char* esc, sym_t* syms, size_t n) {
     for (;;) {
         int best_j = -1;
         float best_score = 0.0f;
@@ -207,8 +208,8 @@ static size_t bpe_merge(const needle_tokenizer_t* t, const char* esc,
     return n;
 }
 
-static void bpe_flush(const needle_tokenizer_t* t, const char* esc, sym_t* syms,
-                      size_t n, int* out, size_t cap, size_t* count) {
+static void bpe_flush(const needle_tokenizer_t* t, const char* esc, sym_t* syms, size_t n, int* out,
+                      size_t cap, size_t* count) {
     n = bpe_merge(t, esc, syms, n);
     for (size_t k = 0; k < n; k++) {
         const char* s = esc + syms[k].start;
@@ -229,16 +230,16 @@ static void bpe_flush(const needle_tokenizer_t* t, const char* esc, sym_t* syms,
     }
 }
 
-int needle_tokenizer_encode(const needle_tokenizer_t* tok, const char* text,
-                            int* out_ids, size_t cap) {
-    if (!text || text[0] == 0) return 0;  // matches RefTokenizer / spm native
+int needle_tokenizer_encode(const needle_tokenizer_t* tok, const char* text, int* out_ids,
+                            size_t cap) {
+    if (!text || text[0] == 0) return 0; // matches RefTokenizer / spm native
     // Escape: ' ' -> META_SPACE; prepend META_SPACE if add_dummy_prefix.
     size_t src_len = strlen(text);
     size_t n_meta = 0;
     for (size_t i = 0; i < src_len; i++) {
         if (text[i] == ' ') n_meta++;
     }
-    size_t esc_cap = src_len + n_meta * 2 + 1;  // ' ' grows by 2 bytes
+    size_t esc_cap = src_len + n_meta * 2 + 1; // ' ' grows by 2 bytes
     if (tok->add_dummy_prefix) esc_cap += 3;
     char* esc = (char*)malloc(esc_cap + 1);
     if (!esc) return -1;
@@ -266,7 +267,7 @@ int needle_tokenizer_encode(const needle_tokenizer_t* tok, const char* text,
         return -1;
     }
     size_t count = 0;
-    size_t nsym = 0;  // chars accumulated since the last marker
+    size_t nsym = 0; // chars accumulated since the last marker
     size_t i = 0;
     while (i < esc_len) {
         // Longest marker first.
@@ -331,7 +332,8 @@ char* needle_tokenizer_decode(const needle_tokenizer_t* tok, const int* ids, siz
         }
         size_t plen = strlen(piece);
         if (len + plen > cap) {
-            while (len + plen > cap) cap *= 2;
+            while (len + plen > cap)
+                cap *= 2;
             char* nb = (char*)realloc(buf, cap);
             if (!nb) {
                 free(buf);
@@ -361,7 +363,7 @@ char* needle_tokenizer_decode(const needle_tokenizer_t* tok, const int* ids, siz
     out[o] = 0;
     free(buf);
     if (tok->add_dummy_prefix && o > 0 && out[0] == ' ') {
-        memmove(out, out + 1, o);  // drop the dummy leading space
+        memmove(out, out + 1, o); // drop the dummy leading space
     }
     return out;
 }

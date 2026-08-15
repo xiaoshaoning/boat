@@ -14,14 +14,30 @@
 static int tests_passed = 0;
 static int tests_total = 0;
 
-#define TEST(name) do { printf("  %s ... ", name); tests_total++; } while(0)
-#define PASS() do { printf("PASS\n"); tests_passed++; } while(0)
-#define FAIL(msg) do { printf("FAIL: %s\n", msg); return 1; } while(0)
+#define TEST(name)                                                                                 \
+    do {                                                                                           \
+        printf("  %s ... ", name);                                                                 \
+        tests_total++;                                                                             \
+    } while (0)
+#define PASS()                                                                                     \
+    do {                                                                                           \
+        printf("PASS\n");                                                                          \
+        tests_passed++;                                                                            \
+    } while (0)
+#define FAIL(msg)                                                                                  \
+    do {                                                                                           \
+        printf("FAIL: %s\n", msg);                                                                 \
+        return 1;                                                                                  \
+    } while (0)
 
 // Helper: wrap layer
 static boat_layer_t* wrap(void* data, boat_layer_type_t type) {
     boat_layer_t* w = malloc(sizeof(boat_layer_t));
-    if (w) { w->data = data; w->type = type; w->ops = NULL; }
+    if (w) {
+        w->data = data;
+        w->type = type;
+        w->ops = NULL;
+    }
     return w;
 }
 
@@ -29,7 +45,8 @@ static boat_layer_t* wrap(void* data, boat_layer_type_t type) {
 static void fill_tensor(boat_tensor_t* t, float base) {
     float* d = (float*)boat_tensor_data(t);
     size_t n = boat_tensor_nelements(t);
-    for (size_t i = 0; i < n; i++) d[i] = base + (float)(i % 7) * 0.1f;
+    for (size_t i = 0; i < n; i++)
+        d[i] = base + (float)(i % 7) * 0.1f;
 }
 
 // Helper: check two float tensors are close
@@ -74,7 +91,8 @@ static int test_roundtrip(void) {
     boat_tensor_unref(fp32);
     boat_tensor_unref(q);
     boat_tensor_unref(deq);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 2: symmetric quantization ---
@@ -95,7 +113,8 @@ static int test_symmetric(void) {
     boat_tensor_unref(fp32);
     boat_tensor_unref(q);
     boat_tensor_unref(deq);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 3: asymmetric zero_point ---
@@ -118,7 +137,8 @@ static int test_asymmetric_zp(void) {
     boat_tensor_unref(fp32);
     boat_tensor_unref(q);
     boat_tensor_unref(deq);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 4: all values identical ---
@@ -138,7 +158,8 @@ static int test_constant(void) {
     boat_tensor_unref(fp32);
     boat_tensor_unref(q);
     boat_tensor_unref(deq);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 5: quantized bounds ---
@@ -159,7 +180,8 @@ static int test_bounds(void) {
     }
     boat_tensor_unref(fp32);
     boat_tensor_unref(q);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 6: model-level Dense quantization ---
@@ -180,7 +202,8 @@ static int test_model_quantize_dense(void) {
     if (boat_tensor_get_scale(w) == 0.0f) FAIL("weight scale is 0");
 
     boat_model_free(m);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 7: model quantize->dequantize Dense ---
@@ -218,7 +241,8 @@ static int test_model_dequantize_dense(void) {
     }
     free(orig_data);
     boat_model_free(m);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 8: model quantize Conv2D ---
@@ -238,7 +262,8 @@ static int test_model_quantize_conv(void) {
     if (boat_tensor_get_scale(w) == 0.0f) FAIL("weight scale is 0");
 
     boat_model_free(m);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 9: calibration ---
@@ -262,7 +287,8 @@ static int test_calibration(void) {
 
     boat_tensor_unref(t);
     boat_calibration_free(calib);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 10: quantize model -> save -> load -> weights still quantized ---
@@ -296,7 +322,8 @@ static int test_quantized_save_load(void) {
     boat_model_free(m);
     boat_model_free(loaded);
     remove(tmpfile);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 11: quantize -> save -> load -> dequantize -> forward matches original ---
@@ -311,10 +338,12 @@ static int test_quantized_save_load_forward(void) {
     boat_tensor_t* w = boat_dense_layer_get_weight(d);
     float* wd = (float*)boat_tensor_data(w);
     size_t wn = boat_tensor_nelements(w);
-    for (size_t i = 0; i < wn; i++) wd[i] = ((float)(i % 5) - 2.0f) * 0.5f;
+    for (size_t i = 0; i < wn; i++)
+        wd[i] = ((float)(i % 5) - 2.0f) * 0.5f;
     float* bd = (float*)boat_tensor_data(boat_dense_layer_get_bias(d));
     size_t bn = boat_tensor_nelements(boat_dense_layer_get_bias(d));
-    for (size_t i = 0; i < bn; i++) bd[i] = (float)(i + 1) * 0.1f;
+    for (size_t i = 0; i < bn; i++)
+        bd[i] = (float)(i + 1) * 0.1f;
     boat_model_add_layer(m, wrap(d, BOAT_LAYER_TYPE_DENSE));
 
     // Run forward on FP32 layer to get reference output
@@ -349,7 +378,8 @@ static int test_quantized_save_load_forward(void) {
     boat_tensor_unref(restored_output);
     boat_model_free(loaded);
     remove(tmpfile);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 12: INT8 quantize-dequantize roundtrip ---
@@ -373,7 +403,8 @@ static int test_roundtrip_int8(void) {
     boat_tensor_unref(fp32);
     boat_tensor_unref(q);
     boat_tensor_unref(deq);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 13: INT8 symmetric quantization (zp=0) ---
@@ -395,7 +426,8 @@ static int test_symmetric_int8(void) {
     boat_tensor_unref(fp32);
     boat_tensor_unref(q);
     boat_tensor_unref(deq);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 14: INT8 quantized bounds in [-128, 127] ---
@@ -417,7 +449,8 @@ static int test_bounds_int8(void) {
     }
     boat_tensor_unref(fp32);
     boat_tensor_unref(q);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 15: INT8 model quantize Dense ---
@@ -438,7 +471,8 @@ static int test_model_quantize_dense_int8(void) {
     if (boat_tensor_get_scale(w) == 0.0f) FAIL("weight scale is 0");
 
     boat_model_free(m);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 16: BITS2 quantize-dequantize roundtrip ---
@@ -463,7 +497,8 @@ static int test_bits2_roundtrip(void) {
     boat_tensor_unref(fp32);
     boat_tensor_unref(q);
     boat_tensor_unref(deq);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 17: BITS2 quantized bounds in [0, 3] ---
@@ -494,7 +529,8 @@ static int test_bits2_bounds(void) {
     boat_tensor_unref(fp32);
     boat_tensor_unref(q);
     boat_tensor_unref(deq);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 18: FLOAT4 quantize-dequantize roundtrip ---
@@ -524,7 +560,8 @@ static int test_float4_roundtrip(void) {
     boat_tensor_unref(fp32);
     boat_tensor_unref(q);
     boat_tensor_unref(deq);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 19: FLOAT4 params are default (scale=1, zp=0) ---
@@ -544,14 +581,15 @@ static int test_float4_params(void) {
 
     boat_tensor_unref(fp32);
     boat_tensor_unref(q);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 20: Per-channel quantize-dequantize (Dense layout) ---
 static int test_per_channel_dense(void) {
     TEST("Per-channel quantize Dense (dim=1)");
     // Dense weight shape: [input_features, output_features], channel_dim = 1
-    int64_t shape[] = {3, 4};  // 3 input, 4 output features -> 4 channels
+    int64_t shape[] = {3, 4}; // 3 input, 4 output features -> 4 channels
     boat_tensor_t* fp32 = boat_tensor_create(shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* d = (float*)boat_tensor_data(fp32);
     // Make each output feature have different range
@@ -576,20 +614,23 @@ static int test_per_channel_dense(void) {
     boat_tensor_unref(fp32);
     boat_tensor_unref(q);
     boat_tensor_unref(deq);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 21: Per-channel quantize-dequantize (Conv2D layout) ---
 static int test_per_channel_conv(void) {
     TEST("Per-channel quantize Conv2D (dim=0)");
     // Conv2D weight shape: [out_channels, in_channels, KH, KW], channel_dim = 0
-    int64_t shape[] = {2, 3, 2, 2};  // 2 out_channels -> 2 channels
+    int64_t shape[] = {2, 3, 2, 2}; // 2 out_channels -> 2 channels
     boat_tensor_t* fp32 = boat_tensor_create(shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* d = (float*)boat_tensor_data(fp32);
     // Channel 0: small range, Channel 1: large range
-    size_t n = 3 * 2 * 2;  // elements per channel
-    for (size_t i = 0; i < n; i++) d[i] = (float)i * 0.5f;
-    for (size_t i = n; i < 2 * n; i++) d[i] = (float)(i - n) * 10.0f + 100.0f;
+    size_t n = 3 * 2 * 2; // elements per channel
+    for (size_t i = 0; i < n; i++)
+        d[i] = (float)i * 0.5f;
+    for (size_t i = n; i < 2 * n; i++)
+        d[i] = (float)(i - n) * 10.0f + 100.0f;
 
     boat_quant_config_t cfg = boat_quant_config_default();
     cfg.per_channel = true;
@@ -605,7 +646,8 @@ static int test_per_channel_conv(void) {
     boat_tensor_unref(fp32);
     boat_tensor_unref(q);
     boat_tensor_unref(deq);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 22: Per-channel model quantize Dense ---
@@ -632,7 +674,8 @@ static int test_model_quantize_per_channel(void) {
     if (boat_tensor_dtype(w2) != BOAT_DTYPE_FLOAT32) FAIL("restored dtype not FLOAT32");
 
     boat_model_free(m);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 23: Fake quantize ---
@@ -654,11 +697,15 @@ static int test_fake_quantize(void) {
     const float* after = (const float*)boat_tensor_const_data(t);
     for (size_t i = 0; i < n; i++) {
         float diff = fabsf(after[i] - orig[i]);
-        if (diff > 0.1f) { free(orig); FAIL("value changed too much"); }
+        if (diff > 0.1f) {
+            free(orig);
+            FAIL("value changed too much");
+        }
     }
     free(orig);
     boat_tensor_unref(t);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 24: BITS2 model quantize + serialization ---
@@ -693,7 +740,8 @@ static int test_bits2_model_serialize(void) {
 
     boat_model_free(loaded);
     remove(tmpfile);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 25: Per-channel model quantize + serialization ---
@@ -727,7 +775,8 @@ static int test_per_channel_serialize(void) {
 
     boat_model_free(loaded);
     remove(tmpfile);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 26: Per-channel BITS2 quantize-dequantize ---
@@ -737,9 +786,7 @@ static int test_per_channel_bits2(void) {
     boat_tensor_t* fp32 = boat_tensor_create(shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* d = (float*)boat_tensor_data(fp32);
     // Values within 2-bit range per channel (max-min <= 3)
-    float data[] = {0.0f, 1.0f, 2.0f, 0.0f,
-                    0.5f, 1.5f, 2.5f, 1.5f,
-                    1.0f, 2.0f, 3.0f, 3.0f};
+    float data[] = {0.0f, 1.0f, 2.0f, 0.0f, 0.5f, 1.5f, 2.5f, 1.5f, 1.0f, 2.0f, 3.0f, 3.0f};
     memcpy(d, data, 12 * sizeof(float));
 
     boat_quant_config_t cfg = boat_quant_config_default();
@@ -756,7 +803,8 @@ static int test_per_channel_bits2(void) {
     boat_tensor_unref(fp32);
     boat_tensor_unref(q);
     boat_tensor_unref(deq);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 27: BITS1 quantize-dequantize roundtrip ---
@@ -781,7 +829,8 @@ static int test_bits1_roundtrip(void) {
     boat_tensor_unref(fp32);
     boat_tensor_unref(q);
     boat_tensor_unref(deq);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 28: BITS1 quantized bounds in [0, 1] ---
@@ -812,7 +861,8 @@ static int test_bits1_bounds(void) {
     boat_tensor_unref(fp32);
     boat_tensor_unref(q);
     boat_tensor_unref(deq);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 29: BITS1 model quantize + serialization ---
@@ -847,7 +897,8 @@ static int test_bits1_model_serialize(void) {
 
     boat_model_free(loaded);
     remove(tmpfile);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 // --- Test 30: Per-channel BITS1 quantize-dequantize ---
@@ -856,9 +907,7 @@ static int test_per_channel_bits1(void) {
     int64_t shape[] = {3, 4};
     boat_tensor_t* fp32 = boat_tensor_create(shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* d = (float*)boat_tensor_data(fp32);
-    float data[] = {0.0f, 0.0f, 1.0f, 1.0f,
-                    1.0f, 0.0f, 0.0f, 1.0f,
-                    1.0f, 1.0f, 0.0f, 0.0f};
+    float data[] = {0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f};
     memcpy(d, data, 12 * sizeof(float));
 
     boat_quant_config_t cfg = boat_quant_config_default();
@@ -875,7 +924,8 @@ static int test_per_channel_bits1(void) {
     boat_tensor_unref(fp32);
     boat_tensor_unref(q);
     boat_tensor_unref(deq);
-    PASS(); return 0;
+    PASS();
+    return 0;
 }
 
 int main(void) {

@@ -21,8 +21,8 @@ char* minimind_format_chat_prompt(const char* user_input) {
 
 static minimind_tokenizer_t* g_tokenizer = NULL;
 
-char* minimind_generate(minimind_model_t* m, const char* prompt,
-                         int max_tokens, float temperature, int top_k) {
+char* minimind_generate(minimind_model_t* m, const char* prompt, int max_tokens, float temperature,
+                        int top_k) {
     if (!g_tokenizer) {
         fprintf(stderr, "Tokenizer not loaded. Call minimind_engine_set_tokenizer() first.\n");
         return NULL;

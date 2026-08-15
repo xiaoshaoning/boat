@@ -51,7 +51,7 @@ typedef struct {
     double backward_time_ms;
     double total_time_ms;
     size_t total_parameters;
-    size_t flops_estimate;  // Rough FLOPs estimate
+    size_t flops_estimate;   // Rough FLOPs estimate
     double flops_per_second; // GFLOPs/s
 } benchmark_result_t;
 
@@ -74,7 +74,8 @@ static boat_tensor_t* create_random_tensor(const int64_t* shape, size_t ndim, bo
 }
 
 // Estimate FLOPs for attention layer (simplified)
-static size_t estimate_attention_flops(size_t batch_size, size_t seq_len, size_t hidden_size, size_t num_heads) {
+static size_t estimate_attention_flops(size_t batch_size, size_t seq_len, size_t hidden_size,
+                                       size_t num_heads) {
     size_t head_size = hidden_size / num_heads;
 
     // QKV projections: 3 * batch * seq_len * hidden_size * hidden_size
@@ -96,11 +97,13 @@ static size_t estimate_attention_flops(size_t batch_size, size_t seq_len, size_t
 }
 
 // Direct backward pass wrapper (bypasses layer interface cache issues)
-static boat_tensor_t* attention_backward_direct(boat_attention_layer_t* layer, const boat_tensor_t* grad_output) {
+static boat_tensor_t* attention_backward_direct(boat_attention_layer_t* layer,
+                                                const boat_tensor_t* grad_output) {
     boat_tensor_t* grad_query = NULL;
     boat_tensor_t* grad_key = NULL;
     boat_tensor_t* grad_value = NULL;
-    if (boat_attention_backward((boat_attention_t*)layer, grad_output, &grad_query, &grad_key, &grad_value)) {
+    if (boat_attention_backward((boat_attention_t*)layer, grad_output, &grad_query, &grad_key,
+                                &grad_value)) {
         if (grad_key) boat_tensor_free(grad_key);
         if (grad_value) boat_tensor_free(grad_value);
         return grad_query;
@@ -113,13 +116,10 @@ static benchmark_result_t run_benchmark(const benchmark_config_t* config) {
     benchmark_result_t result = {0};
 
     // Create attention layer
-    boat_attention_layer_t* attention = boat_attention_layer_create(
-        config->hidden_size,
-        config->num_heads,
-        config->num_heads,  // MHA
-        0.0f,
-        config->causal_mask
-    );
+    boat_attention_layer_t* attention =
+        boat_attention_layer_create(config->hidden_size, config->num_heads,
+                                    config->num_heads, // MHA
+                                    0.0f, config->causal_mask);
 
     if (!attention) {
         fprintf(stderr, "Failed to create attention layer\n");
@@ -127,7 +127,8 @@ static benchmark_result_t run_benchmark(const benchmark_config_t* config) {
     }
 
     // Create input tensors (query, key, value are same for self-attention)
-    const int64_t q_shape[] = {(int64_t)config->batch_size, (int64_t)config->seq_len, (int64_t)config->hidden_size};
+    const int64_t q_shape[] = {(int64_t)config->batch_size, (int64_t)config->seq_len,
+                               (int64_t)config->hidden_size};
     boat_tensor_t* query = create_random_tensor(q_shape, 3, BOAT_DTYPE_FLOAT32);
     boat_tensor_t* key = create_random_tensor(q_shape, 3, BOAT_DTYPE_FLOAT32);
     boat_tensor_t* value = create_random_tensor(q_shape, 3, BOAT_DTYPE_FLOAT32);
@@ -187,21 +188,25 @@ static benchmark_result_t run_benchmark(const benchmark_config_t* config) {
     fflush(stdout);
     boat_tensor_t* test_grad = attention_backward_direct(attention, grad_output);
     bool backward_implemented = (test_grad != NULL);
-    printf("[PERF DEBUG] Backward check: test_grad=%p, backward_implemented=%d\n", (void*)test_grad, backward_implemented);
+    printf("[PERF DEBUG] Backward check: test_grad=%p, backward_implemented=%d\n", (void*)test_grad,
+           backward_implemented);
     fflush(stdout);
 
     // Test layer interface directly
     printf("[PERF DEBUG] attention pointer: %p\n", (void*)attention);
     printf("[PERF DEBUG] grad_output pointer: %p\n", (void*)grad_output);
-    printf("[PERF DEBUG] boat_attention_layer_backward function address: %p\n", (void*)boat_attention_layer_backward);
+    printf("[PERF DEBUG] boat_attention_layer_backward function address: %p\n",
+           (void*)boat_attention_layer_backward);
     // Try calling via function pointer
-    typedef boat_tensor_t* (__cdecl *layer_backward_func_t)(boat_attention_layer_t*, const boat_tensor_t*);
+    typedef boat_tensor_t*(__cdecl * layer_backward_func_t)(boat_attention_layer_t*,
+                                                            const boat_tensor_t*);
     layer_backward_func_t func_ptr = (layer_backward_func_t)boat_attention_layer_backward;
     printf("[PERF DEBUG] Calling via function pointer: func_ptr=%p, attention=%p, grad_output=%p\n",
            (void*)func_ptr, (void*)attention, (void*)grad_output);
     fflush(stdout);
     boat_tensor_t* layer_grad_ptr = func_ptr(attention, grad_output);
-    printf("[PERF DEBUG] Layer interface via function pointer: layer_grad_ptr=%p\n", (void*)layer_grad_ptr);
+    printf("[PERF DEBUG] Layer interface via function pointer: layer_grad_ptr=%p\n",
+           (void*)layer_grad_ptr);
     if (layer_grad_ptr) {
         boat_tensor_free(layer_grad_ptr);
     }
@@ -241,15 +246,16 @@ static benchmark_result_t run_benchmark(const benchmark_config_t* config) {
         result.backward_time_ms = (backward_end - backward_start) / config->iterations;
         result.total_time_ms = result.forward_time_ms + result.backward_time_ms;
     } else {
-        result.backward_time_ms = -1.0;  // Indicates not implemented
+        result.backward_time_ms = -1.0; // Indicates not implemented
         result.total_time_ms = result.forward_time_ms;
     }
 
     // Estimate FLOPs
-    size_t flops_per_forward = estimate_attention_flops(
-        config->batch_size, config->seq_len, config->hidden_size, config->num_heads);
+    size_t flops_per_forward = estimate_attention_flops(config->batch_size, config->seq_len,
+                                                        config->hidden_size, config->num_heads);
     result.flops_estimate = flops_per_forward;
-    result.flops_per_second = (flops_per_forward / (result.forward_time_ms / 1000.0)) / 1e9; // GFLOPs/s
+    result.flops_per_second =
+        (flops_per_forward / (result.forward_time_ms / 1000.0)) / 1e9; // GFLOPs/s
 
     // Count parameters (rough estimate: 4 * hidden_size * hidden_size for Q,K,V,O projections)
     result.total_parameters = 4 * config->hidden_size * config->hidden_size;

@@ -18,16 +18,16 @@ static BOAT_THREAD_LOCAL char boat_last_error_msg[256] = "";
 // Convert error code to string
 BOAT_API const char* boat_error_string(boat_error_t error) {
     switch (error) {
-        case BOAT_SUCCESS: return "Success";
-        case BOAT_ERROR_INVALID_ARGUMENT: return "Invalid argument";
-        case BOAT_ERROR_OUT_OF_MEMORY: return "Out of memory";
-        case BOAT_ERROR_INVALID_OPERATION: return "Invalid operation";
-        case BOAT_ERROR_DEVICE: return "Device error";
-        case BOAT_ERROR_FILE_IO: return "File I/O error";
-        case BOAT_ERROR_FORMAT: return "Format error";
-        case BOAT_ERROR_NOT_IMPLEMENTED: return "Not implemented";
-        case BOAT_ERROR_UNKNOWN: return "Unknown error";
-        default: return "Invalid error code";
+    case BOAT_SUCCESS: return "Success";
+    case BOAT_ERROR_INVALID_ARGUMENT: return "Invalid argument";
+    case BOAT_ERROR_OUT_OF_MEMORY: return "Out of memory";
+    case BOAT_ERROR_INVALID_OPERATION: return "Invalid operation";
+    case BOAT_ERROR_DEVICE: return "Device error";
+    case BOAT_ERROR_FILE_IO: return "File I/O error";
+    case BOAT_ERROR_FORMAT: return "Format error";
+    case BOAT_ERROR_NOT_IMPLEMENTED: return "Not implemented";
+    case BOAT_ERROR_UNKNOWN: return "Unknown error";
+    default: return "Invalid error code";
     }
 }
 

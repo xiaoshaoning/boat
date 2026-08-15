@@ -28,8 +28,10 @@ int main() {
         printf("\n[Test] boat_cuda_malloc/free...\n");
         size_t n = 1024;
         float* d_ptr = (float*)boat_cuda_malloc(n * sizeof(float));
-        if (!d_ptr) { fprintf(stderr, "  FAIL: malloc returned NULL\n"); errors++; }
-        else {
+        if (!d_ptr) {
+            fprintf(stderr, "  FAIL: malloc returned NULL\n");
+            errors++;
+        } else {
             boat_cuda_free(d_ptr);
             printf("  PASS\n");
         }
@@ -50,7 +52,10 @@ int main() {
 
         int add_ok = 1;
         for (int i = 0; i < 4; i++) {
-            if (fabs(h_c[i] - (h_a[i] + h_b[i])) > 1e-5f) { add_ok = 0; break; }
+            if (fabs(h_c[i] - (h_a[i] + h_b[i])) > 1e-5f) {
+                add_ok = 0;
+                break;
+            }
         }
         printf("  %s\n", add_ok ? "PASS" : "FAIL");
         if (!add_ok) errors++;
@@ -64,20 +69,31 @@ int main() {
         int64_t shape[] = {2, 2};
         boat_tensor_t* t_cpu = boat_tensor_create(shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
         float* tdata = (float*)boat_tensor_data(t_cpu);
-        tdata[0] = 1.0f; tdata[1] = 2.0f; tdata[2] = 3.0f; tdata[3] = 4.0f;
+        tdata[0] = 1.0f;
+        tdata[1] = 2.0f;
+        tdata[2] = 3.0f;
+        tdata[3] = 4.0f;
 
         boat_tensor_t* t_cuda = boat_tensor_to_device(t_cpu, BOAT_DEVICE_CUDA);
-        if (!t_cuda) { fprintf(stderr, "  FAIL: tensor_to_device(CUDA) returned NULL\n"); errors++; }
-        else if (boat_tensor_device(t_cuda) != BOAT_DEVICE_CUDA) {
-            fprintf(stderr, "  FAIL: tensor device is not CUDA\n"); errors++;
+        if (!t_cuda) {
+            fprintf(stderr, "  FAIL: tensor_to_device(CUDA) returned NULL\n");
+            errors++;
+        } else if (boat_tensor_device(t_cuda) != BOAT_DEVICE_CUDA) {
+            fprintf(stderr, "  FAIL: tensor device is not CUDA\n");
+            errors++;
         } else {
             boat_tensor_t* t_back = boat_tensor_to_device(t_cuda, BOAT_DEVICE_CPU);
-            if (!t_back) { fprintf(stderr, "  FAIL: tensor_to_device(CPU) returned NULL\n"); errors++; }
-            else {
+            if (!t_back) {
+                fprintf(stderr, "  FAIL: tensor_to_device(CPU) returned NULL\n");
+                errors++;
+            } else {
                 float* back_data = (float*)boat_tensor_data(t_back);
                 int rt_ok = 1;
                 for (int i = 0; i < 4; i++) {
-                    if (fabs(back_data[i] - (float)(i+1)) > 1e-5f) { rt_ok = 0; break; }
+                    if (fabs(back_data[i] - (float)(i + 1)) > 1e-5f) {
+                        rt_ok = 0;
+                        break;
+                    }
                 }
                 printf("  %s\n", rt_ok ? "PASS" : "FAIL");
                 if (!rt_ok) errors++;
@@ -92,17 +108,25 @@ int main() {
         int64_t shape2[] = {4};
         boat_tensor_t* src = boat_tensor_create(shape2, 1, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
         float* sdata = (float*)boat_tensor_data(src);
-        sdata[0] = 10.0f; sdata[1] = 20.0f; sdata[2] = 30.0f; sdata[3] = 40.0f;
+        sdata[0] = 10.0f;
+        sdata[1] = 20.0f;
+        sdata[2] = 30.0f;
+        sdata[3] = 40.0f;
 
         boat_tensor_t* src_cuda = boat_tensor_to_device(src, BOAT_DEVICE_CUDA);
         boat_tensor_t* cloned = boat_tensor_clone(src_cuda);
-        if (!cloned) { fprintf(stderr, "  FAIL: clone returned NULL\n"); errors++; }
-        else {
+        if (!cloned) {
+            fprintf(stderr, "  FAIL: clone returned NULL\n");
+            errors++;
+        } else {
             boat_tensor_t* cloned_cpu = boat_tensor_to_device(cloned, BOAT_DEVICE_CPU);
             float* cdata = (float*)boat_tensor_data(cloned_cpu);
             int clone_ok = 1;
             for (int i = 0; i < 4; i++) {
-                if (fabs(cdata[i] - (float)((i+1)*10)) > 1e-5f) { clone_ok = 0; break; }
+                if (fabs(cdata[i] - (float)((i + 1) * 10)) > 1e-5f) {
+                    clone_ok = 0;
+                    break;
+                }
             }
             printf("  %s\n", clone_ok ? "PASS" : "FAIL");
             if (!clone_ok) errors++;
@@ -157,7 +181,8 @@ int main() {
         printf("\n[Test] boat_cuda_sum_f32 reduction...\n");
         size_t big_n = 10000;
         float* h_big = (float*)malloc(big_n * sizeof(float));
-        for (size_t i = 0; i < big_n; i++) h_big[i] = 1.0f;
+        for (size_t i = 0; i < big_n; i++)
+            h_big[i] = 1.0f;
         float* d_big = (float*)boat_cuda_malloc(big_n * sizeof(float));
         boat_cuda_memcpy_h2d(d_big, h_big, big_n * sizeof(float));
         float result = boat_cuda_sum_f32(d_big, big_n);

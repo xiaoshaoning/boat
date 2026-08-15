@@ -13,12 +13,9 @@
 
 // Helper function to compute numerical gradient using finite differences
 static float compute_numerical_gradient_element(const boat_attention_t* attention,
-                                                boat_tensor_t* query,
-                                                boat_tensor_t* key,
-                                                boat_tensor_t* value,
-                                                boat_tensor_t* param,
-                                                size_t idx,
-                                                float epsilon) {
+                                                boat_tensor_t* query, boat_tensor_t* key,
+                                                boat_tensor_t* value, boat_tensor_t* param,
+                                                size_t idx, float epsilon) {
     // Save original value
     float* data = (float*)boat_tensor_data(param);
     float original = data[idx];
@@ -58,8 +55,8 @@ static float compute_numerical_gradient_element(const boat_attention_t* attentio
 }
 
 // Check gradient agreement with relative and absolute tolerances
-static bool check_gradient_agreement(float analytical, float numerical,
-                                     float rel_tol, float abs_tol) {
+static bool check_gradient_agreement(float analytical, float numerical, float rel_tol,
+                                     float abs_tol) {
     float diff = fabsf(analytical - numerical);
     if (diff <= abs_tol) {
         return true;
@@ -75,14 +72,9 @@ static bool check_gradient_agreement(float analytical, float numerical,
 }
 
 // Test gradient for a specific parameter tensor
-static bool test_parameter_gradient(const boat_attention_t* attention,
-                                    boat_tensor_t* query,
-                                    boat_tensor_t* key,
-                                    boat_tensor_t* value,
-                                    boat_tensor_t* param,
-                                    boat_tensor_t* grad,
-                                    const char* param_name,
-                                    size_t max_tests) {
+static bool test_parameter_gradient(const boat_attention_t* attention, boat_tensor_t* query,
+                                    boat_tensor_t* key, boat_tensor_t* value, boat_tensor_t* param,
+                                    boat_tensor_t* grad, const char* param_name, size_t max_tests) {
     if (!param || !grad) {
         printf("    %s: no parameter or gradient (skipping)\n", param_name);
         return true;
@@ -91,8 +83,8 @@ static bool test_parameter_gradient(const boat_attention_t* attention,
     printf("    Testing %s... ", param_name);
 
     const float epsilon = 1e-4f;
-    const float rel_tol = 2e-2f;  // 2% tolerance for gradient checking
-    const float abs_tol = 1e-2f;   // Increased absolute tolerance for attention gradients
+    const float rel_tol = 2e-2f; // 2% tolerance for gradient checking
+    const float abs_tol = 1e-2f; // Increased absolute tolerance for attention gradients
 
     size_t num_elements = boat_tensor_nelements(param);
     float* grad_data = (float*)boat_tensor_data(grad);
@@ -105,13 +97,14 @@ static bool test_parameter_gradient(const boat_attention_t* attention,
     if (step < 1) step = 1;
 
     for (size_t i = 0; i < num_elements && tests_done < max_tests; i += step) {
-        float numerical = compute_numerical_gradient_element(attention, query, key, value, param, i, epsilon);
+        float numerical =
+            compute_numerical_gradient_element(attention, query, key, value, param, i, epsilon);
         float analytical = grad_data[i];
 
         if (!check_gradient_agreement(analytical, numerical, rel_tol, abs_tol)) {
             if (failures < 3) {
-                printf("\n      mismatch at %zu: analytical=%g, numerical=%g, diff=%g",
-                       i, analytical, numerical, analytical - numerical);
+                printf("\n      mismatch at %zu: analytical=%g, numerical=%g, diff=%g", i,
+                       analytical, numerical, analytical - numerical);
             }
             failures++;
         }
@@ -131,16 +124,14 @@ int main() {
     printf("=== Attention Layer Gradient Checking Tests ===\n\n");
 
     // Create a small attention layer for testing
-    boat_attention_config_t config = {
-        .hidden_size = 32,
-        .num_heads = 4,
-        .head_size = 8,
-        .dropout_prob = 0.0f,
-        .causal_mask = false,
-        .use_bias = true,
-        .use_rotary = false,
-        .rotary_theta = 10000.0f
-    };
+    boat_attention_config_t config = {.hidden_size = 32,
+                                      .num_heads = 4,
+                                      .head_size = 8,
+                                      .dropout_prob = 0.0f,
+                                      .causal_mask = false,
+                                      .use_bias = true,
+                                      .use_rotary = false,
+                                      .rotary_theta = 10000.0f};
 
     boat_attention_t* attention = boat_attention_create(&config);
     if (!attention) {
@@ -195,7 +186,8 @@ int main() {
         output_shape[i] = output_shape_ptr[i];
     }
 
-    boat_tensor_t* grad_output = boat_tensor_create(output_shape, output_ndim, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    boat_tensor_t* grad_output =
+        boat_tensor_create(output_shape, output_ndim, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     if (!grad_output) {
         printf("ERROR: Failed to create gradient output tensor\n");
         boat_tensor_unref(output);
@@ -217,7 +209,8 @@ int main() {
     boat_tensor_t* grad_input_q = NULL;
     boat_tensor_t* grad_input_k = NULL;
     boat_tensor_t* grad_input_v = NULL;
-    if (!boat_attention_backward(attention, grad_output, &grad_input_q, &grad_input_k, &grad_input_v)) {
+    if (!boat_attention_backward(attention, grad_output, &grad_input_q, &grad_input_k,
+                                 &grad_input_v)) {
         printf("ERROR: Backward pass failed\n");
         boat_tensor_unref(grad_output);
         boat_tensor_unref(output);
@@ -256,25 +249,33 @@ int main() {
     const size_t max_tests_per_param = 10;
 
     // Test weight gradients
-    all_pass = test_parameter_gradient(attention, query, key, value,
-                                       weight_q, grad_weight_q, "W_q", max_tests_per_param) && all_pass;
-    all_pass = test_parameter_gradient(attention, query, key, value,
-                                       weight_k, grad_weight_k, "W_k", max_tests_per_param) && all_pass;
-    all_pass = test_parameter_gradient(attention, query, key, value,
-                                       weight_v, grad_weight_v, "W_v", max_tests_per_param) && all_pass;
-    all_pass = test_parameter_gradient(attention, query, key, value,
-                                       weight_o, grad_weight_o, "W_o", max_tests_per_param) && all_pass;
+    all_pass = test_parameter_gradient(attention, query, key, value, weight_q, grad_weight_q, "W_q",
+                                       max_tests_per_param) &&
+               all_pass;
+    all_pass = test_parameter_gradient(attention, query, key, value, weight_k, grad_weight_k, "W_k",
+                                       max_tests_per_param) &&
+               all_pass;
+    all_pass = test_parameter_gradient(attention, query, key, value, weight_v, grad_weight_v, "W_v",
+                                       max_tests_per_param) &&
+               all_pass;
+    all_pass = test_parameter_gradient(attention, query, key, value, weight_o, grad_weight_o, "W_o",
+                                       max_tests_per_param) &&
+               all_pass;
 
     // Test bias gradients
     if (config.use_bias) {
-        all_pass = test_parameter_gradient(attention, query, key, value,
-                                           bias_q, grad_bias_q, "b_q", max_tests_per_param) && all_pass;
-        all_pass = test_parameter_gradient(attention, query, key, value,
-                                           bias_k, grad_bias_k, "b_k", max_tests_per_param) && all_pass;
-        all_pass = test_parameter_gradient(attention, query, key, value,
-                                           bias_v, grad_bias_v, "b_v", max_tests_per_param) && all_pass;
-        all_pass = test_parameter_gradient(attention, query, key, value,
-                                           bias_o, grad_bias_o, "b_o", max_tests_per_param) && all_pass;
+        all_pass = test_parameter_gradient(attention, query, key, value, bias_q, grad_bias_q, "b_q",
+                                           max_tests_per_param) &&
+                   all_pass;
+        all_pass = test_parameter_gradient(attention, query, key, value, bias_k, grad_bias_k, "b_k",
+                                           max_tests_per_param) &&
+                   all_pass;
+        all_pass = test_parameter_gradient(attention, query, key, value, bias_v, grad_bias_v, "b_v",
+                                           max_tests_per_param) &&
+                   all_pass;
+        all_pass = test_parameter_gradient(attention, query, key, value, bias_o, grad_bias_o, "b_o",
+                                           max_tests_per_param) &&
+                   all_pass;
     }
 
     // Cleanup

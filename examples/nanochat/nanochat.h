@@ -11,8 +11,7 @@ extern "C" {
 // ---------------------------------------------------------------------------
 // Sampling
 // ---------------------------------------------------------------------------
-int nanochat_sample_token(const float* logits, int vocab_size,
-                           int top_k, float temp);
+int nanochat_sample_token(const float* logits, int vocab_size, int top_k, float temp);
 
 #ifdef __cplusplus
 }

@@ -17,11 +17,15 @@ int main(int argc, char** argv) {
 
     // Read input
     FILE* f = fopen("gen_input.bin", "rb");
-    if (!f) { fprintf(stderr, "Cannot open gen_input.bin\n"); return 1; }
+    if (!f) {
+        fprintf(stderr, "Cannot open gen_input.bin\n");
+        return 1;
+    }
     int n_prompt, max_tokens;
     fread(&n_prompt, sizeof(int), 1, f);
     int* tokens = (int*)malloc(((size_t)n_prompt + 4096) * sizeof(int));
-    for (int i = 0; i < n_prompt; i++) fread(&tokens[i], sizeof(int), 1, f);
+    for (int i = 0; i < n_prompt; i++)
+        fread(&tokens[i], sizeof(int), 1, f);
     fread(&max_tokens, sizeof(int), 1, f);
     fclose(f);
 
@@ -52,7 +56,8 @@ int main(int argc, char** argv) {
     int n_gen = total - n_prompt;
     f = fopen("gen_output.bin", "wb");
     fwrite(&n_gen, sizeof(int), 1, f);
-    for (int i = n_prompt; i < total; i++) fwrite(&tokens[i], sizeof(int), 1, f);
+    for (int i = n_prompt; i < total; i++)
+        fwrite(&tokens[i], sizeof(int), 1, f);
     fclose(f);
 
     printf("Wrote %d generated tokens to gen_output.bin\n", n_gen);

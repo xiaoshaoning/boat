@@ -44,7 +44,8 @@ static char* read_file(const char* filename, size_t* size) {
 // exercised even on CI runners that have no local model fixtures.
 static int test_synthetic_model(void) {
     const char* config_json = "{\"model_type\": \"mlp\", \"hidden_size\": 2}";
-    const char* header = "{\"dense.weight\":{\"dtype\":\"F32\",\"shape\":[2,2],\"data_offsets\":[0,16]}}";
+    const char* header =
+        "{\"dense.weight\":{\"dtype\":\"F32\",\"shape\":[2,2],\"data_offsets\":[0,16]}}";
     const size_t header_len = strlen(header);
     const size_t data_len = 4 * sizeof(float);
     const size_t total_size = 8 + header_len + data_len;
@@ -130,7 +131,8 @@ int main() {
 
     // Load model from memory
     printf("Calling boat_huggingface_load_from_memory...\n");
-    boat_model_t* model = boat_huggingface_load_from_memory(config_json, weights_data, weights_size);
+    boat_model_t* model =
+        boat_huggingface_load_from_memory(config_json, weights_data, weights_size);
 
     if (model) {
         printf("Successfully loaded model!\n");

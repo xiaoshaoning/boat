@@ -22,7 +22,10 @@ static int selftest(void) {
     // plus marker detection. Exercises the parser without any model file.
     enum { N_SPECIAL = 4, N_EXTRA = 4, N_PIECES = N_SPECIAL + N_EXTRA + 256 };
     const char* special[] = {"<pad>", "</s>", "<s>", "<unk>"};
-    const char* extra[] = {"hello", "world", "\xE2\x96\x81" "hello", "<tool_call>"};
+    const char* extra[] = {"hello", "world",
+                           "\xE2\x96\x81"
+                           "hello",
+                           "<tool_call>"};
     unsigned char etypes[] = {0, 0, 0, 3};
     // Max blob size: header + N_PIECES * (7 + longest surface).
     size_t cap = 24 + (size_t)N_PIECES * (7 + 12);
@@ -30,13 +33,23 @@ static int selftest(void) {
     if (!blob) return 1;
     unsigned char* p = blob;
     unsigned int v = N_PIECES;
-    memcpy(p, &v, 4); p += 4;
-    v = 0; memcpy(p, &v, 4); p += 4;  // pad
-    v = 1; memcpy(p, &v, 4); p += 4;  // eos
-    v = 2; memcpy(p, &v, 4); p += 4;  // bos
-    v = 3; memcpy(p, &v, 4); p += 4;  // unk
-    p[0] = 1; p[1] = 1;               // add_dummy_prefix, byte_fallback
-    p += 4;  // 2 flags + 2-byte pad
+    memcpy(p, &v, 4);
+    p += 4;
+    v = 0;
+    memcpy(p, &v, 4);
+    p += 4; // pad
+    v = 1;
+    memcpy(p, &v, 4);
+    p += 4; // eos
+    v = 2;
+    memcpy(p, &v, 4);
+    p += 4; // bos
+    v = 3;
+    memcpy(p, &v, 4);
+    p += 4; // unk
+    p[0] = 1;
+    p[1] = 1; // add_dummy_prefix, byte_fallback
+    p += 4;   // 2 flags + 2-byte pad
 
     int id_marker = -1;
     for (int i = 0; i < N_PIECES; i++) {
@@ -45,20 +58,22 @@ static int selftest(void) {
         float score = -100.0f + (float)i;
         if (i < N_SPECIAL) {
             snprintf(surf, sizeof(surf), "%s", special[i]);
-            type = 2;  // CONTROL
+            type = 2; // CONTROL
         } else if (i < N_SPECIAL + N_EXTRA) {
             int k = i - N_SPECIAL;
             snprintf(surf, sizeof(surf), "%s", extra[k]);
             type = etypes[k];
-            if (k == 3) id_marker = i;  // <tool_call>
+            if (k == 3) id_marker = i; // <tool_call>
         } else {
             snprintf(surf, sizeof(surf), "<0x%02X>", i - (N_SPECIAL + N_EXTRA));
-            type = 4;  // BYTE
+            type = 4; // BYTE
         }
         unsigned int len = (unsigned int)strlen(surf);
-        memcpy(p, &score, 4); p += 4;
+        memcpy(p, &score, 4);
+        p += 4;
         *p++ = type;
-        memcpy(p, &len, 2); p += 2;
+        memcpy(p, &len, 2);
+        p += 2;
         memcpy(p, surf, len);
         p += len;
     }
@@ -73,8 +88,7 @@ static int selftest(void) {
     int n = needle_tokenizer_encode(&tok, "hello world", ids, 1024);
     char* dec = needle_tokenizer_decode(&tok, ids, (size_t)(n < 0 ? 0 : n));
     if (n <= 0 || !dec || strcmp(dec, "hello world") != 0) {
-        fprintf(stderr, "selftest: round-trip failed (n=%d, dec=%s)\n", n,
-                dec ? dec : "(null)");
+        fprintf(stderr, "selftest: round-trip failed (n=%d, dec=%s)\n", n, dec ? dec : "(null)");
         free(dec);
         needle_tokenizer_free(&tok);
         return 1;
@@ -102,10 +116,9 @@ static int selftest(void) {
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        fprintf(stderr,
-                "Usage: needle2 <model.cact> [--prompt \"...\"] [--max-new-tokens N] "
-                "[--temperature T]\n"
-                "       needle2 --selftest\n");
+        fprintf(stderr, "Usage: needle2 <model.cact> [--prompt \"...\"] [--max-new-tokens N] "
+                        "[--temperature T]\n"
+                        "       needle2 --selftest\n");
         return 1;
     }
     if (strcmp(argv[1], "--selftest") == 0) {
@@ -172,7 +185,8 @@ int main(int argc, char** argv) {
             needle_cact_close(&cact);
             return 1;
         }
-        for (size_t i = 0; i < n; i++) printf("%s%d", i ? " " : "", ids[i]);
+        for (size_t i = 0; i < n; i++)
+            printf("%s%d", i ? " " : "", ids[i]);
         printf("\n");
         free(ids);
         needle_tokenizer_free(&tok);

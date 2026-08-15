@@ -21,7 +21,7 @@
 typedef struct boat_adam_state_t {
     boat_optimizer_type_t type;
     float learning_rate;
-    float weight_decay;  // L2 gradient penalty coefficient (0 = off)
+    float weight_decay; // L2 gradient penalty coefficient (0 = off)
     float beta1;
     float beta2;
     float epsilon;
@@ -59,9 +59,8 @@ static void adam_expand_capacity(boat_adam_state_t* state);
 static void adam_update_parameter(boat_adam_state_t* state, size_t idx);
 
 // Create Adam optimizer
-BOAT_API boat_optimizer_t* boat_adam_optimizer_create(float learning_rate,
-                                             float beta1, float beta2,
-                                             float epsilon) {
+BOAT_API boat_optimizer_t* boat_adam_optimizer_create(float learning_rate, float beta1, float beta2,
+                                                      float epsilon) {
     // Validate hyperparameters
     if (learning_rate <= 0.0f) {
         boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[Adam] Learning rate must be positive\n");
@@ -77,7 +76,8 @@ BOAT_API boat_optimizer_t* boat_adam_optimizer_create(float learning_rate,
     }
 
     // Allocate optimizer state
-    boat_adam_state_t* state = (boat_adam_state_t*)boat_malloc(sizeof(boat_adam_state_t), BOAT_DEVICE_CPU);
+    boat_adam_state_t* state =
+        (boat_adam_state_t*)boat_malloc(sizeof(boat_adam_state_t), BOAT_DEVICE_CPU);
     if (!state) {
         boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[Adam] Failed to allocate optimizer state\n");
         return NULL;
@@ -92,13 +92,17 @@ BOAT_API boat_optimizer_t* boat_adam_optimizer_create(float learning_rate,
     state->epsilon = epsilon;
     state->timestep = 0;
     state->num_params = 0;
-    state->capacity = 16;  // Initial capacity
+    state->capacity = 16; // Initial capacity
 
     // Allocate arrays
-    state->params = (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
-    state->grads = (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
-    state->m = (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
-    state->v = (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
+    state->params =
+        (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
+    state->grads =
+        (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
+    state->m =
+        (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
+    state->v =
+        (boat_tensor_t**)boat_malloc(state->capacity * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
 
     if (!state->params || !state->grads || !state->m || !state->v) {
         boat_set_errorf(BOAT_ERROR_OUT_OF_MEMORY, "[Adam] Failed to allocate optimizer state\n");
@@ -120,8 +124,7 @@ BOAT_API boat_optimizer_t* boat_adam_optimizer_create(float learning_rate,
 }
 
 // Add a parameter to the optimizer
-void adam_optimizer_add_parameter(boat_optimizer_t* optimizer,
-                                  boat_tensor_t* param,
+void adam_optimizer_add_parameter(boat_optimizer_t* optimizer, boat_tensor_t* param,
                                   boat_tensor_t* grad) {
     if (!optimizer || !param || !grad) {
         return;
@@ -234,16 +237,14 @@ static void adam_update_parameter(boat_adam_state_t* state, size_t idx) {
 #ifdef BOAT_WITH_CUDA
     if (boat_tensor_device(param) == BOAT_DEVICE_CUDA) {
         if (boat_tensor_dtype(param) == BOAT_DTYPE_BFLOAT16) {
-            boat_cuda_adam_update_bf16(param_data, grad_data, m_data, v_data,
-                                       state->learning_rate, state->beta1, state->beta2,
-                                       beta1_pow_t, beta2_pow_t, state->epsilon,
-                                       num_elements);
+            boat_cuda_adam_update_bf16(param_data, grad_data, m_data, v_data, state->learning_rate,
+                                       state->beta1, state->beta2, beta1_pow_t, beta2_pow_t,
+                                       state->epsilon, num_elements);
             return;
         }
-        boat_cuda_adam_update_f32(param_data, grad_data, m_data, v_data,
-                                   state->learning_rate, state->beta1, state->beta2,
-                                   beta1_pow_t, beta2_pow_t, state->epsilon,
-                                   num_elements);
+        boat_cuda_adam_update_f32(param_data, grad_data, m_data, v_data, state->learning_rate,
+                                  state->beta1, state->beta2, beta1_pow_t, beta2_pow_t,
+                                  state->epsilon, num_elements);
         return;
     }
 #endif

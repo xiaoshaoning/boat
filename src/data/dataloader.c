@@ -25,19 +25,18 @@ struct boat_dataloader_t {
     size_t batch_size;
     bool shuffle;
 
-    size_t* indices;          // shuffled index array
-    size_t num_samples;       // total samples in dataset
-    size_t num_batches;       // batches per epoch
-    size_t current_batch;     // 0-based batch index in current epoch
+    size_t* indices;      // shuffled index array
+    size_t num_samples;   // total samples in dataset
+    size_t num_batches;   // batches per epoch
+    size_t current_batch; // 0-based batch index in current epoch
 
     boat_transform_chain_t* transform;
 };
 
-BOAT_API boat_dataloader_t* boat_dataloader_create(boat_dataset_t* dataset,
-                                          size_t batch_size, bool shuffle) {
+BOAT_API boat_dataloader_t* boat_dataloader_create(boat_dataset_t* dataset, size_t batch_size,
+                                                   bool shuffle) {
     if (!dataset) {
-        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
-            "[DataLoader] NULL dataset\n");
+        boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT, "[DataLoader] NULL dataset\n");
         return NULL;
     }
     if (batch_size == 0) batch_size = 1;
@@ -105,9 +104,8 @@ BOAT_API void boat_dataloader_reset(boat_dataloader_t* loader) {
     }
 }
 
-BOAT_API bool boat_dataloader_next(boat_dataloader_t* loader,
-                          boat_tensor_t** batch_data,
-                          boat_tensor_t** batch_labels) {
+BOAT_API bool boat_dataloader_next(boat_dataloader_t* loader, boat_tensor_t** batch_data,
+                                   boat_tensor_t** batch_labels) {
     if (!loader || !batch_data || !batch_labels) return false;
 
     if (loader->current_batch >= loader->num_batches) return false;
@@ -148,8 +146,8 @@ BOAT_API bool boat_dataloader_next(boat_dataloader_t* loader,
 
     // Create batch tensors
     *batch_data = boat_tensor_create(batch_shape, sample_ndim + 1, data_dtype, BOAT_DEVICE_CPU);
-    *batch_labels = boat_tensor_create(
-        (int64_t[]){ (int64_t)current_batch_size }, 1, BOAT_DTYPE_INT64, BOAT_DEVICE_CPU);
+    *batch_labels = boat_tensor_create((int64_t[]){(int64_t)current_batch_size}, 1,
+                                       BOAT_DTYPE_INT64, BOAT_DEVICE_CPU);
 
     if (!*batch_data || !*batch_labels) {
         boat_free(batch_shape);
@@ -184,8 +182,7 @@ BOAT_API bool boat_dataloader_next(boat_dataloader_t* loader,
 
         // Apply transform if set
         if (loader->transform) {
-            boat_tensor_t* transformed = boat_transform_chain_apply(
-                loader->transform, item_data);
+            boat_tensor_t* transformed = boat_transform_chain_apply(loader->transform, item_data);
             if (transformed != item_data) {
                 boat_tensor_unref(item_data);
                 item_data = transformed;
@@ -194,8 +191,7 @@ BOAT_API bool boat_dataloader_next(boat_dataloader_t* loader,
 
         // Copy data
         if (item_data) {
-            memcpy(data_ptr + i * sample_bytes,
-                   boat_tensor_const_data(item_data), sample_bytes);
+            memcpy(data_ptr + i * sample_bytes, boat_tensor_const_data(item_data), sample_bytes);
             boat_tensor_unref(item_data);
         }
 
@@ -222,7 +218,7 @@ BOAT_API size_t boat_dataloader_batch_size(const boat_dataloader_t* loader) {
 }
 
 BOAT_API void boat_dataloader_set_transform(boat_dataloader_t* loader,
-                                   boat_transform_chain_t* transform) {
+                                            boat_transform_chain_t* transform) {
     if (loader) {
         loader->transform = transform;
     }

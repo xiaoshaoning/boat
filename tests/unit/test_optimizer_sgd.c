@@ -72,7 +72,7 @@ int main() {
 
     // Test 3: Vanilla SGD step (no momentum) — predictable update
     {
-        boat_optimizer_t* optimizer = boat_sgd_optimizer_create(0.01f, 0.0f);  // no momentum
+        boat_optimizer_t* optimizer = boat_sgd_optimizer_create(0.01f, 0.0f); // no momentum
         assert(optimizer != NULL);
 
         int64_t shape[] = {1};

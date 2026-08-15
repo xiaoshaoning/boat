@@ -14,10 +14,28 @@
 static int tests_passed = 0;
 static int tests_total = 0;
 
-#define TEST(name) do { printf("  %s ... ", name); tests_total++; } while(0)
-#define PASS() do { printf("PASS\n"); tests_passed++; } while(0)
-#define FAIL(msg) do { printf("FAIL: %s\n", msg); return 1; } while(0)
-#define ASSERT(cond, msg) do { if (!(cond)) { printf("FAIL: %s\n", msg); return 1; } } while(0)
+#define TEST(name)                                                                                 \
+    do {                                                                                           \
+        printf("  %s ... ", name);                                                                 \
+        tests_total++;                                                                             \
+    } while (0)
+#define PASS()                                                                                     \
+    do {                                                                                           \
+        printf("PASS\n");                                                                          \
+        tests_passed++;                                                                            \
+    } while (0)
+#define FAIL(msg)                                                                                  \
+    do {                                                                                           \
+        printf("FAIL: %s\n", msg);                                                                 \
+        return 1;                                                                                  \
+    } while (0)
+#define ASSERT(cond, msg)                                                                          \
+    do {                                                                                           \
+        if (!(cond)) {                                                                             \
+            printf("FAIL: %s\n", msg);                                                             \
+            return 1;                                                                              \
+        }                                                                                          \
+    } while (0)
 
 // Tolerance for float comparisons
 #define TOL 1e-4f
@@ -29,8 +47,10 @@ static int tests_total = 0;
 static void write_int_attr(pb_builder_t* b, const char* name, int64_t val) {
     size_t pos = pb_begin_submessage(b, 5);
     pb_write_string(b, 1, name);
-    pb_write_tag(b, 20, 0); pb_write_varint(b, 2);  // type = INT
-    pb_write_tag(b, 3, 0); pb_write_varint(b, val);
+    pb_write_tag(b, 20, 0);
+    pb_write_varint(b, 2); // type = INT
+    pb_write_tag(b, 3, 0);
+    pb_write_varint(b, val);
     pb_patch_length(b, pos);
 }
 
@@ -40,9 +60,11 @@ static void write_int_attr(pb_builder_t* b, const char* name, int64_t val) {
 static void write_ints_attr(pb_builder_t* b, const char* name, const int64_t* vals, int count) {
     size_t pos = pb_begin_submessage(b, 5);
     pb_write_string(b, 1, name);
-    pb_write_tag(b, 20, 0); pb_write_varint(b, 7);  // type = INTS
+    pb_write_tag(b, 20, 0);
+    pb_write_varint(b, 7); // type = INTS
     for (int i = 0; i < count; i++) {
-        pb_write_tag(b, 8, 0); pb_write_varint(b, vals[i]);  // ints (field 8)
+        pb_write_tag(b, 8, 0);
+        pb_write_varint(b, vals[i]); // ints (field 8)
     }
     pb_patch_length(b, pos);
 }
@@ -76,12 +98,25 @@ static uint8_t* build_gemm_relu_model(size_t* out_size) {
     pb_write_string(&b, 1, "input");
     size_t in_type = pb_begin_submessage(&b, 2);
     size_t in_tensor = pb_begin_submessage(&b, 1);
-    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 1);  // elem_type = FLOAT
+    pb_write_tag(&b, 1, 0);
+    pb_write_varint(&b, 1); // elem_type = FLOAT
     // TensorShapeProto: each dim is a Dimension submessage (field 1)
-    { size_t in_shape = pb_begin_submessage(&b, 2);
-      { size_t d = pb_begin_submessage(&b, 1); pb_write_tag(&b, 1, 0); pb_write_varint(&b, 1); pb_patch_length(&b, d); }
-      { size_t d = pb_begin_submessage(&b, 1); pb_write_tag(&b, 1, 0); pb_write_varint(&b, 4); pb_patch_length(&b, d); }
-      pb_patch_length(&b, in_shape); }
+    {
+        size_t in_shape = pb_begin_submessage(&b, 2);
+        {
+            size_t d = pb_begin_submessage(&b, 1);
+            pb_write_tag(&b, 1, 0);
+            pb_write_varint(&b, 1);
+            pb_patch_length(&b, d);
+        }
+        {
+            size_t d = pb_begin_submessage(&b, 1);
+            pb_write_tag(&b, 1, 0);
+            pb_write_varint(&b, 4);
+            pb_patch_length(&b, d);
+        }
+        pb_patch_length(&b, in_shape);
+    }
     pb_patch_length(&b, in_tensor);
     pb_patch_length(&b, in_type);
     pb_patch_length(&b, in_vip);
@@ -91,46 +126,61 @@ static uint8_t* build_gemm_relu_model(size_t* out_size) {
     pb_write_string(&b, 1, "output");
     size_t out_type = pb_begin_submessage(&b, 2);
     size_t out_tensor = pb_begin_submessage(&b, 1);
-    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 1);  // elem_type = FLOAT
-    { size_t out_shape = pb_begin_submessage(&b, 2);
-      { size_t d = pb_begin_submessage(&b, 1); pb_write_tag(&b, 1, 0); pb_write_varint(&b, 1); pb_patch_length(&b, d); }
-      { size_t d = pb_begin_submessage(&b, 1); pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3); pb_patch_length(&b, d); }
-      pb_patch_length(&b, out_shape); }
+    pb_write_tag(&b, 1, 0);
+    pb_write_varint(&b, 1); // elem_type = FLOAT
+    {
+        size_t out_shape = pb_begin_submessage(&b, 2);
+        {
+            size_t d = pb_begin_submessage(&b, 1);
+            pb_write_tag(&b, 1, 0);
+            pb_write_varint(&b, 1);
+            pb_patch_length(&b, d);
+        }
+        {
+            size_t d = pb_begin_submessage(&b, 1);
+            pb_write_tag(&b, 1, 0);
+            pb_write_varint(&b, 3);
+            pb_patch_length(&b, d);
+        }
+        pb_patch_length(&b, out_shape);
+    }
     pb_patch_length(&b, out_tensor);
     pb_patch_length(&b, out_type);
     pb_patch_length(&b, out_vip);
 
     // --- Weight initializer ---
-    float weight_data[12] = {
-        0.1f, 0.2f, 0.3f, 0.4f,
-        0.5f, 0.6f, 0.7f, 0.8f,
-        0.9f, 1.0f, 1.1f, 1.2f
-    };
+    float weight_data[12] = {0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f,
+                             0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f};
     size_t init_w_pos = pb_begin_submessage(&b, 5);
-    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
-    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 4);
-    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);  // data_type = FLOAT
+    pb_write_tag(&b, 1, 0);
+    pb_write_varint(&b, 3);
+    pb_write_tag(&b, 1, 0);
+    pb_write_varint(&b, 4);
+    pb_write_tag(&b, 2, 0);
+    pb_write_varint(&b, 1); // data_type = FLOAT
     pb_write_string(&b, 8, "weight");
     pb_write_bytes(&b, 9, weight_data, sizeof(weight_data));
     pb_patch_length(&b, init_w_pos);
 
     // Bias initializer
-    float bias_data[3] = { 0.01f, 0.02f, 0.03f };
+    float bias_data[3] = {0.01f, 0.02f, 0.03f};
     size_t init_b_pos = pb_begin_submessage(&b, 5);
-    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3);
-    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);
+    pb_write_tag(&b, 1, 0);
+    pb_write_varint(&b, 3);
+    pb_write_tag(&b, 2, 0);
+    pb_write_varint(&b, 1);
     pb_write_string(&b, 8, "bias");
     pb_write_bytes(&b, 9, bias_data, sizeof(bias_data));
     pb_patch_length(&b, init_b_pos);
 
     // --- Node 1: Gemm ---
     size_t gemm_pos = pb_begin_submessage(&b, 1);
-    pb_write_string(&b, 1, "input");             // input[0]
-    pb_write_string(&b, 1, "weight");             // input[1]
-    pb_write_string(&b, 1, "bias");               // input[2]
-    pb_write_string(&b, 2, "gemm_out");           // output[0]
-    pb_write_string(&b, 3, "gemm_node");          // name
-    pb_write_string(&b, 4, "Gemm");               // op_type
+    pb_write_string(&b, 1, "input");     // input[0]
+    pb_write_string(&b, 1, "weight");    // input[1]
+    pb_write_string(&b, 1, "bias");      // input[2]
+    pb_write_string(&b, 2, "gemm_out");  // output[0]
+    pb_write_string(&b, 3, "gemm_node"); // name
+    pb_write_string(&b, 4, "Gemm");      // op_type
     write_int_attr(&b, "transB", 1);
     pb_patch_length(&b, gemm_pos);
 
@@ -173,13 +223,36 @@ static uint8_t* build_conv_model(size_t* out_size) {
     pb_write_string(&b, 1, "input");
     size_t in_type = pb_begin_submessage(&b, 2);
     size_t in_tensor = pb_begin_submessage(&b, 1);
-    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 1);
-    { size_t in_shape = pb_begin_submessage(&b, 2);
-      { size_t d = pb_begin_submessage(&b, 1); pb_write_tag(&b, 1, 0); pb_write_varint(&b, 1); pb_patch_length(&b, d); }
-      { size_t d = pb_begin_submessage(&b, 1); pb_write_tag(&b, 1, 0); pb_write_varint(&b, 1); pb_patch_length(&b, d); }
-      { size_t d = pb_begin_submessage(&b, 1); pb_write_tag(&b, 1, 0); pb_write_varint(&b, 4); pb_patch_length(&b, d); }
-      { size_t d = pb_begin_submessage(&b, 1); pb_write_tag(&b, 1, 0); pb_write_varint(&b, 4); pb_patch_length(&b, d); }
-      pb_patch_length(&b, in_shape); }
+    pb_write_tag(&b, 1, 0);
+    pb_write_varint(&b, 1);
+    {
+        size_t in_shape = pb_begin_submessage(&b, 2);
+        {
+            size_t d = pb_begin_submessage(&b, 1);
+            pb_write_tag(&b, 1, 0);
+            pb_write_varint(&b, 1);
+            pb_patch_length(&b, d);
+        }
+        {
+            size_t d = pb_begin_submessage(&b, 1);
+            pb_write_tag(&b, 1, 0);
+            pb_write_varint(&b, 1);
+            pb_patch_length(&b, d);
+        }
+        {
+            size_t d = pb_begin_submessage(&b, 1);
+            pb_write_tag(&b, 1, 0);
+            pb_write_varint(&b, 4);
+            pb_patch_length(&b, d);
+        }
+        {
+            size_t d = pb_begin_submessage(&b, 1);
+            pb_write_tag(&b, 1, 0);
+            pb_write_varint(&b, 4);
+            pb_patch_length(&b, d);
+        }
+        pb_patch_length(&b, in_shape);
+    }
     pb_patch_length(&b, in_tensor);
     pb_patch_length(&b, in_type);
     pb_patch_length(&b, in_vip);
@@ -189,13 +262,36 @@ static uint8_t* build_conv_model(size_t* out_size) {
     pb_write_string(&b, 1, "output");
     size_t out_type = pb_begin_submessage(&b, 2);
     size_t out_tensor = pb_begin_submessage(&b, 1);
-    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 1);
-    { size_t out_shape = pb_begin_submessage(&b, 2);
-      { size_t d = pb_begin_submessage(&b, 1); pb_write_tag(&b, 1, 0); pb_write_varint(&b, 1); pb_patch_length(&b, d); }
-      { size_t d = pb_begin_submessage(&b, 1); pb_write_tag(&b, 1, 0); pb_write_varint(&b, 1); pb_patch_length(&b, d); }
-      { size_t d = pb_begin_submessage(&b, 1); pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3); pb_patch_length(&b, d); }
-      { size_t d = pb_begin_submessage(&b, 1); pb_write_tag(&b, 1, 0); pb_write_varint(&b, 3); pb_patch_length(&b, d); }
-      pb_patch_length(&b, out_shape); }
+    pb_write_tag(&b, 1, 0);
+    pb_write_varint(&b, 1);
+    {
+        size_t out_shape = pb_begin_submessage(&b, 2);
+        {
+            size_t d = pb_begin_submessage(&b, 1);
+            pb_write_tag(&b, 1, 0);
+            pb_write_varint(&b, 1);
+            pb_patch_length(&b, d);
+        }
+        {
+            size_t d = pb_begin_submessage(&b, 1);
+            pb_write_tag(&b, 1, 0);
+            pb_write_varint(&b, 1);
+            pb_patch_length(&b, d);
+        }
+        {
+            size_t d = pb_begin_submessage(&b, 1);
+            pb_write_tag(&b, 1, 0);
+            pb_write_varint(&b, 3);
+            pb_patch_length(&b, d);
+        }
+        {
+            size_t d = pb_begin_submessage(&b, 1);
+            pb_write_tag(&b, 1, 0);
+            pb_write_varint(&b, 3);
+            pb_patch_length(&b, d);
+        }
+        pb_patch_length(&b, out_shape);
+    }
     pb_patch_length(&b, out_tensor);
     pb_patch_length(&b, out_type);
     pb_patch_length(&b, out_vip);
@@ -203,11 +299,16 @@ static uint8_t* build_conv_model(size_t* out_size) {
     // Weight: [1,1,2,2] — TensorProto dims are raw int64, not submessages
     float wdata[4] = {1.0f, 1.0f, 1.0f, 1.0f};
     size_t iw = pb_begin_submessage(&b, 5);
-    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 1);
-    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 1);
-    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
-    pb_write_tag(&b, 1, 0); pb_write_varint(&b, 2);
-    pb_write_tag(&b, 2, 0); pb_write_varint(&b, 1);
+    pb_write_tag(&b, 1, 0);
+    pb_write_varint(&b, 1);
+    pb_write_tag(&b, 1, 0);
+    pb_write_varint(&b, 1);
+    pb_write_tag(&b, 1, 0);
+    pb_write_varint(&b, 2);
+    pb_write_tag(&b, 1, 0);
+    pb_write_varint(&b, 2);
+    pb_write_tag(&b, 2, 0);
+    pb_write_varint(&b, 1);
     pb_write_string(&b, 8, "conv_w");
     pb_write_bytes(&b, 9, wdata, sizeof(wdata));
     pb_patch_length(&b, iw);
@@ -219,9 +320,14 @@ static uint8_t* build_conv_model(size_t* out_size) {
     pb_write_string(&b, 2, "output");
     pb_write_string(&b, 3, "conv_node");
     pb_write_string(&b, 4, "Conv");
-    { int64_t ks[] = {2, 2}; write_ints_attr(&b, "kernel_shape", ks, 2);
-      int64_t pd[] = {0, 0, 0, 0}; write_ints_attr(&b, "pads", pd, 4);
-      int64_t st[] = {1, 1}; write_ints_attr(&b, "strides", st, 2); }
+    {
+        int64_t ks[] = {2, 2};
+        write_ints_attr(&b, "kernel_shape", ks, 2);
+        int64_t pd[] = {0, 0, 0, 0};
+        write_ints_attr(&b, "pads", pd, 4);
+        int64_t st[] = {1, 1};
+        write_ints_attr(&b, "strides", st, 2);
+    }
     pb_patch_length(&b, conv_pos);
 
     pb_patch_length(&b, graph_pos);
@@ -240,15 +346,13 @@ static int test_create_from_buffer(void) {
     uint8_t* model_data = build_gemm_relu_model(&model_size);
     ASSERT(model_data != NULL, "Failed to build model");
 
-    boat_onnxruntime_session_t* session = boat_onnxruntime_create_from_buffer(
-        model_data, model_size, BOAT_ORT_CPU);
+    boat_onnxruntime_session_t* session =
+        boat_onnxruntime_create_from_buffer(model_data, model_size, BOAT_ORT_CPU);
     free(model_data);
 
     ASSERT(session != NULL, "Session creation failed");
-    ASSERT(boat_onnxruntime_input_count(session) == 1,
-           "Expected 1 input");
-    ASSERT(boat_onnxruntime_output_count(session) == 1,
-           "Expected 1 output");
+    ASSERT(boat_onnxruntime_input_count(session) == 1, "Expected 1 input");
+    ASSERT(boat_onnxruntime_output_count(session) == 1, "Expected 1 output");
 
     const char* in_name = boat_onnxruntime_input_name(session, 0);
     ASSERT(in_name != NULL, "Input name is NULL");
@@ -270,8 +374,8 @@ static int test_run_inference(void) {
     size_t model_size;
     uint8_t* model_data = build_gemm_relu_model(&model_size);
 
-    boat_onnxruntime_session_t* session = boat_onnxruntime_create_from_buffer(
-        model_data, model_size, BOAT_ORT_CPU);
+    boat_onnxruntime_session_t* session =
+        boat_onnxruntime_create_from_buffer(model_data, model_size, BOAT_ORT_CPU);
     free(model_data);
     ASSERT(session != NULL, "Session creation failed");
 
@@ -289,7 +393,10 @@ static int test_run_inference(void) {
     boat_tensor_t* input = boat_tensor_create(shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     ASSERT(input != NULL, "Input tensor creation failed");
     float* data = (float*)boat_tensor_data(input);
-    data[0] = 1.0f; data[1] = 2.0f; data[2] = 3.0f; data[3] = 4.0f;
+    data[0] = 1.0f;
+    data[1] = 2.0f;
+    data[2] = 3.0f;
+    data[3] = 4.0f;
 
     boat_tensor_t* output = boat_onnxruntime_run(session, input);
     ASSERT(output != NULL, "Inference failed");
@@ -321,8 +428,8 @@ static int test_conv_inference(void) {
     size_t model_size;
     uint8_t* model_data = build_conv_model(&model_size);
 
-    boat_onnxruntime_session_t* session = boat_onnxruntime_create_from_buffer(
-        model_data, model_size, BOAT_ORT_CPU);
+    boat_onnxruntime_session_t* session =
+        boat_onnxruntime_create_from_buffer(model_data, model_size, BOAT_ORT_CPU);
     free(model_data);
     ASSERT(session != NULL, "Session creation failed");
 
@@ -333,20 +440,19 @@ static int test_conv_inference(void) {
     boat_tensor_t* input = boat_tensor_create(shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     ASSERT(input != NULL, "Input creation failed");
     float* data = (float*)boat_tensor_data(input);
-    for (int i = 0; i < 16; i++) data[i] = 1.0f;
+    for (int i = 0; i < 16; i++)
+        data[i] = 1.0f;
 
     boat_tensor_t* output = boat_onnxruntime_run(session, input);
     ASSERT(output != NULL, "Inference failed");
 
     const int64_t* out_shape = boat_tensor_shape(output);
-    ASSERT(out_shape[0] == 1 && out_shape[1] == 1 &&
-           out_shape[2] == 3 && out_shape[3] == 3,
+    ASSERT(out_shape[0] == 1 && out_shape[1] == 1 && out_shape[2] == 3 && out_shape[3] == 3,
            "Expected output [1,1,3,3]");
 
     float* out_data = (float*)boat_tensor_data(output);
     for (int i = 0; i < 9; i++) {
-        ASSERT(fabsf(out_data[i] - 4.0f) < TOL,
-               "Conv output should be 4.0");
+        ASSERT(fabsf(out_data[i] - 4.0f) < TOL, "Conv output should be 4.0");
     }
 
     boat_tensor_unref(input);
@@ -362,23 +468,18 @@ static int test_conv_inference(void) {
 static int test_error_handling(void) {
     TEST("Error handling");
 
-    ASSERT(boat_onnxruntime_create(NULL, BOAT_ORT_CPU) == NULL,
-           "NULL path should return NULL");
+    ASSERT(boat_onnxruntime_create(NULL, BOAT_ORT_CPU) == NULL, "NULL path should return NULL");
     ASSERT(boat_onnxruntime_create_from_buffer(NULL, 10, BOAT_ORT_CPU) == NULL,
            "NULL data should return NULL");
     ASSERT(boat_onnxruntime_create_from_buffer("x", 0, BOAT_ORT_CPU) == NULL,
            "Zero size should return NULL");
 
-    ASSERT(boat_onnxruntime_input_count(NULL) == 0,
-           "NULL session input count");
-    ASSERT(boat_onnxruntime_output_count(NULL) == 0,
-           "NULL session output count");
-    ASSERT(boat_onnxruntime_input_name(NULL, 0) == NULL,
-           "NULL session input name");
-    ASSERT(boat_onnxruntime_output_name(NULL, 0) == NULL,
-           "NULL session output name");
+    ASSERT(boat_onnxruntime_input_count(NULL) == 0, "NULL session input count");
+    ASSERT(boat_onnxruntime_output_count(NULL) == 0, "NULL session output count");
+    ASSERT(boat_onnxruntime_input_name(NULL, 0) == NULL, "NULL session input name");
+    ASSERT(boat_onnxruntime_output_name(NULL, 0) == NULL, "NULL session output name");
 
-    boat_onnxruntime_free(NULL);  // Should not crash
+    boat_onnxruntime_free(NULL); // Should not crash
     PASS();
     return 0;
 }
@@ -395,17 +496,15 @@ static int test_boat_ort_consistency(void) {
     boat_dense_layer_t* dense = boat_dense_layer_create(4, 3, true);
 
     int64_t wshape[] = {4, 3};
-    boat_tensor_t* wt = boat_tensor_from_data(wshape, 2, BOAT_DTYPE_FLOAT32,
-        (float[]){0.1f, 0.2f, 0.3f,
-                  0.4f, 0.5f, 0.6f,
-                  0.7f, 0.8f, 0.9f,
-                  1.0f, 1.1f, 1.2f});
+    boat_tensor_t* wt = boat_tensor_from_data(
+        wshape, 2, BOAT_DTYPE_FLOAT32,
+        (float[]){0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f});
     boat_dense_layer_set_weight(dense, wt);
     boat_tensor_unref(wt);
 
     int64_t bshape[] = {3};
-    boat_tensor_t* bt = boat_tensor_from_data(bshape, 1, BOAT_DTYPE_FLOAT32,
-        (float[]){0.01f, 0.02f, 0.03f});
+    boat_tensor_t* bt =
+        boat_tensor_from_data(bshape, 1, BOAT_DTYPE_FLOAT32, (float[]){0.01f, 0.02f, 0.03f});
     boat_dense_layer_set_bias(dense, bt);
     boat_tensor_unref(bt);
 
@@ -427,7 +526,10 @@ static int test_boat_ort_consistency(void) {
     int64_t shape[] = {1, 4};
     boat_tensor_t* boat_input = boat_tensor_create(shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* d = (float*)boat_tensor_data(boat_input);
-    d[0] = 1.0f; d[1] = 2.0f; d[2] = 3.0f; d[3] = 4.0f;
+    d[0] = 1.0f;
+    d[1] = 2.0f;
+    d[2] = 3.0f;
+    d[3] = 4.0f;
 
     boat_tensor_t* boat_output = boat_model_forward(model, boat_input);
     ASSERT(boat_output != NULL, "Boat forward failed");
@@ -436,21 +538,24 @@ static int test_boat_ort_consistency(void) {
     void* onnx_data = NULL;
     size_t onnx_size = 0;
     int save_ok = boat_onnx_save_to_memory(model, &onnx_data, &onnx_size);
-    ASSERT(save_ok && onnx_data != NULL && onnx_size > 0,
-           "boat_onnx_save_to_memory failed");
+    ASSERT(save_ok && onnx_data != NULL && onnx_size > 0, "boat_onnx_save_to_memory failed");
 
     // Load into ORT session
-    boat_onnxruntime_session_t* ort_session = boat_onnxruntime_create_from_buffer(
-        onnx_data, onnx_size, BOAT_ORT_CPU);
+    boat_onnxruntime_session_t* ort_session =
+        boat_onnxruntime_create_from_buffer(onnx_data, onnx_size, BOAT_ORT_CPU);
     ASSERT(ort_session != NULL, "ORT session from saved model failed");
 
     boat_tensor_unref(boat_input);
 
     // Create input for ORT
     int64_t ort_shape[] = {1, 4};
-    boat_tensor_t* ort_input = boat_tensor_create(ort_shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    boat_tensor_t* ort_input =
+        boat_tensor_create(ort_shape, 2, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
     float* od = (float*)boat_tensor_data(ort_input);
-    od[0] = 1.0f; od[1] = 2.0f; od[2] = 3.0f; od[3] = 4.0f;
+    od[0] = 1.0f;
+    od[1] = 2.0f;
+    od[2] = 3.0f;
+    od[3] = 4.0f;
 
     boat_tensor_t* ort_output = boat_onnxruntime_run(ort_session, ort_input);
     ASSERT(ort_output != NULL, "ORT forward failed");
@@ -458,15 +563,13 @@ static int test_boat_ort_consistency(void) {
     // Compare outputs
     const int64_t* boat_os = boat_tensor_shape(boat_output);
     const int64_t* ort_os = boat_tensor_shape(ort_output);
-    ASSERT(boat_os[0] == ort_os[0] && boat_os[1] == ort_os[1],
-           "Output shape mismatch");
+    ASSERT(boat_os[0] == ort_os[0] && boat_os[1] == ort_os[1], "Output shape mismatch");
 
     float* boat_od = (float*)boat_tensor_data(boat_output);
     float* ort_od = (float*)boat_tensor_data(ort_output);
     size_t n = (size_t)(boat_os[0] * boat_os[1]);
     for (size_t i = 0; i < n; i++) {
-        ASSERT(fabsf(boat_od[i] - ort_od[i]) < 1e-3f,
-               "Boat-ORT output mismatch");
+        ASSERT(fabsf(boat_od[i] - ort_od[i]) < 1e-3f, "Boat-ORT output mismatch");
     }
 
     boat_tensor_unref(ort_input);
