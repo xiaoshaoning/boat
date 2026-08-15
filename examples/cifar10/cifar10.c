@@ -423,7 +423,7 @@ int main(int argc, char* argv[]) {
 
     if (access("data", F_OK) == -1) {
         printf("Data directory not found. Please run 'python cifar10_data.py' first.\n");
-        return 77;  // skip code: ctest marks this SKIPPED when data is absent
+        return 1;
     }
 
     const char* train_images_file =
