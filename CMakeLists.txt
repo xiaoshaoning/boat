@@ -339,9 +339,9 @@ endif()
 # TensorFlow loader (self-contained GraphDef .pb reader; no SDK needed).
 list(APPEND BOAT_SOURCES src/format/tensorflow.c)
 
-if(BOAT_WITH_GGUF)
-    list(APPEND BOAT_SOURCES src/format/gguf.c)
-endif()
+# GGUF loader: self-contained (no external SDK); always compiled, like the
+# TensorFlow loader.
+list(APPEND BOAT_SOURCES src/format/gguf.c)
 
 if(BOAT_WITH_ONNXRUNTIME)
     set(ONNXRUNTIME_ROOT "" CACHE PATH "Path to ONNX Runtime installation (with include/ and lib/)")

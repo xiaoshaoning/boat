@@ -32,6 +32,14 @@
 #define GGUF_BLOCK_BYTES_Q5_1 24 // 2+2 (f16 d, f16 m) + 4 (qh) + 16 (qs)
 #define GGUF_BLOCK_BYTES_Q8_0 34 // 2 (f16 d) + 32 (int8[])
 
+// K-quant super-blocks (256 values each)
+#define GGUF_BLOCK_K 256
+#define GGUF_BLOCK_BYTES_Q2_K 84  // scales[16] + qs[64] + d + dmin
+#define GGUF_BLOCK_BYTES_Q3_K 110 // hmask[32] + qs[64] + scales[12] + d
+#define GGUF_BLOCK_BYTES_Q4_K 144 // d + dmin + scales[12] + qs[128]
+#define GGUF_BLOCK_BYTES_Q5_K 176 // d + dmin + scales[12] + qh[32] + qs[128]
+#define GGUF_BLOCK_BYTES_Q6_K 210 // ql[128] + qh[64] + scales[16] + d
+
 // -----------------------------------------------------------------------
 // GGUF in-memory representation
 // -----------------------------------------------------------------------
@@ -280,6 +288,134 @@ static void dequant_q8_0_block(const uint8_t* block, float* out) {
 }
 
 // -----------------------------------------------------------------------
+// K-quant dequantizers (llama.cpp block layouts; 256 values per block).
+// -----------------------------------------------------------------------
+
+// Q2_K: { u8 scales[16] (4-bit scale low / 4-bit min high), u8 qs[64]
+//         (2-bit), f16 d, f16 dmin } -- 16 sub-blocks of 16 values.
+static void dequant_q2_k_block(const uint8_t* block, float* out) {
+    const uint8_t* scales = block;
+    const uint8_t* qs = block + 16;
+    uint16_t db, dmn;
+    memcpy(&db, block + 80, 2);
+    memcpy(&dmn, block + 82, 2);
+    float d = f16_to_f32(db);
+    float dmin = f16_to_f32(dmn);
+    for (int i = 0; i < 256; i++) {
+        int s = i >> 4;  // sub-block (0..15)
+        int g = i >> 7;  // qs group (0..1)
+        int q = (i >> 5) & 3;
+        int n = i & 31;
+        uint8_t v = (qs[g * 32 + n] >> (2 * q)) & 3;
+        out[i] = d * (scales[s] & 0x0F) * (float)v - dmin * (scales[s] >> 4);
+    }
+}
+
+// Q3_K: { u8 hmask[32], u8 qs[64] (2-bit), u8 scales[12] (6-bit), f16 d }.
+static void dequant_q3_k_block(const uint8_t* block, float* out) {
+    const uint8_t* hmask = block;
+    const uint8_t* qs = block + 32;
+    const uint8_t* scales = block + 96;  // 12 bytes
+    uint16_t db;
+    memcpy(&db, block + 108, 2);
+    float d = f16_to_f32(db);
+    // 16 six-bit scales (with -32 offset), packed per llama.cpp.
+    int8_t sc[16];
+    for (int i = 0; i < 16; i++) {
+        int lo = (scales[i & 7] >> (4 * (i >> 3))) & 0x0F;
+        int hi = (scales[8 + (i & 3)] >> (2 * (i >> 2))) & 0x03;
+        sc[i] = (int8_t)(lo | (hi << 4)) - 32;
+    }
+    for (int i = 0; i < 256; i++) {
+        int s = i >> 4;
+        int g = i >> 7;
+        int q = (i >> 5) & 3;
+        int n = i & 31;
+        int b = (i >> 5);  // hmask bit index (0..7)
+        uint8_t ql = (qs[g * 32 + n] >> (2 * q)) & 3;
+        // The 8-bit hmask byte is indexed by n; bit b selects the sub-block.
+        int qh = (hmask[n] >> b) & 1;
+        qh ^= 1;
+        out[i] = d * (float)sc[s] * ((int)ql - (qh << 2));
+    }
+}
+
+// Q4_K: { f16 d, f16 dmin, u8 scales[12] (6-bit scales + 6-bit mins),
+//         u8 qs[128] (4-bit) } -- 8 sub-blocks of 32 values.
+static void dequant_q4_k_block(const uint8_t* block, float* out) {
+    uint16_t db, dmn;
+    memcpy(&db, block, 2);
+    memcpy(&dmn, block + 2, 2);
+    float d = f16_to_f32(db);
+    float dmin = f16_to_f32(dmn);
+    const uint8_t* scales = block + 4;  // 12 bytes
+    const uint8_t* qs = block + 16;     // 128 bytes
+    uint8_t sc[8], mn[8];
+    for (int k = 0; k < 4; k++) {
+        sc[k] = scales[k] & 0x3F;
+        sc[k + 4] = (scales[8 + k] & 0x0F) | ((scales[k] >> 2) & 0x30);
+        mn[k] = scales[4 + k] & 0x3F;
+        mn[k + 4] = (scales[8 + k] >> 4) | ((scales[4 + k] >> 2) & 0x30);
+    }
+    for (int i = 0; i < 256; i++) {
+        int sub = i >> 5;     // sub-block (0..7)
+        int n = i & 31;
+        int g = sub >> 1;
+        int p = sub & 1;
+        uint8_t v = (qs[g * 32 + n] >> (4 * p)) & 0xF;
+        out[i] = d * (float)sc[sub] * (float)v - dmin * (float)mn[sub];
+    }
+}
+
+// Q5_K: { f16 d, f16 dmin, u8 scales[12], u8 qh[32] (1-bit), u8 qs[128] }.
+static void dequant_q5_k_block(const uint8_t* block, float* out) {
+    uint16_t db, dmn;
+    memcpy(&db, block, 2);
+    memcpy(&dmn, block + 2, 2);
+    float d = f16_to_f32(db);
+    float dmin = f16_to_f32(dmn);
+    const uint8_t* scales = block + 4;  // 12 bytes
+    const uint8_t* qh = block + 16;     // 32 bytes
+    const uint8_t* qs = block + 48;     // 128 bytes
+    uint8_t sc[8], mn[8];
+    for (int k = 0; k < 4; k++) {
+        sc[k] = scales[k] & 0x3F;
+        sc[k + 4] = (scales[8 + k] & 0x0F) | ((scales[k] >> 2) & 0x30);
+        mn[k] = scales[4 + k] & 0x3F;
+        mn[k + 4] = (scales[8 + k] >> 4) | ((scales[4 + k] >> 2) & 0x30);
+    }
+    for (int i = 0; i < 256; i++) {
+        int sub = i >> 5;
+        int n = i & 31;
+        int g = sub >> 1;
+        int p = sub & 1;
+        uint8_t ql = (qs[g * 32 + n] >> (4 * p)) & 0xF;
+        // The 8-bit qh byte is indexed by n; bit sub selects the value's bit.
+        int qh1 = (qh[n] >> sub) & 1;
+        int q = ql | (qh1 << 4);
+        out[i] = d * (float)sc[sub] * (float)q - dmin * (float)mn[sub];
+    }
+}
+
+// Q6_K: { u8 ql[128] (4-bit), u8 qh[64] (2-bit), i8 scales[16], f16 d }.
+static void dequant_q6_k_block(const uint8_t* block, float* out) {
+    const uint8_t* ql = block;      // 128 bytes
+    const uint8_t* qh = block + 128; // 64 bytes
+    const int8_t* scales = (const int8_t*)(block + 192);  // 16 bytes
+    uint16_t db;
+    memcpy(&db, block + 208, 2);
+    float d = f16_to_f32(db);
+    for (int i = 0; i < 256; i++) {
+        int qlb = (i >> 7) * 64 + (i & 63);
+        uint8_t qlv = (ql[qlb] >> (4 * ((i >> 6) & 1))) & 0xF;
+        int qhb = (i >> 7) * 32 + (i & 31);
+        int qhv = (qh[qhb] >> (2 * ((i >> 5) & 3))) & 0x3;
+        int q = (int)(qlv | (qhv << 4)) - 32;
+        out[i] = d * (float)scales[i >> 4] * (float)q;
+    }
+}
+
+// -----------------------------------------------------------------------
 // Tensor dequantization dispatcher
 // -----------------------------------------------------------------------
 
@@ -339,10 +475,62 @@ static bool dequantize_tensor(const uint8_t* src, float* dst, const gguf_tensor_
         return true;
     }
 
+    case GGML_TYPE_Q2_K: {
+        size_t nb = (n + GGUF_BLOCK_K - 1) / GGUF_BLOCK_K;
+        for (size_t b = 0; b < nb; b++) {
+            dequant_q2_k_block(src + b * GGUF_BLOCK_BYTES_Q2_K, dst + b * GGUF_BLOCK_K);
+        }
+        return true;
+    }
+
+    case GGML_TYPE_Q3_K: {
+        size_t nb = (n + GGUF_BLOCK_K - 1) / GGUF_BLOCK_K;
+        for (size_t b = 0; b < nb; b++) {
+            dequant_q3_k_block(src + b * GGUF_BLOCK_BYTES_Q3_K, dst + b * GGUF_BLOCK_K);
+        }
+        return true;
+    }
+
+    case GGML_TYPE_Q4_K: {
+        size_t nb = (n + GGUF_BLOCK_K - 1) / GGUF_BLOCK_K;
+        for (size_t b = 0; b < nb; b++) {
+            dequant_q4_k_block(src + b * GGUF_BLOCK_BYTES_Q4_K, dst + b * GGUF_BLOCK_K);
+        }
+        return true;
+    }
+
+    case GGML_TYPE_Q5_K: {
+        size_t nb = (n + GGUF_BLOCK_K - 1) / GGUF_BLOCK_K;
+        for (size_t b = 0; b < nb; b++) {
+            dequant_q5_k_block(src + b * GGUF_BLOCK_BYTES_Q5_K, dst + b * GGUF_BLOCK_K);
+        }
+        return true;
+    }
+
+    case GGML_TYPE_Q6_K: {
+        size_t nb = (n + GGUF_BLOCK_K - 1) / GGUF_BLOCK_K;
+        for (size_t b = 0; b < nb; b++) {
+            dequant_q6_k_block(src + b * GGUF_BLOCK_BYTES_Q6_K, dst + b * GGUF_BLOCK_K);
+        }
+        return true;
+    }
+
     default:
         boat_set_errorf(BOAT_ERROR_FORMAT, "[GGUF] Unsupported tensor type %d\n", info->type);
         return false;
     }
+}
+
+// Public helper: dequantize raw GGML-quantized bytes into float32 values.
+BOAT_API bool boat_gguf_dequantize(const uint8_t* data, size_t nbytes, int ggml_type,
+                                   float* out, size_t n_values) {
+    (void)nbytes;
+    if (!data || !out || n_values == 0) return false;
+    gguf_tensor_info_t info;
+    memset(&info, 0, sizeof(info));
+    info.type = (ggml_type_t)ggml_type;
+    info.n_elements = n_values;
+    return dequantize_tensor(data, out, &info);
 }
 
 // -----------------------------------------------------------------------

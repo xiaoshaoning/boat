@@ -129,6 +129,11 @@ target_link_libraries(test_tensorflow boat)
 boat_add_test_executable(test_graph_optimize unit/test_graph_optimize.c)
 target_link_libraries(test_graph_optimize boat)
 
+boat_add_test_executable(test_gguf_kquant unit/test_gguf_kquant.c)
+target_link_libraries(test_gguf_kquant boat)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/unit/kquant_fixture.bin
+               ${CMAKE_CURRENT_BINARY_DIR}/kquant_fixture.bin COPYONLY)
+
 # Softmax cross-entropy loss
 boat_add_test_executable(test_softmax_ce unit/test_softmax_ce.c)
 target_link_libraries(test_softmax_ce boat)

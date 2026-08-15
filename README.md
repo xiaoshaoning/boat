@@ -12,7 +12,7 @@ Boat is a lightweight, high-performance deep learning framework written in pure 
   - Low-bit quantization: BITS2 (2-bit packed), BITS1 (1-bit binary networks)
   - Boolean: BOOL type
 - **Quantization Pipeline**: UINT8/INT8 affine quantization, BITS2 (2-bit), FLOAT4 (4-bit), per-channel, and QAT fake quantization
-- **Model Format Support**: ONNX (load/export/runtime executor), PyTorch (via LibTorch), HuggingFace Safetensors, GGUF (Q4_0, Q4_1, Q5_0, Q8_0), TensorFlow frozen-graph / SavedModel (self-contained protobuf reader, no TF SDK)
+- **Model Format Support**: ONNX (load/export/runtime executor), PyTorch (via LibTorch), HuggingFace Safetensors, GGUF (Q4_0/Q4_1/Q5_0/Q8_0 + Q2_K/Q3_K/Q4_K/Q5_K/Q6_K), TensorFlow frozen-graph / SavedModel (self-contained protobuf reader, no TF SDK)
 - **Data Pipeline**: Dataset/DataLoader abstraction with batching, shuffling, multi-threaded prefetch, and transforms
 - **Performance Optimizations**: SIMD (AVX2/NEON) for conv/transpose/reductions, SGEMM micro-kernel (hand-tuned with packing), conv im2col+SGEMM fast path, OpenBLAS backend, OpenMP parallelism, memory pooling, `benchmark_simd` throughput suite
 - **Dynamic Graph Optimizations**: dead-node elimination, duplicate-edge cleanup, constant folding (pluggable evaluator), and Dense/Conv+ReLU fusion in the model forward

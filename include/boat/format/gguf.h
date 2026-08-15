@@ -47,6 +47,11 @@ typedef enum {
     GGML_TYPE_Q5_1 = 7,
     GGML_TYPE_Q8_0 = 8,
     GGML_TYPE_Q8_1 = 9,
+    GGML_TYPE_Q2_K = 10,
+    GGML_TYPE_Q3_K = 11,
+    GGML_TYPE_Q4_K = 12,
+    GGML_TYPE_Q5_K = 13,
+    GGML_TYPE_Q6_K = 14,
 } ggml_type_t;
 
 // Load GGUF model from file
@@ -54,6 +59,12 @@ boat_model_t* boat_gguf_load(const char* filename);
 
 // Check if file is a valid GGUF model
 bool boat_gguf_check(const char* filename);
+
+// Dequantize raw GGML-quantized bytes into float32 values. `ggml_type` is a
+// GGML_TYPE_* value (Q4_0, Q2_K, ..., F16); `n_values` is the logical element
+// count the bytes encode. Returns false on unsupported types or invalid args.
+bool boat_gguf_dequantize(const uint8_t* data, size_t nbytes, int ggml_type, float* out,
+                          size_t n_values);
 
 #ifdef __cplusplus
 }
