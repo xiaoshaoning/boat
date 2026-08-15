@@ -5,6 +5,7 @@
 #include <boat/loss.h>
 #include <boat/tensor.h>
 #include <boat/memory.h>
+#include <boat/simd.h>
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
@@ -148,10 +149,7 @@ boat_tensor_t* cross_entropy_loss_backward(boat_loss_t* loss_ptr, const void* pr
     float epsilon = 1e-7f;
     float inv_n = 1.0f / (float)num_elements;
 
-    for (size_t i = 0; i < num_elements; i++) {
-        float pred_clipped = clip_for_log(pred_data[i], epsilon);
-        grad_data[i] = -inv_n * target_data[i] / pred_clipped;
-    }
+    boat_simd_ce_backward_f32(pred_data, target_data, grad_data, num_elements, inv_n, epsilon);
 
     return grad;
 }

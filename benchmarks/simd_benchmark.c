@@ -163,6 +163,137 @@ static void s_exp(const float* a, float* d, size_t n) {
     for (size_t i = 0; i < n; i++) d[i] = expf(a[i]);
 }
 
+// Backward (derivative) kernels: scalar references. Marked no-vectorize so the
+// comparison is against genuinely scalar code (these have no libm calls, so the
+// compiler would otherwise auto-vectorize them).
+#if defined(__clang__)
+#define BOAT_SCALAR_NO_VEC _Pragma("clang loop vectorize(disable)")
+#else
+#define BOAT_SCALAR_NO_VEC
+#endif
+#if defined(__GNUC__) && !defined(__clang__)
+#define BOAT_SCALAR_NO_VEC_FUNC __attribute__((optimize("no-tree-vectorize")))
+#else
+#define BOAT_SCALAR_NO_VEC_FUNC
+#endif
+
+static void BOAT_SCALAR_NO_VEC_FUNC s_sigmoid_bw(const float* dy, const float* y, float* d,
+                                                 size_t n) {
+    BOAT_SCALAR_NO_VEC
+    for (size_t i = 0; i < n; i++) d[i] = dy[i] * (y[i] * (1.0f - y[i]));
+}
+static void BOAT_SCALAR_NO_VEC_FUNC s_tanh_bw(const float* dy, const float* y, float* d,
+                                              size_t n) {
+    BOAT_SCALAR_NO_VEC
+    for (size_t i = 0; i < n; i++) d[i] = dy[i] * (1.0f - y[i] * y[i]);
+}
+static void BOAT_SCALAR_NO_VEC_FUNC s_relu_bw(const float* dy, const float* x, float* d,
+                                              size_t n) {
+    BOAT_SCALAR_NO_VEC
+    for (size_t i = 0; i < n; i++) d[i] = x[i] > 0.0f ? dy[i] : 0.0f;
+}
+static void BOAT_SCALAR_NO_VEC_FUNC s_gelu_bw(const float* dy, const float* x, float* d,
+                                              size_t n) {
+    BOAT_SCALAR_NO_VEC
+    for (size_t i = 0; i < n; i++) {
+        float xv = x[i];
+        float a = 0.7978845608028654f * (xv + 0.044715f * xv * xv * xv);
+        float t = tanhf(a);
+        d[i] = dy[i] * (0.5f * (1.0f + t) +
+                        0.5f * xv * (1.0f - t * t) * 0.7978845608028654f *
+                            (1.0f + 3.0f * 0.044715f * xv * xv));
+    }
+}
+
+static void bench_backward_kernels(void) {
+    const size_t N = 1u << 20;
+    float* x = (float*)malloc(N * sizeof(float));
+    float* y = (float*)malloc(N * sizeof(float));
+    float* dy = (float*)malloc(N * sizeof(float));
+    float* buf = (float*)malloc(N * sizeof(float));
+    for (size_t i = 0; i < N; i++) {
+        x[i] = rnd();
+        y[i] = rnd();
+        dy[i] = rnd();
+    }
+    double t0, t1;
+    volatile float sink = 0.0f;
+    boat_simd_sigmoid_backward_f32(dy, y, buf, 64);
+    t0 = now_sec();
+    for (int r = 0; r < 10; r++) boat_simd_sigmoid_backward_f32(dy, y, buf, N);
+    t1 = now_sec();
+    double ts = t1 - t0;
+    t0 = now_sec();
+    for (int r = 0; r < 10; r++) s_sigmoid_bw(dy, y, buf, N);
+    t1 = now_sec();
+    printf("sigmoid_bw %zu elems x10: SIMD %.3f s  scalar %.3f s  speedup %.1fx\n", N, ts,
+           t1 - t0, (t1 - t0) / ts);
+
+    boat_simd_tanh_backward_f32(dy, y, buf, 64);
+    t0 = now_sec();
+    for (int r = 0; r < 10; r++) boat_simd_tanh_backward_f32(dy, y, buf, N);
+    t1 = now_sec();
+    ts = t1 - t0;
+    t0 = now_sec();
+    for (int r = 0; r < 10; r++) s_tanh_bw(dy, y, buf, N);
+    t1 = now_sec();
+    printf("tanh_bw    %zu elems x10: SIMD %.3f s  scalar %.3f s  speedup %.1fx\n", N, ts,
+           t1 - t0, (t1 - t0) / ts);
+
+    boat_simd_relu_backward_f32(dy, x, buf, 64);
+    t0 = now_sec();
+    for (int r = 0; r < 10; r++) boat_simd_relu_backward_f32(dy, x, buf, N);
+    t1 = now_sec();
+    ts = t1 - t0;
+    t0 = now_sec();
+    for (int r = 0; r < 10; r++) s_relu_bw(dy, x, buf, N);
+    t1 = now_sec();
+    printf("relu_bw    %zu elems x10: SIMD %.3f s  scalar %.3f s  speedup %.1fx\n", N, ts,
+           t1 - t0, (t1 - t0) / ts);
+
+    boat_simd_gelu_backward_f32(dy, x, buf, 64);
+    t0 = now_sec();
+    for (int r = 0; r < 10; r++) boat_simd_gelu_backward_f32(dy, x, buf, N);
+    t1 = now_sec();
+    ts = t1 - t0;
+    t0 = now_sec();
+    for (int r = 0; r < 10; r++) s_gelu_bw(dy, x, buf, N);
+    t1 = now_sec();
+    printf("gelu_bw    %zu elems x10: SIMD %.3f s  scalar %.3f s  speedup %.1fx\n", N, ts,
+           t1 - t0, (t1 - t0) / ts);
+
+    // Row-wise softmax backward over [256, 4096].
+    const size_t rows = 256, cols = 4096;
+    for (size_t i = 0; i < rows * cols; i++) {
+        y[i] = rnd() * 0.1f + 0.01f;
+        dy[i] = rnd();
+    }
+    t0 = now_sec();
+    for (int r = 0; r < 5; r++) {
+        boat_simd_softmax_backward_f32(dy, y, buf, rows, cols);
+    }
+    t1 = now_sec();
+    printf("softmax_bw %zux%zu x5: %.3f s  (%.1f MB/s)\n", rows, cols, t1 - t0,
+           5.0 * rows * cols * 4 / 1e6 / (t1 - t0));
+
+    for (size_t i = 0; i < N; i++) x[i] = rnd();
+    int64_t* labels = (int64_t*)malloc(rows * sizeof(int64_t));
+    for (size_t r = 0; r < rows; r++) labels[r] = (int64_t)(r % cols);
+    t0 = now_sec();
+    for (int r = 0; r < 5; r++) {
+        boat_simd_softmax_ce_backward_f32(x, labels, buf, rows, cols, 0.01f);
+    }
+    t1 = now_sec();
+    free(labels);
+    (void)sink;
+    printf("softmax_ce_bw %zux%zu x5: %.3f s  (%.1f MB/s)\n", rows, cols, t1 - t0,
+           5.0 * rows * cols * 4 / 1e6 / (t1 - t0));
+    free(x);
+    free(y);
+    free(dy);
+    free(buf);
+}
+
 static void bench_activations(void) {
     const size_t N = 1u << 20;  // 1M elems
     float* a = (float*)malloc(N * sizeof(float));
@@ -198,6 +329,7 @@ int main(void) {
     bench_conv();
     bench_reduce_op();
     bench_activations();
+    bench_backward_kernels();
     printf("done.\n");
     return 0;
 }

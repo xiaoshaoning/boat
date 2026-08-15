@@ -11,6 +11,7 @@
 #endif
 #include <boat/ops.h>
 #include <boat/memory.h>
+#include <boat/simd.h>
 #include <math.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -1456,24 +1457,9 @@ attention_backward(const boat_tensor_t* query, // [batch, num_heads, seq_len, he
         return false;
     }
     float* dS_data = (float*)boat_tensor_data(grad_scores);
-    // Compute softmax gradient
-    for (int64_t b = 0; b < batch; b++) {
-        for (int64_t h = 0; h < num_heads; h++) {
-            for (int64_t i = 0; i < seq_len; i++) {
-                // Compute sum = sum_j dA[b,h,i,j] * A[b,h,i,j] with double precision
-                double sum = 0.0;
-                for (int64_t j = 0; j < seq_len; j++) {
-                    int64_t idx = ((b * num_heads + h) * seq_len + i) * seq_len + j;
-                    sum += (double)dA_data[idx] * (double)A_data[idx];
-                }
-                // Compute dS = A * (dA - sum)
-                for (int64_t j = 0; j < seq_len; j++) {
-                    int64_t idx = ((b * num_heads + h) * seq_len + i) * seq_len + j;
-                    dS_data[idx] = A_data[idx] * (dA_data[idx] - sum);
-                }
-            }
-        }
-    }
+    // Compute softmax gradient (contiguous [batch*heads*seq, seq] sweep).
+    boat_simd_softmax_backward_f32(dA_data, A_data, dS_data,
+                                   (size_t)(batch * num_heads * seq_len), (size_t)seq_len);
     // Now we have grad_scores, can free grad_attn
     boat_tensor_unref(grad_attn);
     // Skip the previous dA_minus_sum step, proceed to scaling

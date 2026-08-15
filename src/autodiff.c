@@ -7,6 +7,7 @@
 #include <boat/memory.h>
 #include <boat/ops.h>
 #include <boat/layers.h>
+#include <boat/simd.h>
 #include <boat/layers/attention.h>
 #include <boat/tensor.h>
 #include <string.h>
@@ -1391,13 +1392,31 @@ static void compute_backward_relu(boat_op_node_data_t* op_data, const boat_tenso
     boat_variable_t* a = op_data->inputs[0];
 
     if (a->requires_grad) {
+        size_t nelements = boat_tensor_nelements(a->data);
+
+        // Fused SIMD fast path: grad = dy * (x > 0), no temporaries.
+        if (boat_tensor_dtype(a->data) == BOAT_DTYPE_FLOAT32 &&
+            boat_tensor_device(a->data) == BOAT_DEVICE_CPU) {
+            boat_tensor_t* grad = boat_tensor_create_like(a->data);
+            if (!grad) return;
+            boat_simd_relu_backward_f32((const float*)boat_tensor_data(grad_output),
+                                        (const float*)boat_tensor_data(a->data),
+                                        (float*)boat_tensor_data(grad), nelements);
+            if (!a->grad) {
+                a->grad = grad;
+            } else {
+                boat_add_(a->grad, grad);
+                boat_tensor_unref(grad);
+            }
+            return;
+        }
+
         // Create mask tensor: 1 where a->data > 0, else 0
         boat_tensor_t* mask = boat_tensor_create_like(a->data);
         if (!mask) return;
 
         const void* a_data = boat_tensor_data(a->data);
         void* mask_data = boat_tensor_data(mask);
-        size_t nelements = boat_tensor_nelements(a->data);
         boat_dtype_t dtype = boat_tensor_dtype(a->data);
 
         switch (dtype) {
@@ -1447,6 +1466,25 @@ static void compute_backward_sigmoid(boat_op_node_data_t* op_data,
     const boat_variable_t* c = op_data->output; // c = sigmoid(a)
 
     if (a->requires_grad) {
+        // Fused SIMD fast path: grad = dy * y * (1 - y), no temporaries.
+        if (boat_tensor_dtype(c->data) == BOAT_DTYPE_FLOAT32 &&
+            boat_tensor_device(c->data) == BOAT_DEVICE_CPU) {
+            size_t nelements = boat_tensor_nelements(c->data);
+            boat_tensor_t* grad = boat_tensor_create_like(c->data);
+            if (!grad) return;
+            boat_simd_sigmoid_backward_f32(
+                (const float*)boat_tensor_data(grad_output),
+                (const float*)boat_tensor_data(c->data),
+                (float*)boat_tensor_data(grad), nelements);
+            if (!a->grad) {
+                a->grad = grad;
+            } else {
+                boat_add_(a->grad, grad);
+                boat_tensor_unref(grad);
+            }
+            return;
+        }
+
         // Compute gradient contribution: grad_output * c * (1 - c)
         // where c = sigmoid(a)
         const boat_tensor_t* c_data = c->data;
@@ -1508,6 +1546,24 @@ static void compute_backward_tanh(boat_op_node_data_t* op_data, const boat_tenso
     const boat_variable_t* c = op_data->output; // c = tanh(a)
 
     if (a->requires_grad) {
+        // Fused SIMD fast path: grad = dy * (1 - y^2), no temporaries.
+        if (boat_tensor_dtype(c->data) == BOAT_DTYPE_FLOAT32 &&
+            boat_tensor_device(c->data) == BOAT_DEVICE_CPU) {
+            size_t nelements = boat_tensor_nelements(c->data);
+            boat_tensor_t* grad = boat_tensor_create_like(c->data);
+            if (!grad) return;
+            boat_simd_tanh_backward_f32((const float*)boat_tensor_data(grad_output),
+                                        (const float*)boat_tensor_data(c->data),
+                                        (float*)boat_tensor_data(grad), nelements);
+            if (!a->grad) {
+                a->grad = grad;
+            } else {
+                boat_add_(a->grad, grad);
+                boat_tensor_unref(grad);
+            }
+            return;
+        }
+
         // Compute gradient contribution: grad_output * (1 - c²)
         const boat_tensor_t* c_data = c->data;
 
@@ -1935,6 +1991,20 @@ static void compute_backward_softmax(boat_op_node_data_t* op_data,
     const void* y_data = boat_tensor_data(y);
     const void* grad_output_data = boat_tensor_data(grad_output);
 
+    // Fused SIMD fast path for the contiguous last-axis case.
+    if (dtype == BOAT_DTYPE_FLOAT32 && inner_stride == 1 &&
+        boat_tensor_device(y) == BOAT_DEVICE_CPU) {
+        boat_simd_softmax_backward_f32((const float*)grad_output_data, (const float*)y_data,
+                                       (float*)grad_data, outer_elements, axis_size);
+        if (!a->grad) {
+            a->grad = grad;
+        } else {
+            boat_add_(a->grad, grad);
+            boat_tensor_unref(grad);
+        }
+        return;
+    }
+
     switch (dtype) {
     case BOAT_DTYPE_FLOAT32: {
         const float* y_ptr = (const float*)y_data;
@@ -2023,6 +2093,20 @@ static void compute_backward_log_softmax(boat_op_node_data_t* op_data,
     void* grad_data = boat_tensor_data(grad);
     const void* y_data = boat_tensor_data(y);
     const void* grad_output_data = boat_tensor_data(grad_output);
+
+    // Fused SIMD fast path for the contiguous last-axis case.
+    if (dtype == BOAT_DTYPE_FLOAT32 && inner_stride == 1 &&
+        boat_tensor_device(y) == BOAT_DEVICE_CPU) {
+        boat_simd_log_softmax_backward_f32((const float*)grad_output_data, (const float*)y_data,
+                                           (float*)grad_data, outer_elements, axis_size);
+        if (!a->grad) {
+            a->grad = grad;
+        } else {
+            boat_add_(a->grad, grad);
+            boat_tensor_unref(grad);
+        }
+        return;
+    }
 
     switch (dtype) {
     case BOAT_DTYPE_FLOAT32: {

@@ -5,6 +5,7 @@
 #include <boat/loss.h>
 #include <boat/tensor.h>
 #include <boat/memory.h>
+#include <boat/simd.h>
 #include <math.h>
 #include <stdlib.h>
 
@@ -126,26 +127,24 @@ boat_tensor_t* softmax_cross_entropy_loss_backward(boat_loss_t* loss, const void
     float* g = (float*)boat_tensor_data(grad);
     float inv_batch = 1.0f / (float)batch;
 
-    float* sm = (float*)malloc(num_classes * sizeof(float));
-    if (!sm) {
+    // Normalize labels to int64 (batch-sized, negligible cost) and delegate
+    // the per-row softmax + one-hot subtraction to the fused SIMD kernel.
+    int64_t* labels = (int64_t*)malloc(batch * sizeof(int64_t));
+    if (!labels) {
         boat_tensor_unref(grad);
         return NULL;
     }
-
     for (size_t b = 0; b < batch; b++) {
-        softmax_row(l + b * num_classes, num_classes, sm);
-        int64_t label = read_label(target, b);
-        if (label < 0 || label >= (int64_t)num_classes) {
-            free(sm);
+        labels[b] = read_label(target, b);
+        if (labels[b] < 0 || labels[b] >= (int64_t)num_classes) {
+            free(labels);
             boat_tensor_unref(grad);
             return NULL;
         }
-        for (size_t j = 0; j < num_classes; j++) {
-            float p = sm[j];
-            g[b * num_classes + j] = (p - (j == (size_t)label ? 1.0f : 0.0f)) * inv_batch;
-        }
     }
-    free(sm);
+
+    boat_simd_softmax_ce_backward_f32(l, labels, g, batch, num_classes, inv_batch);
+    free(labels);
 
     return grad;
 }

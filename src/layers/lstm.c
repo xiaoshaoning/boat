@@ -521,7 +521,41 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_lstm_layer_backward(boat_lstm_layer_t* la
             float* dhb = d_h + b * hidden;
             float* dcb = d_c + b * hidden;
 
-            for (size_t j = 0; j < hidden; j++) {
+            size_t j = 0;
+#if BOAT_HAVE_AVX2
+            const size_t h2 = hidden * 2;
+            const size_t h3 = hidden * 3;
+            const __m256 one = _mm256_set1_ps(1.0f);
+            const __m256 zero = _mm256_setzero_ps();
+            const float* dcn = d_c_next + b * hidden;
+            for (; j + 8 <= hidden; j += 8) {
+                __m256 vig = boat_simd_sigmoid256(_mm256_loadu_ps(row + j));
+                __m256 vfg = boat_simd_sigmoid256(_mm256_loadu_ps(row + hidden + j));
+                __m256 vcg = boat_simd_tanh256(_mm256_loadu_ps(row + h2 + j));
+                __m256 vog = boat_simd_sigmoid256(_mm256_loadu_ps(row + h3 + j));
+                __m256 vtanh_c = boat_simd_tanh256(_mm256_loadu_ps(cb + j));
+
+                __m256 vdhb = _mm256_loadu_ps(dhb + j);
+                __m256 vd_o = _mm256_mul_ps(vdhb, vtanh_c);
+                __m256 vdc = _mm256_mul_ps(
+                    vdhb, _mm256_mul_ps(vog, _mm256_fnmadd_ps(vtanh_c, vtanh_c, one)));
+                vdc = _mm256_add_ps(vdc, _mm256_loadu_ps(dcn + j));
+                __m256 vcpb = cpb ? _mm256_loadu_ps(cpb + j) : zero;
+                __m256 vdf = _mm256_mul_ps(vdc, vcpb);
+                __m256 vdi = _mm256_mul_ps(vdc, vcg);
+                __m256 vdcell = _mm256_mul_ps(vdc, vig);
+
+                _mm256_storeu_ps(dg + j, _mm256_mul_ps(vdi, _mm256_mul_ps(vig, _mm256_sub_ps(one, vig))));
+                _mm256_storeu_ps(dg + hidden + j,
+                                 _mm256_mul_ps(vdf, _mm256_mul_ps(vfg, _mm256_sub_ps(one, vfg))));
+                _mm256_storeu_ps(dg + h2 + j, _mm256_mul_ps(vdcell, _mm256_fnmadd_ps(vcg, vcg, one)));
+                _mm256_storeu_ps(dg + h3 + j,
+                                 _mm256_mul_ps(vd_o, _mm256_mul_ps(vog, _mm256_sub_ps(one, vog))));
+
+                _mm256_storeu_ps(dcb + j, vdc);
+            }
+#endif
+            for (; j < hidden; j++) {
                 float ig = lstm_sigmoid_f32(row[j]);
                 float fg = lstm_sigmoid_f32(row[hidden + j]);
                 float cg = tanhf(row[2 * hidden + j]);

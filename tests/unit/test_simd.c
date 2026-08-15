@@ -144,6 +144,190 @@ static void test_activation_kernels(void) {
     printf("activation kernels checked vs libm\n");
 }
 
+static void test_backward_kernels(void) {
+    // Compare the fused activation-derivative / softmax / loss-backward SIMD
+    // kernels against scalar references over various lengths.
+    const size_t lens[] = {1, 2, 7, 8, 9, 15, 16, 17, 31, 32, 100, 1000};
+    for (size_t li = 0; li < sizeof(lens) / sizeof(lens[0]); li++) {
+        size_t n = lens[li];
+        float* x = (float*)malloc(n * sizeof(float));
+        float* y = (float*)malloc(n * sizeof(float));
+        float* dy = (float*)malloc(n * sizeof(float));
+        float* got = (float*)malloc(n * sizeof(float));
+        for (size_t i = 0; i < n; i++) {
+            x[i] = rnd();
+            y[i] = rnd();  // forward outputs (e.g. sigmoid/tanh values)
+            dy[i] = rnd();
+        }
+        x[0] = 6.0f;
+        x[n - 1] = -6.0f;
+
+        boat_simd_sigmoid_backward_f32(dy, y, got, n);
+        for (size_t i = 0; i < n; i++) {
+            float ref = dy[i] * (y[i] * (1.0f - y[i]));
+            if (fabsf(got[i] - ref) > 2e-5f * (1.0f + fabsf(ref))) {
+                char msg[64];
+                snprintf(msg, sizeof(msg), "sigmoid_bw n=%zu i=%zu", n, i);
+                CHECK(0, msg);
+            }
+        }
+        boat_simd_tanh_backward_f32(dy, y, got, n);
+        for (size_t i = 0; i < n; i++) {
+            float ref = dy[i] * (1.0f - y[i] * y[i]);
+            if (fabsf(got[i] - ref) > 2e-5f * (1.0f + fabsf(ref))) {
+                char msg[64];
+                snprintf(msg, sizeof(msg), "tanh_bw n=%zu i=%zu", n, i);
+                CHECK(0, msg);
+            }
+        }
+        boat_simd_relu_backward_f32(dy, x, got, n);
+        for (size_t i = 0; i < n; i++) {
+            float ref = x[i] > 0.0f ? dy[i] : 0.0f;
+            if (fabsf(got[i] - ref) > 1e-6f) {
+                char msg[64];
+                snprintf(msg, sizeof(msg), "relu_bw n=%zu i=%zu", n, i);
+                CHECK(0, msg);
+            }
+        }
+        boat_simd_gelu_backward_f32(dy, x, got, n);
+        for (size_t i = 0; i < n; i++) {
+            float xv = x[i];
+            float a = 0.7978845608028654f * (xv + 0.044715f * xv * xv * xv);
+            float t = tanhf(a);
+            float d = 0.5f * (1.0f + t) +
+                      0.5f * xv * (1.0f - t * t) * 0.7978845608028654f *
+                          (1.0f + 3.0f * 0.044715f * xv * xv);
+            if (fabsf(got[i] - dy[i] * d) > 2e-5f) {
+                char msg[64];
+                snprintf(msg, sizeof(msg), "gelu_bw n=%zu i=%zu", n, i);
+                CHECK(0, msg);
+            }
+        }
+        free(x);
+        free(y);
+        free(dy);
+        free(got);
+    }
+
+    // Row-wise softmax / log-softmax backward.
+    {
+        size_t rows = 5, cols = 64;
+        float* y = (float*)malloc(rows * cols * sizeof(float));
+        float* dy = (float*)malloc(rows * cols * sizeof(float));
+        float* got = (float*)malloc(rows * cols * sizeof(float));
+        for (size_t i = 0; i < rows * cols; i++) {
+            y[i] = rnd() * 0.1f + 0.01f;  // softmax outputs stay positive
+            dy[i] = rnd();
+        }
+        boat_simd_softmax_backward_f32(dy, y, got, rows, cols);
+        int ok = 1;
+        for (size_t r = 0; r < rows && ok; r++) {
+            float sum = 0.0f;
+            for (size_t c = 0; c < cols; c++) sum += dy[r * cols + c] * y[r * cols + c];
+            for (size_t c = 0; c < cols; c++) {
+                float ref = y[r * cols + c] * (dy[r * cols + c] - sum);
+                if (fabsf(got[r * cols + c] - ref) > 1e-4f) {
+                    char msg[64];
+                    snprintf(msg, sizeof(msg), "softmax_bw r=%zu c=%zu", r, c);
+                    CHECK(0, msg);
+                    ok = 0;
+                    break;
+                }
+            }
+        }
+        CHECK(ok, "softmax backward vs scalar");
+        boat_simd_log_softmax_backward_f32(dy, y, got, rows, cols);
+        ok = 1;
+        for (size_t r = 0; r < rows && ok; r++) {
+            float sum = 0.0f;
+            for (size_t c = 0; c < cols; c++) sum += dy[r * cols + c];
+            for (size_t c = 0; c < cols; c++) {
+                float ref = dy[r * cols + c] - expf(y[r * cols + c]) * sum;
+                if (fabsf(got[r * cols + c] - ref) > 1e-4f) {
+                    char msg[64];
+                    snprintf(msg, sizeof(msg), "logsoftmax_bw r=%zu c=%zu", r, c);
+                    CHECK(0, msg);
+                    ok = 0;
+                    break;
+                }
+            }
+        }
+        CHECK(ok, "log-softmax backward vs scalar");
+        free(y);
+        free(dy);
+        free(got);
+    }
+
+    // Fused softmax-CE backward: (softmax - onehot) * inv_batch.
+    {
+        size_t rows = 7, cols = 16;
+        float* logits = (float*)malloc(rows * cols * sizeof(float));
+        int64_t* labels = (int64_t*)malloc(rows * sizeof(int64_t));
+        float* got = (float*)malloc(rows * cols * sizeof(float));
+        for (size_t i = 0; i < rows * cols; i++) logits[i] = rnd();
+        for (size_t r = 0; r < rows; r++) labels[r] = (int64_t)(r * 2 % cols);
+        float inv_batch = 1.0f / (float)rows;
+        boat_simd_softmax_ce_backward_f32(logits, labels, got, rows, cols, inv_batch);
+        int ok = 1;
+        for (size_t r = 0; r < rows && ok; r++) {
+            // Reference softmax over the row.
+            float mx = logits[r * cols];
+            for (size_t c = 1; c < cols; c++) {
+                if (logits[r * cols + c] > mx) mx = logits[r * cols + c];
+            }
+            float sum = 0.0f;
+            for (size_t c = 0; c < cols; c++) {
+                sum += expf(logits[r * cols + c] - mx);
+            }
+            for (size_t c = 0; c < cols; c++) {
+                float p = expf(logits[r * cols + c] - mx) / sum;
+                float ref = (p - (c == (size_t)labels[r] ? 1.0f : 0.0f)) * inv_batch;
+                if (fabsf(got[r * cols + c] - ref) > 1e-4f) {
+                    char msg[64];
+                    snprintf(msg, sizeof(msg), "softmax_ce_bw r=%zu c=%zu", r, c);
+                    CHECK(0, msg);
+                    ok = 0;
+                    break;
+                }
+            }
+        }
+        CHECK(ok, "softmax-CE backward vs scalar");
+        free(logits);
+        free(labels);
+        free(got);
+    }
+
+    // Plain CE backward: -inv_n * t / clip(p).
+    {
+        size_t n = 1000;
+        float* pred = (float*)malloc(n * sizeof(float));
+        float* target = (float*)malloc(n * sizeof(float));
+        float* got = (float*)malloc(n * sizeof(float));
+        for (size_t i = 0; i < n; i++) {
+            pred[i] = fabsf(rnd()) * 0.5f + 1e-9f;  // keep away from the clamp boundary
+            target[i] = fabsf(rnd()) * 0.1f;
+        }
+        float inv_n = 1.0f / (float)n;
+        boat_simd_ce_backward_f32(pred, target, got, n, inv_n, 1e-7f);
+        int ok = 1;
+        for (size_t i = 0; i < n && ok; i++) {
+            float p = pred[i] < 1e-7f ? 1e-7f : (pred[i] > 1.0f - 1e-7f ? 1.0f - 1e-7f : pred[i]);
+            float ref = -inv_n * target[i] / p;
+            if (fabsf(got[i] - ref) > 1e-5f * (1.0f + fabsf(ref))) {
+                char msg[64];
+                snprintf(msg, sizeof(msg), "ce_bw n=%zu i=%zu", n, i);
+                CHECK(0, msg);
+                ok = 0;
+            }
+        }
+        CHECK(ok, "CE backward vs scalar");
+        free(pred);
+        free(target);
+        free(got);
+    }
+    printf("backward kernels checked vs scalar\n");
+}
+
 static void test_reduce_kernels(void) {
     const size_t lens[] = {1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 100, 1000};
     for (size_t li = 0; li < sizeof(lens) / sizeof(lens[0]); li++) {
@@ -536,6 +720,7 @@ static void test_conv_stride1(void) {
 int main(void) {
     test_transpose2d_kernel();
     test_activation_kernels();
+    test_backward_kernels();
     test_reduce_kernels();
     test_transpose_op();
     test_reduce_op();

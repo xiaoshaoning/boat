@@ -512,7 +512,40 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_backward(boat_gru_layer_t* laye
             float* dhb = d_h + b * hidden;
             float* dhr = d_h_rec + b * hidden;
 
-            for (size_t j = 0; j < hidden; j++) {
+            size_t j = 0;
+#if BOAT_HAVE_AVX2
+            const size_t h2 = hidden * 2;
+            const __m256 one = _mm256_set1_ps(1.0f);
+            const __m256 zero = _mm256_setzero_ps();
+            for (; j + 8 <= hidden; j += 8) {
+                __m256 vr = boat_simd_sigmoid256(_mm256_loadu_ps(row + j));
+                __m256 vz = boat_simd_sigmoid256(_mm256_loadu_ps(row + hidden + j));
+                __m256 vahh = _mm256_loadu_ps(ahh + h2 + j);
+                __m256 vn = boat_simd_tanh256(_mm256_add_ps(
+                    _mm256_sub_ps(_mm256_loadu_ps(row + h2 + j), vahh),
+                    _mm256_mul_ps(vr, vahh)));
+
+                __m256 vdhb = _mm256_loadu_ps(dhb + j);
+                __m256 vd_n = _mm256_mul_ps(vdhb, _mm256_sub_ps(one, vz));
+                __m256 vhp = hpb ? _mm256_loadu_ps(hpb + j) : zero;
+                __m256 vd_z = _mm256_mul_ps(vdhb, _mm256_sub_ps(vhp, vn));
+                _mm256_storeu_ps(dhr + j, _mm256_mul_ps(vdhb, vz));
+
+                __m256 vd_n_raw = _mm256_mul_ps(vd_n, _mm256_fnmadd_ps(vn, vn, one));
+                __m256 vd_z_raw = _mm256_mul_ps(vd_z, _mm256_mul_ps(vz, _mm256_sub_ps(one, vz)));
+                __m256 vd_r = _mm256_mul_ps(vd_n_raw, vahh);
+                __m256 vd_a_hh_new = _mm256_mul_ps(vd_n_raw, vr);
+                __m256 vd_r_raw = _mm256_mul_ps(vd_r, _mm256_mul_ps(vr, _mm256_sub_ps(one, vr)));
+
+                _mm256_storeu_ps(da_ih + j, vd_r_raw);
+                _mm256_storeu_ps(da_ih + hidden + j, vd_z_raw);
+                _mm256_storeu_ps(da_ih + h2 + j, vd_n_raw);
+                _mm256_storeu_ps(da_hh + j, vd_r_raw);
+                _mm256_storeu_ps(da_hh + hidden + j, vd_z_raw);
+                _mm256_storeu_ps(da_hh + h2 + j, vd_a_hh_new);
+            }
+#endif
+            for (; j < hidden; j++) {
                 float r = gru_sigmoid_f32(row[j]);
                 float z = gru_sigmoid_f32(row[hidden + j]);
                 float a_new = row[2 * hidden + j] - ahh[2 * hidden + j];

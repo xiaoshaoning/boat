@@ -99,6 +99,33 @@ BOAT_API void boat_simd_gelu_f32(const float* a, float* dst, size_t n);
 // Row-wise softmax over the last (contiguous) dim of a [rows, cols] matrix.
 BOAT_API void boat_simd_softmax_f32(const float* a, float* dst, size_t rows, size_t cols);
 
+// ---------------------------------------------------------------------------
+// Activation-derivative kernels (fused: no intermediate temporaries).
+// All compute dst[i] = dy[i] * d/dx f(x[i]); y holds the forward output.
+// ---------------------------------------------------------------------------
+BOAT_API void boat_simd_sigmoid_backward_f32(const float* dy, const float* y, float* dst,
+                                             size_t n);
+BOAT_API void boat_simd_tanh_backward_f32(const float* dy, const float* y, float* dst, size_t n);
+BOAT_API void boat_simd_relu_backward_f32(const float* dy, const float* x, float* dst, size_t n);
+BOAT_API void boat_simd_gelu_backward_f32(const float* dy, const float* x, float* dst, size_t n);
+
+// Softmax/log-softmax Jacobian-vector products, row-wise over the last dim:
+//   softmax:      dst_i = y_i * (dy_i - sum_k dy_k*y_k)
+//   log-softmax:  dst_i = dy_i - exp(y_i) * sum_k dy_k
+BOAT_API void boat_simd_softmax_backward_f32(const float* dy, const float* y, float* dst,
+                                             size_t rows, size_t cols);
+BOAT_API void boat_simd_log_softmax_backward_f32(const float* dy, const float* y, float* dst,
+                                                 size_t rows, size_t cols);
+
+// Fused loss backward kernels.
+//   softmax-CE: grad = (softmax(logits) - onehot(labels)) * inv_batch
+//   CE:         grad = -inv_n * target / clip(pred, epsilon)
+BOAT_API void boat_simd_softmax_ce_backward_f32(const float* logits, const int64_t* labels,
+                                                float* grad, size_t rows, size_t cols,
+                                                float inv_batch);
+BOAT_API void boat_simd_ce_backward_f32(const float* pred, const float* target, float* grad,
+                                        size_t n, float inv_n, float epsilon);
+
 #if BOAT_HAVE_AVX2
 // 256-bit vector helpers (for consumers that need to fuse the math, e.g. the
 // LSTM/GRU gate loops).
