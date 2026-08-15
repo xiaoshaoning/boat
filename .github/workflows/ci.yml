@@ -125,6 +125,49 @@ jobs:
         fail_ci_if_error: false
 
   # ---------------------------------------------------------------------------
+  # Memory safety gate (Linux only): the whole CPU test suite under valgrind.
+  # Uses scripts/valgrind_sweep.sh so the exact command set can be reproduced
+  # locally (e.g. the WSL2 workflow).
+  # ---------------------------------------------------------------------------
+  memcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential valgrind
+
+    - name: Configure CMake
+      run: |
+        mkdir -p build
+        cd build
+        cmake .. \
+          -DBOAT_WITH_TESTS=ON \
+          -DBOAT_WITH_EXAMPLES=ON \
+          -DBOAT_WITH_HUGGINGFACE=ON \
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+
+    - name: Build
+      run: |
+        cd build
+        cmake --build . -j$(nproc)
+
+    - name: Run tests (regular ctest)
+      run: |
+        cd build
+        ctest --output-on-failure -j$(nproc)
+
+    - name: Run valgrind sweep
+      run: |
+        bash scripts/valgrind_sweep.sh build
+
+  # ---------------------------------------------------------------------------
   # Encoding hygiene (UTF-8 without BOM, no mojibake)
   # ---------------------------------------------------------------------------
   encoding:

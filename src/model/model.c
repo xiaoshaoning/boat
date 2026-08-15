@@ -420,9 +420,17 @@ BOAT_API boat_tensor_t* boat_model_forward(const boat_model_t* model, const boat
         }
     }
 
-    // Cleanup temporary arrays and intermediate outputs (keep the final output)
+    // Cleanup temporary arrays and intermediate outputs (keep the final output).
+    // A fused final output is referenced once per graph entry (producer + fused
+    // ReLU), so drop the extra refs beyond the one returned to the caller.
+    size_t final_seen = 0;
     for (size_t k = 0; k < node_count; k++) {
-        if (node_outputs[k] && node_outputs[k] != final_output) {
+        if (!node_outputs[k]) continue;
+        if (node_outputs[k] == final_output) {
+            if (++final_seen > 1) {
+                boat_tensor_free(node_outputs[k]);
+            }
+        } else {
             boat_tensor_free(node_outputs[k]);
         }
     }

@@ -125,3 +125,7 @@ examples/ocr/ocr_output*.txt
 /examples/shanghainese_asr/finetune/
 /examples/nanochat_code/output*/
 /examples/nanochat_code/data/
+
+# TensorFlow loader test artifacts (written to the CWD when running make test)
+/tf_test_graph.pb
+/tf_savedmodel_dir/
