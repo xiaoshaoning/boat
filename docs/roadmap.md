@@ -211,13 +211,17 @@ Compile boat to WebAssembly for in-browser inference. Would enable client-side M
 
 ## Proposals for consideration
 
-### Dynamic graph optimizations
-
-Op fusion (Dense/Conv + ReLU), dead-node elimination and constant folding for
-inference. Explicitly **not planned**: higher-order automatic differentiation
+Explicitly **not planned**: higher-order automatic differentiation
 (Hessian-vector products) — it is research-only and unused in LLM training
 (first-order AdamW-family) or inference; the machinery is not worth the cost
 for this framework's target workloads.
+
+### Done (2026-08): dynamic graph optimizations
+
+- Dead-node elimination (`boat_graph_prune_unreachable`, `BOAT_OPTIMIZE_DCE`)
+- Duplicate-edge cleanup (`boat_graph_remove_duplicate_edges`, `BOAT_OPTIMIZE_SIMPLIFY`)
+- Dense/Conv + ReLU fusion in the model forward
+- Constant folding via a pluggable node evaluator (`BOAT_OPTIMIZE_CONSTANT_FOLD`)
 
 ---
 
