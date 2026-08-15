@@ -193,9 +193,34 @@ LibTorch/TF C API requirement, unlike PyTorch). The TensorFlow SavedModel
 loader covers the linear-op subset (Placeholder/Const/MatMul/BiasAdd/Add/
 Relu/Identity); save entry points report NOT_IMPLEMENTED.
 
+### Phase 13: SIMD on the full training hot path (2026-08) ✅
+
+| Feature | Status | Date |
+|---|---|---|
+| AVX2 fast exp (exp2-based, degree-7 Horner) + elementwise activation kernels (sigmoid/tanh/silu/gelu) with scalar tails | Done | 2026-08 |
+| Row-wise softmax (max-subtract, vectorized exp) and fused LSTM/GRU gate loops via 256-bit helpers (exp256/sigmoid256/tanh256) | Done | 2026-08 |
+| Fused activation-derivative kernels (sigmoid/tanh/relu/gelu backward, no temporaries), softmax/log-softmax Jacobian-vector products, fused softmax-CE / CE loss backward | Done | 2026-08 |
+| Autodiff relu/sigmoid/tanh/softmax/log-softmax backward wired to fused kernels (f32+CPU); attention softmax-gradient block replaced by one kernel call | Done | 2026-08 |
+| LSTM/GRU backward gate loops vectorized; attention/CE loss backward delegated to SIMD | Done | 2026-08 |
+| Elementwise arithmetic vectorized (add/sub/mul/div, scalar and in-place variants, abs — AVX2 + NEON) | Done | 2026-08 |
+| LayerNorm/RMSNorm forward + backward vectorized (row-wise mean/var/rms reductions, fused norm affine, fused backward with grad_weight/grad_bias) | Done | 2026-08 |
+| Unit tests: activation/backward/elementwise/norm kernels vs scalar references over varied lengths | Done | 2026-08 |
+| benchmark_simd extended: activation + backward speedups vs libm (gelu fwd ~30-65x, gelu_bw ~17x, relu_bw ~10x on Linux), elementwise + norm throughput | Done | 2026-08 |
+
+**Notes:** GPU-only paths (CUDA/cuDNN) are unchanged; the SIMD kernels are
+additive fast paths gated on f32 + CPU + AVX2/NEON with scalar fallbacks.
+Numerical-gradient suites (norm/lstm/gru/attention/autodiff) re-verify the
+vectorized backward paths.
+
 ---
 
 ## Short-term (1-2 months)
+
+### 6. CI memory-safety gate
+
+Add a Linux valgrind job (or ASan/UBSan) to the CI workflow so the local
+WSL2 valgrind gate is enforced on every push. Would have caught the latent
+double-free fixed during the 2026-08 testing pass.
 
 ## Long-term (6-12 months)
 
