@@ -335,11 +335,8 @@ if(BOAT_WITH_PYTORCH)
     endif()
 endif()
 
-if(BOAT_WITH_TENSORFLOW)
-    list(APPEND BOAT_SOURCES src/format/tensorflow.c)
-    # Find TensorFlow C API
-    find_package(TensorFlow REQUIRED)
-endif()
+# TensorFlow loader (self-contained GraphDef .pb reader; no SDK needed).
+list(APPEND BOAT_SOURCES src/format/tensorflow.c)
 
 if(BOAT_WITH_GGUF)
     list(APPEND BOAT_SOURCES src/format/gguf.c)
@@ -599,10 +596,6 @@ endif()
 # if(BOAT_WITH_ONNX)
 #     target_link_libraries(boat PUBLIC ONNXRuntime::onnxruntime)
 # endif()
-
-if(BOAT_WITH_TENSORFLOW)
-    target_link_libraries(boat PUBLIC TensorFlow::TensorFlow)
-endif()
 
 if(BOAT_WITH_PYTORCH)
     if(DEFINED TORCH_LIBRARIES AND TORCH_LIBRARIES)

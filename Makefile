@@ -128,7 +128,7 @@ uninstall:
 # CPU-only test suite: everything except backends needing external SDKs
 # or data (CUDA, PyTorch, Safetensors, HuggingFace, GGUF, ONNX(-runtime),
 # TensorFlow). The same set is what the cmake CPU build runs under ctest.
-TEST_EXCLUDE = $(wildcard tests/*cuda*.c tests/*pytorch*.c tests/*safetensors*.c 	tests/*huggingface*.c tests/*gguf*.c tests/*onnx*.c tests/*onnxruntime*.c 	tests/*tensorflow*.c)
+TEST_EXCLUDE = $(wildcard tests/*cuda*.c tests/*pytorch*.c tests/*safetensors*.c 	tests/*huggingface*.c tests/*gguf*.c tests/*onnx*.c tests/*onnxruntime*.c)
 TEST_SRCS = $(filter-out $(TEST_EXCLUDE),$(wildcard tests/*.c) $(wildcard tests/unit/*.c))
 TEST_BINS = $(patsubst tests/%,build/test/%,$(patsubst %.c,%.exe,$(TEST_SRCS)))
 TEST_LIBS = -L$(LIB_DIR) -lboat $(LIBS)
