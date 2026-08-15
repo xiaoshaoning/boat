@@ -6,6 +6,11 @@
 # Force bash recipes: the GnuWin32 make on this machine's PATH
 # runs recipes via cmd.exe, where MSYS paths and the lld search break.
 SHELL := /bin/bash
+# The MSYS2 make spawns recipes with TMP/TEMP stripped; MinGW gcc then
+# falls back to C:\WINDOWS for its temp files (permission denied).  Set
+# a writable temp dir for every recipe.
+export TMP := $(or $(TMP),$(TEMP),C:/Users/xiaos/AppData/Local/Temp)
+export TEMP := $(TEMP)
 CC = gcc
 CFLAGS = -std=c11 -Wall -Wextra -O2 -fPIC -DBOAT_BUILDING_DLL
 # SIMD: AVX2+FMA is the framework's baseline (no AVX-512 -- some laptops do
