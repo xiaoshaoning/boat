@@ -12,12 +12,13 @@ Boat is a lightweight, high-performance deep learning framework written in pure 
   - Low-bit quantization: BITS2 (2-bit packed), BITS1 (1-bit binary networks)
   - Boolean: BOOL type
 - **Quantization Pipeline**: UINT8/INT8 affine quantization, BITS2 (2-bit), FLOAT4 (4-bit), per-channel, and QAT fake quantization
-- **Model Format Support**: ONNX (load/export/runtime executor), PyTorch (via LibTorch), HuggingFace Safetensors, GGUF (Q4_0, Q4_1, Q5_0, Q8_0)
+- **Model Format Support**: ONNX (load/export/runtime executor), PyTorch (via LibTorch), HuggingFace Safetensors, GGUF (Q4_0, Q4_1, Q5_0, Q8_0), TensorFlow frozen-graph / SavedModel (self-contained protobuf reader, no TF SDK)
 - **Data Pipeline**: Dataset/DataLoader abstraction with batching, shuffling, multi-threaded prefetch, and transforms
-- **Performance Optimizations**: SIMD (AVX2/NEON), SGEMM micro-kernel (hand-tuned with packing), OpenBLAS backend for accelerated matrix multiplication, OpenMP parallelism, memory pooling
+- **Performance Optimizations**: SIMD (AVX2/NEON) for conv/transpose/reductions, SGEMM micro-kernel (hand-tuned with packing), conv im2col+SGEMM fast path, OpenBLAS backend, OpenMP parallelism, memory pooling, `benchmark_simd` throughput suite
+- **Dynamic Graph Optimizations**: dead-node elimination, duplicate-edge cleanup, constant folding (pluggable evaluator), and Dense/Conv+ReLU fusion in the model forward
 - **CUDA GPU Acceleration**: cuBLAS matmul, cuDNN conv/batchnorm, fused attention kernels (flash attention, GQA decode), FP8/BF16 inference and training kernels, custom CUDA kernels for element-wise ops, activations, pooling, normalization, and optimizers
 - **Memory Efficient**: Explicit memory management with reference counting
-- **Cross-Platform**: Works on Linux, macOS, and Windows
+- **Cross-Platform**: Works on Linux, macOS, and Windows (make + CMake; `-mavx2 -mfma`/`-fopenmp` auto-detected)
 - **Extensible Architecture**: Modular design for adding new operations and layers
 
 ## Design Principles
@@ -102,7 +103,7 @@ The Makefile automatically compiles all source files and creates a shared librar
 - `-DBOAT_WITH_HUGGINGFACE=ON`: Enable Hugging Face safetensors support (vendored cJSON, no external dependency)
 - `-DBOAT_WITH_GGUF=ON`: Enable GGUF format support
 - `-DBOAT_WITH_PYTORCH=ON`: Enable PyTorch support (requires LibTorch)
-- `-DBOAT_WITH_TENSORFLOW=ON`: Enable TensorFlow support
+- `-DBOAT_WITH_TENSORFLOW=ON`: (retained for compatibility; the TensorFlow loader is self-contained and always compiled — no TensorFlow SDK is needed)
 - `-DBOAT_WITH_COVERAGE=ON`: Enable code coverage instrumentation
 - `-DBOAT_BUILD_SHARED=ON`: Build shared library (DLL on Windows)
 - `-DBOAT_DEBUG=1`: Enable debug output
@@ -485,6 +486,24 @@ NanoChat implements the d34 architecture: 34 transformer layers, GQA (16 heads, 
 
 For detailed design, see [docs/nanochat_plan.md](docs/nanochat_plan.md).
 
+## Needle 2 Example
+
+[Needle 2](https://huggingface.co/Cactus-Compute/needle2) is a 45M-parameter
+Simple Attention Network (SAN) for tool calling / structured extraction, shipped
+as a self-contained `.cact` deployment blob. `examples/needle` runs it via a
+from-scratch C port of the SAN decode path (cact parser + Cactus-Quants
+dequantizer, 27-layer MHC scan with gated GQA + RoPE + sliding-window
+attention, Walsh-Hadamard MLP, engram KV memory, embedded BPE tokenizer):
+
+```sh
+make needle2                       # builds examples/needle/needle2(.exe)
+./examples/needle/needle2 /path/to/needle2.cact --prompt "what is the weather in Lagos right now?"
+```
+
+Generated token ids match the JAX reference decode exactly; the model file is
+not shipped in the repo (point at a local `.cact`, e.g. the HF mirror). See
+`examples/needle/README.md` and `examples/needle/VALGRIND.md`.
+
 ## Core Components
 
 ### Tensor Operations
@@ -558,19 +577,23 @@ The framework supports a comprehensive range of data types for efficient computa
 
 The repository includes several comprehensive examples:
 
-- **MNIST Classification**: Complete training pipeline for digit recognition
-- **CIFAR-10**: CNN image classification with data pipeline and transforms
-- **Transformer**: End-to-end transformer with tokenization, training, and autoregressive decoding
-- **Translator**: English-to-French MarianMT (Helsinki-NLP) inference engine using Safetensors weights
+- **MNIST Classification**: Complete training pipeline for digit recognition (needs the MNIST dataset via `mnist_data.py`)
+- **CIFAR-10**: CNN image classification with data pipeline and transforms (needs the dataset via `cifar10_data.py`)
+- **Transformer**: End-to-end transformer with tokenization, training, and autoregressive decoding (self-contained, wired into CTest)
+- **Translator**: English-to-French MarianMT (Helsinki-NLP) inference engine using Safetensors weights (needs a trained model)
 - **InsightFace**: Face recognition model (ResNet50-based) inference via ONNX runtime executor, producing 512-dim embeddings
+- **Needle 2**: Simple Attention Network (SAN) tool-calling model inference from the self-contained `.cact` deployment blob — `make needle2`, then run against a local `needle2.cact` (see `examples/needle/README.md`)
 - **Automatic Differentiation**: Gradient computation with dynamic computation graphs
-- **Scheduler Usage**: Learning rate scheduling with cosine annealing, step LR, and lambda LR
+- **Scheduler Usage**: Learning rate scheduling with cosine annealing, step LR, and lambda LR (CTest)
+- **Regression / Serialization**: self-contained examples wired into CTest
 - **ONNX Export**: Export trained boat models to ONNX format
 - **NanoChat**: GPT LLM inference and training (d34 2.2B) with CUDA acceleration
   - Interactive chat CLI with token streaming
   - OpenAI-compatible HTTP server (JSON API)
   - Training loop with Muon/AdamW optimizers and FP8 support
   - Fused GQA attention kernels for fast decode
+
+The self-contained CPU examples (`serialization`, `regression`, `scheduler_usage`, `transformer`, `needle2_selftest`) are registered in CTest; data-backed ones (MNIST, CIFAR-10, translator) skip gracefully when their data is absent.
 
 ## Project Structure
 
@@ -607,7 +630,7 @@ boat/
 │   ├── schedulers/         # Learning rate schedulers
 │   ├── loss/               # Loss functions (with CUDA paths)
 │   ├── model/              # Model management
-│   └── format/             # Model format loaders
+│   └── format/             # Model format loaders (onnx, gguf, huggingface, tensorflow, onnxruntime)
 ├── cuda/                   # CUDA backend
 │   ├── kernels/            # CUDA kernels (basic, conv, dense, fused, norm, pool, optimizer, FP8, BF16)
 │   ├── ops/                # CUDA ops (activation, arithmetic, linear)
@@ -618,16 +641,19 @@ boat/
 │   └── autodiff/           # CUDA autodiff
 ├── bindings/js/            # Node.js N-API bindings
 ├── examples/               # Example programs
-│   ├── mnist/             # MNIST classification
-│   ├── cifar10/           # CIFAR-10 image classification
+│   ├── mnist/             # MNIST classification (data-backed)
+│   ├── cifar10/           # CIFAR-10 image classification (data-backed)
 │   ├── common/            # Shared utilities (JSON, safetensors)
-│   ├── nanochat/          # NanoChat GPT LLM (inference, training, server)
-│   ├── transformer/       # Transformer end-to-end example
-│   └── translator/        # English-French MarianMT translator
+│   ├── nanochat/          # NanoChat GPT LLM (inference, training, server; CUDA)
+│   ├── needle/            # Needle 2 SAN inference from the .cact blob (CPU)
+│   ├── regression/        # Linear regression (CTest)
+│   ├── serialization/     # Model save/load round-trip (CTest)
+│   ├── transformer/       # Transformer end-to-end example (CTest)
+│   └── translator/        # English-French MarianMT translator (data-backed)
 ├── tests/                 # Test suite
-│   ├── unit/              # Unit tests
+│   ├── unit/              # Unit tests (incl. test_simd, test_tensorflow, test_graph_optimize)
 │   └── archive/           # Archived/legacy tests
-├── benchmarks/            # Performance benchmarks
+├── benchmarks/            # Performance benchmarks (sgemm, simd/conv/reduce)
 ├── docs/                  # Documentation
 └── scripts/               # Utility scripts
 ```
@@ -648,22 +674,26 @@ For detailed API documentation and development guidelines, see [CLAUDE.md](CLAUD
 - Quantization-aware training (QAT) with fake quantization
 - Model pruning (magnitude-based, structured channel/filter pruning)
 - Model format loaders (ONNX, PyTorch, TensorFlow, HuggingFace, GGUF)
+- TensorFlow frozen-graph / SavedModel loader (self-contained GraphDef .pb protobuf reader; Placeholder/Const/MatMul/BiasAdd/Add/Relu/Identity)
 - ONNX Runtime executor (graph-based direct inference for complex ONNX models)
 - CUDA GPU acceleration (cuBLAS matmul, cuDNN conv/batchnorm, fused attention kernels, FP8/BF16 inference and training, custom kernels for element-wise ops, activations, pooling, normalization, and optimizers)
 - Group/depthwise convolution with cuDNN acceleration
 - PReLU activation layer (Parametric ReLU for modern CNN architectures)
 - InsightFace face recognition model inference (ResNet50, 512-dim embeddings)
 - Model serialization (custom binary format, v3 with per-channel metadata)
-- Performance optimizations (SIMD, SGEMM with optional OpenBLAS backend, OpenMP, memory pool)
+- Performance optimizations: AVX2 SIMD (conv/transpose/reductions), SGEMM micro-kernel, conv im2col+SGEMM, OpenMP parallelization, memory pool, `benchmark_simd`
+- Dynamic graph optimizations: dead-node elimination, duplicate-edge cleanup, constant folding (pluggable evaluator), Dense/Conv+ReLU fusion
 - Node.js N-API bindings (Tensor and Model operations)
-- Cross-platform build with CMake
+- `.clang-format` config applied repo-wide
+- Cross-platform build with CMake + Makefile
 - Comprehensive test suite with CI (GitHub Actions: CPU matrix + CUDA build)
 - MNIST training example (manual and autodiff, both >96% test accuracy)
 - CIFAR-10 CNN training example
-- Transformer end-to-end example
+- Transformer end-to-end example (CTest)
 - English-French MarianMT translator (Safetensors-based inference)
 - InsightFace face recognition (ONNX Runtime, 130-node graph executor)
 - ONNX export (boat → ONNX serialization)
+- **Needle 2 (SAN) inference from the .cact blob**: Cactus-Quants dequant, 27-layer SAN decode (MHC, GQA+RoPE, Hadamard MLP, engram), embedded BPE tokenizer, `make needle2` + CLI
 - **NanoChat GPT LLM (d34 2.2B)**:
   - Interactive chat CLI with token streaming
   - OpenAI-compatible HTTP server with JSON API
@@ -674,7 +704,12 @@ For detailed API documentation and development guidelines, see [CLAUDE.md](CLAUD
 
 ### Planned Features
 - WebAssembly backend for in-browser inference
-- Distributed training support
+- Distributed training (multi-node)
+- Hardware acceleration backends (TensorRT, OpenVINO, CoreML)
+- Federated learning
+- GPU-side verification of the CUDA backend (needs a CUDA machine)
+
+Higher-order automatic differentiation is **explicitly not planned** (research-only; unused in LLM training/inference) — see `docs/roadmap.md`.
 
 ## Code Quality
 
@@ -711,18 +746,25 @@ Run the test suite to verify the installation:
 
 ```bash
 cd build
-make test
+ctest                          # CMake build
+make test                      # Makefile build
 ```
 
 Or run specific tests:
 
 ```bash
-ctest -R test_tensor                   # Run tensor tests
-ctest -R test_quantize                 # Run quantization tests
-ctest -R test_serialization_integration # Run serialization roundtrip tests
-ctest -R test_autodiff                 # Run autodiff tests
-ctest -R test_layers                   # Run layer tests
+ctest -R test_tensor              # Tensor tests
+ctest -R test_simd                # SIMD kernels / transpose / reduce / conv
+ctest -R test_tensorflow          # TensorFlow frozen-graph loader
+ctest -R test_graph_optimize      # Graph DCE / simplify / constant folding / fusion
+ctest -R test_reduce_autodiff     # Axis reductions with autodiff
+ctest -R test_serialization_integration  # Serialization roundtrip
 ```
+
+The CPU suite is 46 tests on Windows (`make test`) and 55 via WSL ctest
+(including the self-contained examples), all green under `-Wall -Wextra` and
+valgrind. Data-backed examples (MNIST/CIFAR-10/translator) are registered but
+skip gracefully when their data is absent.
 
 ## Contributing
 
