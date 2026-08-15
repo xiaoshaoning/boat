@@ -662,4 +662,7 @@ if(BOAT_WITH_TESTS)
     # Benchmarks
     add_executable(benchmark_sgemm benchmarks/sgemm_benchmark.c)
     target_link_libraries(benchmark_sgemm boat)
+
+    add_executable(benchmark_simd benchmarks/simd_benchmark.c)
+    target_link_libraries(benchmark_simd boat)
 endif()
