@@ -13,6 +13,9 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -fPIC -DBOAT_BUILDING_DLL
 # selects AVX2/SSE4.1/NEON/scalar accordingly.
 SIMD_FLAGS := $(shell echo | $(CC) -mavx2 -mfma -x c -E - >/dev/null 2>&1 && echo '-mavx2 -mfma')
 CFLAGS += $(SIMD_FLAGS)
+# OpenMP: parallelize the forward paths (conv/reduce/transpose/sgemm).
+OMP_FLAGS := $(shell echo | $(CC) -fopenmp -x c -E - >/dev/null 2>&1 && echo '-fopenmp')
+CFLAGS += $(OMP_FLAGS)
 INCLUDES = -Iinclude
 LIBS = -lm
 

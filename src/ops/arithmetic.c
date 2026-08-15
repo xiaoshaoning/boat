@@ -1345,6 +1345,8 @@ static boat_tensor_t* reduce_axis(const boat_tensor_t* a, const int64_t* dims, s
     double* d_out = (double*)out_data;
     bool is_f64 = (dtype == BOAT_DTYPE_FLOAT64);
 
+    // Each output element is independent: parallelize the outer loop.
+    BOAT_OMP_PARALLEL_FOR_SCHEDULE(static)
     for (size_t oi = 0; oi < out_nelements; oi++) {
         // Decode output linear index to the base input offset.
         size_t rem = oi;

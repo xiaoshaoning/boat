@@ -383,40 +383,47 @@ static void scalar_conv2d(const float* in, const float* w, const float* bias, fl
     }
 }
 
-static void test_conv_stride1(void) {
-    // Input [1, 2, 8, 8], 2 out channels, 3x3 kernel, pad 1, stride 1.
-    int batch = 1, in_ch = 2, out_ch = 2, h = 8, wi = 8, kh = 3, kw = 3, pad = 1, stride = 1;
-    int ho = h, wo = wi;
-    float in[1 * 2 * 8 * 8], w[2 * 2 * 3 * 3], bias[2];
-    for (size_t i = 0; i < sizeof(in) / sizeof(in[0]); i++)
-        in[i] = rnd();
-    for (size_t i = 0; i < sizeof(w) / sizeof(w[0]); i++)
-        w[i] = rnd();
-    for (size_t i = 0; i < 2; i++)
-        bias[i] = rnd();
+static void test_conv_case(const char* label, int batch, int in_ch, int out_ch, int h, int wi,
+                           int kh, int kw, int pad, int stride, int groups) {
+    int ho = (h + 2 * pad - kh) / stride + 1;
+    int wo = (wi + 2 * pad - kw) / stride + 1;
+    int ich_per_g = in_ch / groups;
+    size_t nin = (size_t)batch * in_ch * h * wi;
+    size_t nw = (size_t)out_ch * ich_per_g * kh * kw;
+    float* in = (float*)malloc(nin * sizeof(float));
+    float* w = (float*)malloc(nw * sizeof(float));
+    float* bias = (float*)malloc((size_t)out_ch * sizeof(float));
+    for (size_t i = 0; i < nin; i++) in[i] = rnd();
+    for (size_t i = 0; i < nw; i++) w[i] = rnd();
+    for (int i = 0; i < out_ch; i++) bias[i] = rnd();
 
     int64_t ish[] = {batch, in_ch, h, wi};
-    int64_t wsh[] = {out_ch, in_ch, kh, kw};
+    int64_t wsh[] = {out_ch, ich_per_g, kh, kw};
     int64_t bsh[] = {out_ch};
     boat_tensor_t* it = boat_tensor_from_data(ish, 4, BOAT_DTYPE_FLOAT32, in);
     boat_tensor_t* wt = boat_tensor_from_data(wsh, 4, BOAT_DTYPE_FLOAT32, w);
     boat_tensor_t* bt = boat_tensor_from_data(bsh, 1, BOAT_DTYPE_FLOAT32, bias);
 
-    boat_conv_layer_t* conv = boat_conv_layer_create(in_ch, out_ch, kh, stride, pad, 1);
+    boat_conv_layer_t* conv = boat_conv_layer_create((size_t)in_ch, (size_t)out_ch, (size_t)kh,
+                                                     (size_t)stride, (size_t)pad,
+                                                     (size_t)groups);
     CHECK(conv != NULL, "conv layer create");
     boat_conv_layer_set_weight(conv, wt);
     boat_conv_layer_set_bias(conv, bt);
     boat_tensor_t* o = boat_conv_layer_forward(conv, it);
     CHECK(o != NULL, "conv forward");
 
-    float* ref = (float*)malloc((size_t)batch * out_ch * ho * wo * sizeof(float));
-    scalar_conv2d(in, w, bias, ref, batch, in_ch, out_ch, h, wi, kh, kw, pad, stride, 1);
+    size_t nout = (size_t)batch * out_ch * ho * wo;
+    float* ref = (float*)malloc(nout * sizeof(float));
+    scalar_conv2d(in, w, bias, ref, batch, in_ch, out_ch, h, wi, kh, kw, pad, stride, groups);
     const float* od = (const float*)boat_tensor_const_data(o);
     int ok = 1;
-    for (int i = 0; i < batch * out_ch * ho * wo; i++) {
+    for (size_t i = 0; i < nout; i++) {
         if (fabsf(od[i] - ref[i]) > 1e-3f) ok = 0;
     }
-    CHECK(ok, "conv2d stride-1 forward matches scalar reference");
+    char msg[96];
+    snprintf(msg, sizeof(msg), "conv2d %s matches scalar reference", label);
+    CHECK(ok, msg);
 
     free(ref);
     boat_tensor_unref(o);
@@ -424,6 +431,19 @@ static void test_conv_stride1(void) {
     boat_tensor_unref(wt);
     boat_tensor_unref(bt);
     boat_conv_layer_free(conv);
+    free(in);
+    free(w);
+    free(bias);
+}
+
+static void test_conv_stride1(void) {
+    // Small case: SIMD interior path (below the im2col size gate).
+    test_conv_case("stride-1 small", 1, 2, 2, 8, 8, 3, 3, 1, 1, 1);
+    // Larger cases: im2col + SGEMM path (out_ch*ckk >= 1024, npos >= 64).
+    test_conv_case("stride-1 im2col", 2, 8, 16, 16, 16, 3, 3, 1, 1, 1);
+    test_conv_case("stride-2 im2col", 1, 8, 16, 16, 16, 3, 3, 1, 2, 1);
+    test_conv_case("im2col groups", 1, 8, 32, 16, 16, 3, 3, 0, 1, 2);
+    test_conv_case("im2col 5x5 pad2", 1, 4, 12, 20, 20, 5, 5, 2, 1, 1);
 }
 
 int main(void) {

@@ -8,7 +8,11 @@
 #ifdef _OPENMP
 #include <omp.h>
 #define BOAT_OMP_PARALLEL_FOR _Pragma("omp parallel for")
-#define BOAT_OMP_PARALLEL_FOR_SCHEDULE(sched) _Pragma("omp parallel for schedule(" #sched ")")
+// The schedule() token cannot be stringified inside _Pragma on all supported
+// compilers (adjacent string-literal concatenation is rejected there), so the
+// scheduler parameter is accepted for API symmetry but the default schedule is
+// used.
+#define BOAT_OMP_PARALLEL_FOR_SCHEDULE(sched) _Pragma("omp parallel for")
 #define BOAT_OMP_GET_THREAD_NUM() omp_get_thread_num()
 #define BOAT_OMP_GET_NUM_THREADS() omp_get_num_threads()
 #define BOAT_OMP_SET_NUM_THREADS(n) omp_set_num_threads(n)

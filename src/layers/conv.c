@@ -4,7 +4,9 @@
 
 #include <boat.h>
 #include <boat/cuda_runtime.h>
+#include <boat/sgemm.h>
 #include <boat/simd.h>
+#include "../core/openmp.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -372,6 +374,8 @@ static void conv2d_forward_stride1(const float* in, const float* w, const float*
                                    size_t groups) {
     const size_t ocpg = out_ch / groups;
     const size_t icpg = in_ch / groups;
+    // Parallelize over the batch: each image writes distinct output rows.
+    BOAT_OMP_PARALLEL_FOR_SCHEDULE(static)
     for (int64_t b = 0; b < batch; b++) {
         for (size_t g = 0; g < groups; g++) {
             const size_t oc0 = g * ocpg;
@@ -441,6 +445,73 @@ static void conv2d_forward_stride1(const float* in, const float* w, const float*
                 }
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Im2col + SGEMM convolution (any stride). Builds the column matrix
+// col[ckk, N] per image (rows = flattened (ic, kh, kw), columns = output
+// positions), then computes out[oc, N] = W[oc, ckk] @ col via boat_sgemm
+// (SIMD-packed). Used when the GEMM shape is large enough to pay off.
+// ---------------------------------------------------------------------------
+static void conv2d_forward_im2col(const float* in, const float* w, const float* bias,
+                                  float* out, int64_t batch, int64_t in_ch, int64_t out_ch,
+                                  int64_t h, int64_t wi, int64_t ho, int64_t wo,
+                                  size_t ks, size_t pad, size_t stride, size_t groups) {
+    const size_t ocpg = out_ch / groups;
+    const size_t icpg = in_ch / groups;
+    const size_t ckk = icpg * ks * ks;
+    const int64_t N = ho * wo;  // output positions per image
+    // Parallelize over the batch: each image builds its own column matrix and
+    // GEMM (thread-local buffers). Without OpenMP this is a plain loop.
+    BOAT_OMP_PARALLEL_FOR_SCHEDULE(static)
+    for (int64_t b = 0; b < batch; b++) {
+        float* col = (float*)malloc(ckk * (size_t)N * sizeof(float));
+        float* cblk = (float*)malloc(ocpg * (size_t)N * sizeof(float));
+        if (!col || !cblk) {
+            free(col);
+            free(cblk);
+            continue;
+        }
+        for (size_t g = 0; g < groups; g++) {
+            // Build col[(ic*ks+kh)*ks+kw][oh*wo+ow].
+            for (size_t ic = 0; ic < icpg; ic++) {
+                const float* ibase = in + ((b * in_ch + g * icpg + ic) * h) * wi;
+                for (size_t kh = 0; kh < ks; kh++) {
+                    for (size_t kw = 0; kw < ks; kw++) {
+                        const size_t r = (ic * ks + kh) * ks + kw;
+                        float* crow = col + r * (size_t)N;
+                        for (int64_t oh = 0; oh < ho; oh++) {
+                            const int64_t ih = oh * (int64_t)stride - (int64_t)pad + (int64_t)kh;
+                            if (ih < 0 || ih >= h) {
+                                memset(crow + (size_t)oh * wo, 0, (size_t)wo * sizeof(float));
+                                continue;
+                            }
+                            const float* irow = ibase + ih * wi;
+                            const int64_t iw0 = -(int64_t)pad + (int64_t)kw;
+                            for (int64_t ow = 0; ow < wo; ow++) {
+                                const int64_t iw = iw0 + ow * (int64_t)stride;
+                                crow[(size_t)oh * wo + ow] =
+                                    (iw >= 0 && iw < wi) ? irow[iw] : 0.0f;
+                            }
+                        }
+                    }
+                }
+            }
+            // GEMM: cblk[ocpg, N] = w[g*ocpg..][ocpg, ckk] @ col[ckk, N].
+            const float* wg = w + g * ocpg * ckk;
+            boat_sgemm((int64_t)ocpg, N, (int64_t)ckk, wg, col, cblk);
+            // Scatter to out[b][oc][oh][ow] and add bias.
+            float* obase = out + (b * out_ch + g * ocpg) * ho * wo;
+            for (size_t oc = 0; oc < ocpg; oc++) {
+                const float bv = bias ? bias[g * ocpg + oc] : 0.0f;
+                float* orow = obase + (int64_t)oc * ho * wo;
+                const float* crow = cblk + (int64_t)oc * N;
+                for (int64_t i = 0; i < N; i++) orow[i] = crow[i] + bv;
+            }
+        }
+        free(col);
+        free(cblk);
     }
 }
 
@@ -564,8 +635,20 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
     memset(output_data, 0, output_elements * sizeof(float));
 
     // Perform convolution with group support.
-    // Stride-1 uses the SIMD interior fast path; other strides use the general
-    // scalar loop below (identical semantics; accumulation order differs).
+    // Prefer the im2col + SGEMM path when the GEMM shape pays off; otherwise
+    // use the SIMD interior kernel (stride 1) or the general scalar loop.
+    const size_t ckk = (in_channels / layer->groups) * layer->kernel_size * layer->kernel_size;
+    const int64_t npos = height_out * width_out;
+    const bool use_im2col =
+        (int64_t)(layer->out_channels * ckk) >= 1024 && npos >= 64;
+    if (use_im2col) {
+        conv2d_forward_im2col(input_data, weight_data, bias_data, output_data, batch,
+                              (int64_t)in_channels, (int64_t)layer->out_channels, height, width,
+                              height_out, width_out, layer->kernel_size, layer->padding,
+                              layer->stride, layer->groups);
+        if (dequantized_weight) boat_tensor_free(dequantized_weight);
+        return output;
+    }
     if (layer->stride == 1) {
         conv2d_forward_stride1(input_data, weight_data, bias_data, output_data, batch,
                                (int64_t)in_channels, (int64_t)layer->out_channels, height, width,

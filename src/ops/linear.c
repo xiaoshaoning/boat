@@ -358,9 +358,11 @@ BOAT_API boat_tensor_t* boat_transpose(const boat_tensor_t* a, int dim0, int dim
             size_t rows = (size_t)shape[dim0];
             size_t cols = (size_t)shape[dim1];
             size_t n_mat = (rows && cols) ? total_elements / (rows * cols) : 0;
+            // Each trailing matrix transposes independently.
+            BOAT_OMP_PARALLEL_FOR_SCHEDULE(static)
             for (size_t m = 0; m < n_mat; m++) {
-                boat_simd_transpose2d_f32(in_ptr + m * rows * cols, out_ptr + m * rows * cols, rows,
-                                          cols);
+                boat_simd_transpose2d_f32(in_ptr + m * rows * cols,
+                                          out_ptr + m * rows * cols, rows, cols);
             }
             return out;
         }
