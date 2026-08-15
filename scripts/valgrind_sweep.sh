@@ -16,7 +16,9 @@ set -u
 
 BUILD_DIR="${1:-build}"
 VG_FLAGS="--leak-check=full --error-exitcode=42 --errors-for-leak-kinds=definite,possible"
-TIMEOUT_SEC=300
+# Generous per-binary timeout: unit tests finish in seconds, but the synthetic
+# mnist training example takes ~7 minutes under valgrind with OMP_NUM_THREADS=1.
+TIMEOUT_SEC=900
 
 cd "$BUILD_DIR" || { echo "ERROR: build dir '$BUILD_DIR' not found"; exit 2; }
 

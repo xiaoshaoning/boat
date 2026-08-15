@@ -1282,6 +1282,56 @@ BOAT_API void boat_simd_rmsnorm_backward_f32(const float* x, const float* dy,
     }
 }
 
+BOAT_API void boat_simd_axpy_f32(float* y, const float* a, float alpha, size_t n) {
+#if BOAT_HAVE_AVX2
+    const __m256 va = _mm256_set1_ps(alpha);
+    size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        __m256 vy = _mm256_loadu_ps(y + i);
+        __m256 vx = _mm256_loadu_ps(a + i);
+        _mm256_storeu_ps(y + i, _mm256_fmadd_ps(va, vx, vy));
+    }
+    for (; i < n; i++) y[i] += alpha * a[i];
+#elif BOAT_HAVE_NEON
+    float32x4_t va = vdupq_n_f32(alpha);
+    size_t i = 0;
+    for (; i + 4 <= n; i += 4) {
+        float32x4_t vy = vld1q_f32(y + i);
+        float32x4_t vx = vld1q_f32(a + i);
+        vst1q_f32(y + i, vfmaq_f32(vy, va, vx));
+    }
+    for (; i < n; i++) y[i] += alpha * a[i];
+#else
+    for (size_t i = 0; i < n; i++) y[i] += alpha * a[i];
+#endif
+}
+
+BOAT_API float boat_simd_dot_f32(const float* a, const float* b, size_t n) {
+#if BOAT_HAVE_AVX2
+    size_t i = 0;
+    __m256 vsum = _mm256_setzero_ps();
+    for (; i + 8 <= n; i += 8) {
+        vsum = _mm256_fmadd_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i), vsum);
+    }
+    float sum = hsum256_ps(vsum);
+    for (; i < n; i++) sum += a[i] * b[i];
+    return sum;
+#elif BOAT_HAVE_NEON
+    size_t i = 0;
+    float32x4_t vsum = vdupq_n_f32(0.0f);
+    for (; i + 4 <= n; i += 4) {
+        vsum = vfmaq_f32(vsum, vld1q_f32(a + i), vld1q_f32(b + i));
+    }
+    float sum = vaddvq_f32(vsum);
+    for (; i < n; i++) sum += a[i] * b[i];
+    return sum;
+#else
+    float sum = 0.0f;
+    for (size_t i = 0; i < n; i++) sum += a[i] * b[i];
+    return sum;
+#endif
+}
+
 // ---------------------------------------------------------------------------
 // boat_simd_allclose_f32
 // ---------------------------------------------------------------------------

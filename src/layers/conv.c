@@ -72,7 +72,8 @@ static boat_tensor_t* compute_input_gradient(const boat_conv_layer_t* layer,
     size_t in_channels_per_group = layer->in_channels / layer->groups;
     size_t out_channels_per_group = layer->out_channels / layer->groups;
 
-    // For each batch
+    // For each batch (parallel: grad_input[b] slices are disjoint)
+    BOAT_OMP_PARALLEL_FOR_SCHEDULE(static)
     for (int64_t b = 0; b < batch; b++) {
         // For each group
         for (size_t g = 0; g < layer->groups; g++) {
@@ -94,6 +95,46 @@ static boat_tensor_t* compute_input_gradient(const boat_conv_layer_t* layer,
                             for (int64_t oh = 0; oh < height_out; oh++) {
                                 int64_t ih = oh * layer->stride - layer->padding + kh;
                                 if (ih < 0 || ih >= height) continue;
+
+                                // Fast path (stride 1): iw = ow - pad + kw is
+                                // contiguous over ow, and the valid range is a
+                                // single interval [lo, hi). The prefix/suffix
+                                // positions are all out of bounds.
+                                if (layer->stride == 1) {
+                                    int64_t lo = (int64_t)layer->padding > (int64_t)kw
+                                                     ? (int64_t)layer->padding - (int64_t)kw
+                                                     : 0;
+                                    int64_t hi = width + (int64_t)layer->padding - (int64_t)kw;
+                                    if (hi > width_out) hi = width_out;
+                                    if (lo < hi) {
+                                        size_t weight_idx =
+                                            ((oc * in_channels_per_group + ic_local) *
+                                                 layer->kernel_size +
+                                             kh) *
+                                                layer->kernel_size +
+                                            kw;
+                                        size_t gbase =
+                                            ((size_t)(b * in_channels + ic) * (size_t)height +
+                                             (size_t)ih) *
+                                            (size_t)width;
+                                        size_t obase =
+                                            ((size_t)(b * out_channels + oc) * (size_t)height_out +
+                                             (size_t)oh) *
+                                            (size_t)width_out;
+                                        // iw = ow - pad + kw: the input column for
+                                        // ow = lo is (lo - pad + kw) >= 0 by the
+                                        // range definition, and the input side is
+                                        // shifted by (kw - pad) vs the output side.
+                                        size_t col_start =
+                                            (size_t)(lo - (int64_t)layer->padding + (int64_t)kw);
+                                        boat_simd_axpy_f32(grad_input_data + gbase + col_start,
+                                                           grad_output_data + obase + lo,
+                                                           weight_data[weight_idx],
+                                                           (size_t)(hi - lo));
+                                    }
+                                    continue;
+                                }
+
                                 for (int64_t ow = 0; ow < width_out; ow++) {
                                     int64_t iw = ow * layer->stride - layer->padding + kw;
                                     if (iw < 0 || iw >= width) continue;
@@ -158,46 +199,81 @@ static bool compute_weight_gradient_into(const boat_conv_layer_t* layer,
     size_t in_channels_per_group = layer->in_channels / layer->groups;
     size_t out_channels_per_group = layer->out_channels / layer->groups;
 
-    // For each batch
-    for (int64_t b = 0; b < batch; b++) {
-        // For each group
-        for (size_t g = 0; g < layer->groups; g++) {
-            size_t oc_start = g * out_channels_per_group;
-            size_t oc_end = oc_start + out_channels_per_group;
-            size_t ic_start = g * in_channels_per_group;
-            size_t ic_end = ic_start + in_channels_per_group;
+    // For each output channel (parallel: grad_weight[oc] slices are disjoint;
+    // the group is derived from oc since groups partition the channel dims).
+    BOAT_OMP_PARALLEL_FOR_SCHEDULE(static)
+    for (int64_t oc = 0; oc < (int64_t)out_channels; oc++) {
+        size_t g = (size_t)oc / out_channels_per_group;
+        size_t ic_start = g * in_channels_per_group;
+        size_t ic_end = ic_start + in_channels_per_group;
 
-            // For each output channel in this group
-            for (int64_t oc = (int64_t)oc_start; oc < (int64_t)oc_end; oc++) {
-                // For each input channel in this group
-                for (int64_t ic = (int64_t)ic_start; ic < (int64_t)ic_end; ic++) {
-                    size_t ic_local = (size_t)(ic - (int64_t)ic_start);
-                    // For each kernel row
-                    for (size_t kh = 0; kh < layer->kernel_size; kh++) {
-                        // For each kernel column
-                        for (size_t kw = 0; kw < layer->kernel_size; kw++) {
-                            // For each output height position
-                            for (int64_t oh = 0; oh < height_out; oh++) {
-                                int64_t ih = oh * layer->stride - layer->padding + kh;
-                                if (ih < 0 || ih >= height) continue;
-                                for (int64_t ow = 0; ow < width_out; ow++) {
-                                    int64_t iw = ow * layer->stride - layer->padding + kw;
-                                    if (iw < 0 || iw >= width) continue;
+        // For each batch
+        for (int64_t b = 0; b < batch; b++) {
+            // For each input channel in this group
+            for (int64_t ic = (int64_t)ic_start; ic < (int64_t)ic_end; ic++) {
+                size_t ic_local = (size_t)(ic - (int64_t)ic_start);
+                // For each kernel row
+                for (size_t kh = 0; kh < layer->kernel_size; kh++) {
+                    // For each kernel column
+                    for (size_t kw = 0; kw < layer->kernel_size; kw++) {
+                        // For each output height position
+                        for (int64_t oh = 0; oh < height_out; oh++) {
+                            int64_t ih = oh * layer->stride - layer->padding + kh;
+                            if (ih < 0 || ih >= height) continue;
 
-                                    size_t input_idx =
-                                        ((b * in_channels + ic) * height + ih) * width + iw;
-                                    size_t grad_output_idx =
-                                        ((b * out_channels + oc) * height_out + oh) * width_out +
-                                        ow;
+                            // Fast path (stride 1): the per-oh contribution
+                            // is a dot over the contiguous valid interval
+                            // [lo, hi) on both input and grad_output.
+                            if (layer->stride == 1) {
+                                int64_t lo = (int64_t)layer->padding > (int64_t)kw
+                                                 ? (int64_t)layer->padding - (int64_t)kw
+                                                 : 0;
+                                int64_t hi = width + (int64_t)layer->padding - (int64_t)kw;
+                                if (hi > width_out) hi = width_out;
+                                if (lo < hi) {
                                     size_t weight_idx = ((oc * in_channels_per_group + ic_local) *
                                                              layer->kernel_size +
                                                          kh) *
                                                             layer->kernel_size +
                                                         kw;
-
+                                    size_t input_base =
+                                        ((size_t)(b * in_channels + ic) * (size_t)height +
+                                         (size_t)ih) *
+                                        (size_t)width;
+                                    size_t grad_output_base =
+                                        ((size_t)(b * out_channels + oc) * (size_t)height_out +
+                                         (size_t)oh) *
+                                        (size_t)width_out;
+                                    // iw = ow - pad + kw: the input column for
+                                    // ow = lo is (lo - pad + kw) >= 0 by the
+                                    // range definition, and the input side is
+                                    // shifted by (kw - pad) vs the output side.
+                                    size_t col_start =
+                                        (size_t)(lo - (int64_t)layer->padding + (int64_t)kw);
                                     grad_weight_data[weight_idx] +=
-                                        input_data[input_idx] * grad_output_data[grad_output_idx];
+                                        boat_simd_dot_f32(input_data + input_base + col_start,
+                                                          grad_output_data + grad_output_base + lo,
+                                                          (size_t)(hi - lo));
                                 }
+                                continue;
+                            }
+
+                            for (int64_t ow = 0; ow < width_out; ow++) {
+                                int64_t iw = ow * layer->stride - layer->padding + kw;
+                                if (iw < 0 || iw >= width) continue;
+
+                                size_t input_idx =
+                                    ((b * in_channels + ic) * height + ih) * width + iw;
+                                size_t grad_output_idx =
+                                    ((b * out_channels + oc) * height_out + oh) * width_out + ow;
+                                size_t weight_idx =
+                                    ((oc * in_channels_per_group + ic_local) * layer->kernel_size +
+                                     kh) *
+                                        layer->kernel_size +
+                                    kw;
+
+                                grad_weight_data[weight_idx] +=
+                                    input_data[input_idx] * grad_output_data[grad_output_idx];
                             }
                         }
                     }
@@ -233,19 +309,17 @@ static bool compute_bias_gradient_into(const boat_conv_layer_t* layer, const int
     // Initialize gradient bias with zeros
     memset(grad_bias_data, 0, layer->out_channels * sizeof(float));
 
-    // Sum grad_output over batch, height, width dimensions
-    for (int64_t b = 0; b < batch; b++) {
-        for (int64_t oc = 0; oc < (int64_t)layer->out_channels; oc++) {
-            float sum = 0.0f;
-            for (int64_t oh = 0; oh < height_out; oh++) {
-                for (int64_t ow = 0; ow < width_out; ow++) {
-                    size_t grad_output_idx =
-                        ((b * out_channels + oc) * height_out + oh) * width_out + ow;
-                    sum += grad_output_data[grad_output_idx];
-                }
-            }
-            grad_bias_data[oc] += sum;
+    // Sum grad_output over batch, height, width dimensions (parallel over oc:
+    // grad_bias[oc] is disjoint per oc).
+    BOAT_OMP_PARALLEL_FOR_SCHEDULE(static)
+    for (int64_t oc = 0; oc < (int64_t)layer->out_channels; oc++) {
+        float sum = 0.0f;
+        for (int64_t b = 0; b < batch; b++) {
+            const float* block = grad_output_data + (size_t)(b * out_channels + oc) *
+                                                        (size_t)height_out * (size_t)width_out;
+            sum += boat_simd_sum_reduce_f32(block, (size_t)height_out * (size_t)width_out);
         }
+        grad_bias_data[oc] += sum;
     }
     return true;
 }
@@ -454,14 +528,14 @@ static void conv2d_forward_stride1(const float* in, const float* w, const float*
 // positions), then computes out[oc, N] = W[oc, ckk] @ col via boat_sgemm
 // (SIMD-packed). Used when the GEMM shape is large enough to pay off.
 // ---------------------------------------------------------------------------
-static void conv2d_forward_im2col(const float* in, const float* w, const float* bias,
-                                  float* out, int64_t batch, int64_t in_ch, int64_t out_ch,
-                                  int64_t h, int64_t wi, int64_t ho, int64_t wo,
-                                  size_t ks, size_t pad, size_t stride, size_t groups) {
+static void conv2d_forward_im2col(const float* in, const float* w, const float* bias, float* out,
+                                  int64_t batch, int64_t in_ch, int64_t out_ch, int64_t h,
+                                  int64_t wi, int64_t ho, int64_t wo, size_t ks, size_t pad,
+                                  size_t stride, size_t groups) {
     const size_t ocpg = out_ch / groups;
     const size_t icpg = in_ch / groups;
     const size_t ckk = icpg * ks * ks;
-    const int64_t N = ho * wo;  // output positions per image
+    const int64_t N = ho * wo; // output positions per image
     // Parallelize over the batch: each image builds its own column matrix and
     // GEMM (thread-local buffers). Without OpenMP this is a plain loop.
     BOAT_OMP_PARALLEL_FOR_SCHEDULE(static)
@@ -491,8 +565,7 @@ static void conv2d_forward_im2col(const float* in, const float* w, const float* 
                             const int64_t iw0 = -(int64_t)pad + (int64_t)kw;
                             for (int64_t ow = 0; ow < wo; ow++) {
                                 const int64_t iw = iw0 + ow * (int64_t)stride;
-                                crow[(size_t)oh * wo + ow] =
-                                    (iw >= 0 && iw < wi) ? irow[iw] : 0.0f;
+                                crow[(size_t)oh * wo + ow] = (iw >= 0 && iw < wi) ? irow[iw] : 0.0f;
                             }
                         }
                     }
@@ -507,7 +580,8 @@ static void conv2d_forward_im2col(const float* in, const float* w, const float* 
                 const float bv = bias ? bias[g * ocpg + oc] : 0.0f;
                 float* orow = obase + (int64_t)oc * ho * wo;
                 const float* crow = cblk + (int64_t)oc * N;
-                for (int64_t i = 0; i < N; i++) orow[i] = crow[i] + bv;
+                for (int64_t i = 0; i < N; i++)
+                    orow[i] = crow[i] + bv;
             }
         }
         free(col);
@@ -639,8 +713,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_conv_layer_forward(boat_conv_layer_t* lay
     // use the SIMD interior kernel (stride 1) or the general scalar loop.
     const size_t ckk = (in_channels / layer->groups) * layer->kernel_size * layer->kernel_size;
     const int64_t npos = height_out * width_out;
-    const bool use_im2col =
-        (int64_t)(layer->out_channels * ckk) >= 1024 && npos >= 64;
+    const bool use_im2col = (int64_t)(layer->out_channels * ckk) >= 1024 && npos >= 64;
     if (use_im2col) {
         conv2d_forward_im2col(input_data, weight_data, bias_data, output_data, batch,
                               (int64_t)in_channels, (int64_t)layer->out_channels, height, width,

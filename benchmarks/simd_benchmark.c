@@ -94,6 +94,24 @@ static void bench_conv(void) {
     printf("conv2d %dx%dx%dx%d -> %d ch 3x3 x%d: %.3f s  (%.1f GFLOP/s, im2col+sgemm)\n",
            batch, in_ch, h, wi, out_ch, reps, t1 - t0, flops / (t1 - t0) / 1e9);
 
+    // Backward (grad_input + grad_weight + grad_bias) over the same workload.
+    int64_t gosh[] = {batch, out_ch, h, wi};  // stride-1 pad-1 keeps spatial size
+    boat_tensor_t* go =
+        boat_tensor_create(gosh, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CPU);
+    float* god = (float*)boat_tensor_data(go);
+    for (size_t i = 0; i < boat_tensor_nelements(go); i++) god[i] = rnd();
+    boat_tensor_t* gi = boat_conv_layer_backward(conv, go);  // warmup
+    boat_tensor_unref(gi);
+    t0 = now_sec();
+    for (int r = 0; r < reps; r++) {
+        boat_tensor_t* gg = boat_conv_layer_backward(conv, go);
+        boat_tensor_unref(gg);
+    }
+    t1 = now_sec();
+    printf("conv2d backward x%d: %.3f s  (%.1f GFLOP/s)\n", reps, t1 - t0,
+           flops / (t1 - t0) / 1e9);
+    boat_tensor_unref(go);
+
     boat_tensor_unref(it);
     boat_tensor_unref(wt);
     boat_tensor_unref(bt);

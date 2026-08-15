@@ -140,6 +140,12 @@ BOAT_API void boat_simd_mul_scalar_f32(const float* a, float s, float* dst, size
 BOAT_API void boat_simd_div_scalar_f32(const float* a, float s, float* dst, size_t n);
 BOAT_API void boat_simd_abs_f32(const float* a, float* dst, size_t n);
 
+// Reduction / fused helpers (used by the conv backward fast paths).
+//   axpy: y[i] += alpha * a[i]   (aliasing safe)
+//   dot:  returns sum(a[i] * b[i])
+BOAT_API void boat_simd_axpy_f32(float* y, const float* a, float alpha, size_t n);
+BOAT_API float boat_simd_dot_f32(const float* a, const float* b, size_t n);
+
 // ---------------------------------------------------------------------------
 // Normalization kernels (row-wise over the last, contiguous dim).
 // ---------------------------------------------------------------------------

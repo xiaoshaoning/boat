@@ -568,6 +568,45 @@ static void test_elementwise_and_norm_kernels(void) {
         free(gw);
         free(gw_ref);
     }
+    // axpy / dot kernels (used by the conv backward fast paths).
+    {
+        const size_t n = 1000;
+        float* y = (float*)malloc(n * sizeof(float));
+        float* y_ref = (float*)malloc(n * sizeof(float));
+        float* a = (float*)malloc(n * sizeof(float));
+        float* b = (float*)malloc(n * sizeof(float));
+        for (size_t i = 0; i < n; i++) {
+            a[i] = rnd();
+            b[i] = rnd();
+            y[i] = y_ref[i] = rnd();
+        }
+        float alpha = 0.5f;
+        boat_simd_axpy_f32(y, a, alpha, n);
+        int ok = 1;
+        for (size_t i = 0; i < n && ok; i++) {
+            y_ref[i] += alpha * a[i];
+            if (fabsf(y[i] - y_ref[i]) > 1e-5f * (1.0f + fabsf(y_ref[i]))) ok = 0;
+        }
+        CHECK(ok, "axpy vs scalar");
+        // Aliasing: y == a must give y[i] = y[i]*(1+alpha).
+        for (size_t i = 0; i < n; i++) y[i] = a[i];
+        boat_simd_axpy_f32(y, y, alpha, n);
+        ok = 1;
+        for (size_t i = 0; i < n && ok; i++) {
+            float ref = a[i] * (1.0f + alpha);
+            if (fabsf(y[i] - ref) > 1e-5f * (1.0f + fabsf(ref))) ok = 0;
+        }
+        CHECK(ok, "axpy aliased");
+        float dot = boat_simd_dot_f32(a, b, n);
+        float dot_ref = 0.0f;
+        for (size_t i = 0; i < n; i++) dot_ref += a[i] * b[i];
+        CHECK(fabsf(dot - dot_ref) <= 1e-3f * (1.0f + fabsf(dot_ref)), "dot vs scalar");
+        free(y);
+        free(y_ref);
+        free(a);
+        free(b);
+    }
+
     printf("elementwise + norm kernels checked vs scalar\n");
 }
 
