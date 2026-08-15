@@ -174,6 +174,25 @@
 
 **Files:** `examples/nanochat/*.{c,h,cu,cuh}` (25+ files)
 
+### Phase 12: SIMD, TensorFlow Loader, Needle 2, Testing (2026-08) ✅
+
+| Feature | Status | Date |
+|---|---|---|
+| AVX2 SIMD for conv2d stride-1 / transpose / reductions (sum/max/min horizontal kernels, tiled 8x8 transpose, per-head q/k norms) | Done | 2026-08 |
+| Conv im2col + SGEMM fast path (any stride, groups) + OpenMP over batch/outputs | Done | 2026-08 |
+| OpenMP enabled in the Makefile; forward hot paths parallelized (conv, reduce, transpose) | Done | 2026-08 |
+| TensorFlow frozen-graph loader (self-contained GraphDef .pb parser, no TF SDK): Placeholder/Const, MatMul, BiasAdd/Add, Relu, Identity; SavedModel dir support | Done | 2026-08 |
+| Needle 2 (Simple Attention Network) inference from the .cact blob: cact parser + Cactus-Quants dequant, SAN 27-layer decode (MHC, GQA+RoPE, Hadamard MLP, engram), embedded BPE tokenizer | Done | 2026-08 |
+| `.clang-format` config + repo-wide pass (194 files) | Done | 2026-08 |
+| CPU examples wired into CTest (serialization, regression, scheduler_usage, transformer, needle2_selftest, translator-with-skip) | Done | 2026-08 |
+| Unit tests: test_simd (kernels/transpose/reduce/conv vs scalar), test_tensorflow (frozen-graph round-trip) | Done | 2026-08 |
+| benchmark_simd (reduce/transpose/conv/reduce-op throughput) | Done | 2026-08 |
+
+**Notes:** TensorFlow loading is now a self-contained protobuf reader (no
+LibTorch/TF C API requirement, unlike PyTorch). The TensorFlow SavedModel
+loader covers the linear-op subset (Placeholder/Const/MatMul/BiasAdd/Add/
+Relu/Identity); save entry points report NOT_IMPLEMENTED.
+
 ---
 
 ## Short-term (1-2 months)
@@ -192,10 +211,11 @@ Compile boat to WebAssembly for in-browser inference. Would enable client-side M
 
 ## Proposals for consideration
 
-### TensorFlow SavedModel format
+### Higher-order automatic differentiation
 
-Support loading TensorFlow 2.x SavedModel exports. Requires implementing the SavedModel protobuf structure and variable resolution. Lower priority than GGUF given the ML ecosystem shift toward ONNX and GGUF.
+Second-order derivatives (Hessian-vector products) for optimizer/regularization
+research; requires extending the tape with gradient-of-gradient nodes.
 
 ---
 
-*Last updated: 2026-05-06* (NanoChat LLM inference and training completed and merged to main)
+*Last updated: 2026-08-15*

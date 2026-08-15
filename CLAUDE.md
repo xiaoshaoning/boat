@@ -450,36 +450,23 @@ make install
 
 ## Development Roadmap
 
-### Phase 1: Core CPU Implementation (Current)
-- Tensor operations (creation, manipulation, arithmetic)
-- Basic neural network layers (Dense, Conv2D, ReLU, Softmax)
-- Automatic differentiation engine
-- Computational graph infrastructure
-- Optimization algorithms (SGD, Adam)
-- Loss functions (MSE, CrossEntropy)
-- Simple sequential model API
-- Unit tests and documentation
+Detailed, dated status is tracked in [docs/roadmap.md](docs/roadmap.md); this
+section is the high-level summary.
 
-### Phase 2: Model Format Support
-- ONNX model loading
-- PyTorch model loading (via LibTorch C++ API)
-- TensorFlow model loading (via TensorFlow C API)
-- Custom model serialization format
+### Done (2026)
+- **Core CPU**: tensors, autodiff, graph, layers (Dense/Conv/Attention/GRU/LSTM/norm…), optimizers, schedulers, losses, sequential API.
+- **Model formats**: custom binary serialization, ONNX load/export, PyTorch (LibTorch), HuggingFace Safetensors, GGUF, TensorFlow frozen-graph (.pb) + SavedModel (self-contained protobuf reader, no TF SDK), ONNX Runtime backend.
+- **Quantization**: UINT8/INT8/BITS2/BITS1/FLOAT4 + per-channel + QAT; pruning/compression.
+- **GPU**: CUDA + cuDNN backend (memory, kernels, cuBLAS, im2col conv, fused ops).
+- **Performance**: AVX2 SIMD (dense/conv/transpose/reductions), SGEMM micro-kernel, conv im2col+SGEMM, OpenMP parallelism, benchmark_simd.
+- **Examples**: MNIST, CIFAR-10, transformer, serialization, nanochat, insightface, needle2 (SAN inference from the .cact blob); CPU examples wired into CTest.
+- **Tooling**: `.clang-format` config applied repo-wide.
 
-### Phase 3: GPU Acceleration
-- CUDA backend for tensor operations
-- GPU-accelerated layers
-- Mixed precision training
-- Multi-GPU support
+### Remaining / in progress
+- **Phase 4 advanced**: higher-order autodiff, dynamic graph optimizations, distributed training, TensorRT/OpenVINO/CoreML backends, federated learning.
+- GPU-side verification of the CUDA backend (no GPU on the dev machine).
 
-### Phase 4: Advanced Features
-- Advanced automatic differentiation (higher-order gradients)
-- Dynamic graph optimizations
-- Distributed training (multi-node)
-- Advanced quantization (1-bit, 2-bit, 4-bit networks)
-- Hardware acceleration (TensorRT, OpenVINO, CoreML)
-- Model compression and pruning
-- Federated learning support
+See [docs/roadmap.md](docs/roadmap.md) for the full dated feature table.
 
 ## Contributing
 
