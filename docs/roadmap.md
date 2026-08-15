@@ -206,21 +206,17 @@ Relu/Identity); save entry points report NOT_IMPLEMENTED.
 | LayerNorm/RMSNorm forward + backward vectorized (row-wise mean/var/rms reductions, fused norm affine, fused backward with grad_weight/grad_bias) | Done | 2026-08 |
 | Unit tests: activation/backward/elementwise/norm kernels vs scalar references over varied lengths | Done | 2026-08 |
 | benchmark_simd extended: activation + backward speedups vs libm (gelu fwd ~30-65x, gelu_bw ~17x, relu_bw ~10x on Linux), elementwise + norm throughput | Done | 2026-08 |
+| Conv2d backward vectorized (axpy/dot kernels, stride-1 fast paths for input/weight gradients, block-reduce bias gradient) + OpenMP over batch/oc | Done | 2026-08 |
+| CI memory-safety gate: memcheck job runs the whole CPU suite under valgrind on every push (scripts/valgrind_sweep.sh) | Done | 2026-08 |
 
 **Notes:** GPU-only paths (CUDA/cuDNN) are unchanged; the SIMD kernels are
 additive fast paths gated on f32 + CPU + AVX2/NEON with scalar fallbacks.
-Numerical-gradient suites (norm/lstm/gru/attention/autodiff) re-verify the
-vectorized backward paths.
+Numerical-gradient suites (norm/lstm/gru/attention/conv/autodiff) re-verify
+the vectorized backward paths. The valgrind gate has caught real bugs since
+landing: a fused-final-output refcount leak in boat_model_forward (fixed in
+2026-08) and it is enforced by the CI memcheck job (55/55 binaries clean).
 
 ---
-
-## Short-term (1-2 months)
-
-### 6. CI memory-safety gate
-
-Add a Linux valgrind job (or ASan/UBSan) to the CI workflow so the local
-WSL2 valgrind gate is enforced on every push. Would have caught the latent
-double-free fixed during the 2026-08 testing pass.
 
 ## Long-term (6-12 months)
 

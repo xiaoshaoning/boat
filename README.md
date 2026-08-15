@@ -14,7 +14,8 @@ Boat is a lightweight, high-performance deep learning framework written in pure 
 - **Quantization Pipeline**: UINT8/INT8 affine quantization, BITS2 (2-bit), FLOAT4 (4-bit), per-channel, and QAT fake quantization
 - **Model Format Support**: ONNX (load/export/runtime executor), PyTorch (via LibTorch), HuggingFace Safetensors, GGUF (Q4_0/Q4_1/Q5_0/Q8_0 + Q2_K/Q3_K/Q4_K/Q5_K/Q6_K), TensorFlow frozen-graph / SavedModel (self-contained protobuf reader, no TF SDK)
 - **Data Pipeline**: Dataset/DataLoader abstraction with batching, shuffling, multi-threaded prefetch, and transforms
-- **Performance Optimizations**: SIMD (AVX2/NEON) for conv/transpose/reductions, SGEMM micro-kernel (hand-tuned with packing), conv im2col+SGEMM fast path, OpenBLAS backend, OpenMP parallelism, memory pooling, `benchmark_simd` throughput suite
+- **Performance Optimizations**: SIMD (AVX2/NEON) across the full CPU training hot path — activations (sigmoid/tanh/gelu/silu, forward + backward), row-wise softmax, fused softmax-CE / CE loss backward, LSTM/GRU/attention gate loops, LayerNorm/RMSNorm (forward + backward), elementwise arithmetic, conv2d forward (im2col+SGEMM) and backward, reductions/transpose; SGEMM micro-kernel (hand-tuned with packing), OpenBLAS backend, OpenMP parallelism, memory pooling, `benchmark_simd` throughput suite
+- **CI Memory-Safety Gate**: a GitHub Actions `memcheck` job runs the whole CPU test suite under valgrind on every push (`scripts/valgrind_sweep.sh`) — has already caught a fused-final-output refcount leak
 - **Dynamic Graph Optimizations**: dead-node elimination, duplicate-edge cleanup, constant folding (pluggable evaluator), and Dense/Conv+ReLU fusion in the model forward
 - **CUDA GPU Acceleration**: cuBLAS matmul, cuDNN conv/batchnorm, fused attention kernels (flash attention, GQA decode), FP8/BF16 inference and training kernels, custom CUDA kernels for element-wise ops, activations, pooling, normalization, and optimizers
 - **Memory Efficient**: Explicit memory management with reference counting
@@ -682,11 +683,13 @@ For detailed API documentation and development guidelines, see [CLAUDE.md](CLAUD
 - InsightFace face recognition model inference (ResNet50, 512-dim embeddings)
 - Model serialization (custom binary format, v3 with per-channel metadata)
 - Performance optimizations: AVX2 SIMD (conv/transpose/reductions), SGEMM micro-kernel, conv im2col+SGEMM, OpenMP parallelization, memory pool, `benchmark_simd`
+- SIMD on the full training hot path: activations (sigmoid/tanh/silu/gelu fwd+bwd), row-wise softmax, fused softmax-CE/CE loss backward, LSTM/GRU/attention gate loops (fwd+bwd), LayerNorm/RMSNorm (fwd+bwd), elementwise arithmetic (AVX2+NEON), conv2d backward (axpy/dot kernels, stride-1 fast paths, OpenMP) — all with scalar fallbacks, gated on f32+CPU
+- CI memory-safety gate: GitHub Actions `memcheck` job runs the CPU suite under valgrind on every push (`scripts/valgrind_sweep.sh`)
 - Dynamic graph optimizations: dead-node elimination, duplicate-edge cleanup, constant folding (pluggable evaluator), Dense/Conv+ReLU fusion
 - Node.js N-API bindings (Tensor and Model operations)
 - `.clang-format` config applied repo-wide
 - Cross-platform build with CMake + Makefile
-- Comprehensive test suite with CI (GitHub Actions: CPU matrix + CUDA build)
+- Comprehensive test suite with CI (GitHub Actions: CPU matrix + CUDA build + valgrind memcheck job)
 - MNIST training example (manual and autodiff, both >96% test accuracy)
 - CIFAR-10 CNN training example
 - Transformer end-to-end example (CTest)
@@ -761,10 +764,11 @@ ctest -R test_reduce_autodiff     # Axis reductions with autodiff
 ctest -R test_serialization_integration  # Serialization roundtrip
 ```
 
-The CPU suite is 46 tests on Windows (`make test`) and 55 via WSL ctest
-(including the self-contained examples), all green under `-Wall -Wextra` and
-valgrind. MNIST/CIFAR-10 run in CTest via their synthetic-data modes; the
-translator is registered but skips gracefully without a trained model.
+The CPU suite is 47 tests on Windows (`make test`), 59 via Windows CMake ctest
+and 58 via WSL ctest, all green under `-Wall -Wextra`. A valgrind memory-safety
+gate runs the whole suite on every push (`scripts/valgrind_sweep.sh`, 55
+binaries clean). MNIST/CIFAR-10 run in CTest via their synthetic-data modes;
+the translator is registered but skips gracefully without a trained model.
 
 ## Contributing
 
