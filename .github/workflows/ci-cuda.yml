@@ -12,7 +12,10 @@ jobs:
   # CUDA build + test (Linux only, portable arch)
   # ---------------------------------------------------------------------------
   cuda:
-    runs-on: ubuntu-latest
+    # Pin to 24.04: the CUDA repo must match the distro (ubuntu-latest now
+    # points at 24.04; installing ubuntu2204 packages there resolves deps
+    # against the wrong libc and nvcc silently fails to appear).
+    runs-on: ubuntu-24.04
 
     steps:
     - uses: actions/checkout@v4
@@ -21,11 +24,22 @@ jobs:
 
     - name: Install CUDA toolkit
       run: |
-        wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+        wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
         sudo dpkg -i cuda-keyring_1.1-1_all.deb
         sudo apt-get update -q
         sudo apt-get install -y -q cuda-toolkit-12-6 ccache
+        # CMake's CUDA language support locates nvcc via CUDACXX or PATH;
+        # CUDA_HOME alone is not consulted, so export all three.
         echo "CUDA_HOME=/usr/local/cuda-12" >> $GITHUB_ENV
+        echo "CUDACXX=/usr/local/cuda-12/bin/nvcc" >> $GITHUB_ENV
+        echo "/usr/local/cuda-12/bin" >> $GITHUB_PATH
+        # Fail fast with a clear message if the toolkit did not land on disk.
+        if [ ! -x /usr/local/cuda-12/bin/nvcc ]; then
+          echo "nvcc not found after install:"
+          ls -la /usr/local/cuda* 2>/dev/null || true
+          exit 1
+        fi
+        nvcc --version
 
     - name: Set up ccache
       uses: hendrikmuhs/ccache-action@v1.2
