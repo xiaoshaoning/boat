@@ -1,8 +1,8 @@
 # MATLAB Deep-Learning Layer Mapping
 
-Status: implemented (2026-08-16). M2 of the deep-learning toolbox
-integration: how a MATLAB `dlnetwork` (interpreter-side) maps onto boat
-layers for graph export (`boat_export`), including exact weight layouts.
+Status: implemented (2026-08-16). Layer-by-layer mapping from a
+MATLAB-style deep-learning network to a boat graph, including exact weight
+layouts and the boundary layout conversions.
 
 ## Mapping table
 
@@ -26,15 +26,15 @@ layers for graph export (`boat_export`), including exact weight layouts.
 
 ## Layout conventions
 
-The interpreter stores matrices as `[R, Q]` **column-major** (R = H*W*C
+The MATLAB-side matrix format is `[R, Q]` **column-major** (R = H*W*C
 flattened, channel-major rows; Q = samples/sequence). Boat tensors are
 row-major. The transposed shapes align so every boundary copy is a direct
 linear copy with a double<->float conversion:
 
 ```
-[R, Q] (mx)      == [Q, R] (boat)
-[H*W*C, Q] (mx)  == [Q, C, H, W] (boat)
-[H, Q] (mx rnn)  == [1, Q, H] (boat rnn output)
+[R, Q] (MATLAB)   == [Q, R] (boat)
+[H*W*C, Q] (MATLAB) == [Q, C, H, W] (boat)
+[H, Q] (MATLAB rnn) == [1, Q, H] (boat rnn output)
 ```
 
 RNN layout adapters (`boat_tensor_reshape`) are inserted at the graph
@@ -44,9 +44,9 @@ after them.
 ## GRU gate order
 
 Boat's internal GRU gate vector is `[r; z; n]` (reset, update, candidate);
-MATLAB/PyTorch is `[z; r; h]`. The exporter remaps the three G-row blocks on
-transfer (`dl_gru_gate_map = {1, 0, 2}`). LSTM is already aligned
-(`[i; f; g; o]`).
+MATLAB/PyTorch is `[z; r; h]`. The gate-block mapping used on transfer is
+`{1, 0, 2}` (MATLAB z -> boat z-block 1, r -> r-block 0, h -> n-block 2).
+LSTM is already aligned (`[i; f; g; o]`).
 
 ## GRU semantics (corrected 2026-08)
 
