@@ -267,8 +267,12 @@ Execute concatenation/addition/depth-concat graphs end to end (see
 - `boat_has_feature(name)`: runtime feature probe (`src/core/version.c`)
   returning whether the linked library supports a named optional feature
   (graph-forward, concat/add layers, tanh/sigmoid layers, avg-pool, GRU
-  corrections, forward_many, onnx-export). Lets embedders degrade
-  gracefully against older builds.
+  corrections, forward_many, onnx-export, rnn-trainable). Lets embedders
+  degrade gracefully against older builds.
+- RNN training delegation (`v0.6.3`): `boat_lstm/gru_layer_get_weight_ih` /
+  `get_weight_hh` / `get_bias_ih` / `get_bias_hh` expose the recurrent
+  parameters (the grad accumulators were already public), so embedders can
+  register them with an optimizer and train LSTM/GRU layers end to end.
 
 ---
 
