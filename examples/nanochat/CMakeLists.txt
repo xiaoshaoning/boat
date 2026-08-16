@@ -34,7 +34,7 @@ if(TARGET boat AND BOAT_WITH_CUDA)
         # No special libs needed beyond CUDA
     endif()
     if(UNIX)
-        target_link_libraries(nanochat_cli m)
+        target_link_libraries(nanochat_cli PRIVATE m)
     endif()
     set_target_properties(nanochat_cli PROPERTIES C_STANDARD 11)
     set_target_properties(nanochat_cli PROPERTIES CUDA_SEPARABLE_COMPILATION ON)

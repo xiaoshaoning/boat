@@ -27,7 +27,7 @@ if(TARGET boat AND BOAT_WITH_CUDA)
         BOAT_STATIC_BUILD BOAT_WITH_CUDA
         _CRT_NONSTDC_NO_DEPRECATE _CRT_SECURE_NO_WARNINGS)
     if(UNIX)
-        target_link_libraries(latex_ocr m)
+        target_link_libraries(latex_ocr PRIVATE m)
     endif()
     set_target_properties(latex_ocr PROPERTIES C_STANDARD 11)
 
