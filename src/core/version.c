@@ -19,6 +19,7 @@ static const char* const kBoatFeatures[] = {
     "sigmoid-layer",   // boat_sigmoid_layer
     "avg-pool",        // boat_pool_layer average-pooling mode
     "gru-corrected",   // standard GRU update (reset before recurrent matmul)
+    "rnn-trainable",   // LSTM/GRU parameter getters (training delegation)
     "onnx-export",     // boat_onnx_save
 };
 

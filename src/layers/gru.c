@@ -698,6 +698,27 @@ BOAT_API void BOAT_CALL boat_gru_layer_set_bias_hh(boat_gru_layer_t* layer, boat
     if (bias) boat_tensor_ref(bias);
 }
 
+// Parameter getters
+BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_get_weight_ih(const boat_gru_layer_t* layer) {
+    if (!layer) return NULL;
+    return layer->weight_ih;
+}
+
+BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_get_weight_hh(const boat_gru_layer_t* layer) {
+    if (!layer) return NULL;
+    return layer->weight_hh;
+}
+
+BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_get_bias_ih(const boat_gru_layer_t* layer) {
+    if (!layer) return NULL;
+    return layer->bias_ih;
+}
+
+BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_get_bias_hh(const boat_gru_layer_t* layer) {
+    if (!layer) return NULL;
+    return layer->bias_hh;
+}
+
 // Gradient tensor getters
 BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_get_grad_weight_ih(const boat_gru_layer_t* layer) {
     if (!layer) return NULL;

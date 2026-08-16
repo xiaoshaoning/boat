@@ -277,6 +277,10 @@ BOAT_API void BOAT_CALL boat_lstm_layer_set_weight_hh(boat_lstm_layer_t* layer,
                                                       boat_tensor_t* weight);
 BOAT_API void BOAT_CALL boat_lstm_layer_set_bias_ih(boat_lstm_layer_t* layer, boat_tensor_t* bias);
 BOAT_API void BOAT_CALL boat_lstm_layer_set_bias_hh(boat_lstm_layer_t* layer, boat_tensor_t* bias);
+BOAT_API boat_tensor_t* BOAT_CALL boat_lstm_layer_get_weight_ih(const boat_lstm_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_lstm_layer_get_weight_hh(const boat_lstm_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_lstm_layer_get_bias_ih(const boat_lstm_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_lstm_layer_get_bias_hh(const boat_lstm_layer_t* layer);
 
 // GRU layer functions
 BOAT_API boat_gru_layer_t* BOAT_CALL boat_gru_layer_create(size_t input_size, size_t hidden_size,
@@ -298,6 +302,10 @@ BOAT_API void BOAT_CALL boat_gru_layer_set_weight_hh(boat_gru_layer_t* layer,
                                                      boat_tensor_t* weight);
 BOAT_API void BOAT_CALL boat_gru_layer_set_bias_ih(boat_gru_layer_t* layer, boat_tensor_t* bias);
 BOAT_API void BOAT_CALL boat_gru_layer_set_bias_hh(boat_gru_layer_t* layer, boat_tensor_t* bias);
+BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_get_weight_ih(const boat_gru_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_get_weight_hh(const boat_gru_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_get_bias_ih(const boat_gru_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_get_bias_hh(const boat_gru_layer_t* layer);
 BOAT_API boat_flatten_layer_t* BOAT_CALL boat_flatten_layer_create();
 BOAT_API void BOAT_CALL boat_flatten_layer_free(boat_flatten_layer_t* layer);
 BOAT_API boat_tensor_t* BOAT_CALL boat_flatten_layer_forward(boat_flatten_layer_t* layer,
