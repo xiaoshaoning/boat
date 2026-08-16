@@ -34,12 +34,13 @@ jobs:
         echo "CUDACXX=/usr/local/cuda-12/bin/nvcc" >> $GITHUB_ENV
         echo "/usr/local/cuda-12/bin" >> $GITHUB_PATH
         # Fail fast with a clear message if the toolkit did not land on disk.
+        # ($GITHUB_PATH only affects later steps, so use the absolute path here.)
         if [ ! -x /usr/local/cuda-12/bin/nvcc ]; then
           echo "nvcc not found after install:"
           ls -la /usr/local/cuda* 2>/dev/null || true
           exit 1
         fi
-        nvcc --version
+        /usr/local/cuda-12/bin/nvcc --version
 
     - name: Set up ccache
       uses: hendrikmuhs/ccache-action@v1.2
