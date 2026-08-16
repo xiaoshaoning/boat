@@ -13,6 +13,7 @@
 static const char* const kBoatFeatures[] = {
     "graph-forward",   // boat_graph_forward (multi-input DAG execution)
     "forward-many",    // boat_layer_ops_t::forward_many (merge layers)
+    "dropout-layer",    // boat_dropout_layer (training mask + scale)
     "concat-layer",    // boat_concat_layer
     "add-layer",       // boat_add_layer
     "tanh-layer",      // boat_tanh_layer

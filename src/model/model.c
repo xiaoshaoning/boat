@@ -715,6 +715,27 @@ static void relu_free_op(const boat_layer_t* layer) {
     }
 }
 
+// Dropout ops: the layer caches its mask; inference is identity.
+static boat_tensor_t* dropout_forward_op(const boat_layer_t* layer, const boat_tensor_t* input) {
+    return boat_dropout_layer_forward((boat_dropout_layer_t*)layer->data, input);
+}
+static boat_tensor_t* dropout_backward_op(const boat_layer_t* layer, const boat_tensor_t* grad) {
+    return boat_dropout_layer_backward((boat_dropout_layer_t*)layer->data, grad);
+}
+static void dropout_update_op(const boat_layer_t* layer, float lr) {
+    (void)layer; (void)lr; /* no parameters */
+}
+static void dropout_free_op(const boat_layer_t* layer) {
+    if (layer && layer->data) {
+        boat_dropout_layer_free((boat_dropout_layer_t*)layer->data);
+        free((void*)layer);
+    }
+}
+static const boat_layer_ops_t dropout_ops = {.forward = dropout_forward_op,
+                                             .backward = dropout_backward_op,
+                                             .update = dropout_update_op,
+                                             .free = dropout_free_op};
+
 static boat_tensor_t* softmax_forward_op(const boat_layer_t* layer, const boat_tensor_t* input) {
     return boat_softmax_layer_forward((boat_softmax_layer_t*)layer->data, input);
 }
@@ -977,6 +998,7 @@ BOAT_API void boat_layer_resolve_ops(boat_layer_t* wrapper) {
     case BOAT_LAYER_TYPE_CONV2D: wrapper->ops = &conv_ops; break;
     case BOAT_LAYER_TYPE_MAXPOOL2D: wrapper->ops = &pool_ops; break;
     case BOAT_LAYER_TYPE_RELU: wrapper->ops = &relu_ops; break;
+    case BOAT_LAYER_TYPE_DROPOUT: wrapper->ops = &dropout_ops; break;
     case BOAT_LAYER_TYPE_SOFTMAX: wrapper->ops = &softmax_ops; break;
     case BOAT_LAYER_TYPE_TANH: wrapper->ops = &tanh_ops; break;
     case BOAT_LAYER_TYPE_SIGMOID: wrapper->ops = &sigmoid_ops; break;

@@ -38,6 +38,7 @@ typedef enum {
     BOAT_LAYER_TYPE_EMBEDDING,
     BOAT_LAYER_TYPE_CONCAT,  // Multi-input merge: join along an axis
     BOAT_LAYER_TYPE_ADD,     // Multi-input merge: element-wise sum
+    BOAT_LAYER_TYPE_DROPOUT, // Dropout: training mask + scale, identity otherwise
     BOAT_LAYER_TYPE_COUNT
 } boat_layer_type_t;
 
@@ -197,6 +198,17 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_prelu_layer_forward(const boat_prelu_laye
 BOAT_API boat_tensor_t* BOAT_CALL boat_prelu_layer_backward(boat_prelu_layer_t* layer,
                                                             const boat_tensor_t* grad_output);
 BOAT_API void BOAT_CALL boat_prelu_layer_update(boat_prelu_layer_t* layer, float learning_rate);
+
+// Dropout layer (inverted dropout; identity in inference mode)
+typedef struct boat_dropout_layer_t boat_dropout_layer_t;
+BOAT_API boat_dropout_layer_t* BOAT_CALL boat_dropout_layer_create(float probability);
+BOAT_API void BOAT_CALL boat_dropout_layer_free(boat_dropout_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_dropout_layer_forward(const boat_dropout_layer_t* layer,
+                                                             const boat_tensor_t* input);
+BOAT_API boat_tensor_t* BOAT_CALL boat_dropout_layer_backward(boat_dropout_layer_t* layer,
+                                                              const boat_tensor_t* grad_output);
+BOAT_API void BOAT_CALL boat_dropout_layer_set_training(boat_dropout_layer_t* layer, bool training);
+BOAT_API bool BOAT_CALL boat_dropout_layer_get_training(const boat_dropout_layer_t* layer);
 BOAT_API void BOAT_CALL boat_prelu_layer_set_slope(boat_prelu_layer_t* layer,
                                                    const boat_tensor_t* slope);
 BOAT_API boat_tensor_t* BOAT_CALL boat_prelu_layer_get_slope(const boat_prelu_layer_t* layer);
