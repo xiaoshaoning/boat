@@ -244,6 +244,27 @@ for this framework's target workloads.
 - Dense/Conv + ReLU fusion in the model forward
 - Constant folding via a pluggable node evaluator (`BOAT_OPTIMIZE_CONSTANT_FOLD`)
 
+### Done (2026-08): multi-input graph forward + merge layers
+
+Execute concatenation/addition/depth-concat graphs end to end (see
+`docs/graph_forward.md`).
+
+- `boat_graph_forward(graph, inputs[], outputs[])`: topological-order DAG
+  execution with multiple inputs/outputs; placeholders bind from the inputs,
+  OUTPUT nodes pass through, CONSTANT/VARIABLE nodes resolve to their tensor
+  data, OPERATION nodes run through a pluggable forward evaluator (default:
+  `boat_layer_t`-backed nodes). Cycles, unbound placeholders and missing
+  outputs are rejected.
+- Merge layers: `boat_concat_layer_create(dim)` and `boat_add_layer_create()`
+  exposed through the new `forward_many` layer signature
+  (`boat_layer_ops_t` / `boat_layer_input_t`).
+- `boat_layer_resolve_ops()` fills a layer wrapper's ops table from its type
+  tag so raw graph nodes work without a model; `boat_model_forward`'s graph
+  path routes multi-input nodes through `forward_many`.
+- Tests: `tests/unit/test_graph_forward.c` (concat dim 0 / negative dim,
+  addition, branched DAG, cycle/unbound-placeholder errors, custom forward
+  evaluator, constant nodes).
+
 ---
 
-*Last updated: 2026-08-15*
+*Last updated: 2026-08-16*

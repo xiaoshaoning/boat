@@ -461,9 +461,10 @@ section is the high-level summary.
 - **Performance**: AVX2 SIMD (dense/conv/transpose/reductions), SGEMM micro-kernel, conv im2col+SGEMM, OpenMP parallelism, benchmark_simd.
 - **Examples**: MNIST, CIFAR-10, transformer, serialization, nanochat, insightface, needle2 (SAN inference from the .cact blob); CPU examples wired into CTest.
 - **Tooling**: `.clang-format` config applied repo-wide.
+- **Graph optimizations**: dead-node elimination, duplicate-edge cleanup, constant folding (pluggable evaluator), Dense/Conv+ReLU fusion.
+- **Multi-input graph forward + merge layers**: `boat_graph_forward` (topological-order DAG execution, multiple inputs/outputs), `boat_concat_layer` / `boat_add_layer` with the `forward_many` layer signature; see `docs/graph_forward.md`.
 
 ### Remaining / in progress
-- **Dynamic graph optimizations**: op fusion (Dense/Conv + ReLU), dead-node elimination, constant folding.
 - **Phase 4 advanced**: distributed training, TensorRT/OpenVINO/CoreML backends, federated learning.
 - GPU-side verification of the CUDA backend (no GPU on the dev machine).
 

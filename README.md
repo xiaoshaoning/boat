@@ -17,6 +17,7 @@ Boat is a lightweight, high-performance deep learning framework written in pure 
 - **Performance Optimizations**: SIMD (AVX2/NEON) across the full CPU training hot path — activations (sigmoid/tanh/gelu/silu, forward + backward), row-wise softmax, fused softmax-CE / CE loss backward, LSTM/GRU/attention gate loops, LayerNorm/RMSNorm (forward + backward), elementwise arithmetic, conv2d forward (im2col+SGEMM) and backward, reductions/transpose; SGEMM micro-kernel (hand-tuned with packing), OpenBLAS backend, OpenMP parallelism, memory pooling, `benchmark_simd` throughput suite
 - **CI Memory-Safety Gate**: a GitHub Actions `memcheck` job runs the whole CPU test suite under valgrind on every push (`scripts/valgrind_sweep.sh`) — has already caught a fused-final-output refcount leak
 - **Dynamic Graph Optimizations**: dead-node elimination, duplicate-edge cleanup, constant folding (pluggable evaluator), and Dense/Conv+ReLU fusion in the model forward
+- **Multi-Input Graph Forward**: `boat_graph_forward` executes any DAG in topological order (multiple inputs → multiple outputs) with placeholder/constant/output nodes and layer-backed operation nodes; merge layers (`boat_concat_layer`, `boat_add_layer`) implement concatenation/addition/skip-connection graphs via a `forward_many` layer signature
 - **CUDA GPU Acceleration**: cuBLAS matmul, cuDNN conv/batchnorm, fused attention kernels (flash attention, GQA decode), FP8/BF16 inference and training kernels, custom CUDA kernels for element-wise ops, activations, pooling, normalization, and optimizers
 - **Memory Efficient**: Explicit memory management with reference counting
 - **Cross-Platform**: Works on Linux, macOS, and Windows (make + CMake; `-mavx2 -mfma`/`-fopenmp` auto-detected)
@@ -652,7 +653,7 @@ boat/
 │   ├── transformer/       # Transformer end-to-end example (CTest)
 │   └── translator/        # English-French MarianMT translator (data-backed)
 ├── tests/                 # Test suite
-│   ├── unit/              # Unit tests (incl. test_simd, test_tensorflow, test_graph_optimize)
+│   ├── unit/              # Unit tests (incl. test_simd, test_tensorflow, test_graph_optimize, test_graph_forward)
 │   └── archive/           # Archived/legacy tests
 ├── benchmarks/            # Performance benchmarks (sgemm, simd/conv/reduce)
 ├── docs/                  # Documentation
@@ -686,6 +687,8 @@ For detailed API documentation and development guidelines, see [CLAUDE.md](CLAUD
 - SIMD on the full training hot path: activations (sigmoid/tanh/silu/gelu fwd+bwd), row-wise softmax, fused softmax-CE/CE loss backward, LSTM/GRU/attention gate loops (fwd+bwd), LayerNorm/RMSNorm (fwd+bwd), elementwise arithmetic (AVX2+NEON), conv2d backward (axpy/dot kernels, stride-1 fast paths, OpenMP) — all with scalar fallbacks, gated on f32+CPU
 - CI memory-safety gate: GitHub Actions `memcheck` job runs the CPU suite under valgrind on every push (`scripts/valgrind_sweep.sh`)
 - Dynamic graph optimizations: dead-node elimination, duplicate-edge cleanup, constant folding (pluggable evaluator), Dense/Conv+ReLU fusion
+- Multi-input graph forward (`boat_graph_forward`): topological-order DAG execution with multiple inputs/outputs, placeholder/constant/output nodes, and a pluggable operation-node forward evaluator
+- Merge layers: `boat_concat_layer` (join along any axis, negative dims count from the end) and `boat_add_layer` (broadcasting element-wise sum) exposed through the `forward_many` layer signature — enables concatenation/addition/depth-concat graphs (skip connections, ResNet-style branches)
 - Node.js N-API bindings (Tensor and Model operations)
 - `.clang-format` config applied repo-wide
 - Cross-platform build with CMake + Makefile
