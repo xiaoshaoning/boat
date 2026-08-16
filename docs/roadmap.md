@@ -247,7 +247,7 @@ for this framework's target workloads.
 ### Done (2026-08): multi-input graph forward + merge layers
 
 Execute concatenation/addition/depth-concat graphs end to end (see
-`docs/graph_forward.md`).
+`docs/graph_forward.md`). **Shipped in v0.6.0 (2026-08-16).**
 
 - `boat_graph_forward(graph, inputs[], outputs[])`: topological-order DAG
   execution with multiple inputs/outputs; placeholders bind from the inputs,
