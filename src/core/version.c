@@ -4,6 +4,31 @@
 
 #include <boat/version.h>
 #include <stdio.h>
+#include <string.h>
+
+// Feature probe: runtime-declared capabilities so consumers linked against
+// older static builds can degrade gracefully instead of assuming every
+// feature exists. The names are a stable contract; add new entries when a
+// capability lands.
+static const char* const kBoatFeatures[] = {
+    "graph-forward",   // boat_graph_forward (multi-input DAG execution)
+    "forward-many",    // boat_layer_ops_t::forward_many (merge layers)
+    "concat-layer",    // boat_concat_layer
+    "add-layer",       // boat_add_layer
+    "tanh-layer",      // boat_tanh_layer
+    "sigmoid-layer",   // boat_sigmoid_layer
+    "avg-pool",        // boat_pool_layer average-pooling mode
+    "gru-corrected",   // standard GRU update (reset before recurrent matmul)
+    "onnx-export",     // boat_onnx_save
+};
+
+BOAT_API bool boat_has_feature(const char* name) {
+    if (!name) return false;
+    for (size_t i = 0; i < sizeof(kBoatFeatures) / sizeof(kBoatFeatures[0]); i++) {
+        if (strcmp(kBoatFeatures[i], name) == 0) return true;
+    }
+    return false;
+}
 
 // Library initialization
 BOAT_API void boat_init(void) {

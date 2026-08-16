@@ -5,6 +5,7 @@
 #ifndef BOAT_VERSION_H
 #define BOAT_VERSION_H
 
+#include <stdbool.h>
 #include "export.h"
 
 #ifdef __cplusplus
@@ -38,6 +39,11 @@ BOAT_API const char* boat_get_git_describe(void);
 BOAT_API const char* boat_get_version_full(void);
 BOAT_API void boat_get_version(int* major, int* minor, int* patch);
 BOAT_API unsigned int boat_get_version_int(void);
+
+// Feature probe: returns true when the linked build provides `name` (e.g.
+// "graph-forward", "concat-layer", "avg-pool", "onnx-export"). Consumers
+// can query capabilities and degrade gracefully against older builds.
+BOAT_API bool boat_has_feature(const char* name);
 
 #ifdef __cplusplus
 }
