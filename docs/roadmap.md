@@ -248,7 +248,6 @@ for this framework's target workloads.
 
 Execute concatenation/addition/depth-concat graphs end to end (see
 `docs/graph_forward.md`). **Shipped in v0.6.0 (2026-08-16).**
-
 - `boat_graph_forward(graph, inputs[], outputs[])`: topological-order DAG
   execution with multiple inputs/outputs; placeholders bind from the inputs,
   OUTPUT nodes pass through, CONSTANT/VARIABLE nodes resolve to their tensor
@@ -264,6 +263,12 @@ Execute concatenation/addition/depth-concat graphs end to end (see
 - Tests: `tests/unit/test_graph_forward.c` (concat dim 0 / negative dim,
   addition, branched DAG, cycle/unbound-placeholder errors, custom forward
   evaluator, constant nodes).
+
+- `boat_has_feature(name)`: runtime feature probe (`src/core/version.c`)
+  returning whether the linked library supports a named optional feature
+  (graph-forward, concat/add layers, tanh/sigmoid layers, avg-pool, GRU
+  corrections, forward_many, onnx-export). Lets embedders degrade
+  gracefully against older builds.
 
 ---
 
