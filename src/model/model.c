@@ -783,6 +783,47 @@ static const boat_layer_ops_t softmax_ops = {.forward = softmax_forward_op,
                                              .backward = softmax_backward_op,
                                              .update = softmax_update_op,
                                              .free = softmax_free_op};
+
+// --- Tanh / Sigmoid activation layers ---
+static boat_tensor_t* tanh_forward_op(const boat_layer_t* layer, const boat_tensor_t* input) {
+    return boat_tanh_layer_forward((boat_tanh_layer_t*)layer->data, input);
+}
+static boat_tensor_t* tanh_backward_op(const boat_layer_t* layer, const boat_tensor_t* grad) {
+    return boat_tanh_layer_backward((boat_tanh_layer_t*)layer->data, grad);
+}
+static void tanh_update_op(const boat_layer_t* layer, float lr) {
+    boat_tanh_layer_update((boat_tanh_layer_t*)layer->data, lr);
+}
+static void tanh_free_op(const boat_layer_t* layer) {
+    if (layer && layer->data) {
+        boat_tanh_layer_free((boat_tanh_layer_t*)layer->data);
+        free((void*)layer);
+    }
+}
+static const boat_layer_ops_t tanh_ops = {.forward = tanh_forward_op,
+                                          .backward = tanh_backward_op,
+                                          .update = tanh_update_op,
+                                          .free = tanh_free_op};
+
+static boat_tensor_t* sigmoid_forward_op(const boat_layer_t* layer, const boat_tensor_t* input) {
+    return boat_sigmoid_layer_forward((boat_sigmoid_layer_t*)layer->data, input);
+}
+static boat_tensor_t* sigmoid_backward_op(const boat_layer_t* layer, const boat_tensor_t* grad) {
+    return boat_sigmoid_layer_backward((boat_sigmoid_layer_t*)layer->data, grad);
+}
+static void sigmoid_update_op(const boat_layer_t* layer, float lr) {
+    boat_sigmoid_layer_update((boat_sigmoid_layer_t*)layer->data, lr);
+}
+static void sigmoid_free_op(const boat_layer_t* layer) {
+    if (layer && layer->data) {
+        boat_sigmoid_layer_free((boat_sigmoid_layer_t*)layer->data);
+        free((void*)layer);
+    }
+}
+static const boat_layer_ops_t sigmoid_ops = {.forward = sigmoid_forward_op,
+                                             .backward = sigmoid_backward_op,
+                                             .update = sigmoid_update_op,
+                                             .free = sigmoid_free_op};
 static const boat_layer_ops_t flatten_ops = {.forward = flatten_forward_op,
                                              .backward = flatten_backward_op,
                                              .update = flatten_update_op,
@@ -835,6 +876,47 @@ static const boat_layer_ops_t rms_ops = {.forward = rms_forward_op,
                                          .backward = rms_backward_op,
                                          .update = rms_update_op,
                                          .free = rms_free_op};
+
+// --- LSTM / GRU ops ---
+static boat_tensor_t* lstm_forward_op(const boat_layer_t* layer, const boat_tensor_t* input) {
+    return boat_lstm_layer_forward((boat_lstm_layer_t*)layer->data, input);
+}
+static boat_tensor_t* lstm_backward_op(const boat_layer_t* layer, const boat_tensor_t* grad) {
+    return boat_lstm_layer_backward((boat_lstm_layer_t*)layer->data, grad);
+}
+static void lstm_update_op(const boat_layer_t* layer, float lr) {
+    boat_lstm_layer_update((boat_lstm_layer_t*)layer->data, lr);
+}
+static void lstm_free_op(const boat_layer_t* layer) {
+    if (layer && layer->data) {
+        boat_lstm_layer_free((boat_lstm_layer_t*)layer->data);
+        free((void*)layer);
+    }
+}
+static const boat_layer_ops_t lstm_ops = {.forward = lstm_forward_op,
+                                          .backward = lstm_backward_op,
+                                          .update = lstm_update_op,
+                                          .free = lstm_free_op};
+
+static boat_tensor_t* gru_forward_op(const boat_layer_t* layer, const boat_tensor_t* input) {
+    return boat_gru_layer_forward((boat_gru_layer_t*)layer->data, input);
+}
+static boat_tensor_t* gru_backward_op(const boat_layer_t* layer, const boat_tensor_t* grad) {
+    return boat_gru_layer_backward((boat_gru_layer_t*)layer->data, grad);
+}
+static void gru_update_op(const boat_layer_t* layer, float lr) {
+    boat_gru_layer_update((boat_gru_layer_t*)layer->data, lr);
+}
+static void gru_free_op(const boat_layer_t* layer) {
+    if (layer && layer->data) {
+        boat_gru_layer_free((boat_gru_layer_t*)layer->data);
+        free((void*)layer);
+    }
+}
+static const boat_layer_ops_t gru_ops = {.forward = gru_forward_op,
+                                         .backward = gru_backward_op,
+                                         .update = gru_update_op,
+                                         .free = gru_free_op};
 
 // --- Merge ops (concatenation / addition) ---
 static boat_tensor_t* concat_forward_many_op(const boat_layer_t* layer,
@@ -896,10 +978,14 @@ BOAT_API void boat_layer_resolve_ops(boat_layer_t* wrapper) {
     case BOAT_LAYER_TYPE_MAXPOOL2D: wrapper->ops = &pool_ops; break;
     case BOAT_LAYER_TYPE_RELU: wrapper->ops = &relu_ops; break;
     case BOAT_LAYER_TYPE_SOFTMAX: wrapper->ops = &softmax_ops; break;
+    case BOAT_LAYER_TYPE_TANH: wrapper->ops = &tanh_ops; break;
+    case BOAT_LAYER_TYPE_SIGMOID: wrapper->ops = &sigmoid_ops; break;
     case BOAT_LAYER_TYPE_FLATTEN: wrapper->ops = &flatten_ops; break;
     case BOAT_LAYER_TYPE_BATCHNORM2D: wrapper->ops = &bn_ops; break;
     case BOAT_LAYER_TYPE_ATTENTION: wrapper->ops = &attn_ops; break;
     case BOAT_LAYER_TYPE_RMSNORM: wrapper->ops = &rms_ops; break;
+    case BOAT_LAYER_TYPE_LSTM: wrapper->ops = &lstm_ops; break;
+    case BOAT_LAYER_TYPE_GRU: wrapper->ops = &gru_ops; break;
     case BOAT_LAYER_TYPE_CONCAT: wrapper->ops = &concat_ops; break;
     case BOAT_LAYER_TYPE_ADD: wrapper->ops = &add_ops; break;
     default: wrapper->ops = NULL; break;
@@ -1082,6 +1168,8 @@ BOAT_API bool boat_model_save(const boat_model_t* model, const char* filename) {
             break;
         }
         case BOAT_LAYER_TYPE_RELU:
+        case BOAT_LAYER_TYPE_TANH:
+        case BOAT_LAYER_TYPE_SIGMOID:
         case BOAT_LAYER_TYPE_FLATTEN: {
             uint32_t hp_size = 0;
             if (fwrite(&hp_size, sizeof(uint32_t), 1, f) != 1) {
@@ -1345,6 +1433,36 @@ BOAT_API boat_model_t* boat_model_load(const char* filename) {
                 return NULL;
             }
             wrapper->data = relu;
+            uint32_t tc;
+            fread(&tc, sizeof(uint32_t), 1, f);
+            break;
+        }
+        case BOAT_LAYER_TYPE_TANH: {
+            uint32_t hp_size;
+            fread(&hp_size, sizeof(uint32_t), 1, f);
+            boat_tanh_layer_t* tanh = boat_tanh_layer_create();
+            if (!tanh) {
+                free(wrapper);
+                boat_model_free(model);
+                fclose(f);
+                return NULL;
+            }
+            wrapper->data = tanh;
+            uint32_t tc;
+            fread(&tc, sizeof(uint32_t), 1, f);
+            break;
+        }
+        case BOAT_LAYER_TYPE_SIGMOID: {
+            uint32_t hp_size;
+            fread(&hp_size, sizeof(uint32_t), 1, f);
+            boat_sigmoid_layer_t* sig = boat_sigmoid_layer_create();
+            if (!sig) {
+                free(wrapper);
+                boat_model_free(model);
+                fclose(f);
+                return NULL;
+            }
+            wrapper->data = sig;
             uint32_t tc;
             fread(&tc, sizeof(uint32_t), 1, f);
             break;

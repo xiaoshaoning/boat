@@ -13,11 +13,12 @@
 #include <boat/cuda_runtime.h>
 #endif
 
-// Pooling layer structure (MaxPool2d)
+// Pooling layer structure (MaxPool2d / AveragePool2d)
 struct boat_pool_layer_t {
     size_t pool_size;
     size_t stride;
     size_t padding;
+    bool is_average; // average pooling (true) vs max pooling (false)
 
     // Cache for backward pass
     boat_tensor_t* cache_input; // Input tensor from forward pass
@@ -41,6 +42,7 @@ BOAT_API boat_pool_layer_t* BOAT_CALL boat_pool_layer_create(size_t pool_size, s
     layer->pool_size = pool_size;
     layer->stride = stride;
     layer->padding = padding;
+    layer->is_average = false;
     layer->cache_input = NULL;
     layer->max_indices = NULL;
     layer->cache_batch = 0;
@@ -93,6 +95,11 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_forward(boat_pool_layer_t* lay
 
 #ifdef BOAT_WITH_CUDA
     if (boat_tensor_device(input) == BOAT_DEVICE_CUDA) {
+        if (layer->is_average) {
+            boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                            "[PoolLayer] AveragePool2d has no CUDA kernel; use CPU\n");
+            return NULL;
+        }
         boat_tensor_t* output =
             boat_tensor_create(output_shape, 4, BOAT_DTYPE_FLOAT32, BOAT_DEVICE_CUDA);
         if (!output) return NULL;
@@ -164,14 +171,20 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_forward(boat_pool_layer_t* lay
     layer->cache_input = (boat_tensor_t*)input;
     boat_tensor_ref(layer->cache_input);
 
-    // Allocate max indices array (one index per output element)
+    // Allocate max indices array (one index per output element); not needed
+    // for average pooling (backward for AveragePool2d is not implemented).
     size_t output_elements = batch * channels * height_out * width_out;
-    layer->max_indices = (int64_t*)boat_malloc(output_elements * sizeof(int64_t), BOAT_DEVICE_CPU);
-    if (!layer->max_indices) {
-        boat_tensor_unref(output);
-        boat_tensor_unref(layer->cache_input);
-        layer->cache_input = NULL;
-        return NULL;
+    if (!layer->is_average) {
+        layer->max_indices =
+            (int64_t*)boat_malloc(output_elements * sizeof(int64_t), BOAT_DEVICE_CPU);
+        if (!layer->max_indices) {
+            boat_tensor_unref(output);
+            boat_tensor_unref(layer->cache_input);
+            layer->cache_input = NULL;
+            return NULL;
+        }
+    } else {
+        layer->max_indices = NULL;
     }
 
     // Store dimensions for backward pass
@@ -182,7 +195,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_forward(boat_pool_layer_t* lay
     layer->cache_height_out = height_out;
     layer->cache_width_out = width_out;
 
-    // Perform MaxPool2d
+    // Perform MaxPool2d / AveragePool2d
     for (int64_t b = 0; b < batch; b++) {
         for (int64_t c = 0; c < channels; c++) {
             for (int64_t oh = 0; oh < height_out; oh++) {
@@ -198,25 +211,40 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_pool_layer_forward(boat_pool_layer_t* lay
                     h_end = h_end > height ? height : h_end;
                     w_end = w_end > width ? width : w_end;
 
-                    // Find max value in pooling window
-                    float max_val = -INFINITY;
-                    int64_t max_idx = -1;
-
-                    for (int64_t ph = h_start; ph < h_end; ph++) {
-                        for (int64_t pw = w_start; pw < w_end; pw++) {
-                            int64_t input_idx = ((b * channels + c) * height + ph) * width + pw;
-                            float val = input_data[input_idx];
-                            if (val > max_val) {
-                                max_val = val;
-                                max_idx = input_idx;
+                    int64_t output_idx = ((b * channels + c) * height_out + oh) * width_out + ow;
+                    if (layer->is_average) {
+                        // Mean over the (clamped) pooling window.
+                        float acc = 0.0f;
+                        for (int64_t ph = h_start; ph < h_end; ph++) {
+                            for (int64_t pw = w_start; pw < w_end; pw++) {
+                                int64_t input_idx =
+                                    ((b * channels + c) * height + ph) * width + pw;
+                                acc += input_data[input_idx];
                             }
                         }
-                    }
+                        int64_t count = (h_end - h_start) * (w_end - w_start);
+                        output_data[output_idx] = count > 0 ? acc / (float)count : 0.0f;
+                    } else {
+                        // Find max value in pooling window
+                        float max_val = -INFINITY;
+                        int64_t max_idx = -1;
 
-                    // Store output and max index
-                    int64_t output_idx = ((b * channels + c) * height_out + oh) * width_out + ow;
-                    output_data[output_idx] = max_val;
-                    layer->max_indices[output_idx] = max_idx;
+                        for (int64_t ph = h_start; ph < h_end; ph++) {
+                            for (int64_t pw = w_start; pw < w_end; pw++) {
+                                int64_t input_idx =
+                                    ((b * channels + c) * height + ph) * width + pw;
+                                float val = input_data[input_idx];
+                                if (val > max_val) {
+                                    max_val = val;
+                                    max_idx = input_idx;
+                                }
+                            }
+                        }
+
+                        // Store output and max index
+                        output_data[output_idx] = max_val;
+                        layer->max_indices[output_idx] = max_idx;
+                    }
                 }
             }
         }
@@ -311,4 +339,9 @@ BOAT_API BOAT_NOINLINE size_t BOAT_CALL boat_pool_layer_get_stride(const boat_po
 BOAT_API BOAT_NOINLINE size_t BOAT_CALL
 boat_pool_layer_get_padding(const boat_pool_layer_t* layer) {
     return layer ? layer->padding : 0;
+}
+
+BOAT_API void BOAT_CALL boat_pool_layer_set_average(boat_pool_layer_t* layer, bool average) {
+    if (!layer) return;
+    layer->is_average = average;
 }

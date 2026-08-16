@@ -26,6 +26,8 @@ typedef enum {
     BOAT_LAYER_TYPE_MAXPOOL2D,
     BOAT_LAYER_TYPE_RELU,
     BOAT_LAYER_TYPE_SOFTMAX,
+    BOAT_LAYER_TYPE_TANH,
+    BOAT_LAYER_TYPE_SIGMOID,
     BOAT_LAYER_TYPE_FLATTEN,
     BOAT_LAYER_TYPE_LAYERNORM,
     BOAT_LAYER_TYPE_RMSNORM,
@@ -146,6 +148,8 @@ BOAT_API void BOAT_CALL boat_pool_layer_update(boat_pool_layer_t* layer, float l
 BOAT_API size_t BOAT_CALL boat_pool_layer_get_pool_size(const boat_pool_layer_t* layer);
 BOAT_API size_t BOAT_CALL boat_pool_layer_get_stride(const boat_pool_layer_t* layer);
 BOAT_API size_t BOAT_CALL boat_pool_layer_get_padding(const boat_pool_layer_t* layer);
+// Select average pooling (true) or max pooling (false, the default).
+BOAT_API void BOAT_CALL boat_pool_layer_set_average(boat_pool_layer_t* layer, bool average);
 
 // Normalization layer functions (simplified interface)
 BOAT_API boat_norm_layer_t* BOAT_CALL boat_norm_layer_create(size_t normalized_shape, float eps,
@@ -207,6 +211,25 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_softmax_layer_backward(boat_softmax_layer
                                                               const boat_tensor_t* grad_output);
 BOAT_API void BOAT_CALL boat_softmax_layer_update(boat_softmax_layer_t* layer, float learning_rate);
 BOAT_API int BOAT_CALL boat_softmax_layer_get_axis(const boat_softmax_layer_t* layer);
+
+typedef struct boat_tanh_layer_t boat_tanh_layer_t;
+BOAT_API boat_tanh_layer_t* BOAT_CALL boat_tanh_layer_create(void);
+BOAT_API void BOAT_CALL boat_tanh_layer_free(boat_tanh_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_tanh_layer_forward(boat_tanh_layer_t* layer,
+                                                          const boat_tensor_t* input);
+BOAT_API boat_tensor_t* BOAT_CALL boat_tanh_layer_backward(boat_tanh_layer_t* layer,
+                                                           const boat_tensor_t* grad_output);
+BOAT_API void BOAT_CALL boat_tanh_layer_update(boat_tanh_layer_t* layer, float learning_rate);
+
+typedef struct boat_sigmoid_layer_t boat_sigmoid_layer_t;
+BOAT_API boat_sigmoid_layer_t* BOAT_CALL boat_sigmoid_layer_create(void);
+BOAT_API void BOAT_CALL boat_sigmoid_layer_free(boat_sigmoid_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL boat_sigmoid_layer_forward(boat_sigmoid_layer_t* layer,
+                                                             const boat_tensor_t* input);
+BOAT_API boat_tensor_t* BOAT_CALL boat_sigmoid_layer_backward(boat_sigmoid_layer_t* layer,
+                                                              const boat_tensor_t* grad_output);
+BOAT_API void BOAT_CALL boat_sigmoid_layer_update(boat_sigmoid_layer_t* layer,
+                                                  float learning_rate);
 
 typedef struct boat_flatten_layer_t boat_flatten_layer_t;
 

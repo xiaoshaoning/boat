@@ -220,6 +220,7 @@ set(BOAT_SOURCES
     src/layers/norm.c
     src/layers/attention.c
     src/layers/relu.c
+    src/layers/activation_layers.c
     src/layers/prelu.c
     src/layers/batchnorm.c
     src/layers/softmax.c

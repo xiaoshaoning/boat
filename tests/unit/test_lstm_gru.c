@@ -87,7 +87,9 @@ static void ref_lstm_forward(const float* x, const float* w_ih, const float* w_h
     free(c_curr);
 }
 
-// GRU reference. Gate order is [reset, update, new] over 3*hidden.
+// GRU reference. Gate order is [reset, update, new] over 3*hidden. The
+// candidate applies the reset to h_prev BEFORE the recurrent matmul, and
+// the update is h = (1 - z)*h_prev + z*n (MATLAB/PyTorch convention).
 static void ref_gru_forward(const float* x, const float* w_ih, const float* w_hh, const float* b_ih,
                             const float* b_hh, size_t batch, size_t T, size_t in, size_t h,
                             float* out) {
@@ -105,26 +107,33 @@ static void ref_gru_forward(const float* x, const float* w_ih, const float* w_hh
             const float* xt = x + (t * batch + b) * in;
             const float* hp = h_prev + b * h;
             float* hb = h_curr + b * h;
+            float* rv = ALLOC_F32(h);
+            float* zv = ALLOC_F32(h);
             for (size_t j = 0; j < h; j++) {
                 float a_r = b_ih[j] + b_hh[j];
                 float a_z = b_ih[h + j] + b_hh[h + j];
-                float a_ih_n = b_ih[2 * h + j];
-                float a_hh_n = b_hh[2 * h + j];
                 for (size_t p = 0; p < in; p++) {
                     a_r += xt[p] * w_ih[p * gdim + j];
                     a_z += xt[p] * w_ih[p * gdim + h + j];
-                    a_ih_n += xt[p] * w_ih[p * gdim + 2 * h + j];
                 }
                 for (size_t p = 0; p < h; p++) {
                     a_r += hp[p] * w_hh[p * gdim + j];
                     a_z += hp[p] * w_hh[p * gdim + h + j];
-                    a_hh_n += hp[p] * w_hh[p * gdim + 2 * h + j];
                 }
-                float r = sigmoidf(a_r);
-                float z = sigmoidf(a_z);
-                float n = tanhf(a_ih_n + r * a_hh_n);
-                hb[j] = (1.0f - z) * n + z * hp[j];
+                rv[j] = sigmoidf(a_r);
+                zv[j] = sigmoidf(a_z);
             }
+            for (size_t j = 0; j < h; j++) {
+                float a_n = b_ih[2 * h + j];
+                for (size_t p = 0; p < in; p++)
+                    a_n += xt[p] * w_ih[p * gdim + 2 * h + j];
+                for (size_t p = 0; p < h; p++)
+                    a_n += (rv[p] * hp[p]) * w_hh[p * gdim + 2 * h + j];
+                float n = tanhf(a_n + b_hh[2 * h + j]);
+                hb[j] = (1.0f - zv[j]) * hp[j] + zv[j] * n;
+            }
+            free(rv);
+            free(zv);
         }
         memcpy(out + t * batch * h, h_curr, batch * h * sizeof(float));
         memcpy(h_prev, h_curr, batch * h * sizeof(float));
@@ -167,11 +176,13 @@ static float run_gru_loss(boat_gru_layer_t* layer, boat_tensor_t* input) {
     if (!out) return NAN;
     const float* d = (const float*)boat_tensor_const_data(out);
     size_t n = boat_tensor_nelements(out);
-    float sum = 0.0f;
+    /* accumulate in double: float32 summing of 30+ outputs leaves the
+       finite-difference numerator (~2e-6) inside the rounding error */
+    double sum = 0.0;
     for (size_t i = 0; i < n; i++)
-        sum += d[i];
+        sum += (double) d[i];
     boat_tensor_free(out);
-    return sum;
+    return (float) sum;
 }
 
 // Central finite difference of a scalar loss w.r.t. one element of `param`.

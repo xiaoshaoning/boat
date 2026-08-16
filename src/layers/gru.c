@@ -284,12 +284,14 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_forward(boat_gru_layer_t* layer
     float* combined = (float*)boat_malloc(batch * gate_dim * sizeof(float), BOAT_DEVICE_CPU);
     float* h_prev = (float*)boat_malloc(batch * hidden * sizeof(float), BOAT_DEVICE_CPU);
     float* h_curr = (float*)boat_malloc(batch * hidden * sizeof(float), BOAT_DEVICE_CPU);
-    if (!a_ih || !a_hh || !combined || !h_prev || !h_curr) {
+    float* rbuf = (float*)boat_malloc(batch * hidden * sizeof(float), BOAT_DEVICE_CPU);
+    if (!a_ih || !a_hh || !combined || !h_prev || !h_curr || !rbuf) {
         boat_free(a_ih);
         boat_free(a_hh);
         boat_free(combined);
         boat_free(h_prev);
         boat_free(h_curr);
+        boat_free(rbuf);
         boat_tensor_free(output);
         gru_clear_cache(layer);
         return NULL;
@@ -311,35 +313,41 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_forward(boat_gru_layer_t* layer
             combined[i] = a_ih[i] + a_hh[i];
         }
 
-        // Gate activations: r = sigmoid(g[0:h]), z = sigmoid(g[h:2h]),
-        // n = tanh(a_ih[2h:3h] + r .* a_hh[2h:3h]); h = (1 - z) .* n + z .* h_prev
+        // Gate activations: r = sigmoid(g[0:h]), z = sigmoid(g[h:2h]).
+        // The candidate applies the reset to h_prev BEFORE the recurrent
+        // matmul (MATLAB/PyTorch convention):
+        //   n = tanh(a_ih[2h:3h] + (r .* h_prev) @ W_hh[2h:3h] + b_hh[2h:3h])
+        //   h = (1 - z) .* h_prev + z .* n
+        // r/z gates (vectorized sigmoid over the combined pre-activations).
+        for (size_t b = 0; b < batch; b++) {
+            const float* row = combined + b * gate_dim;
+            float* rb = rbuf + b * hidden;
+            size_t j = 0;
+#if BOAT_HAVE_AVX2
+            for (; j + 8 <= hidden; j += 8) {
+                __m256 r = boat_simd_sigmoid256(_mm256_loadu_ps(row + j));
+                _mm256_storeu_ps(rb + j, r);
+            }
+#endif
+            for (; j < hidden; j++)
+                rb[j] = gru_sigmoid_f32(row[j]);
+        }
+        // Candidate + hidden-state update (scalar; needs the masked matmul).
         for (size_t b = 0; b < batch; b++) {
             const float* row = combined + b * gate_dim;
             const float* aih = a_ih + b * gate_dim;
-            const float* ahh = a_hh + b * gate_dim;
             const float* hpb = h_prev + b * hidden;
+            const float* rb = rbuf + b * hidden;
+            const float* bhh = b_hh + 2 * hidden;
+            const float* whh_n = w_hh + 2 * hidden; // w_hh[k][2h+j]
             float* hb = h_curr + b * hidden;
-            size_t j = 0;
-#if BOAT_HAVE_AVX2
-            const size_t h2 = hidden * 2;
-            const __m256 one = _mm256_set1_ps(1.0f);
-            for (; j + 8 <= hidden; j += 8) {
-                __m256 r = boat_simd_sigmoid256(_mm256_loadu_ps(row + j));
-                __m256 z = boat_simd_sigmoid256(_mm256_loadu_ps(row + hidden + j));
-                __m256 pre = _mm256_add_ps(_mm256_loadu_ps(aih + h2 + j),
-                                           _mm256_mul_ps(r, _mm256_loadu_ps(ahh + h2 + j)));
-                __m256 n = boat_simd_tanh256(pre);
-                __m256 hp = _mm256_loadu_ps(hpb + j);
-                _mm256_storeu_ps(hb + j,
-                                 _mm256_add_ps(_mm256_mul_ps(_mm256_sub_ps(one, z), n),
-                                               _mm256_mul_ps(z, hp)));
-            }
-#endif
-            for (; j < hidden; j++) {
-                float r = gru_sigmoid_f32(row[j]);
+            for (size_t j = 0; j < hidden; j++) {
                 float z = gru_sigmoid_f32(row[hidden + j]);
-                float n = tanhf(aih[2 * hidden + j] + r * ahh[2 * hidden + j]);
-                hb[j] = (1.0f - z) * n + z * hpb[j];
+                float acc = bhh[j];
+                for (size_t k = 0; k < hidden; k++)
+                    acc += whh_n[k * gate_dim + j] * (rb[k] * hpb[k]);
+                float n = tanhf(aih[2 * hidden + j] + acc);
+                hb[j] = (1.0f - z) * hpb[j] + z * n;
             }
         }
 
@@ -361,6 +369,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_forward(boat_gru_layer_t* layer
             boat_free(combined);
             boat_free(h_prev);
             boat_free(h_curr);
+            boat_free(rbuf);
             boat_tensor_free(output);
             gru_clear_cache(layer);
             return NULL;
@@ -381,6 +390,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_forward(boat_gru_layer_t* layer
     boat_free(combined);
     boat_free(h_prev);
     boat_free(h_curr);
+    boat_free(rbuf);
 
     return output;
 }
@@ -423,6 +433,8 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_backward(boat_gru_layer_t* laye
     const float* dy = (const float*)boat_tensor_const_data(grad_output);
     const float* w_ih = (const float*)boat_tensor_const_data(layer->weight_ih);
     const float* w_hh = (const float*)boat_tensor_const_data(layer->weight_hh);
+    const float* b_ih = (const float*)boat_tensor_const_data(layer->bias_ih);
+    const float* b_hh = (const float*)boat_tensor_const_data(layer->bias_hh);
     float* dx = (float*)boat_tensor_data(grad_input);
 
     // Lazy-create gradient accumulators
@@ -472,17 +484,28 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_backward(boat_gru_layer_t* laye
     float* d_h = (float*)boat_malloc(batch * hidden * sizeof(float), BOAT_DEVICE_CPU);
     float* d_h_rec = (float*)boat_malloc(batch * hidden * sizeof(float), BOAT_DEVICE_CPU);
     float* d_h_next = (float*)boat_malloc(batch * hidden * sizeof(float), BOAT_DEVICE_CPU);
+    float* d_a_n = (float*)boat_malloc(batch * hidden * sizeof(float), BOAT_DEVICE_CPU);
+    float* hm = (float*)boat_malloc(batch * hidden * sizeof(float), BOAT_DEVICE_CPU);
+    float* da_hh_rz = (float*)boat_malloc(batch * gate_dim * sizeof(float), BOAT_DEVICE_CPU);
+    float* rv2 = (float*)boat_malloc(batch * hidden * sizeof(float), BOAT_DEVICE_CPU);
+    float* zv2 = (float*)boat_malloc(batch * hidden * sizeof(float), BOAT_DEVICE_CPU);
     // Scratch for grad_W = x^T @ d_a: needs max(input_size, hidden) * gate_dim
     float* acc = (float*)boat_malloc(
         ((input_size > hidden ? input_size : hidden) * gate_dim) * sizeof(float), BOAT_DEVICE_CPU);
     float* acc_bias = (float*)boat_malloc(gate_dim * sizeof(float), BOAT_DEVICE_CPU);
-    if (!d_a_ih || !d_a_hh || !d_x_t || !d_h || !d_h_rec || !d_h_next || !acc || !acc_bias) {
+    if (!d_a_ih || !d_a_hh || !d_x_t || !d_h || !d_h_rec || !d_h_next || !acc || !acc_bias ||
+        !d_a_n || !hm || !da_hh_rz || !rv2 || !zv2) {
         boat_free(d_a_ih);
         boat_free(d_a_hh);
         boat_free(d_x_t);
         boat_free(d_h);
         boat_free(d_h_rec);
         boat_free(d_h_next);
+        boat_free(d_a_n);
+        boat_free(hm);
+        boat_free(da_hh_rz);
+        boat_free(rv2);
+        boat_free(zv2);
         boat_free(acc);
         boat_free(acc_bias);
         boat_tensor_free(grad_input);
@@ -494,7 +517,6 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_backward(boat_gru_layer_t* laye
     for (size_t t = seq_len; t-- > 0;) {
         const float* dy_t = dy + t * batch * hidden;
         const float* gates_t = layer->cache_gates[t];
-        const float* a_hh_t = layer->cache_a_hh[t];
         const float* h_prev_t = (t == 0) ? NULL : layer->cache_h[t - 1];
 
         // d_h = dy_t + d_h_next
@@ -502,97 +524,114 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_backward(boat_gru_layer_t* laye
             d_h[i] = dy_t[i] + d_h_next[i];
         }
 
-        // Backprop through reset/update/new gates using cached pre-activations
+        /* Backprop through the reset/update/new gates. The candidate applies
+           the reset to h_prev BEFORE the recurrent matmul (see forward):
+           a_n = a_ih[n] + (r .* h_prev) @ W_hh[n] + b_hh[n]. r/z are
+           recomputed from the cached combined pre-activations. */
+        memset(da_hh_rz, 0, batch * gate_dim * sizeof(float));
         for (size_t b = 0; b < batch; b++) {
             const float* row = gates_t + b * gate_dim;
-            const float* ahh = a_hh_t + b * gate_dim;
             const float* hpb = (h_prev_t != NULL) ? h_prev_t + b * hidden : NULL;
+            const float* xt = x + t * batch * input_size + b * input_size;
             float* da_ih = d_a_ih + b * gate_dim;
-            float* da_hh = d_a_hh + b * gate_dim;
             float* dhb = d_h + b * hidden;
             float* dhr = d_h_rec + b * hidden;
+            float* hmb = hm + b * hidden;
 
-            size_t j = 0;
-#if BOAT_HAVE_AVX2
-            const size_t h2 = hidden * 2;
-            const __m256 one = _mm256_set1_ps(1.0f);
-            const __m256 zero = _mm256_setzero_ps();
-            for (; j + 8 <= hidden; j += 8) {
-                __m256 vr = boat_simd_sigmoid256(_mm256_loadu_ps(row + j));
-                __m256 vz = boat_simd_sigmoid256(_mm256_loadu_ps(row + hidden + j));
-                __m256 vahh = _mm256_loadu_ps(ahh + h2 + j);
-                __m256 vn = boat_simd_tanh256(_mm256_add_ps(
-                    _mm256_sub_ps(_mm256_loadu_ps(row + h2 + j), vahh),
-                    _mm256_mul_ps(vr, vahh)));
-
-                __m256 vdhb = _mm256_loadu_ps(dhb + j);
-                __m256 vd_n = _mm256_mul_ps(vdhb, _mm256_sub_ps(one, vz));
-                __m256 vhp = hpb ? _mm256_loadu_ps(hpb + j) : zero;
-                __m256 vd_z = _mm256_mul_ps(vdhb, _mm256_sub_ps(vhp, vn));
-                _mm256_storeu_ps(dhr + j, _mm256_mul_ps(vdhb, vz));
-
-                __m256 vd_n_raw = _mm256_mul_ps(vd_n, _mm256_fnmadd_ps(vn, vn, one));
-                __m256 vd_z_raw = _mm256_mul_ps(vd_z, _mm256_mul_ps(vz, _mm256_sub_ps(one, vz)));
-                __m256 vd_r = _mm256_mul_ps(vd_n_raw, vahh);
-                __m256 vd_a_hh_new = _mm256_mul_ps(vd_n_raw, vr);
-                __m256 vd_r_raw = _mm256_mul_ps(vd_r, _mm256_mul_ps(vr, _mm256_sub_ps(one, vr)));
-
-                _mm256_storeu_ps(da_ih + j, vd_r_raw);
-                _mm256_storeu_ps(da_ih + hidden + j, vd_z_raw);
-                _mm256_storeu_ps(da_ih + h2 + j, vd_n_raw);
-                _mm256_storeu_ps(da_hh + j, vd_r_raw);
-                _mm256_storeu_ps(da_hh + hidden + j, vd_z_raw);
-                _mm256_storeu_ps(da_hh + h2 + j, vd_a_hh_new);
-            }
-#endif
-            for (; j < hidden; j++) {
+            /* first pass A: r/z gates for every unit of this sample (the
+               candidate sum needs r_p for ALL p, so gates are precomputed) */
+            for (size_t j = 0; j < hidden; j++) {
                 float r = gru_sigmoid_f32(row[j]);
                 float z = gru_sigmoid_f32(row[hidden + j]);
-                float a_new = row[2 * hidden + j] - ahh[2 * hidden + j];
-                float n = tanhf(a_new + r * ahh[2 * hidden + j]);
+                rv2[b * hidden + j] = r;
+                zv2[b * hidden + j] = z;
+                hmb[j] = r * (hpb ? hpb[j] : 0.0f);
+            }
+            /* first pass B: candidate pre-activation (reset applied to h_prev
+               per unit BEFORE the recurrent matmul) + per-unit deltas */
+            for (size_t j = 0; j < hidden; j++) {
+                float hp = hpb ? hpb[j] : 0.0f;
+                float z = zv2[b * hidden + j];
 
-                // h = (1 - z) .* n + z .* h_prev
-                float d_n = dhb[j] * (1.0f - z);
-                float d_z = dhb[j] * ((hpb ? hpb[j] : 0.0f) - n);
-                dhr[j] = dhb[j] * z;
+                float a_n = b_ih[2 * hidden + j] + b_hh[2 * hidden + j];
+                for (size_t p = 0; p < input_size; p++)
+                    a_n += xt[p] * w_ih[p * gate_dim + 2 * hidden + j];
+                for (size_t p = 0; p < hidden; p++)
+                    a_n += w_hh[p * gate_dim + 2 * hidden + j] *
+                           (rv2[b * hidden + p] * (hpb ? hpb[p] : 0.0f));
+                float n = tanhf(a_n);
 
-                // n = tanh(n_raw); z = sigmoid(z_raw); r = sigmoid(r_raw)
-                float d_n_raw = d_n * (1.0f - n * n);
-                float d_z_raw = d_z * z * (1.0f - z);
-                float d_r = d_n_raw * ahh[2 * hidden + j];
-                float d_a_hh_new = d_n_raw * r;
-                float d_r_raw = d_r * r * (1.0f - r);
+                float d_n_raw = (dhb[j] * z) * (1.0f - n * n);
+                float d_z_raw = (dhb[j] * (n - hp)) * z * (1.0f - z);
 
-                da_ih[j] = d_r_raw;
+                dhr[j] = dhb[j] * (1.0f - z);
+                da_ih[j] = 0.0f; /* d_a_r filled in the second pass */
                 da_ih[hidden + j] = d_z_raw;
                 da_ih[2 * hidden + j] = d_n_raw;
-                da_hh[j] = d_r_raw;
-                da_hh[hidden + j] = d_z_raw;
-                da_hh[2 * hidden + j] = d_a_hh_new;
+                d_a_n[b * hidden + j] = d_n_raw;
             }
+            /* second pass: d_r from the masked recurrent term; d_h from the
+               r/z gates into every destination unit p */
+            for (size_t j = 0; j < hidden; j++) {
+                float d_r = 0.0f;
+                /* d_r_j = h_j * sum_p W_hh[j][n+p] * d_a_n_p (row j of the
+                   n-block dotted with the candidate deltas) */
+                for (size_t p = 0; p < hidden; p++)
+                    d_r += w_hh[j * gate_dim + 2 * hidden + p] * d_a_n[b * hidden + p];
+                d_r *= (hpb ? hpb[j] : 0.0f);
+                float r = rv2[b * hidden + j];
+                float d_r_raw = d_r * r * (1.0f - r);
+                da_ih[j] = d_r_raw;
+                for (size_t p = 0; p < hidden; p++) {
+                    dhr[p] += w_hh[p * gate_dim + j] * d_r_raw +
+                              w_hh[p * gate_dim + hidden + j] * da_ih[hidden + j];
+                }
+            }
+            /* d_h from the n gate: r_p * (W_hh[n]^T d_a_n)_p */
+            for (size_t p = 0; p < hidden; p++) {
+                float s = 0.0f;
+                for (size_t j = 0; j < hidden; j++)
+                    s += w_hh[p * gate_dim + 2 * hidden + j] * d_a_n[b * hidden + j];
+                dhr[p] += rv2[b * hidden + p] * s;
+            }
+
+            /* the generic W_hh / bias accumulation uses the r/z blocks only;
+               the n block is handled via the masked state below */
+            memcpy(da_hh_rz + b * gate_dim, da_ih, hidden * sizeof(float));
+            memcpy(da_hh_rz + b * gate_dim + hidden, da_ih + hidden, hidden * sizeof(float));
         }
 
-        // d_x_t = d_a_ih @ W_ih^T ; d_h_next = d_a_hh @ W_hh^T + d_h_rec
+        /* d_x_t = d_a_ih @ W_ih^T ; d_h_next = da_hh_rz @ W_hh^T + d_h_rec */
         gru_matmul_bt(d_a_ih, w_ih, d_x_t, batch, gate_dim, input_size);
         memcpy(dx + t * batch * input_size, d_x_t, batch * input_size * sizeof(float));
-        gru_matmul_bt(d_a_hh, w_hh, d_h_next, batch, gate_dim, hidden);
+        gru_matmul_bt(da_hh_rz, w_hh, d_h_next, batch, gate_dim, hidden);
         for (size_t i = 0; i < batch * hidden; i++) {
             d_h_next[i] += d_h_rec[i];
         }
 
-        // grad_W_ih += x_t^T @ d_a_ih ; grad_W_hh += h_prev^T @ d_a_hh
+        /* grad_W_ih += x_t^T @ d_a_ih ; grad_W_hh: r/z blocks via h_prev,
+           n block via the masked state (r .* h_prev) */
         gru_matmul_at(x + t * batch * input_size, d_a_ih, acc, batch, input_size, gate_dim);
         for (size_t i = 0; i < input_size * gate_dim; i++) {
             gw_ih[i] += acc[i];
         }
         if (h_prev_t != NULL) {
-            gru_matmul_at(h_prev_t, d_a_hh, acc, batch, hidden, gate_dim);
+            gru_matmul_at(h_prev_t, da_hh_rz, acc, batch, hidden, gate_dim);
             for (size_t i = 0; i < hidden * gate_dim; i++) {
                 gw_hh[i] += acc[i];
             }
+            for (size_t p = 0; p < hidden; p++) {
+                for (size_t j = 0; j < hidden; j++) {
+                    float s = 0.0f;
+                    for (size_t b = 0; b < batch; b++)
+                        s += hm[b * hidden + p] * d_a_n[b * hidden + j];
+                    gw_hh[p * gate_dim + 2 * hidden + j] += s;
+                }
+            }
         }
 
-        // grad_bias += sum over the batch dimension
+        /* Both biases receive sum_b d_a_ih (b_ih in a_ih/combined; b_hh in
+           combined and in the candidate's explicit b_hh[n] term). */
         memset(acc_bias, 0, gate_dim * sizeof(float));
         for (size_t b = 0; b < batch; b++) {
             const float* da = d_a_ih + b * gate_dim;
@@ -602,15 +641,6 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_backward(boat_gru_layer_t* laye
         }
         for (size_t j = 0; j < gate_dim; j++) {
             gb_ih[j] += acc_bias[j];
-        }
-        memset(acc_bias, 0, gate_dim * sizeof(float));
-        for (size_t b = 0; b < batch; b++) {
-            const float* da = d_a_hh + b * gate_dim;
-            for (size_t j = 0; j < gate_dim; j++) {
-                acc_bias[j] += da[j];
-            }
-        }
-        for (size_t j = 0; j < gate_dim; j++) {
             gb_hh[j] += acc_bias[j];
         }
     }
@@ -621,6 +651,11 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_backward(boat_gru_layer_t* laye
     boat_free(d_h);
     boat_free(d_h_rec);
     boat_free(d_h_next);
+    boat_free(d_a_n);
+    boat_free(hm);
+    boat_free(da_hh_rz);
+    boat_free(rv2);
+    boat_free(zv2);
     boat_free(acc);
     boat_free(acc_bias);
 
