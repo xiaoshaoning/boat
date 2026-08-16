@@ -50,6 +50,10 @@ training_history.csv
 
 # Temporary data files
 *.bin
+# K-quant dequant reference fixture: generated deterministically by
+# tests/gen_kquant_fixture.py (needs the llama.cpp `gguf` python package,
+# which is not available on CI), so the output is committed instead.
+!tests/unit/kquant_fixture.bin
 nul
 stderr.txt
 stdout.txt

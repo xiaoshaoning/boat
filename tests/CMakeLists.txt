@@ -131,6 +131,13 @@ target_link_libraries(test_graph_optimize boat)
 
 boat_add_test_executable(test_gguf_kquant unit/test_gguf_kquant.c)
 target_link_libraries(test_gguf_kquant boat)
+# The reference fixture is committed (see .gitignore); regenerating it needs
+# the llama.cpp `gguf` python package which is not installed on CI.
+if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/kquant_fixture.bin)
+    message(FATAL_ERROR "tests/unit/kquant_fixture.bin is missing. "
+                        "Regenerate it with `python3 tests/gen_kquant_fixture.py` "
+                        "(requires numpy + the gguf package) and commit it.")
+endif()
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/unit/kquant_fixture.bin
                ${CMAKE_CURRENT_BINARY_DIR}/kquant_fixture.bin COPYONLY)
 

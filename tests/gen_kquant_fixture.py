@@ -1,5 +1,9 @@
 """Generate K-quant test fixtures: raw quantized bytes + reference dequantized
-values, produced by the authoritative `gguf` (llama.cpp) dequantizer."""
+values, produced by the authoritative `gguf` (llama.cpp) dequantizer.
+
+Deterministic (seeded RNG); the output tests/unit/kquant_fixture.bin is
+committed so fresh checkouts can configure and run the test suite without the
+gguf package (CI does not install it)."""
 import os
 import numpy as np
 from gguf.constants import GGMLQuantizationType
@@ -11,7 +15,7 @@ N = 256 * N_BLOCKS
 
 rng = np.random.RandomState(7)
 
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "kquant_fixture.bin")
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "unit", "kquant_fixture.bin")
 with open(OUT, "wb") as f:
     f.write(np.uint32(len(TYPES)).tobytes())
     for name in TYPES:
