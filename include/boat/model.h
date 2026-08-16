@@ -27,9 +27,17 @@ typedef struct boat_layer_t {
     boat_layer_type_t type;      // Layer type tag (for serialization)
 } boat_layer_t;
 
+// Multi-input layer argument: one tensor per incoming edge.
+// (Defined in layers.h, which model.h includes.)
+
 // Layer interface
 struct boat_layer_ops_t {
     boat_tensor_t* (*forward)(const boat_layer_t* layer, const boat_tensor_t* input);
+    // Multi-input forward (merge layers: concatenation/addition). Optional;
+    // layers without it are single-input only. `inputs` holds n_inputs tensor
+    // references in the order the graph's incoming forward edges were added.
+    boat_tensor_t* (*forward_many)(const boat_layer_t* layer,
+                                   const boat_layer_input_t* inputs, size_t n_inputs);
     boat_tensor_t* (*backward)(const boat_layer_t* layer, const boat_tensor_t* grad_output);
     void (*update)(const boat_layer_t* layer, float learning_rate);
     void (*free)(const boat_layer_t* layer);
@@ -48,6 +56,11 @@ BOAT_API void boat_model_set_graph(boat_model_t* model, boat_graph_t* graph);
 BOAT_API void* boat_model_get_user_data(const boat_model_t* model);
 BOAT_API void boat_model_set_user_data(boat_model_t* model, void* user_data,
                                        void (*free_fn)(void*));
+
+// Resolve a layer wrapper's ops table from its type tag. Fills layer->ops
+// when it is NULL. Used when constructing layer-backed graph nodes outside a
+// model (boat_model_add_layer does this automatically).
+BOAT_API void boat_layer_resolve_ops(boat_layer_t* layer);
 
 // Layer management
 BOAT_API void boat_model_add_layer(boat_model_t* model, boat_layer_t* layer);

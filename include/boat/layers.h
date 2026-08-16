@@ -12,6 +12,11 @@
 extern "C" {
 #endif
 
+// Multi-input layer argument: one tensor per incoming edge (merge layers).
+typedef struct {
+    const boat_tensor_t* t;
+} boat_layer_input_t;
+
 // Layer type enumeration for serialization
 typedef enum {
     BOAT_LAYER_TYPE_UNKNOWN = 0,
@@ -29,6 +34,8 @@ typedef enum {
     BOAT_LAYER_TYPE_ATTENTION,
     BOAT_LAYER_TYPE_PRELU,
     BOAT_LAYER_TYPE_EMBEDDING,
+    BOAT_LAYER_TYPE_CONCAT,  // Multi-input merge: join along an axis
+    BOAT_LAYER_TYPE_ADD,     // Multi-input merge: element-wise sum
     BOAT_LAYER_TYPE_COUNT
 } boat_layer_type_t;
 
@@ -202,6 +209,24 @@ BOAT_API void BOAT_CALL boat_softmax_layer_update(boat_softmax_layer_t* layer, f
 BOAT_API int BOAT_CALL boat_softmax_layer_get_axis(const boat_softmax_layer_t* layer);
 
 typedef struct boat_flatten_layer_t boat_flatten_layer_t;
+
+// Concatenation layer: joins N inputs along `dim`. `dim` is 0-based and may
+// be negative (counted from the last dimension, MATLAB-style).
+typedef struct boat_concat_layer_t boat_concat_layer_t;
+BOAT_API boat_concat_layer_t* BOAT_CALL boat_concat_layer_create(int64_t dim);
+BOAT_API void BOAT_CALL boat_concat_layer_free(boat_concat_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL
+boat_concat_layer_forward_many(boat_concat_layer_t* layer, const boat_layer_input_t* inputs,
+                               size_t n_inputs);
+
+// Addition layer: element-wise sum of N inputs (broadcasting; a single input
+// is passed through unchanged).
+typedef struct boat_add_layer_t boat_add_layer_t;
+BOAT_API boat_add_layer_t* BOAT_CALL boat_add_layer_create(void);
+BOAT_API void BOAT_CALL boat_add_layer_free(boat_add_layer_t* layer);
+BOAT_API boat_tensor_t* BOAT_CALL
+boat_add_layer_forward_many(boat_add_layer_t* layer, const boat_layer_input_t* inputs,
+                            size_t n_inputs);
 
 // Recurrent layers
 typedef struct boat_lstm_layer_t boat_lstm_layer_t;

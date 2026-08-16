@@ -130,6 +130,43 @@ BOAT_API void boat_graph_set_evaluator(boat_graph_t* graph, boat_graph_evaluator
 BOAT_API void boat_graph_print(const boat_graph_t* graph);
 BOAT_API char* boat_graph_to_dot(const boat_graph_t* graph);
 
+// ---------------------------------------------------------------------------
+// Graph forward execution (multi-input / multi-output)
+// ---------------------------------------------------------------------------
+
+// IO binding for boat_graph_forward: maps a node to a tensor. For inputs the
+// tensor is fed into the node (a placeholder binding, or an external feed
+// into an operation node); for outputs the node's result tensor is written
+// back, with one reference held for the caller.
+typedef struct {
+    const boat_node_t* node;
+    boat_tensor_t* tensor; // in: input tensor; out: result tensor (ref'd)
+} boat_graph_io_t;
+
+// Operation-node forward evaluator. Returns a NEW reference to the result
+// tensor (the executor owns it) or NULL on error. `inputs` holds the tensors
+// produced by the node's incoming FORWARD edges, in edge-insertion order.
+typedef boat_tensor_t* (*boat_graph_forward_fn_t)(const boat_graph_t* graph,
+                                                  const boat_node_t* op_node,
+                                                  const boat_tensor_t* const* inputs,
+                                                  size_t n_inputs);
+
+// Set the operation-node forward evaluator used by boat_graph_forward. With
+// the default (NULL), operation nodes whose data is a boat_layer_t* (as
+// created by boat_model_add_layer / the layer wrappers) are executed through
+// boat_layer_ops forward / forward_many; non-layer node data is an error.
+BOAT_API void boat_graph_set_forward_fn(boat_graph_t* graph, boat_graph_forward_fn_t fn);
+
+// Execute a graph in topological order. `inputs` maps nodes (placeholders or
+// operation nodes) to tensors; `outputs` collects result tensors by node,
+// each ref'd once for the caller. Placeholder nodes must be bound through
+// `inputs`. OUTPUT nodes pass their single input through. CONSTANT/VARIABLE
+// nodes whose data is a boat_tensor_t* resolve to that tensor. Returns 0 on
+// success, nonzero on error (cycle, unbound placeholder, failed op).
+BOAT_API int boat_graph_forward(const boat_graph_t* graph,
+                                const boat_graph_io_t* inputs, size_t n_inputs,
+                                const boat_graph_io_t* outputs, size_t n_outputs);
+
 // Gradient checkpointing
 BOAT_API void boat_graph_enable_checkpointing(boat_graph_t* graph, bool enabled);
 BOAT_API bool boat_graph_checkpointing_enabled(const boat_graph_t* graph);

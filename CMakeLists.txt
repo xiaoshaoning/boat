@@ -213,6 +213,7 @@ set(BOAT_SOURCES
     src/graph/edge.c
     src/graph/graph.c
     src/graph/optimize.c
+    src/graph/executor.c
     src/layers/dense.c
     src/layers/conv.c
     src/layers/pool.c
@@ -223,6 +224,7 @@ set(BOAT_SOURCES
     src/layers/batchnorm.c
     src/layers/softmax.c
     src/layers/flatten.c
+    src/layers/merge.c
     src/layers/lstm.c
     src/layers/gru.c
     src/model/model.c

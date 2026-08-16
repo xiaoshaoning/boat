@@ -45,6 +45,10 @@ struct boat_graph_t {
 
     // Constant-folding evaluator (opaque node data -> result tensor).
     boat_graph_evaluator_t evaluator;
+
+    // Operation-node forward evaluator for boat_graph_forward (NULL = the
+    // default layer-backed execution in executor.c).
+    boat_graph_forward_fn_t forward_fn;
 };
 
 // Edge list structure for adjacency lists

@@ -195,6 +195,7 @@ BOAT_API boat_graph_t* boat_graph_create_with_device(boat_device_t device) {
     graph->ref_count = 1;
     graph->backing = NULL;
     graph->evaluator = NULL;
+    graph->forward_fn = NULL;
 
     return graph;
 }

@@ -310,83 +310,114 @@ BOAT_API boat_tensor_t* boat_model_forward(const boat_model_t* model, const boat
             }
         }
 
-        boat_tensor_t* layer_input = NULL;
-
-        if (num_inputs == 0) {
-            // First layer in graph - use external input
-            layer_input = (boat_tensor_t*)input; // Cast away const for API compatibility
-        } else if (num_inputs == 1) {
-            // Single input - typical for sequential models
-            for (size_t j = 0; j < boat_graph_edge_count(graph); j++) {
-                const boat_edge_t* edge = boat_graph_get_edge_at_index(graph, j);
-                if (!edge) continue;
-                if (boat_edge_target(edge) == node &&
-                    boat_edge_direction(edge) == BOAT_EDGE_DIRECTION_FORWARD) {
-                    const boat_node_t* source_node = boat_edge_source(edge);
-                    // Find source node index
-                    size_t source_idx = SIZE_MAX;
-                    for (size_t k = 0; k < model->layer_count; k++) {
-                        if (model->nodes[k] == source_node) {
-                            source_idx = k;
-                            break;
-                        }
-                    }
-                    if (source_idx != SIZE_MAX && source_idx < node_count) {
-                        layer_input = node_outputs[source_idx];
-                    }
-                    break;
+        // Gather the incoming tensors in edge order. A node with no incoming
+        // edges (the graph's entry) is fed by the external `input` argument.
+        boat_tensor_t** multi_inputs = NULL;
+        if (num_inputs > 0) {
+            multi_inputs = boat_malloc(num_inputs * sizeof(boat_tensor_t*), BOAT_DEVICE_CPU);
+            if (!multi_inputs) {
+                for (size_t k = 0; k < node_count; k++) {
+                    if (node_outputs[k]) boat_tensor_free(node_outputs[k]);
                 }
+                boat_free(node_outputs);
+                boat_free(sorted_nodes);
+                return NULL;
             }
-        } else {
-            // Multiple inputs - not yet supported for simple sequential models
-            // For now, use first input
+            size_t mi = 0;
             for (size_t j = 0; j < boat_graph_edge_count(graph); j++) {
                 const boat_edge_t* edge = boat_graph_get_edge_at_index(graph, j);
                 if (!edge) continue;
-                if (boat_edge_target(edge) == node &&
-                    boat_edge_direction(edge) == BOAT_EDGE_DIRECTION_FORWARD) {
-                    const boat_node_t* source_node = boat_edge_source(edge);
-                    size_t source_idx = SIZE_MAX;
-                    for (size_t k = 0; k < model->layer_count; k++) {
-                        if (model->nodes[k] == source_node) {
-                            source_idx = k;
-                            break;
-                        }
-                    }
-                    if (source_idx != SIZE_MAX && source_idx < node_count) {
-                        layer_input = node_outputs[source_idx];
+                if (boat_edge_target(edge) != node ||
+                    boat_edge_direction(edge) != BOAT_EDGE_DIRECTION_FORWARD) {
+                    continue;
+                }
+                const boat_node_t* source_node = boat_edge_source(edge);
+                size_t source_idx = SIZE_MAX;
+                for (size_t k = 0; k < model->layer_count; k++) {
+                    if (model->nodes[k] == source_node) {
+                        source_idx = k;
                         break;
                     }
                 }
-            }
-        }
-
-        if (!layer_input && num_inputs > 0) {
-            // Input not available
-            for (size_t k = 0; k < node_count; k++) {
-                if (node_outputs[k]) {
-                    boat_tensor_free(node_outputs[k]);
+                if (source_idx == SIZE_MAX || source_idx >= node_count ||
+                    !node_outputs[source_idx]) {
+                    boat_free(multi_inputs);
+                    for (size_t k = 0; k < node_count; k++) {
+                        if (node_outputs[k]) boat_tensor_free(node_outputs[k]);
+                    }
+                    boat_free(node_outputs);
+                    boat_free(sorted_nodes);
+                    return NULL;
                 }
+                multi_inputs[mi++] = node_outputs[source_idx];
             }
-            boat_free(node_outputs);
-            boat_free(sorted_nodes);
-            return NULL;
+            if (mi != num_inputs) {
+                boat_free(multi_inputs);
+                for (size_t k = 0; k < node_count; k++) {
+                    if (node_outputs[k]) boat_tensor_free(node_outputs[k]);
+                }
+                boat_free(node_outputs);
+                boat_free(sorted_nodes);
+                return NULL;
+            }
         }
 
         // Call layer forward
         boat_tensor_t* output;
-        int fuse_src = -1;
-        if (layer->type == BOAT_LAYER_TYPE_RELU) {
-            fuse_src = find_fusible_producer(model, graph, node);
-        }
-        if (fuse_src >= 0) {
-            // Fusion: relu in place on the producer's output and share the
-            // tensor (extra ref so the shared entry survives cleanup).
-            output = node_outputs[fuse_src];
-            apply_relu_inplace(output);
-            boat_tensor_ref(output);
+        if (num_inputs > 1) {
+            // Merge layers: run the multi-input path (no fusion).
+            if (!layer->ops || !layer->ops->forward_many) {
+                boat_set_errorf(BOAT_ERROR_INVALID_ARGUMENT,
+                                "[Model] layer with %zu inputs has no forward_many\n",
+                                num_inputs);
+                boat_free(multi_inputs);
+                for (size_t k = 0; k < node_count; k++) {
+                    if (node_outputs[k]) boat_tensor_free(node_outputs[k]);
+                }
+                boat_free(node_outputs);
+                boat_free(sorted_nodes);
+                return NULL;
+            }
+            boat_layer_input_t* ins =
+                boat_malloc(num_inputs * sizeof(boat_layer_input_t), BOAT_DEVICE_CPU);
+            if (!ins) {
+                boat_free(multi_inputs);
+                for (size_t k = 0; k < node_count; k++) {
+                    if (node_outputs[k]) boat_tensor_free(node_outputs[k]);
+                }
+                boat_free(node_outputs);
+                boat_free(sorted_nodes);
+                return NULL;
+            }
+            for (size_t k = 0; k < num_inputs; k++) ins[k].t = multi_inputs[k];
+            output = layer->ops->forward_many(layer, ins, num_inputs);
+            boat_free(ins);
+            boat_free(multi_inputs);
         } else {
-            output = layer->ops->forward(layer, layer_input);
+            boat_tensor_t* layer_input =
+                (num_inputs == 0) ? (boat_tensor_t*)input : multi_inputs[0];
+            if (multi_inputs) boat_free(multi_inputs);
+            int fuse_src = -1;
+            if (layer->type == BOAT_LAYER_TYPE_RELU) {
+                fuse_src = find_fusible_producer(model, graph, node);
+            }
+            if (fuse_src >= 0) {
+                // Fusion: relu in place on the producer's output and share the
+                // tensor (extra ref so the shared entry survives cleanup).
+                output = node_outputs[fuse_src];
+                apply_relu_inplace(output);
+                boat_tensor_ref(output);
+            } else {
+                if (!layer->ops || !layer->ops->forward) {
+                    for (size_t k = 0; k < node_count; k++) {
+                        if (node_outputs[k]) boat_tensor_free(node_outputs[k]);
+                    }
+                    boat_free(node_outputs);
+                    boat_free(sorted_nodes);
+                    return NULL;
+                }
+                output = layer->ops->forward(layer, layer_input);
+            }
         }
         if (!output) {
             // Cleanup
@@ -805,7 +836,60 @@ static const boat_layer_ops_t rms_ops = {.forward = rms_forward_op,
                                          .update = rms_update_op,
                                          .free = rms_free_op};
 
-static void set_layer_ops(boat_layer_t* wrapper) {
+// --- Merge ops (concatenation / addition) ---
+static boat_tensor_t* concat_forward_many_op(const boat_layer_t* layer,
+                                             const boat_layer_input_t* inputs,
+                                             size_t n_inputs) {
+    return boat_concat_layer_forward_many((boat_concat_layer_t*)layer->data, inputs, n_inputs);
+}
+static boat_tensor_t* concat_backward_op(const boat_layer_t* layer, const boat_tensor_t* grad) {
+    (void)layer;
+    (void)grad;
+    return NULL; // gradient split not implemented yet (merge layers are forward-only)
+}
+static void concat_update_op(const boat_layer_t* layer, float lr) {
+    (void)layer;
+    (void)lr;
+}
+static void concat_free_op(const boat_layer_t* layer) {
+    if (layer && layer->data) {
+        boat_concat_layer_free((boat_concat_layer_t*)layer->data);
+        free((void*)layer);
+    }
+}
+static const boat_layer_ops_t concat_ops = {.forward = NULL,
+                                            .forward_many = concat_forward_many_op,
+                                            .backward = concat_backward_op,
+                                            .update = concat_update_op,
+                                            .free = concat_free_op};
+
+static boat_tensor_t* add_forward_many_op(const boat_layer_t* layer,
+                                          const boat_layer_input_t* inputs,
+                                          size_t n_inputs) {
+    return boat_add_layer_forward_many((boat_add_layer_t*)layer->data, inputs, n_inputs);
+}
+static boat_tensor_t* add_backward_op(const boat_layer_t* layer, const boat_tensor_t* grad) {
+    (void)layer;
+    (void)grad;
+    return NULL; // gradient split not implemented yet (merge layers are forward-only)
+}
+static void add_update_op(const boat_layer_t* layer, float lr) {
+    (void)layer;
+    (void)lr;
+}
+static void add_free_op(const boat_layer_t* layer) {
+    if (layer && layer->data) {
+        boat_add_layer_free((boat_add_layer_t*)layer->data);
+        free((void*)layer);
+    }
+}
+static const boat_layer_ops_t add_ops = {.forward = NULL,
+                                         .forward_many = add_forward_many_op,
+                                         .backward = add_backward_op,
+                                         .update = add_update_op,
+                                         .free = add_free_op};
+
+BOAT_API void boat_layer_resolve_ops(boat_layer_t* wrapper) {
     switch (wrapper->type) {
     case BOAT_LAYER_TYPE_DENSE: wrapper->ops = &dense_ops; break;
     case BOAT_LAYER_TYPE_CONV2D: wrapper->ops = &conv_ops; break;
@@ -816,6 +900,8 @@ static void set_layer_ops(boat_layer_t* wrapper) {
     case BOAT_LAYER_TYPE_BATCHNORM2D: wrapper->ops = &bn_ops; break;
     case BOAT_LAYER_TYPE_ATTENTION: wrapper->ops = &attn_ops; break;
     case BOAT_LAYER_TYPE_RMSNORM: wrapper->ops = &rms_ops; break;
+    case BOAT_LAYER_TYPE_CONCAT: wrapper->ops = &concat_ops; break;
+    case BOAT_LAYER_TYPE_ADD: wrapper->ops = &add_ops; break;
     default: wrapper->ops = NULL; break;
     }
 }
@@ -1311,7 +1397,7 @@ BOAT_API boat_model_t* boat_model_load(const char* filename) {
             return NULL;
         }
 
-        set_layer_ops(wrapper);
+        boat_layer_resolve_ops(wrapper);
         boat_model_add_layer(model, wrapper);
     }
 
@@ -1358,7 +1444,7 @@ BOAT_API void boat_model_add_layer(boat_model_t* model, boat_layer_t* layer) {
 
     // Auto-set ops if not already assigned
     if (!layer->ops) {
-        set_layer_ops(layer);
+        boat_layer_resolve_ops(layer);
     }
 
     // Expand layers and nodes arrays if needed
