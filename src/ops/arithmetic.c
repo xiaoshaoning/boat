@@ -8,6 +8,7 @@
 #include <string.h>
 #include <math.h>
 #include <float.h>
+#include <limits.h>
 
 #ifdef BOAT_WITH_CUDA
 #include <boat/cuda_runtime.h>
@@ -1334,79 +1335,91 @@ static boat_tensor_t* reduce_axis(const boat_tensor_t* a, const int64_t* dims, s
     double* d_out = (double*)out_data;
     bool is_f64 = (dtype == BOAT_DTYPE_FLOAT64);
 
-    // Each output element is independent: parallelize the outer loop.
-    BOAT_OMP_PARALLEL_FOR_SCHEDULE(static)
-    for (size_t oi = 0; oi < out_nelements; oi++) {
-        // Decode output linear index to the base input offset.
-        size_t rem = oi;
-        size_t base_off = 0;
-        for (size_t d = 0; d < out_ndim; d++) {
-            size_t coord = rem / out_stride[d];
-            rem %= out_stride[d];
-            base_off += coord * in_stride[out_to_in[d]];
-        }
-
-        // The reduced dims are in ascending dim order, so the last one has the
-        // smallest stride. Iterate it innermost: when it is contiguous
-        // (stride 1, i.e. the tensor's last dim) use the SIMD horizontal
-        // reduce; otherwise fall back to scalar.
-        const size_t inner_n = n_red ? red_sizes[n_red - 1] : 0;
-        const size_t inner_stride = n_red ? red_strides[n_red - 1] : 0;
-        const size_t outer_total = inner_n ? red_total / inner_n : 0;
-        const size_t outer_dims = n_red ? n_red - 1 : 0;
-
-        double acc = 0.0;
-        bool first = true;
-        for (size_t r = 0; r < outer_total; r++) {
-            size_t rr = r;
-            size_t red_off = 0;
-            for (size_t d = 0; d < outer_dims; d++) {
-                size_t coord = rr % red_sizes[d];
-                rr /= red_sizes[d];
-                red_off += coord * red_strides[d];
+    // Each output element is independent: parallelize the outer loop. MSVC's
+    // OpenMP 2.0 requires a signed 32-bit int loop variable, so iterate in
+    // INT_MAX-sized chunks and map back to the full-size index.
+    for (size_t oi_base = 0; oi_base < out_nelements; oi_base += (size_t)INT_MAX) {
+        size_t oi_chunk = out_nelements - oi_base;
+        if (oi_chunk > (size_t)INT_MAX) oi_chunk = (size_t)INT_MAX;
+        // MSVC's OpenMP 2.0 requires a signed 32-bit int loop variable
+        // declared outside the for statement.
+        int oi_i;
+        BOAT_OMP_PARALLEL_FOR_SCHEDULE(static)
+        for (oi_i = 0; oi_i < (int)oi_chunk; oi_i++) {
+            const size_t oi = oi_base + (size_t)oi_i;
+            // Decode output linear index to the base input offset.
+            size_t rem = oi;
+            size_t base_off = 0;
+            for (size_t d = 0; d < out_ndim; d++) {
+                size_t coord = rem / out_stride[d];
+                rem %= out_stride[d];
+                base_off += coord * in_stride[out_to_in[d]];
             }
-            if (!is_f64 && inner_stride == 1) {
-                const float* p = f_in + base_off + red_off;
-                double v;
-                switch (kind) {
-                case BOAT_REDUCE_SUM:
-                case BOAT_REDUCE_MEAN: acc += (double)boat_simd_sum_reduce_f32(p, inner_n); break;
-                case BOAT_REDUCE_MAX:
-                    v = (double)boat_simd_max_reduce_f32(p, inner_n);
-                    if (first || v > acc) acc = v;
-                    first = false;
-                    break;
-                case BOAT_REDUCE_MIN:
-                    v = (double)boat_simd_min_reduce_f32(p, inner_n);
-                    if (first || v < acc) acc = v;
-                    first = false;
-                    break;
+
+            // The reduced dims are in ascending dim order, so the last one has the
+            // smallest stride. Iterate it innermost: when it is contiguous
+            // (stride 1, i.e. the tensor's last dim) use the SIMD horizontal
+            // reduce; otherwise fall back to scalar.
+            const size_t inner_n = n_red ? red_sizes[n_red - 1] : 0;
+            const size_t inner_stride = n_red ? red_strides[n_red - 1] : 0;
+            const size_t outer_total = inner_n ? red_total / inner_n : 0;
+            const size_t outer_dims = n_red ? n_red - 1 : 0;
+
+            double acc = 0.0;
+            bool first = true;
+            for (size_t r = 0; r < outer_total; r++) {
+                size_t rr = r;
+                size_t red_off = 0;
+                for (size_t d = 0; d < outer_dims; d++) {
+                    size_t coord = rr % red_sizes[d];
+                    rr /= red_sizes[d];
+                    red_off += coord * red_strides[d];
                 }
-            } else {
-                for (size_t j = 0; j < inner_n; j++) {
-                    size_t off = red_off + j * inner_stride;
-                    double v = is_f64 ? d_in[base_off + off] : (double)f_in[base_off + off];
+                if (!is_f64 && inner_stride == 1) {
+                    const float* p = f_in + base_off + red_off;
+                    double v;
                     switch (kind) {
                     case BOAT_REDUCE_SUM:
-                    case BOAT_REDUCE_MEAN: acc += v; break;
+                    case BOAT_REDUCE_MEAN:
+                        acc += (double)boat_simd_sum_reduce_f32(p, inner_n);
+                        break;
                     case BOAT_REDUCE_MAX:
+                        v = (double)boat_simd_max_reduce_f32(p, inner_n);
                         if (first || v > acc) acc = v;
                         first = false;
                         break;
                     case BOAT_REDUCE_MIN:
+                        v = (double)boat_simd_min_reduce_f32(p, inner_n);
                         if (first || v < acc) acc = v;
                         first = false;
                         break;
                     }
+                } else {
+                    for (size_t j = 0; j < inner_n; j++) {
+                        size_t off = red_off + j * inner_stride;
+                        double v = is_f64 ? d_in[base_off + off] : (double)f_in[base_off + off];
+                        switch (kind) {
+                        case BOAT_REDUCE_SUM:
+                        case BOAT_REDUCE_MEAN: acc += v; break;
+                        case BOAT_REDUCE_MAX:
+                            if (first || v > acc) acc = v;
+                            first = false;
+                            break;
+                        case BOAT_REDUCE_MIN:
+                            if (first || v < acc) acc = v;
+                            first = false;
+                            break;
+                        }
+                    }
                 }
             }
-        }
-        if (kind == BOAT_REDUCE_MEAN && red_total > 0) acc /= (double)red_total;
+            if (kind == BOAT_REDUCE_MEAN && red_total > 0) acc /= (double)red_total;
 
-        if (is_f64)
-            d_out[oi] = acc;
-        else
-            f_out[oi] = (float)acc;
+            if (is_f64)
+                d_out[oi] = acc;
+            else
+                f_out[oi] = (float)acc;
+        }
     }
 
     return out;

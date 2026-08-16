@@ -9,6 +9,7 @@
 #include "../core/openmp.h"
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 
@@ -358,11 +359,19 @@ BOAT_API boat_tensor_t* boat_transpose(const boat_tensor_t* a, int dim0, int dim
             size_t rows = (size_t)shape[dim0];
             size_t cols = (size_t)shape[dim1];
             size_t n_mat = (rows && cols) ? total_elements / (rows * cols) : 0;
-            // Each trailing matrix transposes independently.
-            BOAT_OMP_PARALLEL_FOR_SCHEDULE(static)
-            for (size_t m = 0; m < n_mat; m++) {
-                boat_simd_transpose2d_f32(in_ptr + m * rows * cols,
-                                          out_ptr + m * rows * cols, rows, cols);
+            // Each trailing matrix transposes independently. MSVC's OpenMP 2.0
+            // requires a signed 32-bit int loop variable, so iterate in
+            // INT_MAX-sized chunks and map back to the full-size index.
+            for (size_t m_base = 0; m_base < n_mat; m_base += (size_t)INT_MAX) {
+                size_t m_chunk = n_mat - m_base;
+                if (m_chunk > (size_t)INT_MAX) m_chunk = (size_t)INT_MAX;
+                int m_i;
+                BOAT_OMP_PARALLEL_FOR_SCHEDULE(static)
+                for (m_i = 0; m_i < (int)m_chunk; m_i++) {
+                    size_t m = m_base + (size_t)m_i;
+                    const size_t off = m * rows * cols;
+                    boat_simd_transpose2d_f32(in_ptr + off, out_ptr + off, rows, cols);
+                }
             }
             return out;
         }

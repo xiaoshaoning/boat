@@ -72,9 +72,12 @@ static boat_tensor_t* compute_input_gradient(const boat_conv_layer_t* layer,
     size_t in_channels_per_group = layer->in_channels / layer->groups;
     size_t out_channels_per_group = layer->out_channels / layer->groups;
 
-    // For each batch (parallel: grad_input[b] slices are disjoint)
+    // For each batch (parallel: grad_input[b] slices are disjoint). MSVC's
+    // OpenMP 2.0 requires a signed 32-bit int loop variable declared outside
+    // the for statement.
+    int b;
     BOAT_OMP_PARALLEL_FOR_SCHEDULE(static)
-    for (int64_t b = 0; b < batch; b++) {
+    for (b = 0; b < (int)batch; b++) {
         // For each group
         for (size_t g = 0; g < layer->groups; g++) {
             size_t oc_start = g * out_channels_per_group;
@@ -201,8 +204,11 @@ static bool compute_weight_gradient_into(const boat_conv_layer_t* layer,
 
     // For each output channel (parallel: grad_weight[oc] slices are disjoint;
     // the group is derived from oc since groups partition the channel dims).
+    // MSVC's OpenMP 2.0 requires a signed 32-bit int loop variable declared
+    // outside the for statement.
+    int oc;
     BOAT_OMP_PARALLEL_FOR_SCHEDULE(static)
-    for (int64_t oc = 0; oc < (int64_t)out_channels; oc++) {
+    for (oc = 0; oc < (int)out_channels; oc++) {
         size_t g = (size_t)oc / out_channels_per_group;
         size_t ic_start = g * in_channels_per_group;
         size_t ic_end = ic_start + in_channels_per_group;
@@ -310,9 +316,11 @@ static bool compute_bias_gradient_into(const boat_conv_layer_t* layer, const int
     memset(grad_bias_data, 0, layer->out_channels * sizeof(float));
 
     // Sum grad_output over batch, height, width dimensions (parallel over oc:
-    // grad_bias[oc] is disjoint per oc).
+    // grad_bias[oc] is disjoint per oc). MSVC's OpenMP 2.0 requires a signed
+    // 32-bit int loop variable declared outside the for statement.
+    int oc;
     BOAT_OMP_PARALLEL_FOR_SCHEDULE(static)
-    for (int64_t oc = 0; oc < (int64_t)layer->out_channels; oc++) {
+    for (oc = 0; oc < (int)layer->out_channels; oc++) {
         float sum = 0.0f;
         for (int64_t b = 0; b < batch; b++) {
             const float* block = grad_output_data + (size_t)(b * out_channels + oc) *
@@ -449,8 +457,11 @@ static void conv2d_forward_stride1(const float* in, const float* w, const float*
     const size_t ocpg = out_ch / groups;
     const size_t icpg = in_ch / groups;
     // Parallelize over the batch: each image writes distinct output rows.
+    // MSVC's OpenMP 2.0 requires a signed 32-bit int loop variable declared
+    // outside the for statement.
+    int b;
     BOAT_OMP_PARALLEL_FOR_SCHEDULE(static)
-    for (int64_t b = 0; b < batch; b++) {
+    for (b = 0; b < (int)batch; b++) {
         for (size_t g = 0; g < groups; g++) {
             const size_t oc0 = g * ocpg;
             const size_t ic0 = g * icpg;
@@ -538,8 +549,11 @@ static void conv2d_forward_im2col(const float* in, const float* w, const float* 
     const int64_t N = ho * wo; // output positions per image
     // Parallelize over the batch: each image builds its own column matrix and
     // GEMM (thread-local buffers). Without OpenMP this is a plain loop.
+    // MSVC's OpenMP 2.0 requires a signed 32-bit int loop variable declared
+    // outside the for statement.
+    int b;
     BOAT_OMP_PARALLEL_FOR_SCHEDULE(static)
-    for (int64_t b = 0; b < batch; b++) {
+    for (b = 0; b < (int)batch; b++) {
         float* col = (float*)malloc(ckk * (size_t)N * sizeof(float));
         float* cblk = (float*)malloc(ocpg * (size_t)N * sizeof(float));
         if (!col || !cblk) {
