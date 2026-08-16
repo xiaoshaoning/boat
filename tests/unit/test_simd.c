@@ -346,7 +346,15 @@ static void test_elementwise_and_norm_kernels(void) {
         boat_simd_sub_f32(a, b, got, n);
         for (size_t i = 0; i < n; i++) CHECK(fabsf(got[i] - (a[i] - b[i])) <= 1e-6f, "sub");
         boat_simd_mul_f32(a, b, got, n);
-        for (size_t i = 0; i < n; i++) CHECK(fabsf(got[i] - (a[i] * b[i])) <= 1e-6f, "mul");
+        for (size_t i = 0; i < n; i++) {
+            // got[i] is bit-exact a[i]*b[i], but the check needs a
+            // magnitude-relative tolerance: Apple Clang on arm64 contracts
+            // `got[i] - (a[i]*b[i])` into a fused multiply-subtract (default
+            // -ffp-contract=on), leaving the product's rounding residual
+            // (up to ~2^-24 * |a*b|) instead of exactly 0.
+            float ref = a[i] * b[i];
+            CHECK(fabsf(got[i] - ref) <= 1e-6f * (1.0f + fabsf(ref)), "mul");
+        }
         boat_simd_div_f32(a, b, got, n);
         for (size_t i = 0; i < n; i++)
             CHECK(fabsf(got[i] - (a[i] / b[i])) <= 1e-6f, "div");
@@ -355,7 +363,11 @@ static void test_elementwise_and_norm_kernels(void) {
         boat_simd_sub_scalar_f32(a, s, got, n);
         for (size_t i = 0; i < n; i++) CHECK(fabsf(got[i] - (a[i] - s)) <= 1e-6f, "sub_scalar");
         boat_simd_mul_scalar_f32(a, s, got, n);
-        for (size_t i = 0; i < n; i++) CHECK(fabsf(got[i] - (a[i] * s)) <= 1e-6f, "mul_scalar");
+        for (size_t i = 0; i < n; i++) {
+            // Same FMA-contraction rationale as the mul check above.
+            float ref = a[i] * s;
+            CHECK(fabsf(got[i] - ref) <= 1e-6f * (1.0f + fabsf(ref)), "mul_scalar");
+        }
         boat_simd_div_scalar_f32(a, s, got, n);
         for (size_t i = 0; i < n; i++) CHECK(fabsf(got[i] - (a[i] / s)) <= 1e-6f, "div_scalar");
         boat_simd_abs_f32(a, got, n);
