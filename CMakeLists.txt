@@ -1,6 +1,6 @@
 # CMakeLists.txt - Build configuration for Boat Deep Learning Framework
 cmake_minimum_required(VERSION 3.10)
-project(boat VERSION 0.6.4 LANGUAGES C)
+project(boat VERSION 0.6.5 LANGUAGES C)
 
 # Git version information
 find_package(Git QUIET)
