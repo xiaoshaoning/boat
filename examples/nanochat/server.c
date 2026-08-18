@@ -840,3 +840,38 @@ int nanochat_start_server(const char* model_dir, const char* host, int port) {
     platform_cleanup();
     return 0;
 }
+
+// ---------------------------------------------------------------------------
+// Entry point
+// ---------------------------------------------------------------------------
+int main(int argc, char** argv) {
+    const char* model_dir = NULL;
+    const char* host = "127.0.0.1";
+    int port = 8080;
+
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--model") == 0 && i + 1 < argc)
+            model_dir = argv[++i];
+        else if (strcmp(argv[i], "--host") == 0 && i + 1 < argc)
+            host = argv[++i];
+        else if (strcmp(argv[i], "--port") == 0 && i + 1 < argc)
+            port = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--max-tokens") == 0 && i + 1 < argc)
+            nanochat_server_set_max_tokens(atoi(argv[++i]));
+        else if (strcmp(argv[i], "--temperature") == 0 && i + 1 < argc)
+            nanochat_server_set_default_temperature((float)atof(argv[++i]));
+        else if (strcmp(argv[i], "--top-k") == 0 && i + 1 < argc)
+            nanochat_server_set_default_top_k(atoi(argv[++i]));
+        else if (!model_dir)
+            model_dir = argv[i];
+    }
+
+    if (!model_dir) {
+        fprintf(stderr, "Usage: nanochat_server <model_dir> [--host HOST] [--port PORT] "
+                        "[--max-tokens N] [--temperature T] [--top-k K]\n");
+        return 1;
+    }
+
+    fprintf(stderr, "[Server] Starting on %s:%d with model %s\n", host, port, model_dir);
+    return nanochat_start_server(model_dir, host, port);
+}
