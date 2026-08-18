@@ -53,7 +53,7 @@ static void test_concat_two_inputs(void) {
     boat_node_t* p2 = boat_graph_add_node(g, NULL, BOAT_NODE_TYPE_PLACEHOLDER, NULL);
     boat_concat_layer_t* cl = boat_concat_layer_create(0);
     boat_node_t* cn = boat_graph_add_node(g, wrap_layer(cl, BOAT_LAYER_TYPE_CONCAT),
-                                          BOAT_NODE_TYPE_OPERATION, NULL);
+                                          BOAT_NODE_TYPE_OPERATION, free);
     boat_node_t* out = boat_graph_add_node(g, NULL, BOAT_NODE_TYPE_OUTPUT, NULL);
     boat_graph_add_edge(g, p1, cn, BOAT_EDGE_DIRECTION_FORWARD);
     boat_graph_add_edge(g, p2, cn, BOAT_EDGE_DIRECTION_FORWARD);
@@ -94,7 +94,7 @@ static void test_concat_negative_axis_and_add(void) {
         boat_node_t* p2 = boat_graph_add_node(g, NULL, BOAT_NODE_TYPE_PLACEHOLDER, NULL);
         boat_concat_layer_t* cl = boat_concat_layer_create(-1);
         boat_node_t* cn = boat_graph_add_node(g, wrap_layer(cl, BOAT_LAYER_TYPE_CONCAT),
-                                              BOAT_NODE_TYPE_OPERATION, NULL);
+                                              BOAT_NODE_TYPE_OPERATION, free);
         boat_node_t* out = boat_graph_add_node(g, NULL, BOAT_NODE_TYPE_OUTPUT, NULL);
         boat_graph_add_edge(g, p1, cn, BOAT_EDGE_DIRECTION_FORWARD);
         boat_graph_add_edge(g, p2, cn, BOAT_EDGE_DIRECTION_FORWARD);
@@ -129,7 +129,7 @@ static void test_concat_negative_axis_and_add(void) {
         boat_node_t* p2 = boat_graph_add_node(g, NULL, BOAT_NODE_TYPE_PLACEHOLDER, NULL);
         boat_add_layer_t* al = boat_add_layer_create();
         boat_node_t* an = boat_graph_add_node(g, wrap_layer(al, BOAT_LAYER_TYPE_ADD),
-                                              BOAT_NODE_TYPE_OPERATION, NULL);
+                                              BOAT_NODE_TYPE_OPERATION, free);
         boat_node_t* out = boat_graph_add_node(g, NULL, BOAT_NODE_TYPE_OUTPUT, NULL);
         boat_graph_add_edge(g, p1, an, BOAT_EDGE_DIRECTION_FORWARD);
         boat_graph_add_edge(g, p2, an, BOAT_EDGE_DIRECTION_FORWARD);
@@ -172,41 +172,53 @@ static void test_mixed_dag(void) {
     boat_dense_layer_t* d1 = boat_dense_layer_create(2, 3, true);
     const float w1[6] = {1, 0, 1, 0, 1, 1};
     const float b1[3] = {0.5f, 0.5f, 0.5f};
-    boat_dense_layer_set_weight(d1, f32_tensor((const int64_t[]){2, 3}, 2, w1));
-    boat_dense_layer_set_bias(d1, f32_tensor((const int64_t[]){3}, 1, b1));
+    boat_tensor_t* w1t = f32_tensor((const int64_t[]){2, 3}, 2, w1);
+    boat_dense_layer_set_weight(d1, w1t);
+    boat_tensor_unref(w1t);
+    boat_tensor_t* b1t = f32_tensor((const int64_t[]){3}, 1, b1);
+    boat_dense_layer_set_bias(d1, b1t);
+    boat_tensor_unref(b1t);
     boat_node_t* n1 = boat_graph_add_node(g, wrap_layer(d1, BOAT_LAYER_TYPE_DENSE),
-                                          BOAT_NODE_TYPE_OPERATION, NULL);
+                                          BOAT_NODE_TYPE_OPERATION, free);
     boat_relu_layer_t* rl = boat_relu_layer_create();
     boat_node_t* n_relu = boat_graph_add_node(g, wrap_layer(rl, BOAT_LAYER_TYPE_RELU),
-                                              BOAT_NODE_TYPE_OPERATION, NULL);
+                                              BOAT_NODE_TYPE_OPERATION, free);
 
     // dense2: 2 -> 3
     boat_dense_layer_t* d2 = boat_dense_layer_create(2, 3, true);
     const float w2[6] = {1, 1, 1, 0, 1, 0};
     const float b2[3] = {0, 0, 0};
-    boat_dense_layer_set_weight(d2, f32_tensor((const int64_t[]){2, 3}, 2, w2));
-    boat_dense_layer_set_bias(d2, f32_tensor((const int64_t[]){3}, 1, b2));
+    boat_tensor_t* w2t = f32_tensor((const int64_t[]){2, 3}, 2, w2);
+    boat_dense_layer_set_weight(d2, w2t);
+    boat_tensor_unref(w2t);
+    boat_tensor_t* b2t = f32_tensor((const int64_t[]){3}, 1, b2);
+    boat_dense_layer_set_bias(d2, b2t);
+    boat_tensor_unref(b2t);
     boat_node_t* n2 = boat_graph_add_node(g, wrap_layer(d2, BOAT_LAYER_TYPE_DENSE),
-                                          BOAT_NODE_TYPE_OPERATION, NULL);
+                                          BOAT_NODE_TYPE_OPERATION, free);
 
     // add
     boat_add_layer_t* al = boat_add_layer_create();
     boat_node_t* n_add =
-        boat_graph_add_node(g, wrap_layer(al, BOAT_LAYER_TYPE_ADD), BOAT_NODE_TYPE_OPERATION, NULL);
+        boat_graph_add_node(g, wrap_layer(al, BOAT_LAYER_TYPE_ADD), BOAT_NODE_TYPE_OPERATION, free);
 
     // dense3: 2 -> 3
     boat_dense_layer_t* d3 = boat_dense_layer_create(2, 3, true);
     const float w3[6] = {0, 1, 0, 1, 0, 1};
     const float b3[3] = {1, 1, 1};
-    boat_dense_layer_set_weight(d3, f32_tensor((const int64_t[]){2, 3}, 2, w3));
-    boat_dense_layer_set_bias(d3, f32_tensor((const int64_t[]){3}, 1, b3));
+    boat_tensor_t* w3t = f32_tensor((const int64_t[]){2, 3}, 2, w3);
+    boat_dense_layer_set_weight(d3, w3t);
+    boat_tensor_unref(w3t);
+    boat_tensor_t* b3t = f32_tensor((const int64_t[]){3}, 1, b3);
+    boat_dense_layer_set_bias(d3, b3t);
+    boat_tensor_unref(b3t);
     boat_node_t* n3 = boat_graph_add_node(g, wrap_layer(d3, BOAT_LAYER_TYPE_DENSE),
-                                          BOAT_NODE_TYPE_OPERATION, NULL);
+                                          BOAT_NODE_TYPE_OPERATION, free);
 
     // concat(dim -1) of add[1,3] and dense3[1,3] -> [1,6]
     boat_concat_layer_t* cl = boat_concat_layer_create(-1);
     boat_node_t* n_cat = boat_graph_add_node(g, wrap_layer(cl, BOAT_LAYER_TYPE_CONCAT),
-                                             BOAT_NODE_TYPE_OPERATION, NULL);
+                                             BOAT_NODE_TYPE_OPERATION, free);
     boat_node_t* out = boat_graph_add_node(g, NULL, BOAT_NODE_TYPE_OUTPUT, NULL);
 
     boat_graph_add_edge(g, p, n1, BOAT_EDGE_DIRECTION_FORWARD);
@@ -260,7 +272,7 @@ static void test_errors(void) {
         boat_node_t* p2 = boat_graph_add_node(g, NULL, BOAT_NODE_TYPE_PLACEHOLDER, NULL);
         boat_concat_layer_t* cl = boat_concat_layer_create(0);
         boat_node_t* cn = boat_graph_add_node(g, wrap_layer(cl, BOAT_LAYER_TYPE_CONCAT),
-                                              BOAT_NODE_TYPE_OPERATION, NULL);
+                                              BOAT_NODE_TYPE_OPERATION, free);
         boat_node_t* out = boat_graph_add_node(g, NULL, BOAT_NODE_TYPE_OUTPUT, NULL);
         boat_graph_add_edge(g, p1, cn, BOAT_EDGE_DIRECTION_FORWARD);
         boat_graph_add_edge(g, p2, cn, BOAT_EDGE_DIRECTION_FORWARD);
@@ -282,7 +294,7 @@ static void test_errors(void) {
         boat_node_t* p = boat_graph_add_node(g, NULL, BOAT_NODE_TYPE_PLACEHOLDER, NULL);
         boat_relu_layer_t* rl = boat_relu_layer_create();
         boat_node_t* op = boat_graph_add_node(g, wrap_layer(rl, BOAT_LAYER_TYPE_RELU),
-                                              BOAT_NODE_TYPE_OPERATION, NULL);
+                                              BOAT_NODE_TYPE_OPERATION, free);
         boat_graph_add_edge(g, p, op, BOAT_EDGE_DIRECTION_FORWARD);
         boat_graph_add_edge(g, op, p, BOAT_EDGE_DIRECTION_FORWARD); // back edge -> cycle
 
@@ -340,7 +352,7 @@ static void test_constant_node(void) {
     boat_node_t* cn = boat_graph_add_node(g, c, BOAT_NODE_TYPE_CONSTANT, NULL);
     boat_relu_layer_t* rl = boat_relu_layer_create();
     boat_node_t* op = boat_graph_add_node(g, wrap_layer(rl, BOAT_LAYER_TYPE_RELU),
-                                          BOAT_NODE_TYPE_OPERATION, NULL);
+                                          BOAT_NODE_TYPE_OPERATION, free);
     boat_node_t* out = boat_graph_add_node(g, NULL, BOAT_NODE_TYPE_OUTPUT, NULL);
     boat_graph_add_edge(g, cn, op, BOAT_EDGE_DIRECTION_FORWARD);
     boat_graph_add_edge(g, op, out, BOAT_EDGE_DIRECTION_FORWARD);

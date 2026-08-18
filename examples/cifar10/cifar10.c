@@ -416,7 +416,7 @@ static void backward_pass(cifar10_model_t* model, boat_tensor_t* grad_output) {
 // Free-op for the save view: only the wrapper struct is freed; the layer data
 // belongs to the live model (freed in free_cifar10_model).
 static void view_free_op(const boat_layer_t* layer) { free((void*)layer); }
-static const boat_layer_ops_t view_ops = {NULL, NULL, NULL, view_free_op};
+static const boat_layer_ops_t view_ops = {.free = view_free_op};
 
 // Generate a small random dataset in memory so the full pipeline (model,
 // optimizer, training loop, evaluation) runs without the CIFAR-10 files.
