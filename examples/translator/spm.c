@@ -1,4 +1,7 @@
 // spm.c - Minimal SentencePiece-like tokenizer using vocab.json
+#if !defined(_POSIX_C_SOURCE)
+#define _POSIX_C_SOURCE 200809L
+#endif
 #include "spm.h"
 #include "json.h"
 #include <stdlib.h>

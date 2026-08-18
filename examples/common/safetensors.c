@@ -1,4 +1,7 @@
 // safetensors.c - Minimal safetensors weight reader with BF16 to FP32 conversion
+#if !defined(_POSIX_C_SOURCE)
+#define _POSIX_C_SOURCE 200809L
+#endif
 #include "safetensors.h"
 #include "json.h"
 #include <stdio.h>

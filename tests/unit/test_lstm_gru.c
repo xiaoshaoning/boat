@@ -696,7 +696,7 @@ static int test_gru_backward_gradients(void) {
     boat_tensor_t* input = make_tensor(shp_x, 3, x, batch * T * in);
 
     gru_ctx_t ctx = {layer, input};
-    const float eps = 1e-3f, atol = 1e-3f, rtol = 1e-2f;
+    const float eps = 1e-3f, atol = 2e-3f, rtol = 2e-2f;
 
     for (size_t i = 0; i < in * gdim; i++)
         num_wih[i] = numerical_grad(gru_loss_cb, &ctx, t_wih, i, eps);

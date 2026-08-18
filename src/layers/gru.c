@@ -40,6 +40,7 @@ struct boat_gru_layer_t {
     size_t cache_batch;
     float** cache_gates; // Combined raw pre-activations per timestep [batch, 3*hidden]
     float** cache_a_hh;  // Hidden contribution per timestep [batch, 3*hidden]
+    float** cache_a_n;   // Candidate pre-activation per timestep [batch, hidden]
     float** cache_h;     // Hidden state per timestep [batch, hidden]
 };
 
@@ -123,6 +124,13 @@ static void gru_clear_cache(boat_gru_layer_t* layer) {
         boat_free(layer->cache_a_hh);
         layer->cache_a_hh = NULL;
     }
+    if (layer->cache_a_n) {
+        for (size_t t = 0; t < layer->cache_seq_len; t++) {
+            if (layer->cache_a_n[t]) boat_free(layer->cache_a_n[t]);
+        }
+        boat_free(layer->cache_a_n);
+        layer->cache_a_n = NULL;
+    }
     if (layer->cache_h) {
         for (size_t t = 0; t < layer->cache_seq_len; t++) {
             if (layer->cache_h[t]) boat_free(layer->cache_h[t]);
@@ -180,6 +188,7 @@ BOAT_API boat_gru_layer_t* BOAT_CALL boat_gru_layer_create(size_t input_size, si
     layer->cache_batch = 0;
     layer->cache_gates = NULL;
     layer->cache_a_hh = NULL;
+    layer->cache_a_n = NULL;
     layer->cache_h = NULL;
 
     return layer;
@@ -245,14 +254,17 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_forward(boat_gru_layer_t* layer
     // Allocate per-timestep cache arrays
     layer->cache_gates = (float**)boat_malloc(seq_len * sizeof(float*), BOAT_DEVICE_CPU);
     layer->cache_a_hh = (float**)boat_malloc(seq_len * sizeof(float*), BOAT_DEVICE_CPU);
+    layer->cache_a_n = (float**)boat_malloc(seq_len * sizeof(float*), BOAT_DEVICE_CPU);
     layer->cache_h = (float**)boat_malloc(seq_len * sizeof(float*), BOAT_DEVICE_CPU);
-    if (!layer->cache_gates || !layer->cache_a_hh || !layer->cache_h) {
+    if (!layer->cache_gates || !layer->cache_a_hh || !layer->cache_a_n || !layer->cache_h) {
         // Free whatever was allocated so gru_clear_cache has nothing to walk
         if (layer->cache_gates) boat_free(layer->cache_gates);
         if (layer->cache_a_hh) boat_free(layer->cache_a_hh);
+        if (layer->cache_a_n) boat_free(layer->cache_a_n);
         if (layer->cache_h) boat_free(layer->cache_h);
         layer->cache_gates = NULL;
         layer->cache_a_hh = NULL;
+        layer->cache_a_n = NULL;
         layer->cache_h = NULL;
         gru_clear_cache(layer);
         return NULL;
@@ -260,6 +272,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_forward(boat_gru_layer_t* layer
     for (size_t t = 0; t < seq_len; t++) {
         layer->cache_gates[t] = NULL;
         layer->cache_a_hh[t] = NULL;
+        layer->cache_a_n[t] = NULL;
         layer->cache_h[t] = NULL;
     }
 
@@ -333,6 +346,21 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_forward(boat_gru_layer_t* layer
                 rb[j] = gru_sigmoid_f32(row[j]);
         }
         // Candidate + hidden-state update (scalar; needs the masked matmul).
+        // The candidate pre-activation is cached so the backward pass reuses
+        // the exact same value instead of re-summing in a different order.
+        layer->cache_a_n[t] =
+            (float*)boat_malloc(batch * hidden * sizeof(float), BOAT_DEVICE_CPU);
+        if (!layer->cache_a_n[t]) {
+            boat_free(a_ih);
+            boat_free(a_hh);
+            boat_free(combined);
+            boat_free(h_prev);
+            boat_free(h_curr);
+            boat_free(rbuf);
+            boat_tensor_free(output);
+            gru_clear_cache(layer);
+            return NULL;
+        }
         for (size_t b = 0; b < batch; b++) {
             const float* row = combined + b * gate_dim;
             const float* aih = a_ih + b * gate_dim;
@@ -346,7 +374,9 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_forward(boat_gru_layer_t* layer
                 float acc = bhh[j];
                 for (size_t k = 0; k < hidden; k++)
                     acc += whh_n[k * gate_dim + j] * (rb[k] * hpb[k]);
-                float n = tanhf(aih[2 * hidden + j] + acc);
+                float a_n = aih[2 * hidden + j] + acc;
+                layer->cache_a_n[t][b * hidden + j] = a_n;
+                float n = tanhf(a_n);
                 hb[j] = (1.0f - z) * hpb[j] + z * n;
             }
         }
@@ -401,7 +431,8 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_backward(boat_gru_layer_t* laye
     if (!layer || !grad_output) {
         return NULL;
     }
-    if (!layer->cache_input || !layer->cache_gates || !layer->cache_a_hh || !layer->cache_h) {
+    if (!layer->cache_input || !layer->cache_gates || !layer->cache_a_hh ||
+        !layer->cache_a_n || !layer->cache_h) {
         return NULL;
     }
     if (!layer->weight_ih || !layer->weight_hh || !layer->bias_ih || !layer->bias_hh) {
@@ -433,8 +464,6 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_backward(boat_gru_layer_t* laye
     const float* dy = (const float*)boat_tensor_const_data(grad_output);
     const float* w_ih = (const float*)boat_tensor_const_data(layer->weight_ih);
     const float* w_hh = (const float*)boat_tensor_const_data(layer->weight_hh);
-    const float* b_ih = (const float*)boat_tensor_const_data(layer->bias_ih);
-    const float* b_hh = (const float*)boat_tensor_const_data(layer->bias_hh);
     float* dx = (float*)boat_tensor_data(grad_input);
 
     // Lazy-create gradient accumulators
@@ -532,7 +561,6 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_backward(boat_gru_layer_t* laye
         for (size_t b = 0; b < batch; b++) {
             const float* row = gates_t + b * gate_dim;
             const float* hpb = (h_prev_t != NULL) ? h_prev_t + b * hidden : NULL;
-            const float* xt = x + t * batch * input_size + b * input_size;
             float* da_ih = d_a_ih + b * gate_dim;
             float* dhb = d_h + b * hidden;
             float* dhr = d_h_rec + b * hidden;
@@ -552,14 +580,7 @@ BOAT_API boat_tensor_t* BOAT_CALL boat_gru_layer_backward(boat_gru_layer_t* laye
             for (size_t j = 0; j < hidden; j++) {
                 float hp = hpb ? hpb[j] : 0.0f;
                 float z = zv2[b * hidden + j];
-
-                float a_n = b_ih[2 * hidden + j] + b_hh[2 * hidden + j];
-                for (size_t p = 0; p < input_size; p++)
-                    a_n += xt[p] * w_ih[p * gate_dim + 2 * hidden + j];
-                for (size_t p = 0; p < hidden; p++)
-                    a_n += w_hh[p * gate_dim + 2 * hidden + j] *
-                           (rv2[b * hidden + p] * (hpb ? hpb[p] : 0.0f));
-                float n = tanhf(a_n);
+                float n = tanhf(layer->cache_a_n[t][b * hidden + j]);
 
                 float d_n_raw = (dhb[j] * z) * (1.0f - n * n);
                 float d_z_raw = (dhb[j] * (n - hp)) * z * (1.0f - z);
