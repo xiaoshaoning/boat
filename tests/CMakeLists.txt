@@ -56,6 +56,10 @@ target_link_libraries(test_attention_gradient_check boat)
 boat_add_test_executable(test_attention_training test_attention_training.c)
 target_link_libraries(test_attention_training boat)
 
+# Dropout layer test
+boat_add_test_executable(test_dropout unit/test_dropout.c)
+target_link_libraries(test_dropout boat)
+
 # Convolutional layer gradient check test
 boat_add_test_executable(test_conv_gradient_check unit/test_conv_gradient_check.c)
 target_link_libraries(test_conv_gradient_check boat)

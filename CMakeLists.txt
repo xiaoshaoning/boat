@@ -228,6 +228,7 @@ set(BOAT_SOURCES
     src/layers/merge.c
     src/layers/lstm.c
     src/layers/gru.c
+    src/layers/dropout.c
     src/model/model.c
     src/model/sequential.c
     src/model/graph_model.c
